@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import nipplejs from 'nipplejs'
 import LandScene from './components/LandScene'
 import PolygonEditor, { calculatePolygonArea } from './components/PolygonEditor'
 
@@ -20,6 +21,53 @@ const BUILDING_TYPES = [
   { id: 'pool', name: 'Swimming Pool', width: 5, length: 10, height: -1.5, color: '#00CED1' },
 ]
 
+// Virtual Joystick component for mobile
+function VirtualJoystick({ joystickInput }) {
+  const joystickRef = useRef(null)
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const manager = nipplejs.create({
+      zone: containerRef.current,
+      mode: 'static',
+      position: { left: '80px', bottom: '80px' },
+      color: 'white',
+      size: 120,
+      restOpacity: 0.5,
+    })
+
+    joystickRef.current = manager
+
+    manager.on('move', (_, data) => {
+      if (data.vector && joystickInput.current) {
+        joystickInput.current.x = data.vector.x
+        joystickInput.current.y = data.vector.y
+      }
+    })
+
+    manager.on('end', () => {
+      if (joystickInput.current) {
+        joystickInput.current.x = 0
+        joystickInput.current.y = 0
+      }
+    })
+
+    return () => {
+      manager.destroy()
+    }
+  }, [joystickInput])
+
+  return (
+    <div
+      ref={containerRef}
+      className="joystick-zone fixed bottom-4 left-4 w-40 h-40 z-50"
+      style={{ touchAction: 'none' }}
+    />
+  )
+}
+
 function App() {
   const [dimensions, setDimensions] = useState({ length: 20, width: 15 })
   const [isExploring, setIsExploring] = useState(true)
@@ -31,6 +79,13 @@ function App() {
   const [selectedBuilding, setSelectedBuilding] = useState(null)
   const [placedBuildings, setPlacedBuildings] = useState([])
   const [saveStatus, setSaveStatus] = useState(null)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const joystickInput = useRef({ x: 0, y: 0 })
+
+  // Detect touch device
+  useEffect(() => {
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0)
+  }, [])
 
   const handlePolygonComplete = () => {
     if (polygonPoints.length >= 3) {
@@ -144,10 +199,14 @@ function App() {
         selectedBuilding={selectedBuilding}
         onPlaceBuilding={handlePlaceBuilding}
         onDeleteBuilding={handleDeleteBuilding}
+        joystickInput={joystickInput}
       />
 
+      {/* Mobile joystick */}
+      {isTouchDevice && <VirtualJoystick joystickInput={joystickInput} />}
+
       {/* Unified control panel */}
-      <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md rounded-xl p-4 w-64 text-white max-h-[calc(100vh-2rem)] overflow-y-auto">
+      <div className="control-panel absolute top-4 left-4 bg-black/50 backdrop-blur-md rounded-xl p-4 w-64 text-white max-h-[calc(100vh-2rem)] overflow-y-auto">
         {/* Your Land section */}
         <div className="mb-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-white/70 mb-2">Your Land</h2>
@@ -310,7 +369,10 @@ function App() {
       </div>
 
       <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-sm text-white/80 px-4 py-2 rounded-full text-xs">
-        Click to look • WASD to move • ESC to release
+        {isTouchDevice
+          ? 'Drag to look • Use joystick to move'
+          : 'Click to look • WASD to move • ESC to release'
+        }
       </div>
 
       {/* Building placement indicator */}

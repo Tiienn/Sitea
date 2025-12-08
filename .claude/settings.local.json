@@ -8,7 +8,15 @@
       "Bash(npm run dev:*)",
       "Bash(mkdir:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: Land Visualizer app\n\nFeatures:\n- 3D land visualization with first-person controls\n- Rectangle and polygon shape modes\n- Building placement with hover effects\n- Comparison objects (soccer field, basketball court, etc.)\n- Save/export functionality\n- Realistic sky, grass, and fog effects\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(gh auth status:*)",
+      "Bash(vercel --version:*)",
+      "Bash(npx vercel:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

@@ -199,13 +199,19 @@ function DistantTreeline() {
   )
 }
 
-function FirstPersonControls({ enabled }) {
+function FirstPersonControls({ enabled, joystickInput }) {
   const { camera, gl } = useThree()
   const moveState = useRef({ forward: false, backward: false, left: false, right: false })
   const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'))
   const isLocked = useRef(false)
+  const isTouchDevice = useRef(false)
+  const touchLookActive = useRef(false)
+  const lastTouch = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
+    // Detect touch device
+    isTouchDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+
     if (!enabled) {
       document.exitPointerLock?.()
       isLocked.current = false
@@ -214,8 +220,11 @@ function FirstPersonControls({ enabled }) {
 
     const canvas = gl.domElement
 
+    // Desktop controls
     const lockPointer = () => {
-      canvas.requestPointerLock()
+      if (!isTouchDevice.current) {
+        canvas.requestPointerLock()
+      }
     }
 
     const onPointerLockChange = () => {
@@ -251,14 +260,53 @@ function FirstPersonControls({ enabled }) {
       }
     }
 
+    // Touch controls for camera look
+    const onTouchStart = (e) => {
+      if (!isTouchDevice.current || !enabled) return
+      // Check if touch is on a UI element
+      const target = e.target
+      if (target.closest('.control-panel') || target.closest('.joystick-zone')) return
+
+      const touch = e.touches[0]
+      lastTouch.current = { x: touch.clientX, y: touch.clientY }
+      touchLookActive.current = true
+    }
+
+    const onTouchMove = (e) => {
+      if (!touchLookActive.current || !enabled) return
+
+      const touch = e.touches[0]
+      const deltaX = touch.clientX - lastTouch.current.x
+      const deltaY = touch.clientY - lastTouch.current.y
+
+      euler.current.setFromQuaternion(camera.quaternion)
+      euler.current.y -= deltaX * 0.003
+      euler.current.x -= deltaY * 0.003
+      euler.current.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.current.x))
+      camera.quaternion.setFromEuler(euler.current)
+
+      lastTouch.current = { x: touch.clientX, y: touch.clientY }
+    }
+
+    const onTouchEnd = () => {
+      touchLookActive.current = false
+    }
+
     canvas.addEventListener('click', lockPointer)
     document.addEventListener('pointerlockchange', onPointerLockChange)
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('keyup', onKeyUp)
 
-    // Start locked
-    lockPointer()
+    // Touch events
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true })
+    canvas.addEventListener('touchend', onTouchEnd)
+
+    // Start locked only on desktop
+    if (!isTouchDevice.current) {
+      lockPointer()
+    }
 
     return () => {
       canvas.removeEventListener('click', lockPointer)
@@ -266,6 +314,9 @@ function FirstPersonControls({ enabled }) {
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('keyup', onKeyUp)
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove', onTouchMove)
+      canvas.removeEventListener('touchend', onTouchEnd)
       moveState.current = { forward: false, backward: false, left: false, right: false }
     }
   }, [enabled, camera, gl])
@@ -276,10 +327,17 @@ function FirstPersonControls({ enabled }) {
     const speed = 5
     const direction = new THREE.Vector3()
 
+    // Keyboard input
     if (moveState.current.forward) direction.z -= 1
     if (moveState.current.backward) direction.z += 1
     if (moveState.current.left) direction.x -= 1
     if (moveState.current.right) direction.x += 1
+
+    // Joystick input (from mobile)
+    if (joystickInput?.current) {
+      direction.x += joystickInput.current.x
+      direction.z -= joystickInput.current.y
+    }
 
     if (direction.length() > 0) {
       direction.normalize()
@@ -1004,7 +1062,7 @@ function ComparisonObject({ obj, index, totalObjects }) {
   )
 }
 
-function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, onPlaceBuilding, onDeleteBuilding }) {
+function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, onPlaceBuilding, onDeleteBuilding, joystickInput }) {
   const { camera } = useThree()
   const grassTexture = useGrassTexture()
 
@@ -1095,12 +1153,12 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         />
       ))}
 
-      <FirstPersonControls enabled={isExploring} />
+      <FirstPersonControls enabled={isExploring} joystickInput={joystickInput} />
     </>
   )
 }
 
-export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, onPlaceBuilding, onDeleteBuilding }) {
+export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, onPlaceBuilding, onDeleteBuilding, joystickInput }) {
   return (
     <Canvas
       shadows
@@ -1118,6 +1176,7 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         selectedBuilding={selectedBuilding}
         onPlaceBuilding={onPlaceBuilding}
         onDeleteBuilding={onDeleteBuilding}
+        joystickInput={joystickInput}
       />
     </Canvas>
   )
