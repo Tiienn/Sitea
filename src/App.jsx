@@ -32,7 +32,7 @@ function VirtualJoystick({ joystickInput }) {
     const manager = nipplejs.create({
       zone: containerRef.current,
       mode: 'static',
-      position: { left: '80px', bottom: '80px' },
+      position: { left: '80px', bottom: '140px' },
       color: 'white',
       size: 120,
       restOpacity: 0.5,
@@ -62,8 +62,8 @@ function VirtualJoystick({ joystickInput }) {
   return (
     <div
       ref={containerRef}
-      className="joystick-zone fixed bottom-4 left-4 w-40 h-40 z-50"
-      style={{ touchAction: 'none' }}
+      className="joystick-zone fixed left-4 w-40 h-40 z-50"
+      style={{ touchAction: 'none', bottom: '80px' }}
     />
   )
 }
@@ -80,12 +80,18 @@ function App() {
   const [placedBuildings, setPlacedBuildings] = useState([])
   const [saveStatus, setSaveStatus] = useState(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const [activePanel, setActivePanel] = useState(null) // 'land', 'compare', 'build', or null
   const joystickInput = useRef({ x: 0, y: 0 })
 
   // Detect touch device
   useEffect(() => {
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0)
   }, [])
+
+  // Toggle panel - close if same, open if different
+  const togglePanel = (panel) => {
+    setActivePanel(prev => prev === panel ? null : panel)
+  }
 
   const handlePolygonComplete = () => {
     if (polygonPoints.length >= 3) {
@@ -202,172 +208,225 @@ function App() {
         joystickInput={joystickInput}
       />
 
-      {/* Mobile joystick */}
+      {/* Mobile joystick - positioned above ribbon */}
       {isTouchDevice && <VirtualJoystick joystickInput={joystickInput} />}
 
-      {/* Unified control panel */}
-      <div className="control-panel absolute top-4 left-4 bg-black/50 backdrop-blur-md rounded-xl p-4 w-64 text-white max-h-[calc(100vh-2rem)] overflow-y-auto">
-        {/* Your Land section */}
-        <div className="mb-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/70 mb-2">Your Land</h2>
+      {/* Backdrop overlay when panel is open */}
+      {activePanel && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setActivePanel(null)}
+        />
+      )}
 
-          {/* Mode toggle */}
-          <div className="flex gap-1 mb-3 bg-white/10 rounded p-0.5">
-            <button
-              onClick={() => setShapeMode('rectangle')}
-              className={`flex-1 text-xs py-1.5 rounded transition-colors ${
-                shapeMode === 'rectangle' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
-              }`}
-            >
-              Rectangle
-            </button>
-            <button
-              onClick={() => setShapeMode('polygon')}
-              className={`flex-1 text-xs py-1.5 rounded transition-colors ${
-                shapeMode === 'polygon' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
-              }`}
-            >
-              Custom Shape
-            </button>
-          </div>
+      {/* Slide-up panels */}
+      <div className={`control-panel fixed left-0 right-0 bottom-14 z-50 transition-transform duration-300 ${
+        activePanel ? 'translate-y-0' : 'translate-y-full pointer-events-none'
+      }`}>
+        <div className="mx-4 mb-2 bg-black/70 backdrop-blur-md rounded-xl p-4 text-white max-h-[60vh] overflow-y-auto">
+          {/* Land Panel */}
+          {activePanel === 'land' && (
+            <div>
+              <h2 className="text-sm font-semibold mb-3">Your Land</h2>
 
-          {shapeMode === 'rectangle' ? (
-            <>
-              <div className="text-xs text-white/60 mb-2">Enter your land dimensions</div>
-              <div className="flex gap-2 mb-2">
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    value={inputValues.length}
-                    onChange={(e) => handleInputChange('length', e.target.value)}
-                    onBlur={handleVisualize}
-                    onKeyDown={(e) => e.key === 'Enter' && handleVisualize()}
-                    placeholder="e.g. 50"
-                    className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40 placeholder:text-white/30"
-                    min="1"
-                    step="0.1"
-                  />
-                  <span className="text-xs text-white/50 mt-0.5 block">Length (m)</span>
-                </div>
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    value={inputValues.width}
-                    onChange={(e) => handleInputChange('width', e.target.value)}
-                    onBlur={handleVisualize}
-                    onKeyDown={(e) => e.key === 'Enter' && handleVisualize()}
-                    placeholder="e.g. 30"
-                    className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40 placeholder:text-white/30"
-                    min="1"
-                    step="0.1"
-                  />
-                  <span className="text-xs text-white/50 mt-0.5 block">Width (m)</span>
-                </div>
+              {/* Mode toggle */}
+              <div className="flex gap-1 mb-3 bg-white/10 rounded p-0.5">
+                <button
+                  onClick={() => setShapeMode('rectangle')}
+                  className={`flex-1 text-xs py-1.5 rounded transition-colors ${
+                    shapeMode === 'rectangle' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  Rectangle
+                </button>
+                <button
+                  onClick={() => setShapeMode('polygon')}
+                  className={`flex-1 text-xs py-1.5 rounded transition-colors ${
+                    shapeMode === 'polygon' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  Custom Shape
+                </button>
               </div>
-              <div className="text-lg font-bold">{area.toFixed(0)} m²</div>
-            </>
-          ) : (
-            <PolygonEditor
-              points={polygonPoints}
-              onChange={setPolygonPoints}
-              onComplete={handlePolygonComplete}
-              onClear={() => setConfirmedPolygon(null)}
-            />
+
+              {shapeMode === 'rectangle' ? (
+                <>
+                  <div className="text-xs text-white/60 mb-2">Enter your land dimensions</div>
+                  <div className="flex gap-2 mb-2">
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        value={inputValues.length}
+                        onChange={(e) => handleInputChange('length', e.target.value)}
+                        onBlur={handleVisualize}
+                        onKeyDown={(e) => e.key === 'Enter' && handleVisualize()}
+                        placeholder="e.g. 50"
+                        className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40 placeholder:text-white/30"
+                        min="1"
+                        step="0.1"
+                      />
+                      <span className="text-xs text-white/50 mt-0.5 block">Length (m)</span>
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        value={inputValues.width}
+                        onChange={(e) => handleInputChange('width', e.target.value)}
+                        onBlur={handleVisualize}
+                        onKeyDown={(e) => e.key === 'Enter' && handleVisualize()}
+                        placeholder="e.g. 30"
+                        className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40 placeholder:text-white/30"
+                        min="1"
+                        step="0.1"
+                      />
+                      <span className="text-xs text-white/50 mt-0.5 block">Width (m)</span>
+                    </div>
+                  </div>
+                  <div className="text-lg font-bold">{area.toFixed(0)} m²</div>
+                </>
+              ) : (
+                <PolygonEditor
+                  points={polygonPoints}
+                  onChange={setPolygonPoints}
+                  onComplete={handlePolygonComplete}
+                  onClear={() => setConfirmedPolygon(null)}
+                />
+              )}
+            </div>
           )}
-        </div>
 
-        {/* Compare With section */}
-        <div className="border-t border-white/20 pt-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/70 mb-2">Compare With</h2>
-          <div className="space-y-1">
-            {COMPARISON_OBJECTS.map(obj => (
-              <label
-                key={obj.id}
-                className="flex items-center gap-2 py-1 cursor-pointer hover:bg-white/10 rounded px-1 -mx-1"
-              >
-                <input
-                  type="checkbox"
-                  checked={activeComparisons[obj.id] || false}
-                  onChange={() => toggleComparison(obj.id)}
-                  className="w-3.5 h-3.5 rounded border-white/30 bg-white/10 text-blue-500 focus:ring-0 focus:ring-offset-0"
-                />
-                <div
-                  className="w-2.5 h-2.5 rounded-sm"
-                  style={{ backgroundColor: obj.color }}
-                />
-                <span className="text-sm text-white/90">{obj.name}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+          {/* Compare Panel */}
+          {activePanel === 'compare' && (
+            <div>
+              <h2 className="text-sm font-semibold mb-3">Compare With</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {COMPARISON_OBJECTS.map(obj => (
+                  <label
+                    key={obj.id}
+                    className={`flex items-center gap-2 p-2 cursor-pointer rounded transition-colors ${
+                      activeComparisons[obj.id] ? 'bg-white/20' : 'bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={activeComparisons[obj.id] || false}
+                      onChange={() => toggleComparison(obj.id)}
+                      className="w-4 h-4 rounded border-white/30 bg-white/10 text-blue-500 focus:ring-0 focus:ring-offset-0"
+                    />
+                    <div
+                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                      style={{ backgroundColor: obj.color }}
+                    />
+                    <span className="text-sm text-white/90">{obj.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
-        {/* Buildings section */}
-        <div className="border-t border-white/20 pt-3 mt-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/70 mb-2">Buildings</h2>
-          <div className="text-xs text-white/50 mb-2">
-            {selectedBuilding ? 'Click on land to place' : 'Select a building type'}
-          </div>
-          <div className="grid grid-cols-2 gap-1">
-            {BUILDING_TYPES.map(building => (
-              <button
-                key={building.id}
-                onClick={() => setSelectedBuilding(selectedBuilding === building.id ? null : building.id)}
-                className={`px-2 py-1.5 text-xs rounded text-left transition-colors ${
-                  selectedBuilding === building.id
-                    ? 'bg-white/30 text-white'
-                    : 'bg-white/10 text-white/80 hover:bg-white/20'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="w-2.5 h-2.5 rounded-sm"
-                    style={{ backgroundColor: building.color }}
-                  />
-                  <span>{building.name}</span>
+          {/* Build Panel */}
+          {activePanel === 'build' && (
+            <div>
+              <h2 className="text-sm font-semibold mb-2">Place Buildings</h2>
+              <div className="text-xs text-white/50 mb-3">
+                {selectedBuilding ? 'Click on land to place' : 'Select a building type'}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {BUILDING_TYPES.map(building => (
+                  <button
+                    key={building.id}
+                    onClick={() => {
+                      setSelectedBuilding(selectedBuilding === building.id ? null : building.id)
+                      if (selectedBuilding !== building.id) setActivePanel(null)
+                    }}
+                    className={`p-2 text-sm rounded text-left transition-colors ${
+                      selectedBuilding === building.id
+                        ? 'bg-green-600 text-white'
+                        : 'bg-white/10 text-white/80 hover:bg-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: building.color }}
+                      />
+                      <span>{building.name}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {placedBuildings.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-white/20 flex items-center justify-between">
+                  <span className="text-xs text-white/60">
+                    {placedBuildings.length} building{placedBuildings.length !== 1 ? 's' : ''} placed
+                  </span>
+                  <button
+                    onClick={() => setPlacedBuildings([])}
+                    className="text-xs text-red-400 hover:text-red-300"
+                  >
+                    Clear all
+                  </button>
                 </div>
-              </button>
-            ))}
-          </div>
-          {placedBuildings.length > 0 && (
-            <div className="mt-2 text-xs text-white/60">
-              {placedBuildings.length} building{placedBuildings.length !== 1 ? 's' : ''} placed
-              <button
-                onClick={() => setPlacedBuildings([])}
-                className="ml-2 text-red-400 hover:text-red-300"
-              >
-                Clear all
-              </button>
+              )}
             </div>
           )}
         </div>
+      </div>
 
-        {/* Save & Export section */}
-        <div className="border-t border-white/20 pt-3 mt-3">
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              className={`flex-1 px-2 py-1.5 text-xs rounded font-medium ${
-                saveStatus === 'saved' ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              {saveStatus === 'saved' ? 'Saved \u2713' : 'Save'}
-            </button>
-            <button
-              onClick={handleExport}
-              className="flex-1 px-2 py-1.5 text-xs bg-green-600 hover:bg-green-700 rounded font-medium"
-            >
-              Export PNG
-            </button>
-          </div>
+      {/* Bottom ribbon navigation */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/70 backdrop-blur-md border-t border-white/10">
+        <div className="flex justify-around items-center h-14">
           <button
-            onClick={handleClearSaved}
-            className="w-full mt-2 px-2 py-1 text-xs text-white/60 hover:text-white/80 hover:bg-white/10 rounded"
+            onClick={() => togglePanel('land')}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              activePanel === 'land' ? 'text-white bg-white/10' : 'text-white/60 hover:text-white'
+            }`}
           >
-            Clear Saved Data
+            <span className="text-lg">🏠</span>
+            <span className="text-xs mt-0.5">Land</span>
+          </button>
+
+          <button
+            onClick={() => togglePanel('compare')}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              activePanel === 'compare' ? 'text-white bg-white/10' : 'text-white/60 hover:text-white'
+            }`}
+          >
+            <span className="text-lg">📊</span>
+            <span className="text-xs mt-0.5">Compare</span>
+          </button>
+
+          <button
+            onClick={() => togglePanel('build')}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              activePanel === 'build' ? 'text-white bg-white/10' : 'text-white/60 hover:text-white'
+            }`}
+          >
+            <span className="text-lg">🏗️</span>
+            <span className="text-xs mt-0.5">Build</span>
+          </button>
+
+          <button
+            onClick={handleSave}
+            className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+              saveStatus === 'saved' ? 'text-green-400' : 'text-white/60 hover:text-white'
+            }`}
+          >
+            <span className="text-lg">{saveStatus === 'saved' ? '✓' : '💾'}</span>
+            <span className="text-xs mt-0.5">{saveStatus === 'saved' ? 'Saved!' : 'Save'}</span>
+          </button>
+
+          <button
+            onClick={handleExport}
+            className="flex flex-col items-center justify-center flex-1 h-full text-white/60 hover:text-white transition-colors"
+          >
+            <span className="text-lg">📷</span>
+            <span className="text-xs mt-0.5">Export</span>
           </button>
         </div>
       </div>
 
+      {/* Help text */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-sm text-white/80 px-4 py-2 rounded-full text-xs">
         {isTouchDevice
           ? 'Drag to look • Use joystick to move'
@@ -377,10 +436,16 @@ function App() {
 
       {/* Building placement indicator */}
       {selectedBuilding && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-green-600/90 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-medium animate-pulse">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-green-600/90 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-medium animate-pulse">
           Click on land to place {BUILDING_TYPES.find(b => b.id === selectedBuilding)?.name}
         </div>
       )}
+
+      {/* Area display - top right */}
+      <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-2 rounded-lg">
+        <div className="text-xs text-white/60">Area</div>
+        <div className="text-lg font-bold">{area.toFixed(0)} m²</div>
+      </div>
     </div>
   )
 }
