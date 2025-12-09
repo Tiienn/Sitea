@@ -3,6 +3,45 @@ import nipplejs from 'nipplejs'
 import LandScene from './components/LandScene'
 import PolygonEditor, { calculatePolygonArea } from './components/PolygonEditor'
 
+// Unit conversion constants
+const FEET_PER_METER = 3.28084
+const SQ_FEET_PER_SQ_METER = 10.7639
+const SQ_METERS_PER_ACRE = 4046.86
+const SQ_METERS_PER_HECTARE = 10000
+
+// Conversion utilities
+const convertLength = (meters, unit) => {
+  if (unit === 'ft') return meters * FEET_PER_METER
+  return meters
+}
+
+const convertLengthToMeters = (value, unit) => {
+  if (unit === 'ft') return value / FEET_PER_METER
+  return value
+}
+
+const convertArea = (sqMeters, unit) => {
+  switch (unit) {
+    case 'ft²': return sqMeters * SQ_FEET_PER_SQ_METER
+    case 'acres': return sqMeters / SQ_METERS_PER_ACRE
+    case 'hectares': return sqMeters / SQ_METERS_PER_HECTARE
+    default: return sqMeters
+  }
+}
+
+const formatLength = (meters, unit) => {
+  const value = convertLength(meters, unit)
+  return `${value.toFixed(1)}${unit}`
+}
+
+const formatArea = (sqMeters, areaUnit) => {
+  const value = convertArea(sqMeters, areaUnit)
+  if (areaUnit === 'acres' || areaUnit === 'hectares') {
+    return `${value.toFixed(2)} ${areaUnit}`
+  }
+  return `${value.toFixed(0)} ${areaUnit}`
+}
+
 const COMPARISON_OBJECTS = [
   { id: 'soccerField', name: 'Soccer Field', width: 68, length: 105, color: '#228B22' },
   { id: 'basketballCourt', name: 'Basketball Court', width: 15, length: 28, color: '#CD853F' },
@@ -81,12 +120,42 @@ function App() {
   const [saveStatus, setSaveStatus] = useState(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [activePanel, setActivePanel] = useState(null) // 'land', 'compare', 'build', or null
+  const [lengthUnit, setLengthUnit] = useState('m') // 'm' or 'ft'
+  const [areaUnit, setAreaUnit] = useState('m²') // 'm²', 'ft²', 'acres', 'hectares'
   const joystickInput = useRef({ x: 0, y: 0 })
 
   // Detect touch device
   useEffect(() => {
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0)
   }, [])
+
+  // Load unit preferences from localStorage
+  useEffect(() => {
+    const savedUnits = localStorage.getItem('landVisualizerUnits')
+    if (savedUnits) {
+      try {
+        const { lengthUnit: lu, areaUnit: au } = JSON.parse(savedUnits)
+        if (lu) setLengthUnit(lu)
+        if (au) setAreaUnit(au)
+      } catch (e) {
+        console.error('Failed to load unit preferences:', e)
+      }
+    }
+  }, [])
+
+  // Save unit preferences when they change
+  useEffect(() => {
+    localStorage.setItem('landVisualizerUnits', JSON.stringify({ lengthUnit, areaUnit }))
+  }, [lengthUnit, areaUnit])
+
+  // When length unit changes, update area unit to match (m→m², ft→ft²)
+  const handleLengthUnitChange = (unit) => {
+    setLengthUnit(unit)
+    // Auto-switch area unit to match, unless using acres/hectares
+    if (areaUnit !== 'acres' && areaUnit !== 'hectares') {
+      setAreaUnit(unit === 'm' ? 'm²' : 'ft²')
+    }
+  }
 
   // Toggle panel - close if same, open if different
   const togglePanel = (panel) => {
@@ -108,10 +177,25 @@ function App() {
   }
 
   const handleVisualize = () => {
-    const length = parseFloat(inputValues.length) || 20
-    const width = parseFloat(inputValues.width) || 15
-    setDimensions({ length: Math.max(1, length), width: Math.max(1, width) })
+    const lengthInput = parseFloat(inputValues.length) || (lengthUnit === 'm' ? 20 : 65)
+    const widthInput = parseFloat(inputValues.width) || (lengthUnit === 'm' ? 15 : 50)
+    // Convert from display unit to meters for internal storage
+    const lengthMeters = convertLengthToMeters(lengthInput, lengthUnit)
+    const widthMeters = convertLengthToMeters(widthInput, lengthUnit)
+    setDimensions({ length: Math.max(0.3, lengthMeters), width: Math.max(0.3, widthMeters) })
   }
+
+  // Get display values in current unit (for showing in inputs)
+  const getDisplayLength = (meters) => convertLength(meters, lengthUnit).toFixed(1)
+  const getDisplayWidth = (meters) => convertLength(meters, lengthUnit).toFixed(1)
+
+  // Update input values when dimensions change (e.g., from localStorage load)
+  useEffect(() => {
+    setInputValues({
+      length: getDisplayLength(dimensions.length),
+      width: getDisplayWidth(dimensions.width)
+    })
+  }, [dimensions, lengthUnit])
 
   const toggleComparison = (id) => {
     setActiveComparisons(prev => ({
@@ -206,6 +290,7 @@ function App() {
         onPlaceBuilding={handlePlaceBuilding}
         onDeleteBuilding={handleDeleteBuilding}
         joystickInput={joystickInput}
+        lengthUnit={lengthUnit}
       />
 
       {/* Mobile joystick - positioned above ribbon */}
@@ -227,7 +312,30 @@ function App() {
           {/* Land Panel */}
           {activePanel === 'land' && (
             <div>
-              <h2 className="text-sm font-semibold mb-3">Your Land</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold">Your Land</h2>
+                {/* Unit selector */}
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-white/10 rounded p-0.5">
+                    <button
+                      onClick={() => handleLengthUnitChange('m')}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        lengthUnit === 'm' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      m
+                    </button>
+                    <button
+                      onClick={() => handleLengthUnitChange('ft')}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        lengthUnit === 'ft' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      ft
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {/* Mode toggle */}
               <div className="flex gap-1 mb-3 bg-white/10 rounded p-0.5">
@@ -252,7 +360,7 @@ function App() {
               {shapeMode === 'rectangle' ? (
                 <>
                   <div className="text-xs text-white/60 mb-2">Enter your land dimensions</div>
-                  <div className="flex gap-2 mb-2">
+                  <div className="flex gap-2 mb-3">
                     <div className="flex-1">
                       <input
                         type="number"
@@ -260,12 +368,12 @@ function App() {
                         onChange={(e) => handleInputChange('length', e.target.value)}
                         onBlur={handleVisualize}
                         onKeyDown={(e) => e.key === 'Enter' && handleVisualize()}
-                        placeholder="e.g. 50"
+                        placeholder={lengthUnit === 'm' ? 'e.g. 50' : 'e.g. 165'}
                         className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40 placeholder:text-white/30"
                         min="1"
                         step="0.1"
                       />
-                      <span className="text-xs text-white/50 mt-0.5 block">Length (m)</span>
+                      <span className="text-xs text-white/50 mt-0.5 block">Length ({lengthUnit})</span>
                     </div>
                     <div className="flex-1">
                       <input
@@ -274,15 +382,31 @@ function App() {
                         onChange={(e) => handleInputChange('width', e.target.value)}
                         onBlur={handleVisualize}
                         onKeyDown={(e) => e.key === 'Enter' && handleVisualize()}
-                        placeholder="e.g. 30"
+                        placeholder={lengthUnit === 'm' ? 'e.g. 30' : 'e.g. 100'}
                         className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40 placeholder:text-white/30"
                         min="1"
                         step="0.1"
                       />
-                      <span className="text-xs text-white/50 mt-0.5 block">Width (m)</span>
+                      <span className="text-xs text-white/50 mt-0.5 block">Width ({lengthUnit})</span>
                     </div>
                   </div>
-                  <div className="text-lg font-bold">{area.toFixed(0)} m²</div>
+                  {/* Area display with unit selector */}
+                  <div className="flex items-center justify-between bg-white/5 rounded p-2">
+                    <div>
+                      <div className="text-xs text-white/60">Area</div>
+                      <div className="text-lg font-bold">{formatArea(area, areaUnit)}</div>
+                    </div>
+                    <select
+                      value={areaUnit}
+                      onChange={(e) => setAreaUnit(e.target.value)}
+                      className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-white/40"
+                    >
+                      <option value="m²">m²</option>
+                      <option value="ft²">ft²</option>
+                      <option value="acres">acres</option>
+                      <option value="hectares">hectares</option>
+                    </select>
+                  </div>
                 </>
               ) : (
                 <PolygonEditor
@@ -444,7 +568,7 @@ function App() {
       {/* Area display - top right */}
       <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-2 rounded-lg">
         <div className="text-xs text-white/60">Area</div>
-        <div className="text-lg font-bold">{area.toFixed(0)} m²</div>
+        <div className="text-lg font-bold">{formatArea(area, areaUnit)}</div>
       </div>
     </div>
   )

@@ -3,6 +3,21 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Grid, Text, Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 
+// Unit conversion helper
+const FEET_PER_METER = 3.28084
+const formatDimension = (meters, unit) => {
+  if (unit === 'ft') {
+    return `${(meters * FEET_PER_METER).toFixed(1)}ft`
+  }
+  return `${meters.toFixed(1)}m`
+}
+const formatDimensions = (width, length, unit) => {
+  if (unit === 'ft') {
+    return `${(width * FEET_PER_METER).toFixed(0)}ft × ${(length * FEET_PER_METER).toFixed(0)}ft`
+  }
+  return `${width}m × ${length}m`
+}
+
 // Create realistic grass texture
 function useGrassTexture() {
   return useMemo(() => {
@@ -450,7 +465,7 @@ function HumanFigure({ position = [0, 0, 0] }) {
   )
 }
 
-function PlacedBuilding({ building, onDelete }) {
+function PlacedBuilding({ building, onDelete, lengthUnit = 'm' }) {
   const { type, position } = building
   const [hovered, setHovered] = useState(false)
   const isPool = type.height < 0
@@ -500,7 +515,7 @@ function PlacedBuilding({ building, onDelete }) {
           outlineWidth={0.05}
           outlineColor="#000000"
         >
-          {hovered ? 'Click to remove' : `${type.width}m × ${type.length}m`}
+          {hovered ? 'Click to remove' : formatDimensions(type.width, type.length, lengthUnit)}
         </Text>
       </Billboard>
     </group>
@@ -1011,7 +1026,7 @@ function Pool3D({ obj }) {
   )
 }
 
-function ComparisonObject({ obj, index, totalObjects }) {
+function ComparisonObject({ obj, index, totalObjects, lengthUnit = 'm' }) {
   const offsetZ = index * 2
 
   // Render the appropriate 3D component based on object type
@@ -1055,14 +1070,14 @@ function ComparisonObject({ obj, index, totalObjects }) {
           outlineWidth={0.08}
           outlineColor="#000000"
         >
-          {`${obj.length}m × ${obj.width}m`}
+          {formatDimensions(obj.width, obj.length, lengthUnit)}
         </Text>
       </Billboard>
     </group>
   )
 }
 
-function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, onPlaceBuilding, onDeleteBuilding, joystickInput }) {
+function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, onPlaceBuilding, onDeleteBuilding, joystickInput, lengthUnit = 'm' }) {
   const { camera } = useThree()
   const grassTexture = useGrassTexture()
 
@@ -1140,6 +1155,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           key={building.id}
           building={building}
           onDelete={onDeleteBuilding}
+          lengthUnit={lengthUnit}
         />
       ))}
 
@@ -1150,6 +1166,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           obj={obj}
           index={index}
           totalObjects={comparisonObjects.length}
+          lengthUnit={lengthUnit}
         />
       ))}
 
@@ -1158,7 +1175,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   )
 }
 
-export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, onPlaceBuilding, onDeleteBuilding, joystickInput }) {
+export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, onPlaceBuilding, onDeleteBuilding, joystickInput, lengthUnit = 'm' }) {
   return (
     <Canvas
       shadows
@@ -1177,6 +1194,7 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         onPlaceBuilding={onPlaceBuilding}
         onDeleteBuilding={onDeleteBuilding}
         joystickInput={joystickInput}
+        lengthUnit={lengthUnit}
       />
     </Canvas>
   )
