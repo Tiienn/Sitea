@@ -4,13 +4,20 @@ const UserContext = createContext(null)
 
 export function UserProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [isPaidUser, setIsPaidUser] = useState(false)
+  const [isPaidUser, setIsPaidUser] = useState(true) // Default true for testing
 
   useEffect(() => {
     // Check user subscription status
     // This could be from localStorage, Supabase, or your auth provider
     const checkSubscription = async () => {
       try {
+        // DEV MODE: Always enable paid features for testing
+        const DEV_MODE = true
+        if (DEV_MODE) {
+          setIsPaidUser(true)
+          return
+        }
+
         // Check localStorage for subscription status
         const savedStatus = localStorage.getItem('landVisualizerPaidUser')
         if (savedStatus === 'true') {

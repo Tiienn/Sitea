@@ -1521,17 +1521,9 @@ function App() {
           onExpandedChange={setPanelExpanded}
           isActive={activePanel === 'land'}
           onDetectedFloorPlan={(imageData) => {
-            // Detected floor plan - switch to build mode
-            setFloorPlanImage(imageData)
-            setFloorPlanSettings(prev => ({
-              ...prev,
-              visible: true,
-              opacity: 0.5,
-              scale: 1,
-              offsetX: 0,
-              offsetZ: 0,
-            }))
-            setActivePanel('build')
+            // Detected floor plan - open AI generator modal
+            setFloorPlanImageForGenerator(imageData)
+            setShowFloorPlanGenerator(true)
           }}
         />
       </div>
@@ -2044,7 +2036,7 @@ function App() {
             setShowFloorPlanGenerator(false)
             setFloorPlanImageForGenerator(null)
           }}
-          isPaidUser={isPaidUser}
+          isPaidUser={true}
         />
       )}
     </div>

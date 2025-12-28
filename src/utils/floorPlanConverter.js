@@ -1,22 +1,76 @@
 // src/utils/floorPlanConverter.js
 
 /**
+ * Snap wall endpoints that are close together
+ * This ensures walls connect properly at corners
+ */
+function snapWallEndpoints(walls, threshold = 5) {
+  const points = [];
+
+  // Collect all endpoints
+  walls.forEach(wall => {
+    points.push({ wall, type: 'start', x: wall.start.x, y: wall.start.y });
+    points.push({ wall, type: 'end', x: wall.end.x, y: wall.end.y });
+  });
+
+  // Snap close points together
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const dist = Math.sqrt(
+        (points[i].x - points[j].x) ** 2 +
+        (points[i].y - points[j].y) ** 2
+      );
+
+      if (dist < threshold && dist > 0) {
+        // Snap to average position
+        const avgX = (points[i].x + points[j].x) / 2;
+        const avgY = (points[i].y + points[j].y) / 2;
+
+        if (points[i].type === 'start') {
+          points[i].wall.start.x = avgX;
+          points[i].wall.start.y = avgY;
+        } else {
+          points[i].wall.end.x = avgX;
+          points[i].wall.end.y = avgY;
+        }
+
+        if (points[j].type === 'start') {
+          points[j].wall.start.x = avgX;
+          points[j].wall.start.y = avgY;
+        } else {
+          points[j].wall.end.x = avgX;
+          points[j].wall.end.y = avgY;
+        }
+      }
+    }
+  }
+
+  return walls;
+}
+
+/**
  * Convert AI-extracted floor plan data to 3D world coordinates
  * @param {Object} aiData - Data from AI analysis
  * @param {Object} settings - Conversion settings
  * @returns {Object} - Walls and rooms in 3D world coordinates
  */
 export function convertFloorPlanToWorld(aiData, settings = {}) {
+  // Try to use AI's estimated scale if available
+  let calculatedScale = settings.scale || 0.05;
+  if (aiData.scale?.estimatedMetersPerPixel && !settings.scale) {
+    calculatedScale = aiData.scale.estimatedMetersPerPixel;
+  }
+
   const {
-    scale = 0.05,           // meters per pixel
-    originX = 0,            // world X offset
-    originZ = 0,            // world Z offset
-    rotation = 0,           // rotation in radians
-    wallHeight = 2.7,       // wall height in meters
-    wallThickness = 0.15,   // default wall thickness in meters
-    doorHeight = 2.1,       // door height in meters
-    windowHeight = 1.2,     // window height in meters
-    windowSillHeight = 0.9, // window sill height from floor
+    scale = calculatedScale,
+    originX = 0,
+    originZ = 0,
+    rotation = 0,
+    wallHeight = 2.7,
+    wallThickness = 0.15,
+    doorHeight = 2.1,
+    windowHeight = 1.2,
+    windowSillHeight = 0.9,
   } = settings;
 
   // Helper: Convert pixel coords to world coords
@@ -41,8 +95,11 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     return { x, z };
   };
 
+  // Snap wall endpoints before converting
+  const snappedWalls = snapWallEndpoints([...(aiData.walls || [])]);
+
   // Convert walls
-  const walls = (aiData.walls || []).map((wall, index) => {
+  const walls = snappedWalls.map((wall, index) => {
     const start = toWorld(wall.start.x, wall.start.y);
     const end = toWorld(wall.end.x, wall.end.y);
 
@@ -135,11 +192,19 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     wall.openings.sort((a, b) => a.position - b.position);
   });
 
-  // Convert rooms
+  // Convert rooms - handle both areaFromLabel and approximateArea
   const rooms = (aiData.rooms || []).map((room, index) => {
     const center = toWorld(room.center.x, room.center.y);
-    const areaInPixels = room.approximateArea || 10000;
-    const areaInMeters = areaInPixels * scale * scale;
+
+    // Use areaFromLabel if available (from improved AI), otherwise calculate from pixels
+    let areaInMeters;
+    if (room.areaFromLabel) {
+      areaInMeters = room.areaFromLabel;
+    } else if (room.approximateArea) {
+      areaInMeters = room.approximateArea * scale * scale;
+    } else {
+      areaInMeters = 0;
+    }
 
     return {
       id: `room-generated-${Date.now()}-${index}`,

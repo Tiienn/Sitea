@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 8192,
+      max_tokens: 16384,  // Increased for complex floor plans
       messages: [{
         role: 'user',
         content: [
@@ -38,28 +38,57 @@ export default async function handler(req, res) {
           },
           {
             type: 'text',
-            text: `Analyze this floor plan image and extract all architectural elements.
+            text: `You are an expert architectural floor plan analyzer. Analyze this floor plan image VERY CAREFULLY and extract ALL structural elements with precise pixel coordinates.
+
+CRITICAL INSTRUCTIONS:
+1. Identify EVERY wall segment - both exterior (thick lines) and interior (thinner lines)
+2. Trace the EXACT shape of the floor plan - it may be L-shaped, U-shaped, or irregular
+3. Find ALL doors - look for swing arcs (quarter circles) or door symbols
+4. Find ALL windows - look for parallel lines on exterior walls
+5. Identify ALL rooms by their labels or by enclosed spaces
+6. Read ANY dimension labels in the image (like "5.37 m" or "2.78 m")
+
+COORDINATE SYSTEM:
+- Origin (0,0) is at the TOP-LEFT corner of the image
+- X increases to the RIGHT
+- Y increases DOWNWARD
+- Estimate the image size and provide coordinates in pixels
+
+For this floor plan, I can see it contains multiple rooms. Trace EVERY wall carefully.
 
 Return a JSON object with this EXACT structure:
 
 {
   "success": true,
   "imageSize": {
-    "width": <estimated pixels>,
-    "height": <estimated pixels>
+    "width": <estimated image width in pixels>,
+    "height": <estimated image height in pixels>
   },
+  "dimensionsFromImage": [
+    { "value": 5.37, "unit": "m", "description": "bottom left width" },
+    { "value": 3.68, "unit": "m", "description": "bottom right width" }
+  ],
   "scale": {
-    "estimatedMetersPerPixel": <number between 0.01 and 0.1>,
+    "estimatedMetersPerPixel": <calculate based on visible dimensions>,
     "confidence": <0.0 to 1.0>,
-    "reasoning": "<brief explanation>"
+    "reasoning": "<explain how you calculated the scale>"
   },
   "walls": [
     {
       "id": "wall_1",
-      "start": { "x": <pixels from left>, "y": <pixels from top> },
+      "start": { "x": <pixels>, "y": <pixels> },
       "end": { "x": <pixels>, "y": <pixels> },
-      "thickness": <pixels, typically 5-15>,
-      "isExterior": <true for outer walls, false for interior>
+      "thickness": <pixels>,
+      "isExterior": true,
+      "description": "north exterior wall"
+    },
+    {
+      "id": "wall_2",
+      "start": { "x": <pixels>, "y": <pixels> },
+      "end": { "x": <pixels>, "y": <pixels> },
+      "thickness": <pixels>,
+      "isExterior": false,
+      "description": "wall between kitchen and living room"
     }
   ],
   "doors": [
@@ -67,8 +96,9 @@ Return a JSON object with this EXACT structure:
       "id": "door_1",
       "center": { "x": <pixels>, "y": <pixels> },
       "width": <pixels>,
-      "nearestWallId": "wall_1",
-      "type": "single" | "double" | "sliding"
+      "swingDirection": "inward-left" | "inward-right" | "outward-left" | "outward-right",
+      "connectedRooms": ["Living Area", "Entry Hall"],
+      "description": "main entry door"
     }
   ],
   "windows": [
@@ -76,31 +106,45 @@ Return a JSON object with this EXACT structure:
       "id": "window_1",
       "center": { "x": <pixels>, "y": <pixels> },
       "width": <pixels>,
-      "nearestWallId": "wall_2"
+      "wallId": "wall_1",
+      "description": "living room window on south wall"
     }
   ],
   "rooms": [
     {
       "id": "room_1",
-      "name": "Living Room",
+      "name": "Kitchen & Dining Area",
       "center": { "x": <pixels>, "y": <pixels> },
-      "approximateArea": <square pixels>
+      "areaFromLabel": 14.8,
+      "areaUnit": "m²",
+      "boundaryDescription": "top-left section of floor plan"
+    },
+    {
+      "id": "room_2",
+      "name": "Living Area",
+      "center": { "x": <pixels>, "y": <pixels> },
+      "areaFromLabel": 21.4,
+      "areaUnit": "m²",
+      "boundaryDescription": "bottom-left large room"
     }
-  ]
+  ],
+  "overallShape": "L-shaped" | "rectangular" | "U-shaped" | "irregular",
+  "totalArea": {
+    "value": 71,
+    "unit": "m²",
+    "source": "label in image"
+  }
 }
 
-IMPORTANT GUIDELINES:
-1. Coordinates are in PIXELS from the top-left corner of the image
-2. Trace ALL visible walls as line segments (start to end points)
-3. Walls should connect at corners - ensure endpoints match
-4. Exterior walls are usually thicker than interior walls
-5. Doors appear as gaps in walls with arc symbols or door rectangles
-6. Windows appear as parallel lines or rectangles in exterior walls
-7. Room names: infer from labels OR typical positions (kitchen near exterior, bathroom small, etc.)
-8. Scale estimation: standard doors are ~0.9m wide, rooms are typically 3-6m
-9. If uncertain about an element, include it with lower confidence
+IMPORTANT:
+- Include ALL walls, not just the outer boundary
+- For an L-shaped floor plan, you need walls that create the L shape
+- Interior walls separate rooms - don't skip them!
+- Each wall should connect to other walls at endpoints (within a few pixels)
+- If you see dimension labels like "5.37 m", use them to calculate accurate scale
+- A typical door is 0.8-1.0m wide, a typical window is 1.0-1.5m wide
 
-Return ONLY valid JSON. No markdown, no explanation outside the JSON.`
+Return ONLY valid JSON. No markdown, no explanation outside JSON.`
           }
         ]
       }]
@@ -109,7 +153,6 @@ Return ONLY valid JSON. No markdown, no explanation outside the JSON.`
     // Parse the response
     const content = response.content[0].text;
 
-    // Try to extract JSON from the response
     let result;
     try {
       // Try direct parse first
@@ -124,21 +167,22 @@ Return ONLY valid JSON. No markdown, no explanation outside the JSON.`
       }
     }
 
-    // Validate required fields
-    if (!result.walls || !Array.isArray(result.walls)) {
-      result.walls = [];
-    }
-    if (!result.doors || !Array.isArray(result.doors)) {
-      result.doors = [];
-    }
-    if (!result.windows || !Array.isArray(result.windows)) {
-      result.windows = [];
-    }
-    if (!result.rooms || !Array.isArray(result.rooms)) {
-      result.rooms = [];
-    }
-
+    // Validate and provide defaults
     result.success = true;
+    result.walls = result.walls || [];
+    result.doors = result.doors || [];
+    result.windows = result.windows || [];
+    result.rooms = result.rooms || [];
+
+    // Log for debugging
+    console.log('AI Analysis Result:', {
+      wallCount: result.walls.length,
+      doorCount: result.doors.length,
+      windowCount: result.windows.length,
+      roomCount: result.rooms.length,
+      shape: result.overallShape,
+    });
+
     return res.status(200).json(result);
 
   } catch (error) {

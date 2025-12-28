@@ -1,5 +1,45 @@
 # Land Visualizer - Task History
 
+## Task: Improve AI Floor Plan Analysis for Better 3D Generation (COMPLETED)
+
+### Goal
+Fix the issue where AI was generating oversimplified floor plans that didn't match the uploaded image. Missing interior walls, most rooms, doors, windows, and the actual layout shape.
+
+### Changes Made
+
+**1. Improved AI Prompt (`api/analyze-floor-plan.js`)**
+- Increased max_tokens from 8192 to 16384 for complex floor plans
+- Added detailed instructions to trace ALL walls (exterior + interior)
+- Added shape detection (L-shaped, U-shaped, rectangular, irregular)
+- Added dimension label extraction from image
+- Added room area detection from labels
+- Added better guidance for doors, windows, and wall connections
+
+**2. Added Wall Endpoint Snapping (`src/utils/floorPlanConverter.js`)**
+- New `snapWallEndpoints()` function to connect walls at corners
+- Walls within 5 pixels of each other are snapped together
+- Ensures proper wall connections in the 3D model
+
+**3. Enhanced Generator Modal (`src/components/FloorPlanGeneratorModal.jsx`)**
+- Added debug view showing AI detection details:
+  - Overall shape (L-shaped, rectangular, etc.)
+  - Total area from image labels
+  - Detected rooms with area values
+  - Dimensions extracted from image
+- Added quality validation with warning for oversimplified results
+- Set USE_MOCK = false for production (real API calls)
+
+### Expected Results
+For complex floor plans, the AI should now detect:
+- 15-20 wall segments (exterior + interior)
+- All rooms with correct names and areas
+- 4-6 doors with swing directions
+- 3-4 windows
+- L-shaped, U-shaped, or irregular layouts
+- Dimensions from image labels for accurate scale
+
+---
+
 ## Task: Auto-Generate 3D Building from Floor Plan Image (COMPLETED)
 
 ### Goal

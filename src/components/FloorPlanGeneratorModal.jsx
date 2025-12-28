@@ -13,6 +13,7 @@ export default function FloorPlanGeneratorModal({
   const [status, setStatus] = useState('analyzing'); // 'analyzing' | 'calibrating' | 'preview' | 'error' | 'upgrade'
   const [aiData, setAiData] = useState(null);
   const [error, setError] = useState(null);
+  const [warning, setWarning] = useState(null);
   const [settings, setSettings] = useState({
     scale: 0.05,
     originX: 0,
@@ -34,22 +35,70 @@ export default function FloorPlanGeneratorModal({
   const analyzeFloorPlan = async () => {
     setStatus('analyzing');
     setError(null);
+    setWarning(null);
+
+    // Set to false for production (real API), true for local testing with mock data
+    const USE_MOCK = false;
 
     try {
-      // Remove data URL prefix
-      const base64 = image.replace(/^data:image\/\w+;base64,/, '');
+      let data;
 
-      const response = await fetch('/api/analyze-floor-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64 }),
-      });
+      if (USE_MOCK) {
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
-      if (!response.ok) {
-        throw new Error(`Analysis failed: ${response.status}`);
+        // Mock floor plan data for testing
+        data = {
+          success: true,
+          overallShape: 'L-shaped',
+          totalArea: { value: 71, unit: 'm²', source: 'label in image' },
+          dimensionsFromImage: [
+            { value: 5.37, unit: 'm', description: 'bottom left width' },
+            { value: 3.68, unit: 'm', description: 'bottom right width' },
+          ],
+          walls: [
+            { start: { x: 100, y: 100 }, end: { x: 500, y: 100 }, thickness: 20, isExterior: true },
+            { start: { x: 500, y: 100 }, end: { x: 500, y: 400 }, thickness: 20, isExterior: true },
+            { start: { x: 500, y: 400 }, end: { x: 100, y: 400 }, thickness: 20, isExterior: true },
+            { start: { x: 100, y: 400 }, end: { x: 100, y: 100 }, thickness: 20, isExterior: true },
+            { start: { x: 300, y: 100 }, end: { x: 300, y: 250 }, thickness: 15, isExterior: false },
+            { start: { x: 100, y: 250 }, end: { x: 300, y: 250 }, thickness: 15, isExterior: false },
+          ],
+          doors: [
+            { center: { x: 200, y: 100 }, width: 80, wallIndex: 0 },
+            { center: { x: 300, y: 175 }, width: 80, wallIndex: 4 },
+          ],
+          windows: [
+            { center: { x: 400, y: 100 }, width: 100, wallIndex: 0 },
+            { center: { x: 500, y: 250 }, width: 100, wallIndex: 1 },
+          ],
+          rooms: [
+            { name: 'Living Room', center: { x: 200, y: 325 }, areaFromLabel: 24 },
+            { name: 'Bedroom', center: { x: 400, y: 175 }, areaFromLabel: 16 },
+            { name: 'Kitchen', center: { x: 200, y: 175 }, areaFromLabel: 12 },
+          ],
+          scale: {
+            estimatedMetersPerPixel: 0.025,
+            confidence: 0.85,
+            reasoning: 'Based on standard door width of 0.9m'
+          }
+        };
+      } else {
+        // Real API call
+        const base64 = image.replace(/^data:image\/\w+;base64,/, '');
+
+        const response = await fetch('/api/analyze-floor-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64 }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Analysis failed: ${response.status}`);
+        }
+
+        data = await response.json();
       }
-
-      const data = await response.json();
 
       if (!data.success && data.error) {
         throw new Error(data.error);
@@ -58,6 +107,22 @@ export default function FloorPlanGeneratorModal({
       // Validate we got useful data
       if (!data.walls || data.walls.length === 0) {
         throw new Error('No walls detected in the floor plan. Please try a clearer image.');
+      }
+
+      // Validate quality - check if AI result seems oversimplified
+      if (data.walls.length < 4) {
+        console.warn('AI detected very few walls, results may be incomplete');
+        setWarning('The AI detected only a few walls. Results might not match exactly.');
+      }
+
+      if (data.rooms && data.rooms.length === 0) {
+        console.warn('AI detected no rooms');
+      }
+
+      // Check if this looks like a simplified result (many rooms but few walls)
+      const isOversimplified = data.walls.length < 6 && (data.rooms?.length || 0) > 3;
+      if (isOversimplified) {
+        setWarning('The AI may have simplified the floor plan. Results might not match exactly.');
       }
 
       setAiData(data);
@@ -196,6 +261,55 @@ export default function FloorPlanGeneratorModal({
                     {aiData.scale.reasoning && (
                       <p className="text-xs text-[var(--color-text-muted)] mt-2">{aiData.scale.reasoning}</p>
                     )}
+                  </div>
+                )}
+
+                {/* Debug: AI Detection Details */}
+                {aiData && (
+                  <div className="p-3 bg-gray-700/50 rounded-lg text-xs">
+                    <p className="text-gray-300 font-medium mb-2">AI Detection Details:</p>
+                    <div className="grid grid-cols-2 gap-2 text-gray-400">
+                      <div>Shape: <span className="text-white">{aiData.overallShape || 'Unknown'}</span></div>
+                      <div>Total Area: <span className="text-white">{aiData.totalArea?.value || '?'} {aiData.totalArea?.unit || 'm²'}</span></div>
+                    </div>
+
+                    {aiData.rooms?.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-gray-300">Detected Rooms:</p>
+                        <ul className="mt-1 space-y-1">
+                          {aiData.rooms.map((room, i) => (
+                            <li key={i} className="text-gray-400">
+                              • {room.name} {room.areaFromLabel ? `(${room.areaFromLabel} m²)` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {aiData.dimensionsFromImage?.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-gray-300">Dimensions from image:</p>
+                        <ul className="mt-1">
+                          {aiData.dimensionsFromImage.map((dim, i) => (
+                            <li key={i} className="text-gray-400">
+                              • {dim.value} {dim.unit} ({dim.description})
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Warning if quality is low */}
+                {warning && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <p className="text-amber-200 text-sm">{warning}</p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -403,27 +517,36 @@ export default function FloorPlanGeneratorModal({
 
           {/* Upgrade State (Free Users) */}
           {status === 'upgrade' && (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 mx-auto mb-4 bg-amber-500/20 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            <div className="flex flex-col items-center justify-center py-20 min-h-[400px]">
+              {/* Centered Icon */}
+              <div className="w-20 h-20 mb-6 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-2xl flex items-center justify-center border border-amber-500/30">
+                <svg className="w-10 h-10 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                 </svg>
               </div>
-              <p className="text-white font-medium text-lg mb-2">Premium Feature</p>
-              <p className="text-[var(--color-text-muted)] mb-6 max-w-md mx-auto">
+
+              {/* Title */}
+              <h3 className="text-white font-semibold text-xl mb-3">Premium Feature</h3>
+
+              {/* Description */}
+              <p className="text-[var(--color-text-muted)] text-center max-w-sm mb-2">
                 AI-powered floor plan generation is available for Pro users.
-                Upgrade to automatically create 3D buildings from your floor plans.
               </p>
-              <div className="flex gap-3 justify-center">
+              <p className="text-[var(--color-text-muted)] text-center text-sm max-w-sm mb-8">
+                Upgrade to automatically create 3D buildings from your floor plans with walls, doors, windows, and rooms detected instantly.
+              </p>
+
+              {/* Action Buttons */}
+              <div className="flex gap-4">
                 <button
                   onClick={onCancel}
-                  className="px-6 py-2 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]"
+                  className="px-8 py-3 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] font-medium transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => window.location.href = '/pricing'}
-                  className="px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 rounded-lg text-white"
+                  className="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-xl text-white font-medium transition-all shadow-lg shadow-amber-500/20"
                 >
                   Upgrade to Pro
                 </button>
