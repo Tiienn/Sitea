@@ -10,12 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
+    "@react-three/postprocessing": "^3.0.4",
+    "@supabase/supabase-js": "^2.87.1",
     "@tailwindcss/vite": "^4.1.17",
     "nipplejs": "^0.10.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-router-dom": "^7.10.1",
     "tailwindcss": "^4.1.17",
     "three": "^0.181.2"
   },

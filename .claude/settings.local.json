@@ -16,7 +16,12 @@
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(timeout:*)",
+      "Bash(npx eslint:*)",
+      "Bash(node -e:*)",
+      "Bash(cat:*)",
+      "Skill(document-skills:frontend-design)"
     ],
     "deny": [],
     "ask": []
