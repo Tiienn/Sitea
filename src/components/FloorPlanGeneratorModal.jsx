@@ -1,8 +1,127 @@
 // src/components/FloorPlanGeneratorModal.jsx
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { convertFloorPlanToWorld, calculateScaleFromReference } from '../utils/floorPlanConverter';
 import FloorPlanPreview3D from './FloorPlanPreview3D';
+
+// 2D overlay component to visualize AI detection on the original image
+function DetectionOverlay({ image, aiData, width = 400 }) {
+  const canvasRef = useRef(null);
+  const imgRef = useRef(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  const drawOverlay = useCallback(() => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img || !imageLoaded || !aiData) return;
+
+    const ctx = canvas.getContext('2d');
+
+    // Calculate scale to fit image in canvas
+    const scale = width / img.naturalWidth;
+    const height = img.naturalHeight * scale;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    // Draw original image
+    ctx.drawImage(img, 0, 0, width, height);
+
+    // Draw detected walls
+    if (aiData.walls) {
+      ctx.strokeStyle = '#14B8A6';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+
+      aiData.walls.forEach((wall, i) => {
+        const startX = wall.start.x * scale;
+        const startY = wall.start.y * scale;
+        const endX = wall.end.x * scale;
+        const endY = wall.end.y * scale;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+
+        // Draw wall number at midpoint
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+        ctx.fillStyle = '#14B8A6';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(`${i + 1}`, midX - 4, midY + 4);
+      });
+    }
+
+    // Draw detected doors (orange circles)
+    if (aiData.doors) {
+      ctx.fillStyle = '#F59E0B';
+      aiData.doors.forEach(door => {
+        const x = door.center.x * scale;
+        const y = door.center.y * scale;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // Draw detected windows (cyan rectangles)
+    if (aiData.windows) {
+      ctx.fillStyle = '#06B6D4';
+      aiData.windows.forEach(window => {
+        const x = window.center.x * scale;
+        const y = window.center.y * scale;
+        ctx.fillRect(x - 8, y - 3, 16, 6);
+      });
+    }
+
+    // Draw detected room centers
+    if (aiData.rooms) {
+      ctx.fillStyle = 'rgba(20, 184, 166, 0.3)';
+      ctx.strokeStyle = '#14B8A6';
+      ctx.lineWidth = 1;
+      aiData.rooms.forEach(room => {
+        const x = room.center.x * scale;
+        const y = room.center.y * scale;
+        ctx.beginPath();
+        ctx.arc(x, y, 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
+  }, [aiData, imageLoaded, width]);
+
+  useEffect(() => {
+    drawOverlay();
+  }, [drawOverlay]);
+
+  return (
+    <div className="relative">
+      <img
+        ref={imgRef}
+        src={image}
+        alt="Floor plan"
+        className="hidden"
+        onLoad={() => setImageLoaded(true)}
+      />
+      <canvas
+        ref={canvasRef}
+        className="w-full rounded-lg"
+      />
+      <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-text-muted)]">
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-0.5 bg-teal-400"></span> Walls
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-amber-400"></span> Doors
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-1.5 bg-cyan-400"></span> Windows
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function FloorPlanGeneratorModal({
   image,
@@ -93,11 +212,15 @@ export default function FloorPlanGeneratorModal({
           body: JSON.stringify({ image: base64 }),
         });
 
-        if (!response.ok) {
-          throw new Error(`Analysis failed: ${response.status}`);
-        }
-
         data = await response.json();
+
+        // If API returned an error, show details
+        if (!response.ok || (!data.success && data.error)) {
+          const errorMsg = data.details
+            ? `${data.error}: ${data.details}`
+            : (data.error || `Analysis failed: ${response.status}`);
+          throw new Error(errorMsg);
+        }
       }
 
       if (!data.success && data.error) {
@@ -127,8 +250,15 @@ export default function FloorPlanGeneratorModal({
 
       setAiData(data);
 
-      // Use AI's estimated scale if available
-      if (data.scale?.estimatedMetersPerPixel) {
+      // Use AI's scale if available (handle both new and old schema)
+      if (data.scale?.pixelsPerMeter && data.scale.pixelsPerMeter > 0) {
+        // New schema: pixelsPerMeter
+        setSettings(s => ({
+          ...s,
+          scale: 1 / data.scale.pixelsPerMeter
+        }));
+      } else if (data.scale?.estimatedMetersPerPixel) {
+        // Old schema: estimatedMetersPerPixel
         setSettings(s => ({
           ...s,
           scale: data.scale.estimatedMetersPerPixel
@@ -224,10 +354,10 @@ export default function FloorPlanGeneratorModal({
           {/* Calibration State */}
           {status === 'calibrating' && aiData && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left: Image & Stats */}
+              {/* Left: Image with Detection Overlay */}
               <div className="space-y-4">
-                <div className="bg-[var(--color-bg-primary)] rounded-xl overflow-hidden border border-[var(--color-border)]">
-                  <img src={image} alt="Floor plan" className="w-full h-64 object-contain" />
+                <div className="bg-[var(--color-bg-primary)] rounded-xl overflow-hidden border border-[var(--color-border)] p-3">
+                  <DetectionOverlay image={image} aiData={aiData} width={450} />
                 </div>
 
                 {/* Detection Summary */}
@@ -271,6 +401,8 @@ export default function FloorPlanGeneratorModal({
                     <div className="grid grid-cols-2 gap-2 text-gray-400">
                       <div>Shape: <span className="text-white">{aiData.overallShape || 'Unknown'}</span></div>
                       <div>Total Area: <span className="text-white">{aiData.totalArea?.value || '?'} {aiData.totalArea?.unit || 'm²'}</span></div>
+                      <div>Scale Source: <span className="text-white">{aiData.scale?.source || 'estimated'}</span></div>
+                      <div>Image Size: <span className="text-white">{aiData.imageSize?.width || '?'}×{aiData.imageSize?.height || '?'}px</span></div>
                     </div>
 
                     {aiData.rooms?.length > 0 && (
@@ -279,14 +411,29 @@ export default function FloorPlanGeneratorModal({
                         <ul className="mt-1 space-y-1">
                           {aiData.rooms.map((room, i) => (
                             <li key={i} className="text-gray-400">
-                              • {room.name} {room.areaFromLabel ? `(${room.areaFromLabel} m²)` : ''}
+                              • {room.name} {(room.labeledArea || room.areaFromLabel) ? `(${room.labeledArea || room.areaFromLabel} m²)` : ''}
                             </li>
                           ))}
                         </ul>
                       </div>
                     )}
 
-                    {aiData.dimensionsFromImage?.length > 0 && (
+                    {/* New schema: dimensions array */}
+                    {aiData.dimensions?.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-gray-300">Detected Dimensions:</p>
+                        <ul className="mt-1">
+                          {aiData.dimensions.map((dim, i) => (
+                            <li key={i} className="text-gray-400">
+                              • {dim.value} {dim.unit} ({dim.pixelLength}px)
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Old schema fallback: dimensionsFromImage */}
+                    {!aiData.dimensions?.length && aiData.dimensionsFromImage?.length > 0 && (
                       <div className="mt-2">
                         <p className="text-gray-300">Dimensions from image:</p>
                         <ul className="mt-1">

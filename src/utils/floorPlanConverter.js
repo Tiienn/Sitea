@@ -1,4 +1,5 @@
 // src/utils/floorPlanConverter.js
+// Updated with floor-plan-3d skill for improved coordinate conversion
 
 /**
  * Snap wall endpoints that are close together
@@ -49,16 +50,68 @@ function snapWallEndpoints(walls, threshold = 5) {
 }
 
 /**
+ * Calculate scale from AI data using the skill's priority order:
+ * 1. pixelsPerMeter from AI (new schema)
+ * 2. estimatedMetersPerPixel from AI (old schema, convert)
+ * 3. Calculate from dimensions array
+ * 4. Estimate from door width (fallback)
+ */
+function calculatePixelsPerMeter(aiData) {
+  // Priority 1: New schema pixelsPerMeter
+  if (aiData.scale?.pixelsPerMeter && aiData.scale.pixelsPerMeter > 0) {
+    return aiData.scale.pixelsPerMeter;
+  }
+
+  // Priority 2: Old schema (convert from meters per pixel)
+  if (aiData.scale?.estimatedMetersPerPixel && aiData.scale.estimatedMetersPerPixel > 0) {
+    return 1 / aiData.scale.estimatedMetersPerPixel;
+  }
+
+  // Priority 3: Calculate from dimensions array
+  if (aiData.dimensions && aiData.dimensions.length > 0) {
+    for (const dim of aiData.dimensions) {
+      if (dim.pixelLength && dim.pixelLength > 0 && dim.value > 0) {
+        let meters = dim.value;
+        // Convert to meters based on unit
+        if (dim.unit === 'mm') {
+          meters = dim.value / 1000;
+        } else if (dim.unit === 'ft') {
+          meters = dim.value * 0.3048;
+        }
+        if (meters > 0) {
+          return dim.pixelLength / meters;
+        }
+      }
+    }
+  }
+
+  // Priority 4: Estimate from door width (standard door = 0.9m)
+  if (aiData.doors && aiData.doors.length > 0) {
+    const door = aiData.doors[0];
+    if (door.width && door.width > 0) {
+      return door.width / 0.9;
+    }
+  }
+
+  // Default fallback: assume 50 pixels per meter
+  return 50;
+}
+
+/**
  * Convert AI-extracted floor plan data to 3D world coordinates
+ * Uses center-based conversion from floor-plan-3d skill
  * @param {Object} aiData - Data from AI analysis
  * @param {Object} settings - Conversion settings
  * @returns {Object} - Walls and rooms in 3D world coordinates
  */
 export function convertFloorPlanToWorld(aiData, settings = {}) {
-  // Try to use AI's estimated scale if available
-  let calculatedScale = settings.scale || 0.05;
-  if (aiData.scale?.estimatedMetersPerPixel && !settings.scale) {
-    calculatedScale = aiData.scale.estimatedMetersPerPixel;
+  // Calculate pixelsPerMeter using skill's priority order
+  const pixelsPerMeter = calculatePixelsPerMeter(aiData);
+
+  // Convert to metersPerPixel for backwards compatibility with settings.scale
+  let calculatedScale = 1 / pixelsPerMeter;
+  if (settings.scale) {
+    calculatedScale = settings.scale;
   }
 
   const {
@@ -73,10 +126,18 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     windowSillHeight = 0.9,
   } = settings;
 
-  // Helper: Convert pixel coords to world coords
+  // Get image center for centered conversion (from skill's coordinate-conversion.md)
+  const imageCenter = {
+    x: (aiData.imageSize?.width || 800) / 2,
+    y: (aiData.imageSize?.height || 600) / 2
+  };
+
+  // Helper: Convert pixel coords to world coords (centered)
   const toWorld = (px, py) => {
-    let x = px * scale;
-    let z = py * scale;
+    // Convert from image center
+    // Image Y down → World Z (no flip needed for top-down view)
+    let x = (px - imageCenter.x) * scale;
+    let z = (py - imageCenter.y) * scale;
 
     // Apply rotation around origin
     if (rotation !== 0) {
@@ -192,13 +253,15 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     wall.openings.sort((a, b) => a.position - b.position);
   });
 
-  // Convert rooms - handle both areaFromLabel and approximateArea
+  // Convert rooms - handle labeledArea (new), areaFromLabel (old), and approximateArea
   const rooms = (aiData.rooms || []).map((room, index) => {
     const center = toWorld(room.center.x, room.center.y);
 
-    // Use areaFromLabel if available (from improved AI), otherwise calculate from pixels
+    // Use labeled area if available (handles both new and old schema)
     let areaInMeters;
-    if (room.areaFromLabel) {
+    if (room.labeledArea) {
+      areaInMeters = room.labeledArea;
+    } else if (room.areaFromLabel) {
       areaInMeters = room.areaFromLabel;
     } else if (room.approximateArea) {
       areaInMeters = room.approximateArea * scale * scale;

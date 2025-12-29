@@ -1,10 +1,11 @@
 // src/components/FloorPlanPreview3D.jsx
 
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Text, PerspectiveCamera } from '@react-three/drei';
-import { useMemo } from 'react';
+import { OrbitControls, Text, PerspectiveCamera, OrthographicCamera, Billboard } from '@react-three/drei';
+import { useMemo, useState } from 'react';
 
 export default function FloorPlanPreview3D({ walls, rooms }) {
+  const [isTopDown, setIsTopDown] = useState(false);
   // Calculate bounds for camera positioning
   const bounds = useMemo(() => {
     let minX = Infinity, maxX = -Infinity;
@@ -33,56 +34,80 @@ export default function FloorPlanPreview3D({ walls, rooms }) {
   }, [walls]);
 
   return (
-    <Canvas shadows>
-      <PerspectiveCamera
-        makeDefault
-        position={[
-          bounds.centerX + bounds.size * 0.8,
-          bounds.size * 0.6,
-          bounds.centerZ + bounds.size * 0.8
-        ]}
-        fov={50}
-      />
-
-      <ambientLight intensity={0.4} />
-      <directionalLight
-        position={[bounds.centerX + 20, 30, bounds.centerZ + 20]}
-        intensity={0.8}
-        castShadow
-      />
-
-      {/* Ground */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[bounds.centerX, -0.01, bounds.centerZ]}
-        receiveShadow
+    <div className="relative w-full h-full">
+      {/* View Toggle Button */}
+      <button
+        onClick={() => setIsTopDown(!isTopDown)}
+        className="absolute top-2 right-2 z-10 px-3 py-1.5 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-lg text-xs text-white border border-[var(--color-border)] transition-colors"
       >
-        <planeGeometry args={[bounds.size * 2, bounds.size * 2]} />
-        <meshStandardMaterial color="#1a1a2e" />
-      </mesh>
+        {isTopDown ? '3D View' : 'Top-Down'}
+      </button>
 
-      {/* Grid */}
-      <gridHelper
-        args={[bounds.size * 2, Math.ceil(bounds.size * 2), '#333', '#222']}
-        position={[bounds.centerX, 0, bounds.centerZ]}
-      />
+      <Canvas shadows className="w-full h-full">
+        {isTopDown ? (
+          // Top-down orthographic view (matches floor plan image orientation)
+          <OrthographicCamera
+            makeDefault
+            position={[bounds.centerX, bounds.size * 2, bounds.centerZ]}
+            zoom={20}
+            near={0.1}
+            far={1000}
+            rotation={[-Math.PI / 2, 0, 0]}
+          />
+        ) : (
+          // 3D perspective view
+          <PerspectiveCamera
+            makeDefault
+            position={[
+              bounds.centerX + bounds.size * 0.8,
+              bounds.size * 0.6,
+              bounds.centerZ + bounds.size * 0.8
+            ]}
+            fov={50}
+          />
+        )}
 
-      {/* Walls */}
-      {walls.map((wall, index) => (
-        <PreviewWall key={index} wall={wall} />
-      ))}
+        <ambientLight intensity={0.4} />
+        <directionalLight
+          position={[bounds.centerX + 20, 30, bounds.centerZ + 20]}
+          intensity={0.8}
+          castShadow
+        />
 
-      {/* Room Labels */}
-      {rooms.map((room, index) => (
-        <RoomLabel key={index} room={room} />
-      ))}
+        {/* Ground */}
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[bounds.centerX, -0.01, bounds.centerZ]}
+          receiveShadow
+        >
+          <planeGeometry args={[bounds.size * 2, bounds.size * 2]} />
+          <meshStandardMaterial color="#1a1a2e" />
+        </mesh>
 
-      <OrbitControls
-        target={[bounds.centerX, 1, bounds.centerZ]}
-        minDistance={5}
-        maxDistance={bounds.size * 3}
-      />
-    </Canvas>
+        {/* Grid */}
+        <gridHelper
+          args={[bounds.size * 2, Math.ceil(bounds.size * 2), '#333', '#222']}
+          position={[bounds.centerX, 0, bounds.centerZ]}
+        />
+
+        {/* Walls */}
+        {walls.map((wall, index) => (
+          <PreviewWall key={index} wall={wall} />
+        ))}
+
+        {/* Room Labels */}
+        {rooms.map((room, index) => (
+          <RoomLabel key={index} room={room} />
+        ))}
+
+        <OrbitControls
+          target={[bounds.centerX, 1, bounds.centerZ]}
+          minDistance={5}
+          maxDistance={bounds.size * 3}
+          enableRotate={!isTopDown}
+        />
+      </Canvas>
+    </div>
   );
 }
 
@@ -119,17 +144,19 @@ function RoomLabel({ room }) {
         <meshBasicMaterial color="#14B8A6" opacity={0.2} transparent />
       </mesh>
 
-      {/* Room name */}
-      <Text
-        position={[0, 0.1, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        fontSize={0.5}
-        color="#14B8A6"
-        anchorX="center"
-        anchorY="middle"
-      >
-        {room.name}
-      </Text>
+      {/* Room name - Billboard ensures it always faces camera */}
+      <Billboard position={[0, 1.5, 0]} follow={true}>
+        <Text
+          fontSize={0.4}
+          color="#14B8A6"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.04}
+          outlineColor="#000000"
+        >
+          {room.name}
+        </Text>
+      </Billboard>
     </group>
   );
 }

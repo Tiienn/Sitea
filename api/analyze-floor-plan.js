@@ -1,4 +1,5 @@
 // api/analyze-floor-plan.js (Vercel serverless function)
+// Updated with floor-plan-3d skill for improved detection
 
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -9,6 +10,18 @@ const anthropic = new Anthropic({
 export const config = {
   maxDuration: 60, // Allow up to 60 seconds for AI analysis
 };
+
+// System prompt with critical rules from floor-plan-3d skill
+const SYSTEM_PROMPT = `You are a floor plan analyzer that extracts architectural elements from 2D floor plan images. Output structured JSON only - no explanations.
+
+CRITICAL RULES:
+1. All coordinates are in PIXELS from the image's top-left corner
+2. Walls are defined by their CENTER LINE, not edges
+3. Door/window positions are their center point in pixels
+4. Dimensions in the image may be in meters (m), millimeters (mm), or feet (ft)
+5. If dimensions show numbers like 3670, 4580 without units, assume MILLIMETERS
+6. If dimensions show numbers like 5.37, 3.68 with decimals, assume METERS
+7. Calculate pixelsPerMeter from labeled dimensions: pixelsPerMeter = pixelDistance / meterValue`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -24,7 +37,8 @@ export default async function handler(req, res) {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 16384,  // Increased for complex floor plans
+      max_tokens: 8192,
+      system: SYSTEM_PROMPT,
       messages: [{
         role: 'user',
         content: [
@@ -38,111 +52,125 @@ export default async function handler(req, res) {
           },
           {
             type: 'text',
-            text: `You are an expert architectural floor plan analyzer. Analyze this floor plan image VERY CAREFULLY and extract ALL structural elements with precise pixel coordinates.
+            text: `Analyze this floor plan image and extract all architectural elements.
 
-CRITICAL INSTRUCTIONS:
-1. Identify EVERY wall segment - both exterior (thick lines) and interior (thinner lines)
-2. Trace the EXACT shape of the floor plan - it may be L-shaped, U-shaped, or irregular
-3. Find ALL doors - look for swing arcs (quarter circles) or door symbols
-4. Find ALL windows - look for parallel lines on exterior walls
-5. Identify ALL rooms by their labels or by enclosed spaces
-6. Read ANY dimension labels in the image (like "5.37 m" or "2.78 m")
-
-COORDINATE SYSTEM:
-- Origin (0,0) is at the TOP-LEFT corner of the image
-- X increases to the RIGHT
-- Y increases DOWNWARD
-- Estimate the image size and provide coordinates in pixels
-
-For this floor plan, I can see it contains multiple rooms. Trace EVERY wall carefully.
-
-Return a JSON object with this EXACT structure:
-
+OUTPUT FORMAT (JSON only, no markdown):
 {
   "success": true,
-  "imageSize": {
-    "width": <estimated image width in pixels>,
-    "height": <estimated image height in pixels>
-  },
-  "dimensionsFromImage": [
-    { "value": 5.37, "unit": "m", "description": "bottom left width" },
-    { "value": 3.68, "unit": "m", "description": "bottom right width" }
-  ],
-  "scale": {
-    "estimatedMetersPerPixel": <calculate based on visible dimensions>,
-    "confidence": <0.0 to 1.0>,
-    "reasoning": "<explain how you calculated the scale>"
-  },
+  "imageSize": { "width": <pixels>, "height": <pixels> },
   "walls": [
     {
-      "id": "wall_1",
-      "start": { "x": <pixels>, "y": <pixels> },
-      "end": { "x": <pixels>, "y": <pixels> },
+      "start": { "x": <pixel>, "y": <pixel> },
+      "end": { "x": <pixel>, "y": <pixel> },
       "thickness": <pixels>,
-      "isExterior": true,
-      "description": "north exterior wall"
-    },
-    {
-      "id": "wall_2",
-      "start": { "x": <pixels>, "y": <pixels> },
-      "end": { "x": <pixels>, "y": <pixels> },
-      "thickness": <pixels>,
-      "isExterior": false,
-      "description": "wall between kitchen and living room"
+      "isExterior": <boolean>
     }
   ],
   "doors": [
     {
-      "id": "door_1",
-      "center": { "x": <pixels>, "y": <pixels> },
+      "center": { "x": <pixel>, "y": <pixel> },
       "width": <pixels>,
-      "swingDirection": "inward-left" | "inward-right" | "outward-left" | "outward-right",
-      "connectedRooms": ["Living Area", "Entry Hall"],
-      "description": "main entry door"
+      "swingDirection": "in|out|sliding",
+      "wallIndex": <index of wall this door is on, or -1 if unknown>
     }
   ],
   "windows": [
     {
-      "id": "window_1",
-      "center": { "x": <pixels>, "y": <pixels> },
+      "center": { "x": <pixel>, "y": <pixel> },
       "width": <pixels>,
-      "wallId": "wall_1",
-      "description": "living room window on south wall"
+      "wallIndex": <index of wall this window is on, or -1 if unknown>
     }
   ],
   "rooms": [
     {
-      "id": "room_1",
-      "name": "Kitchen & Dining Area",
-      "center": { "x": <pixels>, "y": <pixels> },
-      "areaFromLabel": 14.8,
-      "areaUnit": "m²",
-      "boundaryDescription": "top-left section of floor plan"
-    },
-    {
-      "id": "room_2",
-      "name": "Living Area",
-      "center": { "x": <pixels>, "y": <pixels> },
-      "areaFromLabel": 21.4,
-      "areaUnit": "m²",
-      "boundaryDescription": "bottom-left large room"
+      "name": "<room name from label or inferred>",
+      "center": { "x": <pixel>, "y": <pixel> },
+      "labeledArea": <number if shown in image, null otherwise>,
+      "areaUnit": "m²|ft²|null"
     }
   ],
-  "overallShape": "L-shaped" | "rectangular" | "U-shaped" | "irregular",
+  "dimensions": [
+    {
+      "value": <number>,
+      "unit": "m|mm|ft",
+      "startPixel": { "x": <pixel>, "y": <pixel> },
+      "endPixel": { "x": <pixel>, "y": <pixel> },
+      "pixelLength": <distance in pixels between start and end>
+    }
+  ],
+  "scale": {
+    "pixelsPerMeter": <calculated from dimensions, or estimated>,
+    "confidence": <0.0-1.0>,
+    "source": "dimension_label|total_area|door_width|estimated"
+  },
+  "overallShape": "rectangular|L-shaped|U-shaped|complex",
   "totalArea": {
-    "value": 71,
-    "unit": "m²",
-    "source": "label in image"
+    "value": <number if shown>,
+    "unit": "m²|ft²",
+    "source": "label|calculated"
   }
 }
 
-IMPORTANT:
-- Include ALL walls, not just the outer boundary
-- For an L-shaped floor plan, you need walls that create the L shape
-- Interior walls separate rooms - don't skip them!
-- Each wall should connect to other walls at endpoints (within a few pixels)
-- If you see dimension labels like "5.37 m", use them to calculate accurate scale
-- A typical door is 0.8-1.0m wide, a typical window is 1.0-1.5m wide
+DETECTION GUIDELINES:
+
+WALLS (CRITICAL - follow this process):
+Step 1: Identify the EXTERIOR BOUNDARY first
+- Start at the top-left corner of the floor plan
+- Trace clockwise around the entire exterior perimeter
+- Each corner creates a new wall segment
+- For L-shaped plans: the exterior boundary will have 6+ corners (not 4!)
+- For U-shaped plans: the exterior boundary will have 8+ corners
+
+Step 2: Add INTERIOR walls
+- These divide the interior into rooms
+- Interior walls connect to exterior walls or other interior walls
+
+WALL COORDINATE RULES:
+- Coordinates are in PIXELS from image top-left (0,0)
+- Wall "start" and "end" are the CENTER of wall thickness at each end
+- Each wall is a straight segment from corner to corner
+- Adjacent walls should share the same endpoint coordinates
+- Example: If wall1 ends at (300, 100), wall2 should start at (300, 100)
+
+WALL THICKNESS:
+- Exterior walls: typically 15-25 pixels thick
+- Interior walls: typically 8-15 pixels thick
+- Measure the actual wall thickness in the image
+
+DOORS:
+- Quarter-circle arc = door swing (hinged door)
+- Gap in wall with no arc = sliding door or open doorway
+- Small rectangle crossing wall = door symbol
+- Standard door width: ~80-100 pixels at typical scales
+
+WINDOWS:
+- Two short parallel lines perpendicular to wall
+- Thin rectangles on walls
+- Often have small tick marks at edges
+
+ROOMS:
+- Text labels inside enclosed spaces indicate room names
+- Numbers with m² or ft² indicate room areas
+- Common rooms: Living Room, Bedroom, Kitchen, Bathroom, Entry Hall, Balcony
+
+DIMENSIONS:
+- Numbers with arrows or extension lines
+- Look for: 5.37 m, 3670 (mm), 10'-6" (feet-inches)
+- The pixel distance between dimension endpoints helps calculate scale
+
+SCALE CALCULATION (CRITICAL):
+1. Find a labeled dimension (e.g., "5.37 m" spanning some pixels)
+2. Measure pixel distance between dimension endpoints
+3. pixelsPerMeter = pixelDistance / meterValue
+4. If dimensions are in mm: pixelsPerMeter = pixelDistance / (mmValue / 1000)
+5. If no dimensions found, estimate from door width (standard door = 0.9m)
+
+VERIFICATION CHECKLIST (before responding):
+- Does the exterior boundary form a closed shape?
+- Do adjacent walls share endpoints?
+- Are all corners of the floor plan represented?
+- For L-shaped: exterior should have at least 6 wall segments
+- Do wall coordinates look reasonable for the image size?
 
 Return ONLY valid JSON. No markdown, no explanation outside JSON.`
           }
@@ -190,7 +218,9 @@ Return ONLY valid JSON. No markdown, no explanation outside JSON.`
     return res.status(500).json({
       success: false,
       error: 'Failed to analyze floor plan',
-      details: error.message
+      details: error.message,
+      errorType: error.name,
+      statusCode: error.status || error.statusCode
     });
   }
 }

@@ -1,7 +1,6 @@
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react'
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber'
 import { Grid, Text, Billboard, OrbitControls, MapControls, OrthographicCamera, PerspectiveCamera, Line, useTexture } from '@react-three/drei'
-import { EffectComposer, SSAO } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { computeEdgeLabelData, formatEdgeLength } from '../utils/labels'
 import {
@@ -10,85 +9,57 @@ import {
   accumulateWalkTime,
 } from '../services/analytics'
 
-// Quality preset constants
-const QUALITY = {
-  LOW: 'low',
-  MEDIUM: 'medium',
-  HIGH: 'high'
-}
+// Import extracted constants and utilities
+import {
+  QUALITY,
+  QUALITY_SETTINGS,
+  CAMERA_MODE,
+  MIN_DISTANCE,
+  SWITCH_OUT_DISTANCE,
+  SWITCH_IN_DISTANCE,
+  MAX_DISTANCE,
+  DEFAULT_TP_DISTANCE,
+  ORBIT_START_DISTANCE,
+  FOLLOW_SMOOTH,
+  YAW_SMOOTH,
+  WALK_SPEED,
+  RUN_SPEED,
+  ZOOM_SPEED,
+  PINCH_SPEED,
+  CAMERA_BOB_WALK,
+  CAMERA_BOB_RUN,
+  CAMERA_BOB_SPEED,
+  FEET_PER_METER,
+  PREVIEW_COLOR_VALID,
+  PREVIEW_COLOR_INVALID,
+  PREVIEW_OPACITY,
+  SUN_POSITION,
+  IDLE_BOB_AMPLITUDE,
+  IDLE_BOB_SPEED,
+  WALK_LEG_SWING,
+  WALK_ARM_SWING,
+  WALK_BOB_AMPLITUDE,
+  WALK_CYCLE_SPEED,
+  RUN_LEG_SWING,
+  RUN_ARM_SWING,
+  RUN_BOB_AMPLITUDE,
+  RUN_CYCLE_SPEED,
+  RUN_LEAN,
+  NPC_COLORS,
+  formatDimension,
+  formatDimensions,
+  getWallLength,
+  getWallAngle,
+  getWorldPositionOnWall,
+  isValidOpeningPlacement
+} from '../constants/landSceneConstants'
 
-// Quality-dependent settings
-const QUALITY_SETTINGS = {
-  [QUALITY.LOW]: {
-    dpr: 1,
-    shadowsEnabled: false,
-    shadowMapSize: 512,
-    shadowType: false, // shadows off
-    bloom: false,
-    ssao: false,
-    envMapIntensity: 0,
-    grassDetail: false,
-    fogDensity: 0.008
-  },
-  [QUALITY.MEDIUM]: {
-    dpr: 1.5, // capped in Canvas
-    shadowsEnabled: true,
-    shadowMapSize: 1024,
-    shadowType: THREE.PCFSoftShadowMap,
-    bloom: false, // keep minimal
-    ssao: false,
-    envMapIntensity: 0.3,
-    grassDetail: true,
-    fogDensity: 0.006
-  },
-  [QUALITY.HIGH]: {
-    dpr: 2, // capped in Canvas
-    shadowsEnabled: true,
-    shadowMapSize: 2048,
-    shadowType: THREE.PCFSoftShadowMap,
-    bloom: true,
-    bloomIntensity: 0.2,
-    ssao: true,
-    ssaoIntensity: 0.5,
-    envMapIntensity: 0.5,
-    grassDetail: true,
-    fogDensity: 0.005
-  }
-}
-
-// Camera mode constants
-const CAMERA_MODE = {
-  FIRST_PERSON: 'first_person',
-  THIRD_PERSON: 'third_person',
-  ORBIT: 'orbit'
-}
-
-// Camera distance thresholds (meters)
-const MIN_DISTANCE = 0
-const SWITCH_OUT_DISTANCE = 1.8   // FP→TP when zooming out past this
-const SWITCH_IN_DISTANCE = 1.0    // TP→FP when zooming in past this (hysteresis)
-const MAX_DISTANCE = 500.0        // Max zoom out for orbit mode (wide overview)
-const DEFAULT_TP_DISTANCE = 5.0   // Starting distance when first switching to TP
-const ORBIT_START_DISTANCE = 10.0 // Orbit radius when toggled on
-
-// Camera smoothing
-const FOLLOW_SMOOTH = 0.1         // Position lerp factor (lower = smoother)
-const YAW_SMOOTH = 0.08           // Yaw alignment lerp factor
-
-// Unit conversion helper
-const FEET_PER_METER = 3.28084
-const formatDimension = (meters, unit) => {
-  if (unit === 'ft') {
-    return `${(meters * FEET_PER_METER).toFixed(1)}ft`
-  }
-  return `${meters.toFixed(1)}m`
-}
-const formatDimensions = (width, length, unit) => {
-  if (unit === 'ft') {
-    return `${(width * FEET_PER_METER).toFixed(0)}ft × ${(length * FEET_PER_METER).toFixed(0)}ft`
-  }
-  return `${width}m × ${length}m`
-}
+// Import extracted components
+import { RealisticSky, EnhancedGround, PostProcessing, DistantTreeline } from './scene/SceneEnvironment'
+import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
+import { NPCCharacter } from './scene/NPCCharacter'
+import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
+import { calculateNPCPositions } from '../utils/npcHelpers'
 
 // Floor Plan Background Component - renders uploaded floor plan as a textured plane
 function FloorPlanBackground({ imageUrl, settings = {} }) {
@@ -122,387 +93,6 @@ function FloorPlanBackground({ imageUrl, settings = {} }) {
   )
 }
 
-// Preview colors
-const PREVIEW_COLOR_VALID = '#14B8A6'   // Teal
-const PREVIEW_COLOR_INVALID = '#EF4444' // Red
-const PREVIEW_OPACITY = 0.4
-
-// Wall geometry helpers
-const getWallLength = (wall) => {
-  const dx = wall.end.x - wall.start.x
-  const dz = wall.end.z - wall.start.z
-  return Math.sqrt(dx * dx + dz * dz)
-}
-
-const getWallAngle = (wall) => {
-  const dx = wall.end.x - wall.start.x
-  const dz = wall.end.z - wall.start.z
-  return Math.atan2(dx, dz)
-}
-
-const getWorldPositionOnWall = (wall, distanceAlongWall) => {
-  const wallLen = getWallLength(wall)
-  if (wallLen < 0.001) return { x: wall.start.x, z: wall.start.z }
-  const dx = wall.end.x - wall.start.x
-  const dz = wall.end.z - wall.start.z
-  const t = distanceAlongWall / wallLen
-  return {
-    x: wall.start.x + dx * t,
-    z: wall.start.z + dz * t
-  }
-}
-
-// Check if opening placement is valid (returns { valid, reason })
-const isValidOpeningPlacement = (wall, positionOnWall, openingWidth, existingOpenings = []) => {
-  const wallLen = getWallLength(wall)
-  const halfWidth = openingWidth / 2
-  const MIN_EDGE_DIST = 0.3
-
-  // Too close to wall start
-  if (positionOnWall - halfWidth < MIN_EDGE_DIST) {
-    return { valid: false, reason: 'too_close_to_start' }
-  }
-  // Too close to wall end
-  if (positionOnWall + halfWidth > wallLen - MIN_EDGE_DIST) {
-    return { valid: false, reason: 'too_close_to_end' }
-  }
-  // Check for overlap with existing openings
-  for (const existing of existingOpenings) {
-    const existingStart = existing.position - existing.width / 2
-    const existingEnd = existing.position + existing.width / 2
-    const newStart = positionOnWall - halfWidth
-    const newEnd = positionOnWall + halfWidth
-    if (!(newEnd < existingStart || newStart > existingEnd)) {
-      return { valid: false, reason: 'overlapping' }
-    }
-  }
-  return { valid: true, reason: null }
-}
-
-// Create realistic grass texture with macro variation
-function useGrassTextures(quality = QUALITY.MEDIUM) {
-  return useMemo(() => {
-    const settings = QUALITY_SETTINGS[quality]
-
-    // Main grass color texture (detail)
-    const detailCanvas = document.createElement('canvas')
-    detailCanvas.width = 512
-    detailCanvas.height = 512
-    const detailCtx = detailCanvas.getContext('2d')
-
-    // Base with natural color variation
-    for (let y = 0; y < 512; y++) {
-      for (let x = 0; x < 512; x++) {
-        const noise = (Math.random() - 0.5) * 25
-        const r = Math.min(255, Math.max(0, 58 + noise * 0.4))
-        const g = Math.min(255, Math.max(0, 110 + noise))
-        const b = Math.min(255, Math.max(0, 40 + noise * 0.3))
-        detailCtx.fillStyle = `rgb(${r},${g},${b})`
-        detailCtx.fillRect(x, y, 1, 1)
-      }
-    }
-
-    // Darker patches (shadows/clumps)
-    for (let i = 0; i < 80; i++) {
-      const x = Math.random() * 512
-      const y = Math.random() * 512
-      const radius = Math.random() * 35 + 15
-      const gradient = detailCtx.createRadialGradient(x, y, 0, x, y, radius)
-      gradient.addColorStop(0, 'rgba(35, 75, 30, 0.35)')
-      gradient.addColorStop(1, 'rgba(35, 75, 30, 0)')
-      detailCtx.fillStyle = gradient
-      detailCtx.beginPath()
-      detailCtx.arc(x, y, radius, 0, Math.PI * 2)
-      detailCtx.fill()
-    }
-
-    // Lighter sun patches
-    for (let i = 0; i < 40; i++) {
-      const x = Math.random() * 512
-      const y = Math.random() * 512
-      const radius = Math.random() * 45 + 20
-      const gradient = detailCtx.createRadialGradient(x, y, 0, x, y, radius)
-      gradient.addColorStop(0, 'rgba(95, 150, 65, 0.3)')
-      gradient.addColorStop(1, 'rgba(95, 150, 65, 0)')
-      detailCtx.fillStyle = gradient
-      detailCtx.beginPath()
-      detailCtx.arc(x, y, radius, 0, Math.PI * 2)
-      detailCtx.fill()
-    }
-
-    // Grass blade strokes
-    for (let i = 0; i < 4000; i++) {
-      const x = Math.random() * 512
-      const y = Math.random() * 512
-      const length = Math.random() * 10 + 4
-      const shade = Math.random() * 35 - 15
-      detailCtx.strokeStyle = `rgba(${50 + shade}, ${95 + shade}, ${35 + shade}, 0.5)`
-      detailCtx.lineWidth = Math.random() * 1.5 + 0.5
-      detailCtx.beginPath()
-      detailCtx.moveTo(x, y)
-      detailCtx.quadraticCurveTo(x + (Math.random() - 0.5) * 4, y - length / 2, x + (Math.random() - 0.5) * 5, y - length)
-      detailCtx.stroke()
-    }
-
-    const detailTexture = new THREE.CanvasTexture(detailCanvas)
-    detailTexture.wrapS = THREE.RepeatWrapping
-    detailTexture.wrapT = THREE.RepeatWrapping
-    detailTexture.repeat.set(15, 15) // Reduced tiling
-
-    // Macro variation texture (large-scale color variation to break tiling)
-    const macroCanvas = document.createElement('canvas')
-    macroCanvas.width = 256
-    macroCanvas.height = 256
-    const macroCtx = macroCanvas.getContext('2d')
-
-    // Neutral base
-    macroCtx.fillStyle = 'rgb(128, 128, 128)'
-    macroCtx.fillRect(0, 0, 256, 256)
-
-    // Large organic patches for variety
-    for (let i = 0; i < 30; i++) {
-      const x = Math.random() * 256
-      const y = Math.random() * 256
-      const radius = Math.random() * 80 + 40
-      const brightness = Math.random() * 60 + 98 // 98-158
-      const gradient = macroCtx.createRadialGradient(x, y, 0, x, y, radius)
-      gradient.addColorStop(0, `rgb(${brightness}, ${brightness}, ${brightness})`)
-      gradient.addColorStop(1, 'rgba(128, 128, 128, 0)')
-      macroCtx.fillStyle = gradient
-      macroCtx.beginPath()
-      macroCtx.arc(x, y, radius, 0, Math.PI * 2)
-      macroCtx.fill()
-    }
-
-    const macroTexture = new THREE.CanvasTexture(macroCanvas)
-    macroTexture.wrapS = THREE.RepeatWrapping
-    macroTexture.wrapT = THREE.RepeatWrapping
-    macroTexture.repeat.set(2, 2) // Very low repeat for macro variation
-
-    // Roughness map (subtle variation)
-    const roughCanvas = document.createElement('canvas')
-    roughCanvas.width = 256
-    roughCanvas.height = 256
-    const roughCtx = roughCanvas.getContext('2d')
-
-    for (let y = 0; y < 256; y++) {
-      for (let x = 0; x < 256; x++) {
-        const noise = Math.random() * 40 + 180 // 180-220 (mostly rough)
-        roughCtx.fillStyle = `rgb(${noise}, ${noise}, ${noise})`
-        roughCtx.fillRect(x, y, 1, 1)
-      }
-    }
-
-    const roughnessTexture = new THREE.CanvasTexture(roughCanvas)
-    roughnessTexture.wrapS = THREE.RepeatWrapping
-    roughnessTexture.wrapT = THREE.RepeatWrapping
-    roughnessTexture.repeat.set(15, 15)
-
-    return { detailTexture, macroTexture, roughnessTexture }
-  }, [quality])
-}
-
-// Simple grass texture for low quality
-function useSimpleGrassTexture() {
-  return useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = 256
-    const ctx = canvas.getContext('2d')
-
-    // Simple noise-based grass
-    for (let y = 0; y < 256; y++) {
-      for (let x = 0; x < 256; x++) {
-        const noise = (Math.random() - 0.5) * 20
-        const r = Math.min(255, Math.max(0, 60 + noise * 0.4))
-        const g = Math.min(255, Math.max(0, 105 + noise))
-        const b = Math.min(255, Math.max(0, 42 + noise * 0.3))
-        ctx.fillStyle = `rgb(${r},${g},${b})`
-        ctx.fillRect(x, y, 1, 1)
-      }
-    }
-
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.wrapS = THREE.RepeatWrapping
-    texture.wrapT = THREE.RepeatWrapping
-    texture.repeat.set(20, 20)
-    return texture
-  }, [])
-}
-
-// Original gradient sky with procedural clouds
-function RealisticSky() {
-  const uniforms = useMemo(() => ({
-    topColor: { value: new THREE.Color('#4a90c2') },
-    horizonColor: { value: new THREE.Color('#b8d4e8') },
-    bottomColor: { value: new THREE.Color('#e8f0f5') },
-  }), [])
-
-  const vertexShader = `
-    varying vec3 vWorldPosition;
-    void main() {
-      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-      vWorldPosition = worldPosition.xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `
-
-  const fragmentShader = `
-    uniform vec3 topColor;
-    uniform vec3 horizonColor;
-    uniform vec3 bottomColor;
-    varying vec3 vWorldPosition;
-
-    float hash(vec2 p) {
-      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-    }
-
-    float noise(vec2 p) {
-      vec2 i = floor(p);
-      vec2 f = fract(p);
-      f = f * f * (3.0 - 2.0 * f);
-      return mix(
-        mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
-        f.y
-      );
-    }
-
-    float fbm(vec2 p) {
-      float v = 0.0;
-      v += noise(p) * 0.5;
-      v += noise(p * 2.0) * 0.25;
-      v += noise(p * 4.0) * 0.125;
-      return v;
-    }
-
-    void main() {
-      vec3 dir = normalize(vWorldPosition);
-      float h = dir.y;
-
-      vec3 skyColor;
-      if (h > 0.0) {
-        float t = pow(h, 0.7);
-        skyColor = mix(horizonColor, topColor, t);
-      } else {
-        skyColor = bottomColor;
-      }
-
-      if (h > 0.05) {
-        vec2 cloudUV = dir.xz / (h + 0.1) * 2.0;
-        float cloudNoise = fbm(cloudUV);
-        float clouds = smoothstep(0.35, 0.65, cloudNoise);
-        clouds *= smoothstep(0.0, 0.3, h) * 0.6;
-        skyColor = mix(skyColor, vec3(1.0), clouds);
-      }
-
-      gl_FragColor = vec4(skyColor, 1.0);
-    }
-  `
-
-  return (
-    <mesh scale={[500, 500, 500]}>
-      <sphereGeometry args={[1, 64, 64]} />
-      <shaderMaterial
-        uniforms={uniforms}
-        vertexShader={vertexShader}
-        fragmentShader={fragmentShader}
-        side={THREE.BackSide}
-      />
-    </mesh>
-  )
-}
-
-// Sun position for lighting
-const SUN_POSITION = [50, 80, 30]
-
-// Enhanced ground plane with quality-dependent materials
-function EnhancedGround({ quality }) {
-  const settings = QUALITY_SETTINGS[quality]
-  const simpleTexture = useSimpleGrassTexture()
-  const { detailTexture, macroTexture, roughnessTexture } = useGrassTextures(quality)
-
-  if (quality === QUALITY.LOW) {
-    return (
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[500, 500]} />
-        <meshStandardMaterial map={simpleTexture} />
-      </mesh>
-    )
-  }
-
-  // Medium/High quality: use enhanced material
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[500, 500, 64, 64]} />
-      <meshStandardMaterial
-        map={detailTexture}
-        roughnessMap={roughnessTexture}
-        roughness={0.9}
-        metalness={0}
-        envMapIntensity={settings.envMapIntensity}
-      />
-    </mesh>
-  )
-}
-
-// Postprocessing effects based on quality (SSAO only, no bloom)
-function PostProcessing({ quality }) {
-  const settings = QUALITY_SETTINGS[quality]
-
-  if (!settings.ssao) return null
-
-  return (
-    <EffectComposer>
-      <SSAO
-        intensity={settings.ssaoIntensity || 0.5}
-        radius={0.1}
-        luminanceInfluence={0.5}
-      />
-    </EffectComposer>
-  )
-}
-
-// Distant treeline for horizon
-function DistantTreeline() {
-  const treelineTexture = useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = 64
-    const ctx = canvas.getContext('2d')
-
-    // Gradient background (transparent to tree color)
-    ctx.fillStyle = 'rgba(0,0,0,0)'
-    ctx.fillRect(0, 0, 512, 64)
-
-    // Draw simple tree silhouettes
-    for (let x = 0; x < 512; x += 3) {
-      const height = 20 + Math.random() * 35
-      const shade = Math.floor(Math.random() * 30)
-      ctx.fillStyle = `rgb(${30 + shade}, ${50 + shade}, ${35 + shade})`
-
-      // Tree shape
-      ctx.beginPath()
-      ctx.moveTo(x, 64)
-      ctx.lineTo(x + 1.5, 64 - height)
-      ctx.lineTo(x + 3, 64)
-      ctx.fill()
-    }
-
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.wrapS = THREE.RepeatWrapping
-    texture.repeat.set(8, 1)
-    return texture
-  }, [])
-
-  return (
-    <mesh position={[0, 15, -200]} rotation={[0, 0, 0]}>
-      <planeGeometry args={[800, 40]} />
-      <meshBasicMaterial map={treelineTexture} transparent alphaTest={0.1} fog={true} />
-    </mesh>
-  )
-}
-
 // Reports camera position/rotation to parent
 function CameraReporter({ onUpdate }) {
   const { camera } = useThree()
@@ -528,17 +118,6 @@ function CameraReporter({ onUpdate }) {
 
   return null
 }
-
-// Movement speed constants
-const WALK_SPEED = 3.0    // m/s - fast walking pace
-const RUN_SPEED = 6.0     // m/s - running pace (Shift held)
-const ZOOM_SPEED = 0.002  // Scroll wheel sensitivity
-const PINCH_SPEED = 0.01  // Pinch zoom sensitivity
-
-// Camera bob constants (very subtle to avoid motion sickness)
-const CAMERA_BOB_WALK = 0.012  // Extremely subtle - barely noticeable
-const CAMERA_BOB_RUN = 0.018   // Slightly more, still very gentle
-const CAMERA_BOB_SPEED = 10    // Bob frequency tied to footsteps
 
 // Unified camera controller handling FP, TP, and zoom switching
 function CameraController({
@@ -1062,134 +641,6 @@ function CameraController({
   return null
 }
 
-// Animation constants
-const IDLE_BOB_AMPLITUDE = 0.015 // Very subtle breathing
-const IDLE_BOB_SPEED = 1.5 // Slow breathing cycle
-const WALK_LEG_SWING = 0.4 // Radians - leg swing amplitude
-const WALK_ARM_SWING = 0.3 // Radians - arm swing amplitude
-const WALK_BOB_AMPLITUDE = 0.03 // Body bob when walking
-const WALK_CYCLE_SPEED = 8 // Steps per second at walk speed
-const RUN_LEG_SWING = 0.6 // More pronounced when running
-const RUN_ARM_SWING = 0.5
-const RUN_BOB_AMPLITUDE = 0.05
-const RUN_CYCLE_SPEED = 12
-const RUN_LEAN = 0.1 // Forward lean when running
-
-// Animated player mesh for third-person view
-function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0 }) {
-  const groupRef = useRef()
-  const bodyRef = useRef()
-  const headRef = useRef()
-  const leftLegRef = useRef()
-  const rightLegRef = useRef()
-  const leftArmRef = useRef()
-  const rightArmRef = useRef()
-
-  // Animation time accumulator
-  const timeRef = useRef(0)
-
-  useFrame((_, delta) => {
-    if (!visible) return
-
-    timeRef.current += delta
-    const t = timeRef.current
-
-    // Normalize velocity (0 = idle, 1 = walk, 2 = run)
-    const walkSpeed = WALK_SPEED
-    const runSpeed = RUN_SPEED
-    const normalizedVel = Math.min(velocity / walkSpeed, runSpeed / walkSpeed)
-    const isRunning = velocity > walkSpeed * 1.2
-
-    // Interpolate animation parameters based on velocity
-    const legSwing = isRunning ? RUN_LEG_SWING : WALK_LEG_SWING
-    const armSwing = isRunning ? RUN_ARM_SWING : WALK_ARM_SWING
-    const bobAmplitude = isRunning ? RUN_BOB_AMPLITUDE : WALK_BOB_AMPLITUDE
-    const cycleSpeed = isRunning ? RUN_CYCLE_SPEED : WALK_CYCLE_SPEED
-    const forwardLean = isRunning ? RUN_LEAN : 0
-
-    // Movement blend (0 = idle, 1 = full movement)
-    const moveBlend = Math.min(1, velocity / (walkSpeed * 0.5))
-
-    // Idle breathing animation (always present, fades when moving)
-    const idleBlend = 1 - moveBlend
-    const breathingBob = Math.sin(t * IDLE_BOB_SPEED * Math.PI * 2) * IDLE_BOB_AMPLITUDE * idleBlend
-
-    // Walking/running cycle
-    const cyclePhase = t * cycleSpeed * normalizedVel
-    const walkBob = Math.abs(Math.sin(cyclePhase)) * bobAmplitude * moveBlend
-
-    // Apply body bob (breathing + walk bob)
-    if (bodyRef.current) {
-      bodyRef.current.position.y = 0.75 + breathingBob + walkBob
-      // Forward lean when running
-      bodyRef.current.rotation.x = forwardLean * moveBlend
-    }
-
-    // Head follows body
-    if (headRef.current) {
-      headRef.current.position.y = 1.5 + breathingBob + walkBob
-    }
-
-    // Leg swing animation
-    const legAngle = Math.sin(cyclePhase) * legSwing * moveBlend
-    if (leftLegRef.current) {
-      leftLegRef.current.rotation.x = legAngle
-      // Legs bob slightly with body
-      leftLegRef.current.position.y = 0.1 + walkBob * 0.3
-    }
-    if (rightLegRef.current) {
-      rightLegRef.current.rotation.x = -legAngle // Opposite phase
-      rightLegRef.current.position.y = 0.1 + walkBob * 0.3
-    }
-
-    // Arm swing animation (opposite to legs)
-    const armAngle = Math.sin(cyclePhase) * armSwing * moveBlend
-    if (leftArmRef.current) {
-      leftArmRef.current.rotation.x = -armAngle // Opposite to right leg
-    }
-    if (rightArmRef.current) {
-      rightArmRef.current.rotation.x = armAngle // Opposite to left leg
-    }
-  })
-
-  if (!visible) return null
-
-  return (
-    <group ref={groupRef} position={[position.x, 0, position.z]} rotation={[0, rotation, 0]}>
-      {/* Body */}
-      <mesh ref={bodyRef} position={[0, 0.75, 0]} castShadow>
-        <capsuleGeometry args={[0.25, 0.7, 4, 8]} />
-        <meshStandardMaterial color="#3366cc" />
-      </mesh>
-      {/* Head */}
-      <mesh ref={headRef} position={[0, 1.5, 0]} castShadow>
-        <sphereGeometry args={[0.2, 16, 16]} />
-        <meshStandardMaterial color="#ffcc99" />
-      </mesh>
-      {/* Left Leg */}
-      <mesh ref={leftLegRef} position={[-0.12, 0.1, 0]} castShadow>
-        <capsuleGeometry args={[0.1, 0.6, 4, 8]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      {/* Right Leg */}
-      <mesh ref={rightLegRef} position={[0.12, 0.1, 0]} castShadow>
-        <capsuleGeometry args={[0.1, 0.6, 4, 8]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      {/* Left Arm */}
-      <mesh ref={leftArmRef} position={[-0.35, 1.0, 0]} castShadow>
-        <capsuleGeometry args={[0.07, 0.5, 4, 8]} />
-        <meshStandardMaterial color="#3366cc" />
-      </mesh>
-      {/* Right Arm */}
-      <mesh ref={rightArmRef} position={[0.35, 1.0, 0]} castShadow>
-        <capsuleGeometry args={[0.07, 0.5, 4, 8]} />
-        <meshStandardMaterial color="#3366cc" />
-      </mesh>
-    </group>
-  )
-}
-
 function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPointerLeave, onPointerDown, onPointerUp, viewMode = 'firstPerson' }) {
   const is2D = viewMode === '2d'
 
@@ -1278,174 +729,6 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
           <meshStandardMaterial color="#8b4513" />
         </mesh>
       ))}
-    </group>
-  )
-}
-
-// NPC color presets (different from player blue)
-const NPC_COLORS = {
-  guide1: { body: '#cc6633', pants: '#4a4a4a' }, // Orange shirt
-  guide2: { body: '#339966', pants: '#3a3a3a' }, // Green shirt
-}
-
-// Calculate positions for NPCs outside land boundary
-function calculateNPCPositions(polygonPoints, length, width) {
-  const NPC_OFFSET = 4.0 // meters outside boundary
-
-  // Get vertices (polygon or rectangle)
-  // Note: polygon.y maps to NEGATIVE z in 3D space (see LandPlot corner posts)
-  let vertices
-  if (polygonPoints && polygonPoints.length >= 3) {
-    vertices = polygonPoints.map(p => ({ x: p.x, z: -(p.y ?? p.z) }))
-  } else {
-    const hw = width / 2, hl = length / 2
-    vertices = [
-      { x: -hw, z: -hl },
-      { x: hw, z: -hl },
-      { x: hw, z: hl },
-      { x: -hw, z: hl }
-    ]
-  }
-
-  // Find centroid for facing direction
-  const centroid = {
-    x: vertices.reduce((sum, v) => sum + v.x, 0) / vertices.length,
-    z: vertices.reduce((sum, v) => sum + v.z, 0) / vertices.length
-  }
-
-  // Find longest edge for guide1, and opposite/perpendicular edge for guide2
-  let longestEdgeIdx = 0
-  let longestLen = 0
-
-  for (let i = 0; i < vertices.length; i++) {
-    const v1 = vertices[i]
-    const v2 = vertices[(i + 1) % vertices.length]
-    const dx = v2.x - v1.x
-    const dz = v2.z - v1.z
-    const edgeLen = Math.sqrt(dx * dx + dz * dz)
-    if (edgeLen > longestLen) {
-      longestLen = edgeLen
-      longestEdgeIdx = i
-    }
-  }
-
-  // Guide1: midpoint of longest edge, offset outward
-  const e1v1 = vertices[longestEdgeIdx]
-  const e1v2 = vertices[(longestEdgeIdx + 1) % vertices.length]
-  const mid1 = { x: (e1v1.x + e1v2.x) / 2, z: (e1v1.z + e1v2.z) / 2 }
-
-  // Calculate outward normal for edge 1
-  const e1dx = e1v2.x - e1v1.x
-  const e1dz = e1v2.z - e1v1.z
-  const e1len = Math.sqrt(e1dx * e1dx + e1dz * e1dz)
-  // Perpendicular (rotate 90 degrees)
-  let n1x = -e1dz / e1len
-  let n1z = e1dx / e1len
-  // Ensure it points outward (away from centroid)
-  const toCenter1x = centroid.x - mid1.x
-  const toCenter1z = centroid.z - mid1.z
-  if (n1x * toCenter1x + n1z * toCenter1z > 0) {
-    n1x = -n1x
-    n1z = -n1z
-  }
-
-  const guide1Pos = {
-    x: mid1.x + n1x * NPC_OFFSET,
-    z: mid1.z + n1z * NPC_OFFSET
-  }
-  // Rotation to face toward land (toward centroid)
-  const guide1Rot = Math.atan2(centroid.x - guide1Pos.x, centroid.z - guide1Pos.z)
-
-  // Guide2: opposite edge (half the vertices around)
-  const oppositeEdgeIdx = (longestEdgeIdx + Math.floor(vertices.length / 2)) % vertices.length
-  const e2v1 = vertices[oppositeEdgeIdx]
-  const e2v2 = vertices[(oppositeEdgeIdx + 1) % vertices.length]
-  const mid2 = { x: (e2v1.x + e2v2.x) / 2, z: (e2v1.z + e2v2.z) / 2 }
-
-  // Calculate outward normal for edge 2
-  const e2dx = e2v2.x - e2v1.x
-  const e2dz = e2v2.z - e2v1.z
-  const e2len = Math.sqrt(e2dx * e2dx + e2dz * e2dz) || 1
-  let n2x = -e2dz / e2len
-  let n2z = e2dx / e2len
-  const toCenter2x = centroid.x - mid2.x
-  const toCenter2z = centroid.z - mid2.z
-  if (n2x * toCenter2x + n2z * toCenter2z > 0) {
-    n2x = -n2x
-    n2z = -n2z
-  }
-
-  const guide2Pos = {
-    x: mid2.x + n2x * NPC_OFFSET,
-    z: mid2.z + n2z * NPC_OFFSET
-  }
-  const guide2Rot = Math.atan2(centroid.x - guide2Pos.x, centroid.z - guide2Pos.z)
-
-  return {
-    guide1: { position: guide1Pos, rotation: guide1Rot },
-    guide2: { position: guide2Pos, rotation: guide2Rot }
-  }
-}
-
-// NPC Character component with idle animation
-// TODO: Future - click to interact / access features
-function NPCCharacter({ id, position, rotation = 0 }) {
-  const bodyRef = useRef()
-  const headRef = useRef()
-  const timeRef = useRef(Math.random() * 10) // Random phase offset
-
-  const colors = NPC_COLORS[id] || NPC_COLORS.guide1
-
-  // Idle breathing animation
-  useFrame((_, delta) => {
-    timeRef.current += delta
-    const t = timeRef.current
-
-    // Subtle breathing bob
-    const breathingBob = Math.sin(t * IDLE_BOB_SPEED * Math.PI * 2) * IDLE_BOB_AMPLITUDE
-
-    if (bodyRef.current) {
-      bodyRef.current.position.y = 0.75 + breathingBob
-    }
-    if (headRef.current) {
-      headRef.current.position.y = 1.5 + breathingBob
-    }
-  })
-
-  return (
-    <group position={[position.x, 0, position.z]} rotation={[0, rotation, 0]}>
-      {/* Body */}
-      <mesh ref={bodyRef} position={[0, 0.75, 0]} castShadow>
-        <capsuleGeometry args={[0.25, 0.7, 4, 8]} />
-        <meshStandardMaterial color={colors.body} />
-      </mesh>
-
-      {/* Head */}
-      <mesh ref={headRef} position={[0, 1.5, 0]} castShadow>
-        <sphereGeometry args={[0.2, 16, 16]} />
-        <meshStandardMaterial color="#ffcc99" />
-      </mesh>
-
-      {/* Left Leg */}
-      <mesh position={[-0.12, 0.1, 0]} castShadow>
-        <capsuleGeometry args={[0.1, 0.6, 4, 8]} />
-        <meshStandardMaterial color={colors.pants} />
-      </mesh>
-      {/* Right Leg */}
-      <mesh position={[0.12, 0.1, 0]} castShadow>
-        <capsuleGeometry args={[0.1, 0.6, 4, 8]} />
-        <meshStandardMaterial color={colors.pants} />
-      </mesh>
-      {/* Left Arm */}
-      <mesh position={[-0.35, 1.0, 0]} castShadow>
-        <capsuleGeometry args={[0.07, 0.5, 4, 8]} />
-        <meshStandardMaterial color={colors.body} />
-      </mesh>
-      {/* Right Arm */}
-      <mesh position={[0.35, 1.0, 0]} castShadow>
-        <capsuleGeometry args={[0.07, 0.5, 4, 8]} />
-        <meshStandardMaterial color={colors.body} />
-      </mesh>
     </group>
   )
 }
@@ -2941,105 +2224,6 @@ function SnapGuideLine({ line }) {
       </line>
     )
   }
-}
-
-// Grid overlay for snap-to-grid positioning
-function GridOverlay({ visible, gridSize = 1, size = 200 }) {
-  if (!visible) return null
-
-  const lines = useMemo(() => {
-    const result = []
-    const halfSize = size / 2
-
-    // Create grid lines
-    for (let i = -halfSize; i <= halfSize; i += gridSize) {
-      const isMajor = Math.abs(i % 5) < 0.001 // Major line every 5m
-
-      // Vertical lines (along Z axis)
-      result.push({
-        key: `v${i}`,
-        points: [i, 0.02, -halfSize, i, 0.02, halfSize],
-        opacity: isMajor ? 0.25 : 0.12,
-      })
-
-      // Horizontal lines (along X axis)
-      result.push({
-        key: `h${i}`,
-        points: [-halfSize, 0.02, i, halfSize, 0.02, i],
-        opacity: isMajor ? 0.25 : 0.12,
-      })
-    }
-    return result
-  }, [gridSize, size])
-
-  return (
-    <group>
-      {lines.map(line => (
-        <line key={line.key}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              count={2}
-              array={new Float32Array(line.points)}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial
-            color="#FFFFFF"
-            transparent
-            opacity={line.opacity}
-            depthWrite={false}
-          />
-        </line>
-      ))}
-    </group>
-  )
-}
-
-// CAD-style dot grid for 2D mode
-function CADDotGrid({ size = 100, spacing = 2 }) {
-  const dots = useMemo(() => {
-    const positions = []
-    const halfSize = size / 2
-    for (let x = -halfSize; x <= halfSize; x += spacing) {
-      for (let z = -halfSize; z <= halfSize; z += spacing) {
-        positions.push(x, 0.05, z)
-      }
-    }
-    return new Float32Array(positions)
-  }, [size, spacing])
-
-  return (
-    <points>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={dots.length / 3}
-          array={dots}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial color="#3a3a3a" size={2} sizeAttenuation={false} />
-    </points>
-  )
-}
-
-// Preview dimension label - billboard text with outline for build previews
-function PreviewDimensionLabel({ position, text, color = PREVIEW_COLOR_VALID, fontSize = 0.4 }) {
-  return (
-    <Billboard position={position} follow={true}>
-      <Text
-        fontSize={fontSize}
-        color={color}
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.05}
-        outlineColor="#000000"
-      >
-        {text}
-      </Text>
-    </Billboard>
-  )
 }
 
 // Wall segment component - renders a single wall between two points, with openings (doors/windows)
