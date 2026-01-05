@@ -591,12 +591,17 @@ export default function ShapeEditor({
     }
 
     // Use capture phase to intercept events before they reach other elements
+    // Listen to both mouse and pointer events (OrbitControls uses pointer events)
     window.addEventListener('mousemove', handleWindowMouseMove, { capture: true })
     window.addEventListener('mouseup', handleWindowMouseUp, { capture: true })
+    window.addEventListener('pointermove', handleWindowMouseMove, { capture: true })
+    window.addEventListener('pointerup', handleWindowMouseUp, { capture: true })
 
     return () => {
       window.removeEventListener('mousemove', handleWindowMouseMove, { capture: true })
       window.removeEventListener('mouseup', handleWindowMouseUp, { capture: true })
+      window.removeEventListener('pointermove', handleWindowMouseMove, { capture: true })
+      window.removeEventListener('pointerup', handleWindowMouseUp, { capture: true })
     }
   }, [draggingPoint, isPanning, panStart, scale, toWorld, constrainAngle, snapToGrid, points, onChange])
 
