@@ -2227,7 +2227,7 @@ function SnapGuideLine({ line }) {
 }
 
 // Wall segment component - renders a single wall between two points, with openings (doors/windows)
-function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelected = false, onSelect, isDeleteMode = false, onDelete, isOpeningMode = false, openingType = 'door', onPlaceOpening }) {
+function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelected = false, onSelect, isDeleteMode = false, onDelete, isOpeningMode = false, openingType = 'door', onPlaceOpening, showDimensions = true }) {
   const [isHovered, setIsHovered] = useState(false)
   const { start, end, height = 2.7, thickness = 0.15, openings = [] } = wall
   const is2D = viewMode === '2d'
@@ -2397,16 +2397,18 @@ function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelec
         })}
 
         {/* Dimension label */}
-        <Text
-          position={[midX, 0.2, midZ]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={0.5}
-          color="#00ffff"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {lengthLabel}
-        </Text>
+        {showDimensions && (
+          <Text
+            position={[midX, 0.2, midZ]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            fontSize={0.5}
+            color="#00ffff"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {lengthLabel}
+          </Text>
+        )}
       </group>
     )
   }
@@ -3668,6 +3670,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           wall={wall}
           lengthUnit={lengthUnit}
           viewMode={viewMode}
+          showDimensions={labels.land}
           isSelected={selectedElement?.type === 'wall' && selectedElement?.id === wall.id}
           onSelect={activeBuildTool === BUILD_TOOLS.SELECT ? () => {
             setSelectedElement?.({ type: 'wall', id: wall.id })
@@ -3737,6 +3740,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
               wall={wall}
               lengthUnit={lengthUnit}
               viewMode={viewMode}
+              showDimensions={labels.land}
               isSelected={selectedBuildingId === building.id}
               onSelect={() => setSelectedBuildingId?.(building.id)}
             />
