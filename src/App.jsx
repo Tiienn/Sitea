@@ -461,6 +461,7 @@ function App() {
   const [floorPlanPlacementMode, setFloorPlanPlacementMode] = useState(false)
   const [pendingFloorPlan, setPendingFloorPlan] = useState(null) // { walls, rooms, stats }
   const [selectedBuildingId, setSelectedBuildingId] = useState(null)
+  const [selectedComparisonId, setSelectedComparisonId] = useState(null)
   const [buildingPreviewPosition, setBuildingPreviewPosition] = useState({ x: 0, z: 0 })
   const [buildingPreviewRotation, setBuildingPreviewRotation] = useState(0)
 
@@ -1062,7 +1063,35 @@ function App() {
     setSelectedBuildingId(null)
   }, [selectedBuildingId])
 
-  // Building placement keyboard shortcuts (R to rotate, ESC to cancel, Delete to remove)
+  // Rotate selected comparison object
+  const rotateSelectedComparison = useCallback((angle = 90) => {
+    if (!selectedComparisonId) return
+    setComparisonRotations(prev => ({
+      ...prev,
+      [selectedComparisonId]: ((prev[selectedComparisonId] || 0) + angle) % 360
+    }))
+  }, [selectedComparisonId])
+
+  // Delete selected comparison object
+  const deleteSelectedComparison = useCallback(() => {
+    if (!selectedComparisonId) return
+    setActiveComparisons(prev => ({ ...prev, [selectedComparisonId]: false }))
+    setSelectedComparisonId(null)
+  }, [selectedComparisonId])
+
+  // Wrapper to select building and deselect comparison
+  const selectBuilding = useCallback((id) => {
+    setSelectedBuildingId(id)
+    if (id) setSelectedComparisonId(null) // Deselect comparison when selecting building
+  }, [])
+
+  // Wrapper to select comparison and deselect building
+  const selectComparison = useCallback((id) => {
+    setSelectedComparisonId(id)
+    if (id) setSelectedBuildingId(null) // Deselect building when selecting comparison
+  }, [])
+
+  // Building/Comparison keyboard shortcuts (R to rotate, ESC to cancel, Delete to remove)
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Ignore if typing in an input
@@ -1073,10 +1102,13 @@ function App() {
         if (floorPlanPlacementMode || selectedBuildingId) {
           e.preventDefault()
           rotateBuildingPreview(Math.PI / 2)
+        } else if (selectedComparisonId) {
+          e.preventDefault()
+          rotateSelectedComparison(90)
         }
       }
 
-      // ESC to cancel placement
+      // ESC to cancel placement or deselect
       if (e.key === 'Escape') {
         if (floorPlanPlacementMode) {
           e.preventDefault()
@@ -1084,30 +1116,38 @@ function App() {
         } else if (selectedBuildingId) {
           e.preventDefault()
           setSelectedBuildingId(null)
+        } else if (selectedComparisonId) {
+          e.preventDefault()
+          setSelectedComparisonId(null)
         }
       }
 
-      // Delete/Backspace to remove selected building
+      // Delete/Backspace to remove selected
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedBuildingId) {
           e.preventDefault()
           deleteSelectedBuilding()
+        } else if (selectedComparisonId) {
+          e.preventDefault()
+          deleteSelectedComparison()
         }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [floorPlanPlacementMode, selectedBuildingId, rotateBuildingPreview, cancelFloorPlanPlacement, deleteSelectedBuilding])
+  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, rotateBuildingPreview, rotateSelectedComparison, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison])
 
-  // Show toast when building is selected
+  // Show toast when building or comparison is selected
   useEffect(() => {
     if (selectedBuildingId) {
       setUndoRedoToast('Building selected • Drag to move • R to rotate • ESC to deselect • Del to delete')
+    } else if (selectedComparisonId) {
+      setUndoRedoToast('Object selected • Drag to move • R to rotate • ESC to deselect • Del to remove')
     } else if (!floorPlanPlacementMode) {
       setUndoRedoToast(null)
     }
-  }, [selectedBuildingId, floorPlanPlacementMode])
+  }, [selectedBuildingId, selectedComparisonId, floorPlanPlacementMode])
 
   // Get current polygon for snapping (memoized)
   const currentPolygon = useMemo(() => {
@@ -1564,8 +1604,10 @@ function App() {
         buildingPreviewRotation={buildingPreviewRotation}
         placeFloorPlanBuilding={placeFloorPlanBuilding}
         selectedBuildingId={selectedBuildingId}
-        setSelectedBuildingId={setSelectedBuildingId}
+        setSelectedBuildingId={selectBuilding}
         moveSelectedBuilding={moveSelectedBuilding}
+        selectedComparisonId={selectedComparisonId}
+        setSelectedComparisonId={selectComparison}
       />
 
       {/* Minimap (hidden in 2D mode - redundant with top-down view) */}
