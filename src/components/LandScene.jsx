@@ -2676,6 +2676,9 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   const [previewPos, setPreviewPos] = useState(null)
   const qualitySettings = QUALITY_SETTINGS[quality]
 
+  // Building drag state
+  const [isDraggingBuilding, setIsDraggingBuilding] = useState(false)
+
   // Snap guide lines for comparison objects
   const [comparisonSnapLines, setComparisonSnapLines] = useState([])
 
@@ -2944,8 +2947,13 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     })
   }
 
-  // Handle room tool pointer up (finish rectangle, create walls)
+  // Handle pointer up (finish room rectangle or building drag)
   const handleRoomPointerUp = (e) => {
+    // End building drag
+    if (isDraggingBuilding) {
+      setIsDraggingBuilding(false)
+    }
+
     if (!roomDragState.isDragging) return
     e.stopPropagation()
 
@@ -2995,12 +3003,15 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       return
     }
 
-    // Move selected building to clicked position
-    if (selectedBuildingId && moveSelectedBuilding) {
-      const pos = gridSnapEnabled
-        ? { x: Math.round(point.x / gridSize) * gridSize, z: Math.round(point.z / gridSize) * gridSize }
-        : { x: point.x, z: point.z }
-      moveSelectedBuilding(pos)
+    // End building drag on click (if was dragging)
+    if (isDraggingBuilding) {
+      setIsDraggingBuilding(false)
+      return
+    }
+
+    // Deselect building when clicking on empty land
+    if (selectedBuildingId && !isDraggingBuilding) {
+      setSelectedBuildingId(null)
       return
     }
 
@@ -3134,6 +3145,15 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       setBuildingPreviewPosition(pos)
     }
 
+    // Building drag - move selected building while dragging
+    if (isDraggingBuilding && selectedBuildingId && moveSelectedBuilding) {
+      const pos = gridSnapEnabled
+        ? { x: Math.round(point.x / gridSize) * gridSize, z: Math.round(point.z / gridSize) * gridSize }
+        : { x: point.x, z: point.z }
+      moveSelectedBuilding(pos)
+      return
+    }
+
     // Room tool drag preview
     if (roomDragState.isDragging && activeBuildTool === BUILD_TOOLS.ROOM) {
       const snappedPoint = snapRoomPoint(point)
@@ -3219,6 +3239,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     setPreviewPos(null)
     setWallPreviewPos(null)
     setOpeningHover({ wall: null, positionOnWall: 0, isValid: false })
+    setIsDraggingBuilding(false)
   }
 
   // Escape key to finish wall drawing
@@ -3733,6 +3754,13 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           key={building.id}
           position={[building.position.x, 0, building.position.z]}
           rotation={[0, building.rotation || 0, 0]}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            // Select building and start drag
+            setSelectedBuildingId?.(building.id)
+            setIsDraggingBuilding(true)
+          }}
+          onPointerUp={() => setIsDraggingBuilding(false)}
         >
           {building.walls.map((wall, wallIndex) => (
             <WallSegment
@@ -3742,7 +3770,6 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
               viewMode={viewMode}
               showDimensions={labels.land}
               isSelected={selectedBuildingId === building.id}
-              onSelect={() => setSelectedBuildingId?.(building.id)}
             />
           ))}
           {/* Building selection outline */}

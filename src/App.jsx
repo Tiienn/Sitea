@@ -1103,7 +1103,7 @@ function App() {
   // Show toast when building is selected
   useEffect(() => {
     if (selectedBuildingId) {
-      setUndoRedoToast('Building selected • Click to move • R to rotate • ESC to deselect • Del to delete')
+      setUndoRedoToast('Building selected • Drag to move • R to rotate • ESC to deselect • Del to delete')
     } else if (!floorPlanPlacementMode) {
       setUndoRedoToast(null)
     }
