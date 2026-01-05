@@ -990,12 +990,14 @@ function App() {
     setBuildingPreviewPosition({ x: 0, z: 0 })
     setBuildingPreviewRotation(0)
 
-    // Close the generator modal
+    // Close the generator modal and any open panels
     setShowFloorPlanGenerator(false)
     setFloorPlanImageForGenerator(null)
+    setActivePanel(null)
 
-    // Switch to 3D view for placement
+    // Switch to 3D orbit view and reset camera to good placement angle
     setViewMode('orbit')
+    setTimeout(() => setFitToLandTrigger(t => t + 1), 50)
 
     // Show instruction
     setUndoRedoToast('Click on land to place building • R to rotate • ESC to cancel')
