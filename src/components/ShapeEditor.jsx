@@ -548,9 +548,57 @@ export default function ShapeEditor({
   const handleMouseLeave = () => {
     setHoveredPoint(null)
     setHoveredEdge(null)
-    setDraggingPoint(null)
-    setIsPanning(false)
+    // Don't cancel drag on leave - window listeners handle it
+    if (!draggingPoint && !isPanning) {
+      // Only reset if not actively dragging
+    }
   }
+
+  // Window-level listeners for drag outside canvas
+  useEffect(() => {
+    if (draggingPoint === null && !isPanning) return
+
+    const handleWindowMouseMove = (e) => {
+      if (!canvasRef.current) return
+      e.preventDefault()
+      e.stopPropagation()
+      const rect = canvasRef.current.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+
+      if (isPanning) {
+        const dx = (e.clientX - panStart.x) / scale
+        const dy = (e.clientY - panStart.y) / scale
+        setPanOffset(prev => ({ x: prev.x - dx, y: prev.y + dy }))
+        setPanStart({ x: e.clientX, y: e.clientY })
+        return
+      }
+
+      if (draggingPoint !== null) {
+        let worldPoint = toWorld(x, y)
+        const prevPointIndex = (draggingPoint - 1 + points.length) % points.length
+        worldPoint = constrainAngle(points[prevPointIndex], worldPoint)
+        worldPoint = snapToGrid(worldPoint)
+        const newPoints = [...points]
+        newPoints[draggingPoint] = worldPoint
+        onChange(newPoints)
+      }
+    }
+
+    const handleWindowMouseUp = () => {
+      setDraggingPoint(null)
+      setIsPanning(false)
+    }
+
+    // Use capture phase to intercept events before they reach other elements
+    window.addEventListener('mousemove', handleWindowMouseMove, { capture: true })
+    window.addEventListener('mouseup', handleWindowMouseUp, { capture: true })
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove, { capture: true })
+      window.removeEventListener('mouseup', handleWindowMouseUp, { capture: true })
+    }
+  }, [draggingPoint, isPanning, panStart, scale, toWorld, constrainAngle, snapToGrid, points, onChange])
 
   // Prevent context menu on middle click
   const handleContextMenu = (e) => {
