@@ -4013,6 +4013,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         <OrbitControls
           ref={orbitControlsRef}
           target={orbitTarget}
+          enabled={!selectedBuildingId && !floorPlanPlacementMode}
           enablePan={true}
           minDistance={3}
           maxDistance={MAX_DISTANCE}
