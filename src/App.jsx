@@ -994,8 +994,7 @@ function App() {
     setShowFloorPlanGenerator(false)
     setFloorPlanImageForGenerator(null)
 
-    // Switch to build mode and 3D view
-    setActivePanel('build')
+    // Switch to 3D view for placement
     setViewMode('orbit')
 
     // Show instruction
