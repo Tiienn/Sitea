@@ -1,5 +1,105 @@
 # Land Visualizer - Task History
 
+## Task: Fix Double Door Rendering in AI Floor Plan Generator (COMPLETED)
+
+### Goal
+When AI analyzes a floor plan and detects a double door, render it correctly with two swing arcs (butterfly pattern) instead of one.
+
+### Changes Made
+
+**1. Updated AI Prompt (`api/analyze-floor-plan.js`)**
+- Added `doorType: "single|double|sliding"` to door output schema
+- Added detection guidelines for door types:
+  - Single door: ONE quarter-circle arc
+  - Double door: TWO quarter-circle arcs forming butterfly pattern
+  - Sliding door: parallel lines, no swing arc
+- Double doors are typically 1.4-2.0m wide
+
+**2. Updated Floor Plan Converter (`src/utils/floorPlanConverter.js`)**
+- Preserved `doorType` property when attaching doors to walls
+- Increased max width for double doors (2.4m vs 1.8m for single)
+
+**3. Updated 2D Door Rendering (`src/components/LandScene.jsx`)**
+- Added `isDoubleDoor` check based on `opening.doorType === 'double'`
+- Double doors render:
+  - Left swing arc (swings to negative Z)
+  - Right swing arc (swings to positive Z)
+  - Left door leaf (closed position)
+  - Right door leaf (closed position)
+- Single doors unchanged (one arc, one leaf)
+
+**4. Updated 3D Door Frames (`src/components/LandScene.jsx`)**
+- Added center mullion for double doors (vertical divider between leaves)
+
+### Visual Reference
+
+**Single Door:**
+```
+│  ╭────
+│
+└──────
+```
+
+**Double Door (butterfly pattern):**
+```
+────╮╭────
+    ││
+───╯  ╰───
+```
+
+---
+
+## Task: Floor Plan Editor - Zoom/Pan & Element Editing (COMPLETED)
+
+### Goal
+Add interactive editing capabilities to the floor plan preview:
+1. Zoom in/out with mouse wheel on image preview
+2. Pan with middle mouse button drag
+3. Edit walls, doors, windows when AI detection makes mistakes
+4. Draw new elements that AI missed
+
+### Changes Made
+
+**Phase 1: Zoom & Pan Controls**
+- [x] Add zoom state (scale factor, min 0.5x, max 4x)
+- [x] Add pan state (offset x, y)
+- [x] Handle mouse wheel for zoom (centered on cursor)
+- [x] Handle middle mouse drag for pan
+- [x] Transform canvas drawing with zoom/pan
+- [x] Add zoom indicator/reset button
+
+**Phase 2: Element Selection & Editing**
+- [x] Add edit mode toggle button
+- [x] Click to select wall/door/window
+- [x] Highlight selected element with handles (yellow)
+- [x] Drag wall endpoints to modify
+- [x] Delete selected element (Delete key or button)
+
+**Phase 3: Drawing New Elements**
+- [x] Draw new wall (click two points)
+- [x] Update aiData when elements change
+
+### Implementation Details
+
+**DetectionOverlay Component** (`FloorPlanGeneratorModal.jsx`):
+- Complete rewrite with zoom/pan support
+- `screenToImage()` and `imageToScreen()` coordinate conversion
+- `findElementAt()` for hit detection on walls/doors/windows
+- Mouse wheel zoom centered on cursor position
+- Middle mouse button drag for panning
+- Wall endpoint handles in edit mode
+- Selected element highlighting (yellow color)
+- Drag wall endpoints to reposition
+- Delete key support for removing elements
+
+**Edit Mode UI**:
+- "Edit Elements" toggle button
+- "+ Wall" button to draw new walls
+- "Delete" button when element selected
+- Instructions panel showing available actions
+
+---
+
 ## Task: Improve AI Floor Plan Analysis for Better 3D Generation (COMPLETED)
 
 ### Goal

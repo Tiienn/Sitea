@@ -1,7 +1,7 @@
 // src/components/FloorPlanPreview3D.jsx
 
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Text, PerspectiveCamera, OrthographicCamera, Billboard } from '@react-three/drei';
+import { OrbitControls, Text, PerspectiveCamera, OrthographicCamera } from '@react-three/drei';
 import { useMemo, useState } from 'react';
 
 export default function FloorPlanPreview3D({ walls, rooms }) {
@@ -30,8 +30,12 @@ export default function FloorPlanPreview3D({ walls, rooms }) {
     const centerZ = (minZ + maxZ) / 2;
     const size = Math.max(maxX - minX, maxZ - minZ, 10);
 
-    return { centerX, centerZ, size };
+    return { centerX, centerZ, size, minX, maxX, minZ, maxZ };
   }, [walls]);
+
+  // Calculate zoom for orthographic camera to fit the floor plan
+  // Higher multiplier = closer initial view
+  const orthoZoom = 60 / (bounds.size * 0.35);
 
   return (
     <div className="relative w-full h-full">
@@ -45,14 +49,15 @@ export default function FloorPlanPreview3D({ walls, rooms }) {
 
       <Canvas shadows className="w-full h-full">
         {isTopDown ? (
-          // Top-down orthographic view (matches floor plan image orientation)
+          // Top-down orthographic view
+          // Using up={[0,0,-1]} so -Z points to screen top (matches our coordinate conversion)
           <OrthographicCamera
             makeDefault
-            position={[bounds.centerX, bounds.size * 2, bounds.centerZ]}
-            zoom={20}
+            position={[bounds.centerX, 50, bounds.centerZ]}
+            zoom={orthoZoom}
             near={0.1}
-            far={1000}
-            rotation={[-Math.PI / 2, 0, 0]}
+            far={200}
+            up={[0, 0, -1]}
           />
         ) : (
           // 3D perspective view
@@ -101,10 +106,19 @@ export default function FloorPlanPreview3D({ walls, rooms }) {
         ))}
 
         <OrbitControls
-          target={[bounds.centerX, 1, bounds.centerZ]}
+          target={[bounds.centerX, 0, bounds.centerZ]}
           minDistance={5}
           maxDistance={bounds.size * 3}
           enableRotate={!isTopDown}
+          enablePan={true}
+          minPolarAngle={0}
+          maxPolarAngle={Math.PI / 2}
+          up={isTopDown ? [0, 0, -1] : [0, 1, 0]}
+          mouseButtons={{
+            LEFT: isTopDown ? null : 0,
+            MIDDLE: 2,
+            RIGHT: 1
+          }}
         />
       </Canvas>
     </div>
@@ -137,26 +151,18 @@ function PreviewWall({ wall }) {
 
 function RoomLabel({ room }) {
   return (
-    <group position={[room.center.x, 0.05, room.center.z]}>
-      {/* Room floor indicator */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[1.5, 32]} />
-        <meshBasicMaterial color="#14B8A6" opacity={0.2} transparent />
-      </mesh>
-
-      {/* Room name - Billboard ensures it always faces camera */}
-      <Billboard position={[0, 1.5, 0]} follow={true}>
-        <Text
-          fontSize={0.4}
-          color="#14B8A6"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.04}
-          outlineColor="#000000"
-        >
-          {room.name}
-        </Text>
-      </Billboard>
+    <group position={[room.center.x, 0.02, room.center.z]}>
+      {/* Room name - flat on ground, readable with camera up=[0,0,-1] */}
+      <Text
+        rotation={[-Math.PI / 2, 0, 0]}
+        fontSize={0.3}
+        color="#14B8A6"
+        anchorX="center"
+        anchorY="middle"
+        maxWidth={3}
+      >
+        {room.name}
+      </Text>
     </group>
   );
 }

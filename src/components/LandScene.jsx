@@ -2338,12 +2338,39 @@ function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelec
         {openings.filter(o => o.type === 'door').map(opening => {
           const pos = getWorldPos(opening.position)
           const doorWidth = opening.width || 0.9
-          // Create arc points for door swing (quarter circle)
-          const arcPoints = []
+          const isDoubleDoor = opening.doorType === 'double'
+          const leafWidth = isDoubleDoor ? doorWidth / 2 : doorWidth
           const arcSegments = 16
+
+          if (isDoubleDoor) {
+            // Double door: two swing arcs forming butterfly pattern
+            const leftArcPoints = []
+            const rightArcPoints = []
+            for (let i = 0; i <= arcSegments; i++) {
+              const a = (i / arcSegments) * (Math.PI / 2)
+              // Left arc: swings to the left (negative Z)
+              leftArcPoints.push([Math.sin(a) * leafWidth, 0.12, -Math.cos(a) * leafWidth])
+              // Right arc: swings to the right (positive Z)
+              rightArcPoints.push([Math.sin(a) * leafWidth, 0.12, Math.cos(a) * leafWidth])
+            }
+            return (
+              <group key={`door2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+                {/* Left door swing arc */}
+                <Line points={leftArcPoints} color="#00ffff" lineWidth={1} />
+                {/* Right door swing arc */}
+                <Line points={rightArcPoints} color="#00ffff" lineWidth={1} />
+                {/* Left door leaf (closed position) */}
+                <Line points={[[0, 0.12, 0], [0, 0.12, -leafWidth]]} color="#00ffff" lineWidth={2} />
+                {/* Right door leaf (closed position) */}
+                <Line points={[[0, 0.12, 0], [0, 0.12, leafWidth]]} color="#00ffff" lineWidth={2} />
+              </group>
+            )
+          }
+
+          // Single door: one swing arc
+          const arcPoints = []
           for (let i = 0; i <= arcSegments; i++) {
             const a = (i / arcSegments) * (Math.PI / 2)
-            // Arc in local space, will be rotated
             arcPoints.push([Math.sin(a) * doorWidth, 0.12, Math.cos(a) * doorWidth])
           }
           return (
@@ -2452,6 +2479,8 @@ function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelec
         const frameDepth = thickness + 0.02
         const doorHeight = opening.height || 2.1
         const doorWidth = opening.width || 0.9
+        const isDoubleDoor = opening.doorType === 'double'
+
         return (
           <group key={`door-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
             {/* Left frame */}
@@ -2469,6 +2498,13 @@ function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelec
               <boxGeometry args={[frameDepth, frameThickness, doorWidth + frameThickness * 2]} />
               <meshStandardMaterial color="#8B4513" />
             </mesh>
+            {/* Center mullion for double doors */}
+            {isDoubleDoor && (
+              <mesh position={[0, doorHeight / 2, 0]} castShadow>
+                <boxGeometry args={[frameDepth, doorHeight, frameThickness]} />
+                <meshStandardMaterial color="#8B4513" />
+              </mesh>
+            )}
           </group>
         )
       })}

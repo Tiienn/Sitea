@@ -1,5 +1,5 @@
 // api/analyze-floor-plan.js (Vercel serverless function)
-// Updated with floor-plan-3d skill for improved detection
+// v3: Strict furniture exclusion, focus on structural elements only
 
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -8,20 +8,20 @@ const anthropic = new Anthropic({
 });
 
 export const config = {
-  maxDuration: 60, // Allow up to 60 seconds for AI analysis
+  maxDuration: 60,
 };
 
-// System prompt with critical rules from floor-plan-3d skill
-const SYSTEM_PROMPT = `You are a floor plan analyzer that extracts architectural elements from 2D floor plan images. Output structured JSON only - no explanations.
+const SYSTEM_PROMPT = `You are an architectural floor plan wall detector. Your ONLY job is to extract STRUCTURAL ELEMENTS: walls, doors, windows, and stairs.
 
-CRITICAL RULES:
-1. All coordinates are in PIXELS from the image's top-left corner
-2. Walls are defined by their CENTER LINE, not edges
-3. Door/window positions are their center point in pixels
-4. Dimensions in the image may be in meters (m), millimeters (mm), or feet (ft)
-5. If dimensions show numbers like 3670, 4580 without units, assume MILLIMETERS
-6. If dimensions show numbers like 5.37, 3.68 with decimals, assume METERS
-7. Calculate pixelsPerMeter from labeled dimensions: pixelsPerMeter = pixelDistance / meterValue`;
+CRITICAL: You must COMPLETELY IGNORE all furniture and fixtures. If you detect furniture as a wall, you have FAILED.
+
+COORDINATE SYSTEM:
+- Origin (0,0) = TOP-LEFT of image
+- X increases RIGHT
+- Y increases DOWN
+- All values in PIXELS
+
+OUTPUT: Pure JSON only. No markdown, no explanations.`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -37,7 +37,8 @@ export default async function handler(req, res) {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 8192,
+      max_tokens: 16384,
+      temperature: 0,  // IMPORTANT: Set to 0 for consistent, deterministic results
       system: SYSTEM_PROMPT,
       messages: [{
         role: 'user',
@@ -52,141 +53,199 @@ export default async function handler(req, res) {
           },
           {
             type: 'text',
-            text: `Analyze this floor plan image and extract all architectural elements.
+            text: `Extract ONLY structural elements from this floor plan.
 
-OUTPUT FORMAT (JSON only, no markdown):
+═══════════════════════════════════════════════════════════════
+WHAT TO DETECT (structural elements):
+═══════════════════════════════════════════════════════════════
+
+1. WALLS - The thick lines that form room boundaries
+   • Exterior walls: The outer boundary of the building (thicker, ~15-25px)
+   • Interior walls: Divide the space into rooms (thinner, ~8-15px)
+   • Walls are CONTINUOUS lines that connect at corners
+   • Trace the CENTER LINE of each wall segment
+
+2. DOORS - Openings in walls with these symbols:
+   • Quarter-circle arc = hinged door swing
+   • Double arc (butterfly pattern) = double doors
+   • Gap with parallel lines = sliding door
+   • Just a gap = open doorway
+
+3. WINDOWS - Markings ON walls (not gaps):
+   • Two parallel lines perpendicular to wall
+   • Small rectangle on the wall line
+   • Usually on exterior walls
+
+4. STAIRS - Parallel lines with direction:
+   • Multiple parallel lines (steps)
+   • Arrow showing up/down direction
+   • Report as a room with name "Stairs"
+
+═══════════════════════════════════════════════════════════════
+WHAT TO COMPLETELY IGNORE (NOT structural):
+═══════════════════════════════════════════════════════════════
+
+FURNITURE (DO NOT TRACE THESE AS WALLS):
+❌ Sofas, couches, sectionals (L-shaped or rectangular outlines in living areas)
+❌ Beds (rectangles in bedrooms, often with pillows drawn)
+❌ Tables (dining tables, coffee tables, desks)
+❌ Chairs (small rectangles or circles)
+❌ Rugs (rectangular outlines on floor)
+
+KITCHEN FIXTURES:
+❌ Countertops (L-shaped or U-shaped lines along walls)
+❌ Kitchen islands
+❌ Stove/range (rectangle with circles for burners)
+❌ Refrigerator (rectangle, often labeled R/F)
+❌ Sink (small rectangle or oval)
+
+BATHROOM FIXTURES:
+❌ Toilet (small oval/rectangle)
+❌ Bathtub (large rectangle)
+❌ Shower (square with diagonal lines or X)
+❌ Vanity/sink (rectangle against wall)
+❌ Washer/dryer (squares, often labeled W/D)
+
+OTHER NON-STRUCTURAL:
+❌ Dimension lines (thin lines with arrows and numbers)
+❌ Room labels (text like "Living Area 21.4 m²")
+❌ Appliances
+❌ Plants
+❌ Closet organizers/shelving
+
+═══════════════════════════════════════════════════════════════
+HOW TO IDENTIFY WALLS vs FURNITURE:
+═══════════════════════════════════════════════════════════════
+
+WALLS have these characteristics:
+✓ Form the BOUNDARY between rooms
+✓ Connect to other walls at corners
+✓ Continuous from corner to corner
+✓ Same thickness throughout their length
+✓ Have doors or windows cutting through them
+
+FURNITURE has these characteristics:
+✗ Sits INSIDE a room (not on boundaries)
+✗ Does not connect to walls at both ends
+✗ Floating in the middle of a space
+✗ Has decorative details (cushions, legs, drawers)
+✗ Smaller than room boundaries
+
+TEST: If you can walk around it, it's furniture. If it blocks your path between rooms, it's a wall.
+
+═══════════════════════════════════════════════════════════════
+DETECTION PROCESS:
+═══════════════════════════════════════════════════════════════
+
+STEP 1: Find the EXTERIOR BOUNDARY
+- Start at top-left corner of the building
+- Trace clockwise around the entire perimeter
+- This forms the outer walls (mark isExterior: true)
+
+STEP 2: Find INTERIOR WALLS
+- Look for lines that DIVIDE the interior into rooms
+- These connect exterior walls to each other
+- Or connect to other interior walls
+- Mark isExterior: false
+
+STEP 3: For each wall segment, record:
+- start: {x, y} pixel coordinates of one end
+- end: {x, y} pixel coordinates of other end
+- thickness: pixel width of the wall
+- isExterior: true/false
+
+STEP 4: Find DOORS
+- Look for arcs or gaps in walls
+- Record center point and width
+
+STEP 5: Find WINDOWS
+- Look for parallel line symbols on exterior walls
+- Record center point and width
+
+STEP 6: Identify ROOMS from labels
+- Read text labels inside spaces
+- Record name and center point
+- Include area if labeled (e.g., "21.4 m²")
+
+STEP 7: Calculate SCALE
+- Find dimension labels (e.g., "5.37 m")
+- Measure pixel distance of that dimension
+- pixelsPerMeter = pixelDistance / meterValue
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT:
+═══════════════════════════════════════════════════════════════
+
 {
   "success": true,
-  "imageSize": { "width": <pixels>, "height": <pixels> },
+  "imageSize": { "width": NUMBER, "height": NUMBER },
   "walls": [
     {
-      "start": { "x": <pixel>, "y": <pixel> },
-      "end": { "x": <pixel>, "y": <pixel> },
-      "thickness": <pixels>,
-      "isExterior": <boolean>
+      "start": { "x": NUMBER, "y": NUMBER },
+      "end": { "x": NUMBER, "y": NUMBER },
+      "thickness": NUMBER,
+      "isExterior": BOOLEAN
     }
   ],
   "doors": [
     {
-      "center": { "x": <pixel>, "y": <pixel> },
-      "width": <pixels>,
-      "swingDirection": "in|out|sliding",
-      "wallIndex": <index of wall this door is on, or -1 if unknown>
+      "center": { "x": NUMBER, "y": NUMBER },
+      "width": NUMBER,
+      "doorType": "single" | "double" | "sliding"
     }
   ],
   "windows": [
     {
-      "center": { "x": <pixel>, "y": <pixel> },
-      "width": <pixels>,
-      "wallIndex": <index of wall this window is on, or -1 if unknown>
+      "center": { "x": NUMBER, "y": NUMBER },
+      "width": NUMBER
     }
   ],
   "rooms": [
     {
-      "name": "<room name from label or inferred>",
-      "center": { "x": <pixel>, "y": <pixel> },
-      "labeledArea": <number if shown in image, null otherwise>,
-      "areaUnit": "m²|ft²|null"
+      "name": STRING,
+      "center": { "x": NUMBER, "y": NUMBER },
+      "labeledArea": NUMBER | null
     }
   ],
-  "dimensions": [
+  "stairs": [
     {
-      "value": <number>,
-      "unit": "m|mm|ft",
-      "startPixel": { "x": <pixel>, "y": <pixel> },
-      "endPixel": { "x": <pixel>, "y": <pixel> },
-      "pixelLength": <distance in pixels between start and end>
+      "center": { "x": NUMBER, "y": NUMBER },
+      "direction": "up" | "down" | "unknown"
     }
   ],
   "scale": {
-    "pixelsPerMeter": <calculated from dimensions, or estimated>,
-    "confidence": <0.0-1.0>,
-    "source": "dimension_label|total_area|door_width|estimated"
+    "pixelsPerMeter": NUMBER,
+    "confidence": NUMBER,
+    "source": "dimension_label" | "door_width" | "estimated"
   },
-  "overallShape": "rectangular|L-shaped|U-shaped|complex",
-  "totalArea": {
-    "value": <number if shown>,
-    "unit": "m²|ft²",
-    "source": "label|calculated"
-  }
+  "overallShape": "rectangular" | "L-shaped" | "U-shaped" | "complex",
+  "totalArea": { "value": NUMBER, "unit": "m²" } | null
 }
 
-DETECTION GUIDELINES:
+═══════════════════════════════════════════════════════════════
+FINAL VERIFICATION (check before responding):
+═══════════════════════════════════════════════════════════════
 
-WALLS (CRITICAL - follow this process):
-Step 1: Identify the EXTERIOR BOUNDARY first
-- Start at the top-left corner of the floor plan
-- Trace clockwise around the entire exterior perimeter
-- Each corner creates a new wall segment
-- For L-shaped plans: the exterior boundary will have 6+ corners (not 4!)
-- For U-shaped plans: the exterior boundary will have 8+ corners
+□ Did I trace ONLY walls, not furniture?
+□ Do exterior walls form a CLOSED boundary?
+□ Do adjacent walls SHARE endpoints?
+□ Did I ignore sofas, beds, tables, countertops?
+□ Are wall coordinates within image bounds?
+□ Did I find doors where there are arc symbols?
+□ Did I find windows on exterior walls?
 
-Step 2: Add INTERIOR walls
-- These divide the interior into rooms
-- Interior walls connect to exterior walls or other interior walls
-
-WALL COORDINATE RULES:
-- Coordinates are in PIXELS from image top-left (0,0)
-- Wall "start" and "end" are the CENTER of wall thickness at each end
-- Each wall is a straight segment from corner to corner
-- Adjacent walls should share the same endpoint coordinates
-- Example: If wall1 ends at (300, 100), wall2 should start at (300, 100)
-
-WALL THICKNESS:
-- Exterior walls: typically 15-25 pixels thick
-- Interior walls: typically 8-15 pixels thick
-- Measure the actual wall thickness in the image
-
-DOORS:
-- Quarter-circle arc = door swing (hinged door)
-- Gap in wall with no arc = sliding door or open doorway
-- Small rectangle crossing wall = door symbol
-- Standard door width: ~80-100 pixels at typical scales
-
-WINDOWS:
-- Two short parallel lines perpendicular to wall
-- Thin rectangles on walls
-- Often have small tick marks at edges
-
-ROOMS:
-- Text labels inside enclosed spaces indicate room names
-- Numbers with m² or ft² indicate room areas
-- Common rooms: Living Room, Bedroom, Kitchen, Bathroom, Entry Hall, Balcony
-
-DIMENSIONS:
-- Numbers with arrows or extension lines
-- Look for: 5.37 m, 3670 (mm), 10'-6" (feet-inches)
-- The pixel distance between dimension endpoints helps calculate scale
-
-SCALE CALCULATION (CRITICAL):
-1. Find a labeled dimension (e.g., "5.37 m" spanning some pixels)
-2. Measure pixel distance between dimension endpoints
-3. pixelsPerMeter = pixelDistance / meterValue
-4. If dimensions are in mm: pixelsPerMeter = pixelDistance / (mmValue / 1000)
-5. If no dimensions found, estimate from door width (standard door = 0.9m)
-
-VERIFICATION CHECKLIST (before responding):
-- Does the exterior boundary form a closed shape?
-- Do adjacent walls share endpoints?
-- Are all corners of the floor plan represented?
-- For L-shaped: exterior should have at least 6 wall segments
-- Do wall coordinates look reasonable for the image size?
-
-Return ONLY valid JSON. No markdown, no explanation outside JSON.`
+Return ONLY the JSON object, nothing else.`
           }
         ]
       }]
     });
 
-    // Parse the response
     const content = response.content[0].text;
 
     let result;
     try {
-      // Try direct parse first
       result = JSON.parse(content);
     } catch {
-      // Try to find JSON in the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         result = JSON.parse(jsonMatch[0]);
@@ -195,32 +254,51 @@ Return ONLY valid JSON. No markdown, no explanation outside JSON.`
       }
     }
 
-    // Validate and provide defaults
+    // Ensure required fields
     result.success = true;
     result.walls = result.walls || [];
     result.doors = result.doors || [];
     result.windows = result.windows || [];
     result.rooms = result.rooms || [];
+    result.stairs = result.stairs || [];
+    result.scale = result.scale || { pixelsPerMeter: 50, confidence: 0.5, source: 'estimated' };
 
-    // Log for debugging
-    console.log('AI Analysis Result:', {
-      wallCount: result.walls.length,
-      doorCount: result.doors.length,
-      windowCount: result.windows.length,
-      roomCount: result.rooms.length,
-      shape: result.overallShape,
+    // Post-process walls
+    result.walls = result.walls.map((wall, i) => ({
+      start: wall.start || { x: 0, y: 0 },
+      end: wall.end || { x: 0, y: 0 },
+      thickness: wall.thickness || 15,
+      isExterior: wall.isExterior ?? (i < 6)
+    }));
+
+    // Add stairs to rooms if detected
+    if (result.stairs && result.stairs.length > 0) {
+      result.stairs.forEach((stair, i) => {
+        result.rooms.push({
+          name: 'Stairs',
+          center: stair.center,
+          labeledArea: null
+        });
+      });
+    }
+
+    console.log('[FloorPlan API] Analysis:', {
+      walls: result.walls.length,
+      doors: result.doors.length,
+      windows: result.windows.length,
+      rooms: result.rooms.length,
+      stairs: result.stairs?.length || 0,
+      shape: result.overallShape
     });
 
     return res.status(200).json(result);
 
   } catch (error) {
-    console.error('Floor plan analysis error:', error);
+    console.error('[FloorPlan API] Error:', error);
     return res.status(500).json({
       success: false,
       error: 'Failed to analyze floor plan',
-      details: error.message,
-      errorType: error.name,
-      statusCode: error.status || error.statusCode
+      details: error.message
     });
   }
 }

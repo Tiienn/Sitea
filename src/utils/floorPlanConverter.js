@@ -1,117 +1,197 @@
 // src/utils/floorPlanConverter.js
-// Updated with floor-plan-3d skill for improved coordinate conversion
+// FINAL FIX: Negate X (not Z) to correct horizontal mirroring
+
+/**
+ * Validate AI results and log warnings
+ */
+export function validateAiResults(aiData) {
+  const warnings = [];
+  const walls = aiData.walls || [];
+  const doors = aiData.doors || [];
+  const rooms = aiData.rooms || [];
+  const imageSize = aiData.imageSize || { width: 0, height: 0 };
+  const scale = aiData.scale || {};
+
+  if (walls.length === 0) {
+    warnings.push('No walls detected - floor plan may not be recognized');
+  } else if (walls.length < 4) {
+    warnings.push(`Only ${walls.length} walls detected - may be missing walls`);
+  } else if (walls.length > 50) {
+    warnings.push(`${walls.length} walls detected - may include furniture or duplicates`);
+  }
+
+  if (walls.length >= 4 && rooms.length === 0) {
+    warnings.push('No rooms detected - room labels may be missing from image');
+  }
+
+  if (walls.length >= 4 && doors.length === 0) {
+    warnings.push('No doors detected - door symbols may not be recognized');
+  }
+
+  if (scale.confidence !== undefined && scale.confidence < 0.5) {
+    warnings.push(`Low scale confidence (${(scale.confidence * 100).toFixed(0)}%) - dimensions may be inaccurate`);
+  }
+
+  if (scale.pixelsPerMeter) {
+    if (scale.pixelsPerMeter < 10) {
+      warnings.push(`Scale seems too small - building would be very large`);
+    } else if (scale.pixelsPerMeter > 200) {
+      warnings.push(`Scale seems too large - building would be very small`);
+    }
+  }
+
+  if (imageSize.width < 200 || imageSize.height < 200) {
+    warnings.push('Image resolution is low - detection accuracy may be reduced');
+  }
+
+  let outsideBounds = 0;
+  for (const wall of walls) {
+    if (wall.start.x < 0 || wall.start.y < 0 ||
+        wall.end.x < 0 || wall.end.y < 0 ||
+        wall.start.x > imageSize.width || wall.start.y > imageSize.height ||
+        wall.end.x > imageSize.width || wall.end.y > imageSize.height) {
+      outsideBounds++;
+    }
+  }
+  if (outsideBounds > 0) {
+    warnings.push(`${outsideBounds} walls have coordinates outside image bounds`);
+  }
+
+  if (warnings.length > 0) {
+    console.warn('[FloorPlan] Validation warnings:');
+    warnings.forEach(w => console.warn(`  ⚠️ ${w}`));
+  }
+
+  return warnings;
+}
+
+/**
+ * Calculate distance between two points
+ */
+function distance(p1, p2) {
+  return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+}
+
+/**
+ * Remove duplicate or overlapping walls
+ */
+function deduplicateWalls(walls, threshold) {
+  const dedupeThreshold = threshold * 2;
+  const kept = [];
+
+  for (const wall of walls) {
+    let isDuplicate = false;
+
+    for (const existing of kept) {
+      const sameDirection =
+        distance(wall.start, existing.start) < dedupeThreshold &&
+        distance(wall.end, existing.end) < dedupeThreshold;
+      const reverseDirection =
+        distance(wall.start, existing.end) < dedupeThreshold &&
+        distance(wall.end, existing.start) < dedupeThreshold;
+
+      if (sameDirection || reverseDirection) {
+        isDuplicate = true;
+        break;
+      }
+    }
+
+    if (!isDuplicate) {
+      kept.push(wall);
+    }
+  }
+
+  console.log(`[FloorPlan] Walls: ${walls.length} input → ${kept.length} after dedup`);
+  return kept;
+}
 
 /**
  * Snap wall endpoints that are close together
- * This ensures walls connect properly at corners
  */
-function snapWallEndpoints(walls, threshold = 5) {
-  const points = [];
+function snapWallEndpoints(walls, imageSize = { width: 1000, height: 1000 }) {
+  const baseDimension = Math.min(imageSize.width, imageSize.height);
+  const SNAP_THRESHOLD = Math.max(3, Math.min(15, baseDimension * 0.005));
 
-  // Collect all endpoints
-  walls.forEach(wall => {
-    points.push({ wall, type: 'start', x: wall.start.x, y: wall.start.y });
-    points.push({ wall, type: 'end', x: wall.end.x, y: wall.end.y });
+  const allEndpoints = [];
+  walls.forEach((wall, wallIndex) => {
+    allEndpoints.push({ point: wall.start, wallIndex, isStart: true });
+    allEndpoints.push({ point: wall.end, wallIndex, isStart: false });
   });
 
-  // Snap close points together
-  for (let i = 0; i < points.length; i++) {
-    for (let j = i + 1; j < points.length; j++) {
-      const dist = Math.sqrt(
-        (points[i].x - points[j].x) ** 2 +
-        (points[i].y - points[j].y) ** 2
-      );
+  const groups = [];
+  const assigned = new Set();
 
-      if (dist < threshold && dist > 0) {
-        // Snap to average position
-        const avgX = (points[i].x + points[j].x) / 2;
-        const avgY = (points[i].y + points[j].y) / 2;
+  for (let i = 0; i < allEndpoints.length; i++) {
+    if (assigned.has(i)) continue;
 
-        if (points[i].type === 'start') {
-          points[i].wall.start.x = avgX;
-          points[i].wall.start.y = avgY;
-        } else {
-          points[i].wall.end.x = avgX;
-          points[i].wall.end.y = avgY;
-        }
+    const group = [i];
+    assigned.add(i);
 
-        if (points[j].type === 'start') {
-          points[j].wall.start.x = avgX;
-          points[j].wall.start.y = avgY;
-        } else {
-          points[j].wall.end.x = avgX;
-          points[j].wall.end.y = avgY;
-        }
+    for (let j = i + 1; j < allEndpoints.length; j++) {
+      if (assigned.has(j)) continue;
+
+      const dist = distance(allEndpoints[i].point, allEndpoints[j].point);
+      if (dist < SNAP_THRESHOLD) {
+        group.push(j);
+        assigned.add(j);
+      }
+    }
+
+    if (group.length > 1) {
+      groups.push(group);
+    }
+  }
+
+  const snappedWalls = walls.map(w => ({
+    ...w,
+    start: { ...w.start },
+    end: { ...w.end }
+  }));
+
+  for (const group of groups) {
+    let sumX = 0, sumY = 0;
+    for (const idx of group) {
+      sumX += allEndpoints[idx].point.x;
+      sumY += allEndpoints[idx].point.y;
+    }
+    const avgX = sumX / group.length;
+    const avgY = sumY / group.length;
+
+    for (const idx of group) {
+      const ep = allEndpoints[idx];
+      if (ep.isStart) {
+        snappedWalls[ep.wallIndex].start = { x: avgX, y: avgY };
+      } else {
+        snappedWalls[ep.wallIndex].end = { x: avgX, y: avgY };
       }
     }
   }
 
-  return walls;
+  return snappedWalls;
 }
 
 /**
- * Calculate scale from AI data using the skill's priority order:
- * 1. pixelsPerMeter from AI (new schema)
- * 2. estimatedMetersPerPixel from AI (old schema, convert)
- * 3. Calculate from dimensions array
- * 4. Estimate from door width (fallback)
- */
-function calculatePixelsPerMeter(aiData) {
-  // Priority 1: New schema pixelsPerMeter
-  if (aiData.scale?.pixelsPerMeter && aiData.scale.pixelsPerMeter > 0) {
-    return aiData.scale.pixelsPerMeter;
-  }
-
-  // Priority 2: Old schema (convert from meters per pixel)
-  if (aiData.scale?.estimatedMetersPerPixel && aiData.scale.estimatedMetersPerPixel > 0) {
-    return 1 / aiData.scale.estimatedMetersPerPixel;
-  }
-
-  // Priority 3: Calculate from dimensions array
-  if (aiData.dimensions && aiData.dimensions.length > 0) {
-    for (const dim of aiData.dimensions) {
-      if (dim.pixelLength && dim.pixelLength > 0 && dim.value > 0) {
-        let meters = dim.value;
-        // Convert to meters based on unit
-        if (dim.unit === 'mm') {
-          meters = dim.value / 1000;
-        } else if (dim.unit === 'ft') {
-          meters = dim.value * 0.3048;
-        }
-        if (meters > 0) {
-          return dim.pixelLength / meters;
-        }
-      }
-    }
-  }
-
-  // Priority 4: Estimate from door width (standard door = 0.9m)
-  if (aiData.doors && aiData.doors.length > 0) {
-    const door = aiData.doors[0];
-    if (door.width && door.width > 0) {
-      return door.width / 0.9;
-    }
-  }
-
-  // Default fallback: assume 50 pixels per meter
-  return 50;
-}
-
-/**
- * Convert AI-extracted floor plan data to 3D world coordinates
- * Uses center-based conversion from floor-plan-3d skill
- * @param {Object} aiData - Data from AI analysis
- * @param {Object} settings - Conversion settings
- * @returns {Object} - Walls and rooms in 3D world coordinates
+ * Convert floor plan pixel data to world coordinates for 3D rendering
+ * 
+ * COORDINATE MAPPING (FINAL - after testing):
+ * - Image: Origin top-left, X+ right, Y+ down
+ * - 3D World (top-down view): X+ right, Z+ toward camera
+ * 
+ * To match floor plan orientation in 3D preview:
+ * - Image X → World -X (NEGATE to fix horizontal mirror)
+ * - Image Y → World Z (no change - down stays down)
  */
 export function convertFloorPlanToWorld(aiData, settings = {}) {
-  // Calculate pixelsPerMeter using skill's priority order
-  const pixelsPerMeter = calculatePixelsPerMeter(aiData);
+  if (!aiData) return { walls: [], rooms: [], warnings: ['No AI data provided'], stats: {} };
 
-  // Convert to metersPerPixel for backwards compatibility with settings.scale
-  let calculatedScale = 1 / pixelsPerMeter;
-  if (settings.scale) {
-    calculatedScale = settings.scale;
+  // Extract scale
+  let calculatedScale = 0.05;
+  if (aiData.scale) {
+    if (aiData.scale.pixelsPerMeter) {
+      calculatedScale = 1 / aiData.scale.pixelsPerMeter;
+    } else if (aiData.scale.estimatedMetersPerPixel) {
+      calculatedScale = aiData.scale.estimatedMetersPerPixel;
+    }
   }
 
   const {
@@ -126,20 +206,24 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     windowSillHeight = 0.9,
   } = settings;
 
-  // Get image center for centered conversion (from skill's coordinate-conversion.md)
+  // Get image center
   const imageCenter = {
     x: (aiData.imageSize?.width || 800) / 2,
     y: (aiData.imageSize?.height || 600) / 2
   };
 
-  // Helper: Convert pixel coords to world coords (centered)
+  /**
+   * Convert pixel coordinates to world coordinates
+   *
+   * Image: origin top-left, X+ right, Y+ down
+   * Camera looking down with up=[0,0,-1]: screen right is +X, screen up is -Z
+   * Direct mapping without negation gives correct orientation
+   */
   const toWorld = (px, py) => {
-    // Convert from image center
-    // Image Y down → World Z (no flip needed for top-down view)
     let x = (px - imageCenter.x) * scale;
     let z = (py - imageCenter.y) * scale;
 
-    // Apply rotation around origin
+    // Apply rotation
     if (rotation !== 0) {
       const cos = Math.cos(rotation);
       const sin = Math.sin(rotation);
@@ -156,11 +240,16 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     return { x, z };
   };
 
-  // Snap wall endpoints before converting
-  const snappedWalls = snapWallEndpoints([...(aiData.walls || [])]);
+  // Process walls
+  const imgSize = aiData.imageSize || { width: 1000, height: 1000 };
+  const baseDimension = Math.min(imgSize.width, imgSize.height);
+  const threshold = Math.max(3, Math.min(15, baseDimension * 0.005));
+
+  const snappedWalls = snapWallEndpoints([...(aiData.walls || [])], aiData.imageSize);
+  const cleanWalls = deduplicateWalls(snappedWalls, threshold);
 
   // Convert walls
-  const walls = snappedWalls.map((wall, index) => {
+  const walls = cleanWalls.map((wall, index) => {
     const start = toWorld(wall.start.x, wall.start.y);
     const end = toWorld(wall.end.x, wall.end.y);
 
@@ -175,7 +264,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     };
   });
 
-  // Helper: Find nearest wall to a point
+  // Helper: Find nearest wall
   const findNearestWall = (point) => {
     let nearestWall = null;
     let minDistance = Infinity;
@@ -191,7 +280,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     return { wall: nearestWall, distance: minDistance };
   };
 
-  // Helper: Calculate position along wall
+  // Helper: Position along wall
   const getPositionAlongWall = (wall, point) => {
     const dx = wall.end.x - wall.start.x;
     const dz = wall.end.z - wall.start.z;
@@ -207,57 +296,57 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     return Math.max(0, Math.min(wallLength, t * wallLength));
   };
 
-  // Attach doors to walls
+  // Attach doors
   (aiData.doors || []).forEach((door, index) => {
     const doorCenter = toWorld(door.center.x, door.center.y);
     const { wall } = findNearestWall(doorCenter);
 
     if (wall) {
       const position = getPositionAlongWall(wall, doorCenter);
-      const width = (door.width || 90) * scale; // Default 90px ~ 0.9m
+      const width = (door.width || 90) * scale;
       const wallLen = getWallLength(wall);
 
       wall.openings.push({
         id: `door-generated-${Date.now()}-${index}`,
         type: 'door',
+        doorType: door.doorType || 'single',
         position: Math.max(width / 2, Math.min(position, wallLen - width / 2)),
-        width: Math.max(0.6, Math.min(width, 1.8)), // Clamp to reasonable door width
+        width: Math.max(0.6, Math.min(width, door.doorType === 'double' ? 2.4 : 1.8)),
         height: doorHeight,
       });
     }
   });
 
-  // Attach windows to walls
+  // Attach windows
   (aiData.windows || []).forEach((window, index) => {
     const windowCenter = toWorld(window.center.x, window.center.y);
     const { wall } = findNearestWall(windowCenter);
 
     if (wall) {
       const position = getPositionAlongWall(wall, windowCenter);
-      const width = (window.width || 100) * scale; // Default 100px ~ 1m
+      const width = (window.width || 100) * scale;
       const wallLen = getWallLength(wall);
 
       wall.openings.push({
         id: `window-generated-${Date.now()}-${index}`,
         type: 'window',
         position: Math.max(width / 2, Math.min(position, wallLen - width / 2)),
-        width: Math.max(0.4, Math.min(width, 3)), // Clamp to reasonable window width
+        width: Math.max(0.4, Math.min(width, 3)),
         height: windowHeight,
         sillHeight: windowSillHeight,
       });
     }
   });
 
-  // Sort openings by position along wall
+  // Sort openings
   walls.forEach(wall => {
     wall.openings.sort((a, b) => a.position - b.position);
   });
 
-  // Convert rooms - handle labeledArea (new), areaFromLabel (old), and approximateArea
+  // Convert rooms
   const rooms = (aiData.rooms || []).map((room, index) => {
     const center = toWorld(room.center.x, room.center.y);
 
-    // Use labeled area if available (handles both new and old schema)
     let areaInMeters;
     if (room.labeledArea) {
       areaInMeters = room.labeledArea;
@@ -277,9 +366,12 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     };
   });
 
+  const warnings = validateAiResults(aiData);
+
   return {
     walls,
     rooms,
+    warnings,
     stats: {
       wallCount: walls.length,
       doorCount: walls.reduce((sum, w) => sum + w.openings.filter(o => o.type === 'door').length, 0),
@@ -329,15 +421,13 @@ function pointToLineDistance(point, lineStart, lineEnd) {
  */
 export function calculateScaleFromReference(aiData, knownLengthMeters, wallIndex = -1) {
   if (!aiData.walls || aiData.walls.length === 0) {
-    return 0.05; // Default
+    return 0.05;
   }
 
-  // Find the specified wall or the longest wall
   let targetWall;
   if (wallIndex >= 0 && wallIndex < aiData.walls.length) {
     targetWall = aiData.walls[wallIndex];
   } else {
-    // Find longest wall
     let maxLength = 0;
     for (const wall of aiData.walls) {
       const length = Math.sqrt(
