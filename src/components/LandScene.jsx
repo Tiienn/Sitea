@@ -2562,18 +2562,20 @@ function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelec
       })}
 
       {/* Dimension label at top of wall */}
-      <Billboard position={[midX, height + 0.5, midZ]} follow={true}>
-        <Text
-          fontSize={0.4}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#000000"
-        >
-          {lengthLabel}
-        </Text>
-      </Billboard>
+      {showDimensions && (
+        <Billboard position={[midX, height + 0.5, midZ]} follow={true}>
+          <Text
+            fontSize={0.4}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.05}
+            outlineColor="#000000"
+          >
+            {lengthLabel}
+          </Text>
+        </Billboard>
+      )}
     </group>
   )
 }
