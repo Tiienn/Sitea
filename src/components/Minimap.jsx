@@ -14,7 +14,8 @@ export default function Minimap({
   playerRotation,
   lengthUnit = 'm',
   walls = [],
-  rooms = []
+  rooms = [],
+  buildings = []
 }) {
   const canvasRef = useRef(null)
   const [showDimensions, setShowDimensions] = useState(true)
@@ -331,6 +332,42 @@ export default function Minimap({
       })
     }
 
+    // Draw floor plan buildings (AI-generated)
+    if (buildings && buildings.length > 0) {
+      buildings.forEach(building => {
+        const buildingPos = building.position || { x: 0, z: 0 }
+        const buildingRotation = building.rotation || 0
+
+        // Draw each wall in the building
+        if (building.walls && building.walls.length > 0) {
+          ctx.strokeStyle = '#A0AEC0' // Gray for building walls
+          ctx.lineWidth = 2
+
+          building.walls.forEach(wall => {
+            // Transform wall coordinates by building position and rotation
+            const cos = Math.cos(buildingRotation)
+            const sin = Math.sin(buildingRotation)
+
+            // Rotate and translate start point
+            const startX = wall.start.x * cos - wall.start.z * sin + buildingPos.x
+            const startZ = wall.start.x * sin + wall.start.z * cos + buildingPos.z
+
+            // Rotate and translate end point
+            const endX = wall.end.x * cos - wall.end.z * sin + buildingPos.x
+            const endZ = wall.end.x * sin + wall.end.z * cos + buildingPos.z
+
+            const start = worldToCanvas(startX, startZ)
+            const end = worldToCanvas(endX, endZ)
+
+            ctx.beginPath()
+            ctx.moveTo(start.x, start.y)
+            ctx.lineTo(end.x, end.y)
+            ctx.stroke()
+          })
+        }
+      })
+    }
+
     // Draw player position as arrow (use world coords)
     if (playerPosition) {
       const p = worldToCanvas(playerPosition.x, playerPosition.z)
@@ -362,7 +399,7 @@ export default function Minimap({
     ctx.lineWidth = 1
     ctx.strokeRect(0, 0, size, size)
 
-  }, [landWidth, landLength, polygonPoints, placedBuildings, comparisonObjects, comparisonPositions, comparisonRotations, playerPosition, playerRotation, showDimensions, lengthUnit, walls, rooms])
+  }, [landWidth, landLength, polygonPoints, placedBuildings, comparisonObjects, comparisonPositions, comparisonRotations, playerPosition, playerRotation, showDimensions, lengthUnit, walls, rooms, buildings])
 
   return (
     <div className="fixed bottom-20 right-4 z-40 minimap-frame p-1 animate-fade-in">

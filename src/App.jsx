@@ -1583,6 +1583,7 @@ function App() {
           lengthUnit={lengthUnit}
           walls={walls}
           rooms={rooms}
+          buildings={buildings}
         />
       )}
 
