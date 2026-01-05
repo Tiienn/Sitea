@@ -456,6 +456,14 @@ function App() {
   const [wallDrawingPoints, setWallDrawingPoints] = useState([]) // Points being drawn
   const [openingPlacementMode, setOpeningPlacementMode] = useState('none') // 'none' | 'door' | 'window'
 
+  // Buildings state (floor plans as movable/rotatable groups)
+  const [buildings, setBuildings] = useState([])
+  const [floorPlanPlacementMode, setFloorPlanPlacementMode] = useState(false)
+  const [pendingFloorPlan, setPendingFloorPlan] = useState(null) // { walls, rooms, stats }
+  const [selectedBuildingId, setSelectedBuildingId] = useState(null)
+  const [buildingPreviewPosition, setBuildingPreviewPosition] = useState({ x: 0, z: 0 })
+  const [buildingPreviewRotation, setBuildingPreviewRotation] = useState(0)
+
   // Build tools state (Sims 4-style)
   const [activeBuildTool, setActiveBuildTool] = useState(BUILD_TOOLS.NONE)
   const [selectedElement, setSelectedElement] = useState(null) // {type: 'wall'|'door'|'window'|'room', id, parentId?}
@@ -710,6 +718,44 @@ function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [canUndo, canRedo, undoWalls, redoWalls])
+
+  // Building placement keyboard shortcuts (R to rotate, ESC to cancel, Delete to remove)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+      // R to rotate (90 degrees)
+      if (e.key === 'r' || e.key === 'R') {
+        if (floorPlanPlacementMode || selectedBuildingId) {
+          e.preventDefault()
+          rotateBuildingPreview(Math.PI / 2)
+        }
+      }
+
+      // ESC to cancel placement
+      if (e.key === 'Escape') {
+        if (floorPlanPlacementMode) {
+          e.preventDefault()
+          cancelFloorPlanPlacement()
+        } else if (selectedBuildingId) {
+          e.preventDefault()
+          setSelectedBuildingId(null)
+        }
+      }
+
+      // Delete/Backspace to remove selected building
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedBuildingId) {
+          e.preventDefault()
+          deleteSelectedBuilding()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [floorPlanPlacementMode, selectedBuildingId, rotateBuildingPreview, cancelFloorPlanPlacement, deleteSelectedBuilding])
 
   // Save quality preference
   useEffect(() => {
@@ -974,11 +1020,13 @@ function App() {
     }
   }, [walls, pushWallsState, selectedElement])
 
-  // Handle generated floor plan from AI
+  // Handle generated floor plan from AI - enters placement mode
   const handleFloorPlanGenerated = useCallback((generatedData) => {
-    // Add generated walls to existing walls
-    const newWalls = [...walls, ...generatedData.walls]
-    pushWallsState(newWalls)
+    // Store pending floor plan and enter placement mode
+    setPendingFloorPlan(generatedData)
+    setFloorPlanPlacementMode(true)
+    setBuildingPreviewPosition({ x: 0, z: 0 })
+    setBuildingPreviewRotation(0)
 
     // Close the generator modal
     setShowFloorPlanGenerator(false)
@@ -988,10 +1036,77 @@ function App() {
     setActivePanel('build')
     setViewMode('orbit')
 
-    // Show success feedback
-    setUndoRedoToast(`Generated ${generatedData.stats.wallCount} walls, ${generatedData.stats.doorCount} doors, ${generatedData.stats.windowCount} windows`)
+    // Show instruction
+    setUndoRedoToast('Click on land to place building • R to rotate • ESC to cancel')
+  }, [])
+
+  // Place the pending floor plan as a building
+  const placeFloorPlanBuilding = useCallback((position) => {
+    if (!pendingFloorPlan) return
+
+    const newBuilding = {
+      id: `building-${Date.now()}`,
+      position: { x: position.x, z: position.z },
+      rotation: buildingPreviewRotation,
+      walls: pendingFloorPlan.walls,
+      rooms: pendingFloorPlan.rooms || [],
+      stats: pendingFloorPlan.stats,
+    }
+
+    setBuildings(prev => [...prev, newBuilding])
+    setPendingFloorPlan(null)
+    setFloorPlanPlacementMode(false)
+    setUndoRedoToast(`Placed building with ${newBuilding.stats.wallCount} walls`)
     setTimeout(() => setUndoRedoToast(null), 3000)
-  }, [walls, pushWallsState])
+  }, [pendingFloorPlan, buildingPreviewRotation])
+
+  // Cancel floor plan placement
+  const cancelFloorPlanPlacement = useCallback(() => {
+    setPendingFloorPlan(null)
+    setFloorPlanPlacementMode(false)
+    setBuildingPreviewPosition({ x: 0, z: 0 })
+    setBuildingPreviewRotation(0)
+    setUndoRedoToast(null)
+  }, [])
+
+  // Rotate building preview (or selected building)
+  const rotateBuildingPreview = useCallback((angle = Math.PI / 2) => {
+    if (floorPlanPlacementMode) {
+      setBuildingPreviewRotation(prev => prev + angle)
+    } else if (selectedBuildingId) {
+      setBuildings(prev => prev.map(b =>
+        b.id === selectedBuildingId
+          ? { ...b, rotation: (b.rotation || 0) + angle }
+          : b
+      ))
+    }
+  }, [floorPlanPlacementMode, selectedBuildingId])
+
+  // Move selected building
+  const moveSelectedBuilding = useCallback((newPosition) => {
+    if (!selectedBuildingId) return
+    setBuildings(prev => prev.map(b =>
+      b.id === selectedBuildingId
+        ? { ...b, position: { x: newPosition.x, z: newPosition.z } }
+        : b
+    ))
+  }, [selectedBuildingId])
+
+  // Delete selected building
+  const deleteSelectedBuilding = useCallback(() => {
+    if (!selectedBuildingId) return
+    setBuildings(prev => prev.filter(b => b.id !== selectedBuildingId))
+    setSelectedBuildingId(null)
+  }, [selectedBuildingId])
+
+  // Show toast when building is selected
+  useEffect(() => {
+    if (selectedBuildingId) {
+      setUndoRedoToast('Building selected • Click to move • R to rotate • ESC to deselect • Del to delete')
+    } else if (!floorPlanPlacementMode) {
+      setUndoRedoToast(null)
+    }
+  }, [selectedBuildingId, floorPlanPlacementMode])
 
   // Get current polygon for snapping (memoized)
   const currentPolygon = useMemo(() => {
@@ -1439,6 +1554,17 @@ function App() {
         rooms={rooms}
         floorPlanImage={floorPlanImage}
         floorPlanSettings={floorPlanSettings}
+        // Building placement props
+        buildings={buildings}
+        floorPlanPlacementMode={floorPlanPlacementMode}
+        pendingFloorPlan={pendingFloorPlan}
+        buildingPreviewPosition={buildingPreviewPosition}
+        setBuildingPreviewPosition={setBuildingPreviewPosition}
+        buildingPreviewRotation={buildingPreviewRotation}
+        placeFloorPlanBuilding={placeFloorPlanBuilding}
+        selectedBuildingId={selectedBuildingId}
+        setSelectedBuildingId={setSelectedBuildingId}
+        moveSelectedBuilding={moveSelectedBuilding}
       />
 
       {/* Minimap (hidden in 2D mode - redundant with top-down view) */}

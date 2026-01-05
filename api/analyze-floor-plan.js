@@ -13,7 +13,10 @@ export const config = {
 
 const SYSTEM_PROMPT = `You are an architectural floor plan wall detector. Your ONLY job is to extract STRUCTURAL ELEMENTS: walls, doors, windows, and stairs.
 
-CRITICAL: You must COMPLETELY IGNORE all furniture and fixtures. If you detect furniture as a wall, you have FAILED.
+CRITICAL RULES:
+1. You must COMPLETELY IGNORE all furniture and fixtures
+2. You must COMPLETELY IGNORE dimension lines and measurement annotations
+3. If you detect furniture or dimension lines as walls, you have FAILED
 
 COORDINATE SYSTEM:
 - Origin (0,0) = TOP-LEFT of image
@@ -34,6 +37,17 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Image is required' });
   }
 
+  // Detect image media type from base64 data
+  const detectMediaType = (base64Data) => {
+    if (base64Data.startsWith('/9j/')) return 'image/jpeg';
+    if (base64Data.startsWith('iVBORw0KGgo')) return 'image/png';
+    if (base64Data.startsWith('R0lGOD')) return 'image/gif';
+    if (base64Data.startsWith('UklGR')) return 'image/webp';
+    return 'image/png'; // default fallback
+  };
+
+  const mediaType = detectMediaType(image);
+
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -47,7 +61,7 @@ export default async function handler(req, res) {
             type: 'image',
             source: {
               type: 'base64',
-              media_type: 'image/png',
+              media_type: mediaType,
               data: image,
             },
           },
@@ -56,121 +70,97 @@ export default async function handler(req, res) {
             text: `Extract ONLY structural elements from this floor plan.
 
 ═══════════════════════════════════════════════════════════════
-WHAT TO DETECT (structural elements):
+CRITICAL: DIMENSION LINES ARE NOT WALLS!
 ═══════════════════════════════════════════════════════════════
 
-1. WALLS - The thick lines that form room boundaries
-   • Exterior walls: The outer boundary of the building (thicker, ~15-25px)
-   • Interior walls: Divide the space into rooms (thinner, ~8-15px)
-   • Walls are CONTINUOUS lines that connect at corners
-   • Trace the CENTER LINE of each wall segment
+DIMENSION LINES look like this (IGNORE ALL OF THESE):
+❌ Thin lines with NUMBERS next to them (e.g., "2900", "4580", "5.37m")
+❌ Lines with small ARROWS or TICKS at both ends
+❌ Lines that have measurement text like "2900", "4580mm", "5.37 m"
+❌ Lines positioned OUTSIDE the floor plan pointing to edges
+❌ Horizontal or vertical lines with numbers written along them
+❌ Any line where you can see a measurement number nearby
 
-2. DOORS - Openings in walls with these symbols:
-   • Quarter-circle arc = hinged door swing
-   • Double arc (butterfly pattern) = double doors
-   • Gap with parallel lines = sliding door
-   • Just a gap = open doorway
-
-3. WINDOWS - Markings ON walls (not gaps):
-   • Two parallel lines perpendicular to wall
-   • Small rectangle on the wall line
-   • Usually on exterior walls
-
-4. STAIRS - Parallel lines with direction:
-   • Multiple parallel lines (steps)
-   • Arrow showing up/down direction
-   • Report as a room with name "Stairs"
+WALLS look like this (DETECT THESE):
+✓ Form CLOSED shapes (rectangles, L-shapes, etc.)
+✓ Create the BOUNDARY of rooms - you cannot walk through them
+✓ Connect to OTHER walls at corners (T-junctions, L-corners)
+✓ Usually THICKER than dimension lines
+✓ Do NOT have measurement numbers written on them
+✓ Are part of the building structure, not annotations
 
 ═══════════════════════════════════════════════════════════════
-WHAT TO COMPLETELY IGNORE (NOT structural):
+TWO-PASS DETECTION PROCESS:
 ═══════════════════════════════════════════════════════════════
 
-FURNITURE (DO NOT TRACE THESE AS WALLS):
-❌ Sofas, couches, sectionals (L-shaped or rectangular outlines in living areas)
-❌ Beds (rectangles in bedrooms, often with pillows drawn)
-❌ Tables (dining tables, coffee tables, desks)
-❌ Chairs (small rectangles or circles)
-❌ Rugs (rectangular outlines on floor)
+PASS 1: FIND THE OUTER BOUNDARY FIRST
+- Look for the OUTERMOST closed shape that forms the building perimeter
+- This should form a CLOSED polygon (rectangle, L-shape, etc.)
+- Trace this boundary - these are your EXTERIOR walls (isExterior: true)
+- The outer boundary should have 4+ walls that connect end-to-end
 
-KITCHEN FIXTURES:
-❌ Countertops (L-shaped or U-shaped lines along walls)
-❌ Kitchen islands
-❌ Stove/range (rectangle with circles for burners)
-❌ Refrigerator (rectangle, often labeled R/F)
-❌ Sink (small rectangle or oval)
-
-BATHROOM FIXTURES:
-❌ Toilet (small oval/rectangle)
-❌ Bathtub (large rectangle)
-❌ Shower (square with diagonal lines or X)
-❌ Vanity/sink (rectangle against wall)
-❌ Washer/dryer (squares, often labeled W/D)
-
-OTHER NON-STRUCTURAL:
-❌ Dimension lines (thin lines with arrows and numbers)
-❌ Room labels (text like "Living Area 21.4 m²")
-❌ Appliances
-❌ Plants
-❌ Closet organizers/shelving
+PASS 2: FIND INTERIOR WALLS
+- Look INSIDE the outer boundary for lines that divide the space
+- Interior walls CONNECT to the outer boundary or to each other
+- They create separate rooms within the building
+- Mark these as isExterior: false
 
 ═══════════════════════════════════════════════════════════════
-HOW TO IDENTIFY WALLS vs FURNITURE:
+WALL VALIDATION RULES:
 ═══════════════════════════════════════════════════════════════
 
-WALLS have these characteristics:
-✓ Form the BOUNDARY between rooms
-✓ Connect to other walls at corners
-✓ Continuous from corner to corner
-✓ Same thickness throughout their length
-✓ Have doors or windows cutting through them
+A valid wall MUST:
+✓ Connect to at least ONE other wall at an endpoint
+✓ Be part of a room boundary (not floating in space)
+✓ NOT have dimension numbers written along it
 
-FURNITURE has these characteristics:
-✗ Sits INSIDE a room (not on boundaries)
-✗ Does not connect to walls at both ends
-✗ Floating in the middle of a space
-✗ Has decorative details (cushions, legs, drawers)
-✗ Smaller than room boundaries
-
-TEST: If you can walk around it, it's furniture. If it blocks your path between rooms, it's a wall.
+A line is NOT a wall if:
+✗ It has numbers like "2900", "4580", "5470" next to it
+✗ It has arrows or tick marks at its ends
+✗ It floats outside the building boundary
+✗ It doesn't connect to any other structural element
+✗ It's a thin annotation line
 
 ═══════════════════════════════════════════════════════════════
-DETECTION PROCESS:
+WHAT TO DETECT:
 ═══════════════════════════════════════════════════════════════
 
-STEP 1: Find the EXTERIOR BOUNDARY
-- Start at top-left corner of the building
-- Trace clockwise around the entire perimeter
-- This forms the outer walls (mark isExterior: true)
+1. WALLS - Lines that form room boundaries
+   • Must form CLOSED shapes when connected
+   • Must NOT have measurement numbers on them
+   • Exterior walls: outer perimeter (isExterior: true)
+   • Interior walls: room dividers (isExterior: false)
 
-STEP 2: Find INTERIOR WALLS
-- Look for lines that DIVIDE the interior into rooms
-- These connect exterior walls to each other
-- Or connect to other interior walls
-- Mark isExterior: false
+2. DOORS - Openings in walls:
+   • Quarter-circle arc = hinged door
+   • Double arc = double doors
+   • Gap in wall = doorway
 
-STEP 3: For each wall segment, record:
-- start: {x, y} pixel coordinates of one end
-- end: {x, y} pixel coordinates of other end
-- thickness: pixel width of the wall
-- isExterior: true/false
+3. WINDOWS - On exterior walls:
+   • Parallel lines crossing the wall
+   • Small rectangles on wall line
 
-STEP 4: Find DOORS
-- Look for arcs or gaps in walls
-- Record center point and width
+4. STAIRS - Parallel step lines with arrow
 
-STEP 5: Find WINDOWS
-- Look for parallel line symbols on exterior walls
-- Record center point and width
+═══════════════════════════════════════════════════════════════
+WHAT TO COMPLETELY IGNORE:
+═══════════════════════════════════════════════════════════════
 
-STEP 6: Identify ROOMS from labels
-- Read text labels inside spaces
-- Record name and center point
-- Include area if labeled (e.g., "21.4 m²")
+DIMENSION ANNOTATIONS (NEVER detect as walls):
+❌ ANY line with numbers nearby (2900, 4580, 5.37m, etc.)
+❌ Lines with arrows/ticks at ends
+❌ Measurement indicators outside the floor plan
+❌ Scale bars or rulers
 
-STEP 7: Calculate SCALE
-- Find dimension labels (e.g., "5.37 m")
-- Measure pixel distance of that dimension
-- pixelsPerMeter = pixelDistance / meterValue
+FURNITURE:
+❌ Sofas, beds, tables, chairs (inside rooms)
+❌ Kitchen counters, appliances
+❌ Bathroom fixtures (toilet, tub, sink)
+
+OTHER:
+❌ Room labels and text
+❌ North arrows, scale indicators
+❌ Hatching or fill patterns
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT:
@@ -223,16 +213,14 @@ OUTPUT FORMAT:
 }
 
 ═══════════════════════════════════════════════════════════════
-FINAL VERIFICATION (check before responding):
+FINAL CHECKLIST (verify before responding):
 ═══════════════════════════════════════════════════════════════
 
-□ Did I trace ONLY walls, not furniture?
-□ Do exterior walls form a CLOSED boundary?
-□ Do adjacent walls SHARE endpoints?
-□ Did I ignore sofas, beds, tables, countertops?
-□ Are wall coordinates within image bounds?
-□ Did I find doors where there are arc symbols?
-□ Did I find windows on exterior walls?
+□ Did I ignore ALL lines with numbers (dimension lines)?
+□ Do my exterior walls form a CLOSED boundary?
+□ Does each wall connect to at least one other wall?
+□ Did I only detect structural walls, not annotations?
+□ Are there no floating/disconnected wall segments?
 
 Return ONLY the JSON object, nothing else.`
           }

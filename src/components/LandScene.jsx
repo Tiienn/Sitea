@@ -2669,7 +2669,7 @@ function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUnit = 'm
   )
 }
 
-function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.MEDIUM, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, rooms = [], floorPlanImage = null, floorPlanSettings = {} }) {
+function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.MEDIUM, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding }) {
   const { camera } = useThree()
   const [previewPos, setPreviewPos] = useState(null)
   const qualitySettings = QUALITY_SETTINGS[quality]
@@ -2984,6 +2984,18 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     e.stopPropagation()
     const point = e.point
 
+    // Floor plan placement mode - place building on click
+    if (floorPlanPlacementMode && placeFloorPlanBuilding) {
+      placeFloorPlanBuilding({ x: point.x, z: point.z })
+      return
+    }
+
+    // Move selected building to clicked position
+    if (selectedBuildingId && moveSelectedBuilding) {
+      moveSelectedBuilding({ x: point.x, z: point.z })
+      return
+    }
+
     // Room tool uses pointer down/up, not click
     if (activeBuildTool === BUILD_TOOLS.ROOM) return
 
@@ -3105,6 +3117,11 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   const handlePointerMove = (e) => {
     e.stopPropagation()
     const point = e.point
+
+    // Floor plan placement mode - update preview position
+    if (floorPlanPlacementMode && setBuildingPreviewPosition) {
+      setBuildingPreviewPosition({ x: point.x, z: point.z })
+    }
 
     // Room tool drag preview
     if (roomDragState.isDragging && activeBuildTool === BUILD_TOOLS.ROOM) {
@@ -3698,6 +3715,67 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         />
       ))}
 
+      {/* Buildings (placed floor plans) */}
+      {buildings.map((building) => (
+        <group
+          key={building.id}
+          position={[building.position.x, 0, building.position.z]}
+          rotation={[0, building.rotation || 0, 0]}
+        >
+          {building.walls.map((wall, wallIndex) => (
+            <WallSegment
+              key={`${building.id}-wall-${wallIndex}`}
+              wall={wall}
+              lengthUnit={lengthUnit}
+              viewMode={viewMode}
+              isSelected={selectedBuildingId === building.id}
+              onSelect={() => setSelectedBuildingId?.(building.id)}
+            />
+          ))}
+          {/* Building selection outline */}
+          {selectedBuildingId === building.id && (
+            <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[4, 4.2, 32]} />
+              <meshBasicMaterial color="#22d3ee" transparent opacity={0.5} />
+            </mesh>
+          )}
+        </group>
+      ))}
+
+      {/* Floor plan placement preview (ghost building) */}
+      {floorPlanPlacementMode && pendingFloorPlan && (
+        <group
+          position={[buildingPreviewPosition.x, 0, buildingPreviewPosition.z]}
+          rotation={[0, buildingPreviewRotation, 0]}
+        >
+          {pendingFloorPlan.walls.map((wall, wallIndex) => {
+            const dx = wall.end.x - wall.start.x
+            const dz = wall.end.z - wall.start.z
+            const length = Math.sqrt(dx * dx + dz * dz)
+            const angle = Math.atan2(dx, dz)
+            const midX = (wall.start.x + wall.end.x) / 2
+            const midZ = (wall.start.z + wall.end.z) / 2
+            const wallHeight = wall.height || 2.7
+            const thickness = wall.thickness || 0.15
+            return (
+              <mesh
+                key={`preview-wall-${wallIndex}`}
+                position={[midX, wallHeight / 2, midZ]}
+                rotation={[0, angle, 0]}
+              >
+                <boxGeometry args={[thickness, wallHeight, length]} />
+                <meshBasicMaterial color="#22d3ee" transparent opacity={0.5} />
+              </mesh>
+            )
+          })}
+          {/* Placement indicator */}
+          <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[3, 3.3, 32]} />
+            <meshBasicMaterial color="#22d3ee" transparent opacity={0.7} />
+          </mesh>
+        </group>
+      )}
+
       {/* Door/Window placement preview */}
       {openingHover.wall && effectiveOpeningMode !== 'none' && (() => {
         const wall = openingHover.wall
@@ -4037,7 +4115,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   )
 }
 
-export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.MEDIUM, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, rooms = [], floorPlanImage = null, floorPlanSettings = {} }) {
+export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.MEDIUM, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding }) {
   const qualitySettings = QUALITY_SETTINGS[quality]
 
   // Compute DPR capped by device capability
@@ -4128,6 +4206,16 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         rooms={rooms}
         floorPlanImage={floorPlanImage}
         floorPlanSettings={floorPlanSettings}
+        buildings={buildings}
+        floorPlanPlacementMode={floorPlanPlacementMode}
+        pendingFloorPlan={pendingFloorPlan}
+        buildingPreviewPosition={buildingPreviewPosition}
+        setBuildingPreviewPosition={setBuildingPreviewPosition}
+        buildingPreviewRotation={buildingPreviewRotation}
+        placeFloorPlanBuilding={placeFloorPlanBuilding}
+        selectedBuildingId={selectedBuildingId}
+        setSelectedBuildingId={setSelectedBuildingId}
+        moveSelectedBuilding={moveSelectedBuilding}
       />
     </Canvas>
   )

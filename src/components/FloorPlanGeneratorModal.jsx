@@ -463,33 +463,34 @@ function DetectionOverlay({
 
     ctx.restore(); // Restore from zoom/pan transform
 
-    // Draw calibration points (in screen space, not affected by zoom/pan for consistency)
+    // Draw calibration points (use imageToScreen for correct positioning with zoom/pan)
     if (calibrationPoints.length > 0) {
       if (calibrationPoints.length === 2) {
+        const p1 = imageToScreen(calibrationPoints[0].imageX, calibrationPoints[0].imageY);
+        const p2 = imageToScreen(calibrationPoints[1].imageX, calibrationPoints[1].imageY);
         ctx.strokeStyle = '#EF4444';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.beginPath();
-        ctx.moveTo(calibrationPoints[0].canvasX * zoom + pan.x, calibrationPoints[0].canvasY * zoom + pan.y);
-        ctx.lineTo(calibrationPoints[1].canvasX * zoom + pan.x, calibrationPoints[1].canvasY * zoom + pan.y);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
         ctx.stroke();
         ctx.setLineDash([]);
       }
 
       calibrationPoints.forEach((point, i) => {
-        const sx = point.canvasX * zoom + pan.x;
-        const sy = point.canvasY * zoom + pan.y;
+        const screenPos = imageToScreen(point.imageX, point.imageY);
         ctx.fillStyle = '#EF4444';
         ctx.beginPath();
-        ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+        ctx.arc(screenPos.x, screenPos.y, 8, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+        ctx.arc(screenPos.x, screenPos.y, 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#EF4444';
         ctx.font = 'bold 12px sans-serif';
-        ctx.fillText(`${i + 1}`, sx + 12, sy + 4);
+        ctx.fillText(`${i + 1}`, screenPos.x + 12, screenPos.y + 4);
       });
     }
 
@@ -565,8 +566,10 @@ function DetectionOverlay({
     e.stopPropagation();
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
 
     // Calculate zoom change
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -585,8 +588,11 @@ function DetectionOverlay({
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const canvasX = e.clientX - rect.left;
-    const canvasY = e.clientY - rect.top;
+    // Scale coordinates to account for CSS display size vs canvas internal resolution
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const canvasX = (e.clientX - rect.left) * scaleX;
+    const canvasY = (e.clientY - rect.top) * scaleY;
     const imagePos = screenToImage(canvasX, canvasY);
 
     // Middle mouse button for panning
@@ -730,8 +736,10 @@ function DetectionOverlay({
     // Dragging wall endpoint
     if (isDragging && dragTarget && onUpdateElement) {
       const rect = canvas.getBoundingClientRect();
-      const canvasX = e.clientX - rect.left;
-      const canvasY = e.clientY - rect.top;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const canvasX = (e.clientX - rect.left) * scaleX;
+      const canvasY = (e.clientY - rect.top) * scaleY;
       let imagePos = screenToImage(canvasX, canvasY);
 
       if ((dragTarget.type === 'wall-start' || dragTarget.type === 'wall-end') && aiData?.walls) {
@@ -813,8 +821,10 @@ function DetectionOverlay({
     // Update cursor based on what's under mouse
     if (editMode && !isDragging) {
       const rect = canvas.getBoundingClientRect();
-      const canvasX = e.clientX - rect.left;
-      const canvasY = e.clientY - rect.top;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const canvasX = (e.clientX - rect.left) * scaleX;
+      const canvasY = (e.clientY - rect.top) * scaleY;
       const imagePos = screenToImage(canvasX, canvasY);
 
       // Check if hovering over selected wall's endpoints
@@ -902,8 +912,10 @@ function DetectionOverlay({
       e.stopPropagation();
 
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const mouseY = (e.clientY - rect.top) * scaleY;
 
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
       setZoom(prevZoom => {
@@ -1030,7 +1042,7 @@ export default function FloorPlanGeneratorModal({
   const [calibrationMode, setCalibrationMode] = useState(false);
   const [calibrationPoints, setCalibrationPoints] = useState([]);
   const [calibrationDistance, setCalibrationDistance] = useState('');
-  const [calibrationUnit, setCalibrationUnit] = useState('m'); // 'm' or 'ft'
+  const [calibrationSuccess, setCalibrationSuccess] = useState(false);
 
   // Edit mode state
   const [editMode, setEditMode] = useState(false);
@@ -1052,6 +1064,10 @@ export default function FloorPlanGeneratorModal({
 
   // Display unit state (m, ft, mm)
   const [displayUnit, setDisplayUnit] = useState('m');
+
+  // Unit label helper (must be after displayUnit)
+  const unitLabel = displayUnit === 'ft' ? 'feet' : displayUnit === 'mm' ? 'mm' : 'meters';
+  const unitShort = displayUnit === 'ft' ? 'ft' : displayUnit === 'mm' ? 'mm' : 'm';
 
   // Unit conversion helper
   const formatLength = useCallback((meters, decimals = 2) => {
@@ -1242,7 +1258,12 @@ export default function FloorPlanGeneratorModal({
           redo();
         } else {
           e.preventDefault();
-          undo();
+          // In calibration mode, undo calibration points instead
+          if (calibrationMode && calibrationPoints.length > 0) {
+            setCalibrationPoints(pts => pts.slice(0, -1));
+          } else {
+            undo();
+          }
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
@@ -1259,11 +1280,22 @@ export default function FloorPlanGeneratorModal({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, selectedElement, handleRotateDoor]);
+  }, [undo, redo, selectedElement, handleRotateDoor, calibrationMode, calibrationPoints]);
 
   // Check if undo/redo is available
-  const canUndo = historyIndex >= 0;
+  const canUndoHistory = historyIndex >= 0;
   const canRedo = historyIndex < history.length - 2;
+  // In calibration mode, can undo calibration points; otherwise check history
+  const canUndo = (calibrationMode && calibrationPoints.length > 0) || canUndoHistory;
+
+  // Combined undo handler for button
+  const handleUndo = () => {
+    if (calibrationMode && calibrationPoints.length > 0) {
+      setCalibrationPoints(pts => pts.slice(0, -1));
+    } else {
+      undo();
+    }
+  };
 
   // Handle element selection
   const handleSelectElement = (element) => {
@@ -1456,17 +1488,28 @@ export default function FloorPlanGeneratorModal({
     return Math.sqrt(dx * dx + dy * dy);
   }, [calibrationPoints]);
 
-  // Apply calibration (converts to meters if needed)
+  // Apply calibration (converts to meters internally)
   const applyCalibration = () => {
+    console.log('[Calibration] Applying...', { calibrationDistance, calibrationPixelDistance, displayUnit });
     let distance = parseFloat(calibrationDistance);
     if (distance > 0 && calibrationPixelDistance > 0) {
-      // Convert to meters if using feet
-      if (calibrationUnit === 'ft') {
+      // Convert to meters based on display unit
+      if (displayUnit === 'ft') {
         distance = distance * 0.3048;
+      } else if (displayUnit === 'mm') {
+        distance = distance / 1000;
       }
       const newScale = distance / calibrationPixelDistance; // meters per pixel
+      console.log('[Calibration] New scale:', newScale, 'meters/pixel');
       setSettings(s => ({ ...s, scale: newScale }));
       setCalibrationMode(false);
+      setCalibrationPoints([]);
+      setCalibrationDistance('');
+      // Show success indicator
+      setCalibrationSuccess(true);
+      setTimeout(() => setCalibrationSuccess(false), 3000);
+    } else {
+      console.log('[Calibration] Invalid values - distance:', distance, 'pixelDist:', calibrationPixelDistance);
     }
   };
 
@@ -1694,7 +1737,7 @@ export default function FloorPlanGeneratorModal({
                   {/* Floating Undo/Redo Toolbar - Bottom of Image Preview */}
                   <div className="absolute bottom-5 left-5 z-10 flex items-center gap-1 pointer-events-auto">
                     <button
-                      onClick={undo}
+                      onClick={handleUndo}
                       disabled={!canUndo}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium backdrop-blur-md transition-all ${
                         canUndo
@@ -1906,10 +1949,16 @@ export default function FloorPlanGeneratorModal({
                   </h3>
 
                   {/* Current Scale Display */}
-                  <div className="mb-4 p-3 bg-[var(--color-bg-primary)] rounded-lg border border-[var(--color-border)]">
+                  <div className={`mb-4 p-3 rounded-lg border transition-all duration-300 ${
+                    calibrationSuccess
+                      ? 'bg-green-500/20 border-green-500/50'
+                      : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'
+                  }`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-[var(--color-text-muted)]">Current Scale</span>
-                      <span className="text-sm text-white font-mono">
+                      <span className={`text-sm ${calibrationSuccess ? 'text-green-400' : 'text-[var(--color-text-muted)]'}`}>
+                        {calibrationSuccess ? '✓ Scale Updated!' : 'Current Scale'}
+                      </span>
+                      <span className={`text-sm font-mono ${calibrationSuccess ? 'text-green-400' : 'text-white'}`}>
                         {(settings.scale * 1000).toFixed(2)} mm/px
                       </span>
                     </div>
@@ -1988,34 +2037,12 @@ export default function FloorPlanGeneratorModal({
                                 type="number"
                                 value={calibrationDistance}
                                 onChange={(e) => setCalibrationDistance(e.target.value)}
-                                placeholder={calibrationUnit === 'm' ? 'Distance in meters' : 'Distance in feet'}
-                                step="0.1"
+                                placeholder={`Distance in ${unitLabel}`}
+                                step={displayUnit === 'mm' ? '1' : '0.1'}
                                 min="0.1"
                                 className="flex-1 px-3 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg text-white text-sm placeholder:text-[var(--color-text-muted)] focus:ring-2 focus:ring-red-500 focus:border-transparent focus:outline-none"
                               />
-                              {/* Unit selector */}
-                              <div className="flex bg-[var(--color-bg-primary)] rounded-lg border border-[var(--color-border)] p-0.5">
-                                <button
-                                  onClick={() => setCalibrationUnit('m')}
-                                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                                    calibrationUnit === 'm'
-                                      ? 'bg-red-500 text-white'
-                                      : 'text-[var(--color-text-muted)] hover:text-white'
-                                  }`}
-                                >
-                                  m
-                                </button>
-                                <button
-                                  onClick={() => setCalibrationUnit('ft')}
-                                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                                    calibrationUnit === 'ft'
-                                      ? 'bg-red-500 text-white'
-                                      : 'text-[var(--color-text-muted)] hover:text-white'
-                                  }`}
-                                >
-                                  ft
-                                </button>
-                              </div>
+                              <span className="text-[var(--color-text-muted)] font-medium text-sm">{unitShort}</span>
                             </div>
                             {/* Preview calculated scale */}
                             {calibrationDistance && parseFloat(calibrationDistance) > 0 && (
@@ -2024,9 +2051,10 @@ export default function FloorPlanGeneratorModal({
                                   Scale preview: <span className="text-white">
                                     {(() => {
                                       let dist = parseFloat(calibrationDistance);
-                                      if (calibrationUnit === 'ft') dist *= 0.3048;
+                                      if (displayUnit === 'ft') dist *= 0.3048;
+                                      else if (displayUnit === 'mm') dist /= 1000;
                                       const scale = dist / calibrationPixelDistance;
-                                      return `${(scale * 1000).toFixed(1)} mm/px`;
+                                      return `${(scale * 1000).toFixed(2)} mm/px`;
                                     })()}
                                   </span>
                                 </p>
@@ -2069,11 +2097,11 @@ export default function FloorPlanGeneratorModal({
                           value={settings.referenceLength}
                           onChange={(e) => updateSetting('referenceLength', e.target.value)}
                           placeholder="e.g., 12"
-                          step="0.1"
+                          step={displayUnit === 'mm' ? '1' : '0.1'}
                           min="1"
                           className="flex-1 px-4 py-3 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg text-white placeholder:text-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent focus:outline-none"
                         />
-                        <span className="text-[var(--color-text-muted)] font-medium">meters</span>
+                        <span className="text-[var(--color-text-muted)] font-medium">{unitLabel}</span>
                       </div>
                       <p className="text-xs text-[var(--color-text-muted)] mt-2">
                         Leave empty to use AI-estimated scale
@@ -2089,12 +2117,12 @@ export default function FloorPlanGeneratorModal({
                           type="number"
                           value={settings.wallHeight}
                           onChange={(e) => updateSetting('wallHeight', parseFloat(e.target.value) || 2.7)}
-                          step="0.1"
-                          min="2"
-                          max="5"
+                          step={displayUnit === 'mm' ? '100' : '0.1'}
+                          min={displayUnit === 'mm' ? '2000' : displayUnit === 'ft' ? '6' : '2'}
+                          max={displayUnit === 'mm' ? '5000' : displayUnit === 'ft' ? '16' : '5'}
                           className="flex-1 px-4 py-3 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg text-white focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent focus:outline-none"
                         />
-                        <span className="text-[var(--color-text-muted)] font-medium">meters</span>
+                        <span className="text-[var(--color-text-muted)] font-medium">{unitLabel}</span>
                       </div>
                     </div>
                   </div>

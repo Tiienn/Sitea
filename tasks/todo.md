@@ -393,6 +393,52 @@ Combine two separate upload flows ("Upload Site Plan" and "Upload Floor Plan") i
 
 ---
 
+## Task: Floor Plan Building Placement & Selection (COMPLETED)
+
+### Goal
+After generating a 3D floor plan, allow users to place it on the land and then select/move/rotate the building.
+
+### Changes Made
+
+**1. Building State Management (`src/App.jsx`)**
+- Added `buildings` state array for placed floor plans
+- Added `floorPlanPlacementMode` state for placement mode
+- Added `pendingFloorPlan` state for floor plan awaiting placement
+- Added `selectedBuildingId` state for selected building
+- Added `buildingPreviewPosition` and `buildingPreviewRotation` for preview
+
+**2. Placement Mode (`src/App.jsx`)**
+- `handleFloorPlanGenerated` now enters placement mode instead of directly adding walls
+- User sees ghost preview following cursor
+- Click on land to place building at that position
+- Press R to rotate preview before placement
+- Press ESC to cancel placement
+
+**3. Building Selection (`src/components/LandScene.jsx`)**
+- Click on any wall of a placed building to select it
+- Selected building walls highlight yellow
+- Selection ring indicator around selected building
+- Pass building props through LandScene → Scene component
+
+**4. Move/Rotate Controls (`src/App.jsx`, `src/components/LandScene.jsx`)**
+- Click on land while building selected = move to that position
+- Press R = rotate selected building 90°
+- Press ESC = deselect building
+- Press Delete/Backspace = delete selected building
+- Toast message shows available controls when building selected
+
+**5. Keyboard Shortcuts**
+- R: Rotate (placement preview or selected building)
+- ESC: Cancel placement / Deselect building
+- Delete/Backspace: Delete selected building
+
+### Files Modified
+
+- `src/App.jsx`: Added building state, placement functions, keyboard handlers, toast for selection
+- `src/components/LandScene.jsx`: Added building props, rendering, click handlers, preview ghost
+
+---
+
 ## Previous Tasks (Completed)
 - Export Floor Plan (PNG)
 - Build Tool Previews in All View Modes
