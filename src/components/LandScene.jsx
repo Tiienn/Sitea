@@ -2986,13 +2986,19 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
     // Floor plan placement mode - place building on click
     if (floorPlanPlacementMode && placeFloorPlanBuilding) {
-      placeFloorPlanBuilding({ x: point.x, z: point.z })
+      const pos = gridSnapEnabled
+        ? { x: Math.round(point.x / gridSize) * gridSize, z: Math.round(point.z / gridSize) * gridSize }
+        : { x: point.x, z: point.z }
+      placeFloorPlanBuilding(pos)
       return
     }
 
     // Move selected building to clicked position
     if (selectedBuildingId && moveSelectedBuilding) {
-      moveSelectedBuilding({ x: point.x, z: point.z })
+      const pos = gridSnapEnabled
+        ? { x: Math.round(point.x / gridSize) * gridSize, z: Math.round(point.z / gridSize) * gridSize }
+        : { x: point.x, z: point.z }
+      moveSelectedBuilding(pos)
       return
     }
 
@@ -3120,7 +3126,10 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
     // Floor plan placement mode - update preview position
     if (floorPlanPlacementMode && setBuildingPreviewPosition) {
-      setBuildingPreviewPosition({ x: point.x, z: point.z })
+      const pos = gridSnapEnabled
+        ? { x: Math.round(point.x / gridSize) * gridSize, z: Math.round(point.z / gridSize) * gridSize }
+        : { x: point.x, z: point.z }
+      setBuildingPreviewPosition(pos)
     }
 
     // Room tool drag preview
