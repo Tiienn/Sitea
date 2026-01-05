@@ -719,44 +719,6 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [canUndo, canRedo, undoWalls, redoWalls])
 
-  // Building placement keyboard shortcuts (R to rotate, ESC to cancel, Delete to remove)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Ignore if typing in an input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-
-      // R to rotate (90 degrees)
-      if (e.key === 'r' || e.key === 'R') {
-        if (floorPlanPlacementMode || selectedBuildingId) {
-          e.preventDefault()
-          rotateBuildingPreview(Math.PI / 2)
-        }
-      }
-
-      // ESC to cancel placement
-      if (e.key === 'Escape') {
-        if (floorPlanPlacementMode) {
-          e.preventDefault()
-          cancelFloorPlanPlacement()
-        } else if (selectedBuildingId) {
-          e.preventDefault()
-          setSelectedBuildingId(null)
-        }
-      }
-
-      // Delete/Backspace to remove selected building
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedBuildingId) {
-          e.preventDefault()
-          deleteSelectedBuilding()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [floorPlanPlacementMode, selectedBuildingId, rotateBuildingPreview, cancelFloorPlanPlacement, deleteSelectedBuilding])
-
   // Save quality preference
   useEffect(() => {
     localStorage.setItem('landVisualizerQuality', graphicsQuality)
@@ -1098,6 +1060,44 @@ function App() {
     setBuildings(prev => prev.filter(b => b.id !== selectedBuildingId))
     setSelectedBuildingId(null)
   }, [selectedBuildingId])
+
+  // Building placement keyboard shortcuts (R to rotate, ESC to cancel, Delete to remove)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+      // R to rotate (90 degrees)
+      if (e.key === 'r' || e.key === 'R') {
+        if (floorPlanPlacementMode || selectedBuildingId) {
+          e.preventDefault()
+          rotateBuildingPreview(Math.PI / 2)
+        }
+      }
+
+      // ESC to cancel placement
+      if (e.key === 'Escape') {
+        if (floorPlanPlacementMode) {
+          e.preventDefault()
+          cancelFloorPlanPlacement()
+        } else if (selectedBuildingId) {
+          e.preventDefault()
+          setSelectedBuildingId(null)
+        }
+      }
+
+      // Delete/Backspace to remove selected building
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedBuildingId) {
+          e.preventDefault()
+          deleteSelectedBuilding()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [floorPlanPlacementMode, selectedBuildingId, rotateBuildingPreview, cancelFloorPlanPlacement, deleteSelectedBuilding])
 
   // Show toast when building is selected
   useEffect(() => {
