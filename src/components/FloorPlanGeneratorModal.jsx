@@ -2507,7 +2507,7 @@ export default function FloorPlanGeneratorModal({
                     min="10"
                     max="200"
                     value={settings.scale * 1000}
-                    onChange={(e) => updateSetting('scale', parseInt(e.target.value) / 1000)}
+                    onChange={(e) => updateSetting('scale', parseInt(e.target.value, 10) / 1000)}
                     className="w-full accent-[var(--color-accent)]"
                   />
                   <p className="text-xs text-[var(--color-text-muted)] text-center mt-1">{(settings.scale * 1000).toFixed(0)} mm/px</p>
@@ -2539,7 +2539,7 @@ export default function FloorPlanGeneratorModal({
                     min="0"
                     max={360}
                     value={(settings.rotation * 180 / Math.PI)}
-                    onChange={(e) => updateSetting('rotation', parseInt(e.target.value) * Math.PI / 180)}
+                    onChange={(e) => updateSetting('rotation', parseInt(e.target.value, 10) * Math.PI / 180)}
                     className="w-full accent-[var(--color-accent)]"
                   />
                   <p className="text-xs text-[var(--color-text-muted)] text-center mt-1">{Math.round(settings.rotation * 180 / Math.PI)}°</p>

@@ -1,5 +1,21 @@
 # Land Visualizer - Task History
 
+## Task: Fix parseInt() Calls Missing Radix Parameter (COMPLETED)
+
+### Goal
+Fix `parseInt()` calls that are missing the radix parameter. This is a JavaScript best practice issue - without specifying radix 10, parseInt can behave unexpectedly with certain string inputs.
+
+### Bug Location
+`src/components/FloorPlanGeneratorModal.jsx` lines 2510, 2542
+
+### Changes Made
+- Added radix parameter (10) to both `parseInt()` calls in the floor plan settings sliders
+
+### Files Modified
+- `src/components/FloorPlanGeneratorModal.jsx`
+
+---
+
 ## Task: Fix Double Door Rendering in AI Floor Plan Generator (COMPLETED)
 
 ### Goal
