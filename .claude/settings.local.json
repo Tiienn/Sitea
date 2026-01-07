@@ -21,7 +21,16 @@
       "Bash(npx eslint:*)",
       "Bash(node -e:*)",
       "Bash(cat:*)",
-      "Skill(document-skills:frontend-design)"
+      "Skill(document-skills:frontend-design)",
+      "Bash(wc:*)",
+      "WebSearch",
+      "WebFetch(domain:www.edrawsoft.com)",
+      "WebFetch(domain:www.roomsketcher.com)",
+      "WebFetch(domain:www.coohom.com)",
+      "WebFetch(domain:foyr.com)",
+      "WebFetch(domain:vdci.edu)",
+      "WebFetch(domain:www.conceptdraw.com)",
+      "WebFetch(domain:cedreo.com)"
     ],
     "deny": [],
     "ask": []

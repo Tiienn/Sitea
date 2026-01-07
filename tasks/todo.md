@@ -439,6 +439,118 @@ After generating a 3D floor plan, allow users to place it on the land and then s
 
 ---
 
+---
+
+## Task: Improve Comparison Objects - Car, Shipping Container, School Bus, Olympic Pool (IN PROGRESS)
+
+### Goal
+Improve the 3D models for 4 comparison objects to be more realistic and detailed.
+
+### Plan
+
+**1. Car (Sedan)**
+Current: Basic gray box with simple cabin
+Improvements:
+- Silver/metallic paint
+- Sloped hood at front
+- Windshield and rear window (glass)
+- Headlights and taillights
+- Better wheel hubs with rim detail
+- Bumpers and grille
+
+**2. Shipping Container**
+Current: Orange box with minimal detail
+Improvements:
+- More corrugation lines on all sides
+- Door handles/latches
+- Corner castings (reinforced corners)
+- Bottom frame rails
+- Ventilation grilles
+
+**3. School Bus**
+Current: Yellow box with black stripe
+Improvements:
+- Hood shape at front
+- STOP sign on side
+- Individual windows
+- Front grille and headlights
+- Black bumpers
+- Emergency exit marking
+
+**4. Olympic Pool (50m x 25m)**
+Current: Basic sunken pool with lane dividers
+Improvements:
+- Starting blocks
+- Lane ropes (buoy style)
+- Touch pads at ends
+- Proper deck walkway
+- Ladder on side
+- Lane numbers
+
+### Progress
+- [x] Car (Sedan)
+- [x] Shipping Container
+- [x] School Bus
+- [x] Olympic Pool
+
+### Review
+
+**Changes Made:**
+
+1. **Car (Sedan)** - Complete redesign with:
+   - Silver metallic paint with proper material properties
+   - Sloped hood and trunk sections
+   - Angled windshield and rear window with dark glass
+   - Side windows
+   - Front grille with headlights
+   - Red taillights with emissive glow
+   - Front and rear bumpers
+   - Side mirrors
+   - Detailed wheels with tires, rims, and hub caps
+
+2. **Shipping Container** - Realistic ISO container with:
+   - Corrugation lines on all sides and top
+   - Corner castings (reinforced corners) with black hardware
+   - Bottom frame rails and cross members
+   - Double doors at back with:
+     - Vertical locking bars
+     - Door handles
+     - Hinges
+   - Ventilation grilles on front
+   - ID plate area on side
+
+3. **School Bus** - Classic American design with:
+   - National School Bus Yellow color
+   - Hood section at front
+   - Individual windows with frames on both sides
+   - Front windshield and rear window
+   - Front grille with round headlights
+   - Turn signals
+   - Red STOP sign on left side (octagon shape)
+   - Black roof cap
+   - Black bumpers front and rear
+   - Taillights
+   - Emergency exit door marking on back
+   - Side mirrors
+   - Entry door on right side
+   - Detailed wheels with hubs
+
+4. **Olympic Pool** - Competition pool with:
+   - Outer deck area with proper coping
+   - 8-lane configuration with proper lane widths
+   - Lane lines painted on pool floor
+   - T-marks at lane ends
+   - Floating lane ropes with buoys:
+     - Blue buoys for inner lanes
+     - Green buoys for outer lanes
+     - Red buoys in 5m end zones
+   - Starting blocks at one end with angled top
+   - Yellow touch pads at both ends
+   - Backstroke flag poles at 5m marks with triangular flags
+   - Ladder on side with metal rails and rungs
+
+---
+
 ## Previous Tasks (Completed)
 - Export Floor Plan (PNG)
 - Build Tool Previews in All View Modes

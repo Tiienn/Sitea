@@ -1444,7 +1444,7 @@ function BasketballCourt3D({ obj }) {
       {[-1, 1].map((side) => (
         <group key={side} position={[0, 0, side * (obj.length / 2 - 1.2)]}>
           {/* Pole */}
-          <mesh position={[0, poleHeight / 2, -side * 0.5]} castShadow>
+          <mesh position={[0, poleHeight / 2, side * 0.5]} castShadow>
             <cylinderGeometry args={[0.1, 0.1, poleHeight, 8]} />
             <meshStandardMaterial color="#333333" />
           </mesh>
@@ -1454,7 +1454,7 @@ function BasketballCourt3D({ obj }) {
             <meshStandardMaterial color="#ffffff" transparent opacity={0.8} />
           </mesh>
           {/* Rim */}
-          <mesh position={[0, rimHeight, side * 0.2]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, rimHeight, -side * 0.2]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.23, 0.02, 8, 16]} />
             <meshStandardMaterial color="#ff4500" />
           </mesh>
@@ -1502,51 +1502,145 @@ function TennisCourt3D({ obj }) {
 
 // 3D House with pitched roof
 function House3D({ obj }) {
-  const wallHeight = 3, roofHeight = 2
+  const wallHeight = 3, roofHeight = 1.8
+  const roofOverhang = 0.4
+  const roofWidth = obj.width / 2 + roofOverhang
+  const roofAngle = Math.atan2(roofHeight, obj.width / 2)
+  const roofSlope = Math.sqrt(roofHeight * roofHeight + (obj.width / 2) * (obj.width / 2))
 
   return (
     <group>
-      {/* Foundation/shadow */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width + 0.5, obj.length + 0.5]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.15} />
+      {/* Foundation */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <planeGeometry args={[obj.width + 0.6, obj.length + 0.6]} />
+        <meshStandardMaterial color="#808080" />
       </mesh>
 
-      {/* Walls */}
+      {/* Main walls */}
       <mesh position={[0, wallHeight / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[obj.width, wallHeight, obj.length]} />
-        <meshStandardMaterial color="#f5f5dc" />
+        <meshStandardMaterial color="#f5f0e6" />
       </mesh>
 
-      {/* Pitched roof - using a simple triangular prism shape */}
-      <mesh position={[0, wallHeight + roofHeight / 2, 0]} castShadow>
-        <boxGeometry args={[obj.width + 0.5, 0.2, obj.length + 0.5]} />
-        <meshStandardMaterial color="#8b4513" />
+      {/* Roof - left slope */}
+      <mesh
+        position={[-obj.width / 4, wallHeight + roofHeight / 2, 0]}
+        rotation={[0, 0, roofAngle]}
+        castShadow
+      >
+        <boxGeometry args={[roofSlope + 0.3, 0.12, obj.length + roofOverhang * 2]} />
+        <meshStandardMaterial color="#8B4513" />
       </mesh>
 
-      {/* Roof slopes */}
-      <mesh position={[0, wallHeight + roofHeight / 2, 0]} rotation={[0, 0, Math.PI / 6]} castShadow>
-        <boxGeometry args={[obj.width / 2 + 0.8, 0.15, obj.length + 0.3]} />
-        <meshStandardMaterial color="#6b3a1f" />
+      {/* Roof - right slope */}
+      <mesh
+        position={[obj.width / 4, wallHeight + roofHeight / 2, 0]}
+        rotation={[0, 0, -roofAngle]}
+        castShadow
+      >
+        <boxGeometry args={[roofSlope + 0.3, 0.12, obj.length + roofOverhang * 2]} />
+        <meshStandardMaterial color="#8B4513" />
       </mesh>
-      <mesh position={[0, wallHeight + roofHeight / 2, 0]} rotation={[0, 0, -Math.PI / 6]} castShadow>
-        <boxGeometry args={[obj.width / 2 + 0.8, 0.15, obj.length + 0.3]} />
-        <meshStandardMaterial color="#6b3a1f" />
+
+      {/* Roof ridge cap */}
+      <mesh position={[0, wallHeight + roofHeight + 0.05, 0]} castShadow>
+        <boxGeometry args={[0.2, 0.1, obj.length + roofOverhang * 2]} />
+        <meshStandardMaterial color="#6B3A1F" />
+      </mesh>
+
+      {/* Gable ends (triangular fill) - front */}
+      <mesh position={[0, wallHeight, obj.length / 2 + 0.01]}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={3}
+            array={new Float32Array([
+              -obj.width / 2, 0, 0,
+              obj.width / 2, 0, 0,
+              0, roofHeight, 0
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color="#f5f0e6" side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Gable ends - back */}
+      <mesh position={[0, wallHeight, -obj.length / 2 - 0.01]}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={3}
+            array={new Float32Array([
+              -obj.width / 2, 0, 0,
+              obj.width / 2, 0, 0,
+              0, roofHeight, 0
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color="#f5f0e6" side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Door frame */}
+      <mesh position={[0, 1.1, obj.length / 2 + 0.02]}>
+        <boxGeometry args={[1.4, 2.4, 0.08]} />
+        <meshStandardMaterial color="#4a3728" />
       </mesh>
 
       {/* Door */}
-      <mesh position={[0, 1, obj.length / 2 + 0.01]}>
-        <planeGeometry args={[1.2, 2]} />
-        <meshStandardMaterial color="#5c4033" />
+      <mesh position={[0, 1.1, obj.length / 2 + 0.06]}>
+        <boxGeometry args={[1.1, 2.2, 0.05]} />
+        <meshStandardMaterial color="#8B5A2B" />
       </mesh>
 
-      {/* Windows */}
-      {[[-obj.width / 3, obj.length / 2], [obj.width / 3, obj.length / 2]].map(([x, z], i) => (
-        <mesh key={i} position={[x, wallHeight / 2 + 0.3, z + 0.01]}>
-          <planeGeometry args={[1, 1]} />
-          <meshStandardMaterial color="#87ceeb" transparent opacity={0.7} />
-        </mesh>
+      {/* Door handle */}
+      <mesh position={[0.4, 1.1, obj.length / 2 + 0.1]}>
+        <sphereGeometry args={[0.06, 8, 8]} />
+        <meshStandardMaterial color="#C0C0C0" metalness={0.8} roughness={0.2} />
+      </mesh>
+
+      {/* Windows - front */}
+      {[-obj.width / 3, obj.width / 3].map((x, i) => (
+        <group key={`front-${i}`} position={[x, wallHeight / 2 + 0.3, obj.length / 2]}>
+          {/* Window frame */}
+          <mesh position={[0, 0, 0.02]}>
+            <boxGeometry args={[1.2, 1.2, 0.08]} />
+            <meshStandardMaterial color="#4a3728" />
+          </mesh>
+          {/* Window glass */}
+          <mesh position={[0, 0, 0.05]}>
+            <boxGeometry args={[1.0, 1.0, 0.02]} />
+            <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
+          </mesh>
+          {/* Window cross bars */}
+          <mesh position={[0, 0, 0.07]}>
+            <boxGeometry args={[0.05, 1.0, 0.02]} />
+            <meshStandardMaterial color="#4a3728" />
+          </mesh>
+          <mesh position={[0, 0, 0.07]}>
+            <boxGeometry args={[1.0, 0.05, 0.02]} />
+            <meshStandardMaterial color="#4a3728" />
+          </mesh>
+        </group>
       ))}
+
+      {/* Windows - sides */}
+      {[-1, 1].map((side) => (
+        <group key={`side-${side}`} position={[side * obj.width / 2, wallHeight / 2 + 0.3, 0]}>
+          {/* Window frame */}
+          <mesh position={[side * 0.02, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <boxGeometry args={[1.2, 1.2, 0.08]} />
+            <meshStandardMaterial color="#4a3728" />
+          </mesh>
+          {/* Window glass */}
+          <mesh position={[side * 0.05, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <boxGeometry args={[1.0, 1.0, 0.02]} />
+            <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
+          </mesh>
+        </group>
+      ))}
+
     </group>
   )
 }
@@ -1565,141 +1659,756 @@ function ParkingSpace3D({ obj }) {
   )
 }
 
-// Olympic Pool (sunken)
+// Olympic Pool (sunken) - 50m x 25m competition pool
 function Pool3D({ obj }) {
   const texture = usePoolTexture(obj.width, obj.length)
   const poolDepth = 2
+  const laneCount = 8
+  const laneWidth = obj.width / laneCount
+  const deckWidth = 2.5
 
   return (
     <group>
-      {/* Pool edge/deck */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width + 2, obj.length + 2]} />
-        <meshStandardMaterial color="#d4d4d4" />
+      {/* Outer deck area */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+        <planeGeometry args={[obj.width + deckWidth * 2, obj.length + deckWidth * 2]} />
+        <meshStandardMaterial color="#c9c9c9" />
+      </mesh>
+
+      {/* Pool edge coping (white trim around pool) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
+        <planeGeometry args={[obj.width + 0.3, obj.length + 0.3]} />
+        <meshStandardMaterial color="#f5f5f5" />
       </mesh>
 
       {/* Pool walls (sunken box) */}
       <mesh position={[0, -poolDepth / 2, 0]}>
         <boxGeometry args={[obj.width, poolDepth, obj.length]} />
-        <meshStandardMaterial color="#0ea5e9" side={THREE.BackSide} />
+        <meshStandardMaterial color="#0284c7" side={THREE.BackSide} />
       </mesh>
+
+      {/* Pool floor - slightly lighter blue */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -poolDepth + 0.01, 0]}>
+        <planeGeometry args={[obj.width - 0.1, obj.length - 0.1]} />
+        <meshStandardMaterial color="#38bdf8" />
+      </mesh>
+
+      {/* Lane lines on pool floor */}
+      {Array.from({ length: laneCount - 1 }, (_, i) => (
+        <mesh key={`floor-line-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[-obj.width / 2 + laneWidth * (i + 1), -poolDepth + 0.02, 0]}>
+          <planeGeometry args={[0.1, obj.length - 1]} />
+          <meshStandardMaterial color="#1e3a5f" />
+        </mesh>
+      ))}
+
+      {/* T-marks at ends of lanes */}
+      {Array.from({ length: laneCount }, (_, i) => (
+        <group key={`t-mark-${i}`}>
+          {/* Start end T */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-obj.width / 2 + laneWidth * i + laneWidth / 2, -poolDepth + 0.02, obj.length / 2 - 2]}>
+            <planeGeometry args={[0.5, 0.1]} />
+            <meshStandardMaterial color="#1e3a5f" />
+          </mesh>
+          {/* Turn end T */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-obj.width / 2 + laneWidth * i + laneWidth / 2, -poolDepth + 0.02, -obj.length / 2 + 2]}>
+            <planeGeometry args={[0.5, 0.1]} />
+            <meshStandardMaterial color="#1e3a5f" />
+          </mesh>
+        </group>
+      ))}
 
       {/* Water surface */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
         <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} transparent opacity={0.9} />
+        <meshStandardMaterial map={texture} transparent opacity={0.85} />
       </mesh>
 
-      {/* Lane dividers */}
-      {Array.from({ length: 7 }, (_, i) => (
-        <mesh key={i} position={[0, -poolDepth / 2, -obj.length / 2 + (obj.length / 8) * (i + 1)]}>
-          <boxGeometry args={[obj.width - 0.2, 0.1, 0.1]} />
-          <meshStandardMaterial color="#1e40af" />
+      {/* Lane ropes (floating buoys) */}
+      {Array.from({ length: laneCount - 1 }, (_, i) => {
+        const x = -obj.width / 2 + laneWidth * (i + 1)
+        const buoyCount = Math.floor(obj.length / 0.8)
+        return (
+          <group key={`lane-rope-${i}`}>
+            {/* Rope line */}
+            <mesh position={[x, -0.05, 0]}>
+              <boxGeometry args={[0.02, 0.02, obj.length - 0.5]} />
+              <meshStandardMaterial color="#1e40af" />
+            </mesh>
+            {/* Buoys along the rope */}
+            {Array.from({ length: buoyCount }, (_, j) => {
+              // Alternate colors: blue for outer lanes, green for lanes 1 and 8
+              const isOuterLane = i === 0 || i === laneCount - 2
+              const buoyColor = isOuterLane ? '#22c55e' : '#3b82f6'
+              // Red buoys near ends (5m zone)
+              const zPos = -obj.length / 2 + 0.4 + j * 0.8
+              const isNearEnd = Math.abs(zPos) > obj.length / 2 - 5
+              const color = isNearEnd ? '#ef4444' : buoyColor
+              return (
+                <mesh key={`buoy-${i}-${j}`} position={[x, -0.02, zPos]}>
+                  <cylinderGeometry args={[0.06, 0.06, 0.12, 8]} />
+                  <meshStandardMaterial color={color} />
+                </mesh>
+              )
+            })}
+          </group>
+        )
+      })}
+
+      {/* Starting blocks at one end */}
+      {Array.from({ length: laneCount }, (_, i) => (
+        <group key={`block-${i}`} position={[-obj.width / 2 + laneWidth * i + laneWidth / 2, 0, obj.length / 2 + 0.3]}>
+          {/* Block platform */}
+          <mesh position={[0, 0.35, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.7, 0.6]} />
+            <meshStandardMaterial color="#e5e5e5" />
+          </mesh>
+          {/* Angled top surface */}
+          <mesh position={[0, 0.72, -0.05]} rotation={[-0.15, 0, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.05, 0.65]} />
+            <meshStandardMaterial color="#f5f5f5" />
+          </mesh>
+          {/* Lane number on block */}
+          <mesh position={[0, 0.4, 0.31]}>
+            <boxGeometry args={[0.2, 0.2, 0.02]} />
+            <meshStandardMaterial color="#333333" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Touch pads at both ends */}
+      {[-1, 1].map((side) => (
+        <mesh key={`touchpad-${side}`} position={[0, -poolDepth / 3, side * (obj.length / 2 - 0.02)]}>
+          <boxGeometry args={[obj.width - 0.1, poolDepth * 0.6, 0.04]} />
+          <meshStandardMaterial color="#fef08a" />
         </mesh>
       ))}
+
+      {/* Backstroke flags (5m from each end) */}
+      {[-1, 1].map((side) => (
+        <group key={`flags-${side}`} position={[0, 0, side * (obj.length / 2 - 5)]}>
+          {/* Flag poles */}
+          {[-1, 1].map((pSide) => (
+            <mesh key={`pole-${side}-${pSide}`} position={[pSide * (obj.width / 2 + 0.5), 1.25, 0]}>
+              <cylinderGeometry args={[0.03, 0.03, 2.5, 8]} />
+              <meshStandardMaterial color="#666666" />
+            </mesh>
+          ))}
+          {/* Flag line */}
+          <mesh position={[0, 2.4, 0]}>
+            <boxGeometry args={[obj.width + 1.2, 0.02, 0.02]} />
+            <meshStandardMaterial color="#333333" />
+          </mesh>
+          {/* Triangular flags */}
+          {Array.from({ length: Math.floor(obj.width / 0.8) }, (_, i) => (
+            <mesh key={`flag-${side}-${i}`} position={[-obj.width / 2 + 0.4 + i * 0.8, 2.25, 0]} rotation={[0, 0, Math.PI]}>
+              <coneGeometry args={[0.15, 0.3, 3]} />
+              <meshStandardMaterial color={i % 2 === 0 ? '#ef4444' : '#ffffff'} side={THREE.DoubleSide} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* Ladder on side */}
+      <group position={[obj.width / 2 + 0.15, 0, 0]}>
+        {/* Vertical rails */}
+        {[-0.2, 0.2].map((x, i) => (
+          <mesh key={`rail-${i}`} position={[x, -0.3, 0]}>
+            <cylinderGeometry args={[0.025, 0.025, 1.5, 8]} />
+            <meshStandardMaterial color="#c0c0c0" metalness={0.8} roughness={0.2} />
+          </mesh>
+        ))}
+        {/* Rungs */}
+        {Array.from({ length: 4 }, (_, i) => (
+          <mesh key={`rung-${i}`} position={[0, 0.2 - i * 0.4, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+            <meshStandardMaterial color="#c0c0c0" metalness={0.8} roughness={0.2} />
+          </mesh>
+        ))}
+      </group>
     </group>
   )
 }
 
-// Car Sedan
+// Car Sedan - Streamlined modern sedan with flowing body lines
 function CarSedan3D({ obj }) {
+  const bodyColor = '#dc2626' // Red
+  const bodyColorLight = '#ef4444'
+  const glassColor = '#0c1929'
+  const trimColor = '#1a1a1a'
+  const chromeColor = '#e5e5e5'
+
+  const wheelRadius = 0.3
+  const groundClearance = 0.12
+  const totalHeight = 1.4 // Typical sedan height
+  const beltLine = 0.65 // Height of the window sill
+  const roofLine = totalHeight - 0.1
+
   return (
     <group>
       {/* Shadow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width + 0.2, obj.length + 0.2]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.15} />
+        <planeGeometry args={[obj.width + 0.5, obj.length + 0.5]} />
+        <meshStandardMaterial color="#000000" transparent opacity={0.3} />
       </mesh>
-      {/* Body */}
-      <mesh position={[0, 0.4, 0]} castShadow>
-        <boxGeometry args={[obj.width, 0.5, obj.length]} />
-        <meshStandardMaterial color="#8C8C8C" />
+
+      {/* === LOWER BODY === */}
+      {/* Main lower body - full length */}
+      <mesh position={[0, groundClearance + 0.25, 0]} castShadow>
+        <boxGeometry args={[obj.width, 0.38, obj.length]} />
+        <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
       </mesh>
-      {/* Cabin/Roof */}
-      <mesh position={[0, 0.8, -0.3]} castShadow>
-        <boxGeometry args={[obj.width - 0.2, 0.4, obj.length * 0.5]} />
-        <meshStandardMaterial color="#7A7A7A" />
+
+      {/* === UPPER BODY - CONTINUOUS FLOWING SHAPE === */}
+      {/* Main cabin section */}
+      <mesh position={[0, beltLine, -obj.length * 0.02]} castShadow>
+        <boxGeometry args={[obj.width - 0.08, beltLine - groundClearance - 0.12, obj.length * 0.52]} />
+        <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
       </mesh>
-      {/* Wheels */}
-      {[[-obj.width / 2 + 0.15, obj.length / 2 - 0.6], [obj.width / 2 - 0.15, obj.length / 2 - 0.6],
-        [-obj.width / 2 + 0.15, -obj.length / 2 + 0.6], [obj.width / 2 - 0.15, -obj.length / 2 + 0.6]].map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.2, z]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.2, 0.2, 0.15, 12]} />
-          <meshStandardMaterial color="#333333" />
+
+      {/* Hood - slopes forward and down */}
+      <mesh position={[0, groundClearance + 0.42, obj.length * 0.32]} castShadow>
+        <boxGeometry args={[obj.width - 0.04, 0.22, obj.length * 0.38]} />
+        <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
+      </mesh>
+      {/* Hood top surface - angled */}
+      <mesh position={[0, groundClearance + 0.56, obj.length * 0.36]} rotation={[-0.12, 0, 0]} castShadow>
+        <boxGeometry args={[obj.width - 0.06, 0.06, obj.length * 0.32]} />
+        <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
+      </mesh>
+
+      {/* Trunk section */}
+      <mesh position={[0, groundClearance + 0.48, -obj.length * 0.34]} castShadow>
+        <boxGeometry args={[obj.width - 0.04, 0.35, obj.length * 0.34]} />
+        <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
+      </mesh>
+
+      {/* === GREENHOUSE (GLASS HOUSE) === */}
+      {/* Roof panel */}
+      <mesh position={[0, roofLine, -obj.length * 0.04]} castShadow>
+        <boxGeometry args={[obj.width - 0.25, 0.08, obj.length * 0.32]} />
+        <meshStandardMaterial color={trimColor} />
+      </mesh>
+
+      {/* Windshield - large angled piece */}
+      <mesh position={[0, beltLine + 0.32, obj.length * 0.14]} rotation={[-0.55, 0, 0]} castShadow>
+        <boxGeometry args={[obj.width - 0.22, 0.65, 0.025]} />
+        <meshStandardMaterial color={glassColor} transparent opacity={0.85} metalness={0.95} roughness={0.05} />
+      </mesh>
+
+      {/* Rear window - angled */}
+      <mesh position={[0, beltLine + 0.28, -obj.length * 0.2]} rotation={[0.5, 0, 0]} castShadow>
+        <boxGeometry args={[obj.width - 0.28, 0.55, 0.025]} />
+        <meshStandardMaterial color={glassColor} transparent opacity={0.85} metalness={0.95} roughness={0.05} />
+      </mesh>
+
+      {/* Side glass panels - integrated into body */}
+      {[-1, 1].map((side) => (
+        <group key={`side-glass-${side}`}>
+          {/* Front door window */}
+          <mesh position={[side * (obj.width / 2 - 0.03), beltLine + 0.32, obj.length * 0.02]}>
+            <boxGeometry args={[0.025, 0.55, obj.length * 0.18]} />
+            <meshStandardMaterial color={glassColor} transparent opacity={0.8} />
+          </mesh>
+          {/* Rear door window */}
+          <mesh position={[side * (obj.width / 2 - 0.03), beltLine + 0.3, -obj.length * 0.12]}>
+            <boxGeometry args={[0.025, 0.5, obj.length * 0.14]} />
+            <meshStandardMaterial color={glassColor} transparent opacity={0.8} />
+          </mesh>
+          {/* B-pillar */}
+          <mesh position={[side * (obj.width / 2 - 0.06), beltLine + 0.3, -obj.length * 0.05]}>
+            <boxGeometry args={[0.04, 0.55, 0.04]} />
+            <meshStandardMaterial color={trimColor} />
+          </mesh>
+          {/* C-pillar - thicker, flows into trunk */}
+          <mesh position={[side * (obj.width / 2 - 0.1), beltLine + 0.2, -obj.length * 0.18]} rotation={[0.25, 0, side * 0.1]}>
+            <boxGeometry args={[0.1, 0.5, 0.08]} />
+            <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === BODY LINES AND DETAILS === */}
+      {/* Character line along side (horizontal crease) */}
+      {[-1, 1].map((side) => (
+        <mesh key={`bodyline-${side}`} position={[side * (obj.width / 2 + 0.005), beltLine - 0.15, 0]}>
+          <boxGeometry args={[0.015, 0.03, obj.length * 0.7]} />
+          <meshStandardMaterial color={bodyColorLight} metalness={0.7} roughness={0.3} />
         </mesh>
+      ))}
+
+      {/* Wheel arches - rounded look */}
+      {[obj.length * 0.32, -obj.length * 0.32].map((z, idx) => (
+        [-1, 1].map((side) => (
+          <mesh key={`arch-${idx}-${side}`} position={[side * (obj.width / 2 - 0.03), groundClearance + 0.42, z]}>
+            <boxGeometry args={[0.08, 0.52, wheelRadius * 2.3]} />
+            <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
+          </mesh>
+        ))
+      ))}
+
+      {/* === FRONT END === */}
+      {/* Grille - wide modern style */}
+      <mesh position={[0, groundClearance + 0.32, obj.length / 2 + 0.01]}>
+        <boxGeometry args={[obj.width * 0.65, 0.2, 0.03]} />
+        <meshStandardMaterial color={trimColor} />
+      </mesh>
+      {/* Grille chrome accent */}
+      <mesh position={[0, groundClearance + 0.34, obj.length / 2 + 0.02]}>
+        <boxGeometry args={[obj.width * 0.5, 0.04, 0.02]} />
+        <meshStandardMaterial color={chromeColor} metalness={0.95} roughness={0.05} />
+      </mesh>
+
+      {/* Headlights - modern LED style */}
+      {[-1, 1].map((side) => (
+        <group key={`headlight-${side}`} position={[side * (obj.width / 2 - 0.18), groundClearance + 0.42, obj.length / 2]}>
+          {/* Main housing */}
+          <mesh position={[0, 0, 0.02]}>
+            <boxGeometry args={[0.32, 0.14, 0.06]} />
+            <meshStandardMaterial color="#1a1a1a" />
+          </mesh>
+          {/* LED strip */}
+          <mesh position={[0, 0, 0.05]}>
+            <boxGeometry args={[0.26, 0.04, 0.02]} />
+            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.8} />
+          </mesh>
+          {/* DRL accent */}
+          <mesh position={[side * 0.12, -0.04, 0.05]}>
+            <boxGeometry args={[0.08, 0.03, 0.02]} />
+            <meshStandardMaterial color="#ffffee" emissive="#ffffee" emissiveIntensity={0.5} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Front bumper */}
+      <mesh position={[0, groundClearance + 0.12, obj.length / 2 + 0.03]} castShadow>
+        <boxGeometry args={[obj.width + 0.04, 0.18, 0.08]} />
+        <meshStandardMaterial color={bodyColor} metalness={0.5} roughness={0.4} />
+      </mesh>
+      {/* Lower grille / air intake */}
+      <mesh position={[0, groundClearance + 0.08, obj.length / 2 + 0.04]}>
+        <boxGeometry args={[obj.width * 0.7, 0.08, 0.04]} />
+        <meshStandardMaterial color={trimColor} />
+      </mesh>
+
+      {/* === REAR END === */}
+      {/* Taillights - modern LED bar style */}
+      {[-1, 1].map((side) => (
+        <group key={`taillight-${side}`} position={[side * (obj.width / 2 - 0.15), groundClearance + 0.52, -obj.length / 2]}>
+          <mesh position={[0, 0, -0.02]}>
+            <boxGeometry args={[0.28, 0.1, 0.04]} />
+            <meshStandardMaterial color="#4a0000" />
+          </mesh>
+          <mesh position={[0, 0, -0.03]}>
+            <boxGeometry args={[0.24, 0.06, 0.02]} />
+            <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={0.5} />
+          </mesh>
+        </group>
+      ))}
+      {/* Center taillight bar */}
+      <mesh position={[0, groundClearance + 0.52, -obj.length / 2 - 0.02]}>
+        <boxGeometry args={[obj.width * 0.4, 0.03, 0.02]} />
+        <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={0.3} />
+      </mesh>
+
+      {/* Rear bumper */}
+      <mesh position={[0, groundClearance + 0.14, -obj.length / 2 - 0.03]} castShadow>
+        <boxGeometry args={[obj.width + 0.04, 0.22, 0.08]} />
+        <meshStandardMaterial color={bodyColor} metalness={0.5} roughness={0.4} />
+      </mesh>
+
+      {/* Exhaust tips */}
+      {[-1, 1].map((side) => (
+        <mesh key={`exhaust-${side}`} position={[side * 0.35, groundClearance + 0.08, -obj.length / 2 - 0.05]}>
+          <cylinderGeometry args={[0.04, 0.04, 0.06, 12]} rotation={[Math.PI / 2, 0, 0]} />
+          <meshStandardMaterial color={chromeColor} metalness={0.95} roughness={0.05} />
+        </mesh>
+      ))}
+
+      {/* License plate */}
+      <mesh position={[0, groundClearance + 0.28, -obj.length / 2 - 0.02]}>
+        <boxGeometry args={[0.35, 0.12, 0.015]} />
+        <meshStandardMaterial color="#f5f5f5" />
+      </mesh>
+
+      {/* === SIDE DETAILS === */}
+      {/* Side mirrors */}
+      {[-1, 1].map((side) => (
+        <group key={`mirror-${side}`} position={[side * (obj.width / 2 + 0.08), beltLine + 0.15, obj.length * 0.18]}>
+          <mesh position={[side * -0.03, 0, 0]}>
+            <boxGeometry args={[0.06, 0.04, 0.05]} />
+            <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
+          </mesh>
+          <mesh>
+            <boxGeometry args={[0.025, 0.07, 0.1]} />
+            <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Door handles */}
+      {[-1, 1].map((side) => (
+        <group key={`handles-${side}`}>
+          <mesh position={[side * (obj.width / 2 + 0.01), beltLine - 0.05, obj.length * 0.08]}>
+            <boxGeometry args={[0.02, 0.025, 0.12]} />
+            <meshStandardMaterial color={chromeColor} metalness={0.9} roughness={0.1} />
+          </mesh>
+          <mesh position={[side * (obj.width / 2 + 0.01), beltLine - 0.05, -obj.length * 0.1]}>
+            <boxGeometry args={[0.02, 0.025, 0.12]} />
+            <meshStandardMaterial color={chromeColor} metalness={0.9} roughness={0.1} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === WHEELS === */}
+      {[
+        [-obj.width / 2 + 0.12, obj.length * 0.32],
+        [obj.width / 2 - 0.12, obj.length * 0.32],
+        [-obj.width / 2 + 0.12, -obj.length * 0.32],
+        [obj.width / 2 - 0.12, -obj.length * 0.32]
+      ].map(([x, z], i) => (
+        <group key={`wheel-${i}`} position={[x, wheelRadius + groundClearance, z]}>
+          {/* Tire */}
+          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+            <cylinderGeometry args={[wheelRadius, wheelRadius, 0.2, 32]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.95} />
+          </mesh>
+          {/* Tire sidewall detail */}
+          <mesh rotation={[0, 0, Math.PI / 2]} position={[x > 0 ? 0.08 : -0.08, 0, 0]}>
+            <torusGeometry args={[wheelRadius - 0.02, 0.025, 8, 32]} />
+            <meshStandardMaterial color="#2a2a2a" roughness={0.9} />
+          </mesh>
+          {/* Alloy wheel */}
+          <mesh position={[x > 0 ? 0.09 : -0.09, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[wheelRadius * 0.75, wheelRadius * 0.75, 0.04, 32]} />
+            <meshStandardMaterial color="#404040" metalness={0.9} roughness={0.15} />
+          </mesh>
+          {/* 5-spoke design */}
+          {[0, 1, 2, 3, 4].map((spoke) => (
+            <mesh key={`spoke-${spoke}`} position={[x > 0 ? 0.1 : -0.1, 0, 0]} rotation={[spoke * Math.PI * 2 / 5, 0, Math.PI / 2]}>
+              <boxGeometry args={[0.025, wheelRadius * 0.6, 0.06]} />
+              <meshStandardMaterial color="#c0c0c0" metalness={0.95} roughness={0.08} />
+            </mesh>
+          ))}
+          {/* Center cap with logo indent */}
+          <mesh position={[x > 0 ? 0.11 : -0.11, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[wheelRadius * 0.18, wheelRadius * 0.18, 0.025, 16]} />
+            <meshStandardMaterial color="#808080" metalness={0.9} roughness={0.1} />
+          </mesh>
+        </group>
       ))}
     </group>
   )
 }
 
-// Shipping Container
+// Shipping Container - Realistic ISO container design
 function ShippingContainer3D({ obj }) {
   const containerHeight = 2.6
+  const containerColor = '#C75B39'
+  const darkColor = '#A64B2E'
+  const frameColor = '#8B4513'
+  const corrugationCount = Math.floor(obj.length / 0.8)
+
   return (
     <group>
       {/* Shadow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width + 0.3, obj.length + 0.3]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.15} />
+        <planeGeometry args={[obj.width + 0.4, obj.length + 0.4]} />
+        <meshStandardMaterial color="#000000" transparent opacity={0.2} />
       </mesh>
+
       {/* Main container box */}
       <mesh position={[0, containerHeight / 2, 0]} castShadow>
         <boxGeometry args={[obj.width, containerHeight, obj.length]} />
-        <meshStandardMaterial color="#C75B39" />
+        <meshStandardMaterial color={containerColor} />
       </mesh>
-      {/* Door end - slightly darker */}
-      <mesh position={[0, containerHeight / 2, obj.length / 2 + 0.01]}>
-        <planeGeometry args={[obj.width - 0.1, containerHeight - 0.1]} />
-        <meshStandardMaterial color="#A64B2E" />
-      </mesh>
-      {/* Corrugation lines on sides */}
-      {Array.from({ length: 5 }, (_, i) => (
-        <mesh key={i} position={[obj.width / 2 + 0.01, containerHeight / 2, -obj.length / 2 + (obj.length / 6) * (i + 1)]}>
-          <boxGeometry args={[0.02, containerHeight - 0.2, 0.08]} />
-          <meshStandardMaterial color="#B8532F" />
+
+      {/* Bottom frame rails */}
+      {[-1, 1].map((side) => (
+        <mesh key={`rail-${side}`} position={[side * (obj.width / 2 - 0.05), 0.05, 0]}>
+          <boxGeometry args={[0.1, 0.1, obj.length]} />
+          <meshStandardMaterial color={frameColor} />
         </mesh>
       ))}
+
+      {/* Cross members under container */}
+      {Array.from({ length: 3 }, (_, i) => (
+        <mesh key={`cross-${i}`} position={[0, 0.05, -obj.length / 2 + (obj.length / 4) * (i + 1)]}>
+          <boxGeometry args={[obj.width, 0.08, 0.1]} />
+          <meshStandardMaterial color={frameColor} />
+        </mesh>
+      ))}
+
+      {/* Corner castings (corner posts) */}
+      {[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([x, z], i) => (
+        <group key={`corner-${i}`}>
+          {/* Vertical corner post */}
+          <mesh position={[x * (obj.width / 2 - 0.06), containerHeight / 2, z * (obj.length / 2 - 0.06)]}>
+            <boxGeometry args={[0.12, containerHeight, 0.12]} />
+            <meshStandardMaterial color={darkColor} />
+          </mesh>
+          {/* Top corner casting */}
+          <mesh position={[x * (obj.width / 2 - 0.06), containerHeight - 0.05, z * (obj.length / 2 - 0.06)]}>
+            <boxGeometry args={[0.15, 0.1, 0.15]} />
+            <meshStandardMaterial color="#333333" />
+          </mesh>
+          {/* Bottom corner casting */}
+          <mesh position={[x * (obj.width / 2 - 0.06), 0.05, z * (obj.length / 2 - 0.06)]}>
+            <boxGeometry args={[0.15, 0.1, 0.15]} />
+            <meshStandardMaterial color="#333333" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Corrugation lines on both sides */}
+      {[-1, 1].map((side) => (
+        Array.from({ length: corrugationCount }, (_, i) => (
+          <mesh key={`corr-${side}-${i}`} position={[side * (obj.width / 2 + 0.015), containerHeight / 2, -obj.length / 2 + 0.3 + (i * 0.75)]}>
+            <boxGeometry args={[0.03, containerHeight - 0.3, 0.06]} />
+            <meshStandardMaterial color={darkColor} />
+          </mesh>
+        ))
+      ))}
+
+      {/* Top corrugation lines */}
+      {Array.from({ length: corrugationCount }, (_, i) => (
+        <mesh key={`top-corr-${i}`} position={[0, containerHeight + 0.015, -obj.length / 2 + 0.3 + (i * 0.75)]}>
+          <boxGeometry args={[obj.width - 0.2, 0.03, 0.06]} />
+          <meshStandardMaterial color={darkColor} />
+        </mesh>
+      ))}
+
+      {/* Door end panels */}
+      <group position={[0, 0, obj.length / 2]}>
+        {/* Left door */}
+        <mesh position={[-obj.width / 4, containerHeight / 2, 0.02]}>
+          <boxGeometry args={[obj.width / 2 - 0.15, containerHeight - 0.15, 0.04]} />
+          <meshStandardMaterial color={darkColor} />
+        </mesh>
+        {/* Right door */}
+        <mesh position={[obj.width / 4, containerHeight / 2, 0.02]}>
+          <boxGeometry args={[obj.width / 2 - 0.15, containerHeight - 0.15, 0.04]} />
+          <meshStandardMaterial color={darkColor} />
+        </mesh>
+        {/* Door handles/locking bars */}
+        {[-1, 1].map((side) => (
+          <group key={`handle-${side}`}>
+            {/* Vertical locking bar */}
+            <mesh position={[side * (obj.width / 4 - 0.15), containerHeight / 2, 0.05]}>
+              <boxGeometry args={[0.04, containerHeight - 0.4, 0.04]} />
+              <meshStandardMaterial color="#333333" />
+            </mesh>
+            {/* Handle */}
+            <mesh position={[side * (obj.width / 4 - 0.15), containerHeight / 2, 0.08]}>
+              <boxGeometry args={[0.08, 0.25, 0.04]} />
+              <meshStandardMaterial color="#555555" metalness={0.6} roughness={0.4} />
+            </mesh>
+          </group>
+        ))}
+        {/* Door hinges */}
+        {[-1, 1].map((side) => (
+          [0.3, 0.7].map((h, i) => (
+            <mesh key={`hinge-${side}-${i}`} position={[side * (obj.width / 2 - 0.08), containerHeight * h, 0.04]}>
+              <cylinderGeometry args={[0.03, 0.03, 0.15, 8]} />
+              <meshStandardMaterial color="#333333" />
+            </mesh>
+          ))
+        ))}
+      </group>
+
+      {/* Ventilation grilles on front (non-door end) */}
+      <group position={[0, containerHeight - 0.3, -obj.length / 2 - 0.01]}>
+        {[-1, 1].map((side) => (
+          <mesh key={`vent-${side}`} position={[side * (obj.width / 4), 0, 0]}>
+            <boxGeometry args={[0.2, 0.15, 0.02]} />
+            <meshStandardMaterial color="#222222" />
+          </mesh>
+        ))}
+      </group>
+
+      {/* ID plate area on side */}
+      <mesh position={[obj.width / 2 + 0.02, containerHeight - 0.5, obj.length / 2 - 0.8]}>
+        <boxGeometry args={[0.02, 0.3, 0.6]} />
+        <meshStandardMaterial color="#f0f0f0" />
+      </mesh>
     </group>
   )
 }
 
-// School Bus
+// School Bus - Classic American yellow school bus
 function SchoolBus3D({ obj }) {
   const busHeight = 2.5
+  const busColor = '#F7B500'  // National School Bus Yellow
+  const trimColor = '#1a1a1a'
+  const wheelRadius = 0.45
+  const windowCount = Math.floor((obj.length - 3) / 1.2)
+
   return (
     <group>
       {/* Shadow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width + 0.3, obj.length + 0.3]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.15} />
+        <planeGeometry args={[obj.width + 0.4, obj.length + 0.4]} />
+        <meshStandardMaterial color="#000000" transparent opacity={0.2} />
       </mesh>
+
       {/* Main body */}
-      <mesh position={[0, busHeight / 2, 0]} castShadow>
+      <mesh position={[0, busHeight / 2 + 0.3, 0]} castShadow>
         <boxGeometry args={[obj.width, busHeight, obj.length]} />
-        <meshStandardMaterial color="#F7B500" />
+        <meshStandardMaterial color={busColor} />
       </mesh>
-      {/* Black stripe for windows */}
-      <mesh position={[obj.width / 2 + 0.01, busHeight / 2 + 0.3, 0]}>
-        <planeGeometry args={[obj.length - 2, busHeight * 0.35]} />
-        <meshStandardMaterial color="#333333" transparent opacity={0.7} />
+
+      {/* Hood section at front - slightly lower */}
+      <mesh position={[0, 0.7, obj.length / 2 - 0.3]} castShadow>
+        <boxGeometry args={[obj.width, 1.1, 1.2]} />
+        <meshStandardMaterial color={busColor} />
       </mesh>
-      <mesh position={[-obj.width / 2 - 0.01, busHeight / 2 + 0.3, 0]} rotation={[0, Math.PI, 0]}>
-        <planeGeometry args={[obj.length - 2, busHeight * 0.35]} />
-        <meshStandardMaterial color="#333333" transparent opacity={0.7} />
+
+      {/* Roof - black cap */}
+      <mesh position={[0, busHeight + 0.35, -0.5]} castShadow>
+        <boxGeometry args={[obj.width + 0.05, 0.1, obj.length - 1.5]} />
+        <meshStandardMaterial color={trimColor} />
       </mesh>
-      {/* Hood (front) */}
-      <mesh position={[0, busHeight / 2 - 0.3, obj.length / 2 + 0.01]}>
-        <planeGeometry args={[obj.width - 0.1, busHeight - 0.5]} />
-        <meshStandardMaterial color="#E5A800" />
-      </mesh>
-      {/* Wheels */}
-      {[[-obj.width / 2, obj.length / 2 - 1.5], [obj.width / 2, obj.length / 2 - 1.5],
-        [-obj.width / 2, -obj.length / 2 + 1.5], [obj.width / 2, -obj.length / 2 + 1.5]].map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.4, z]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.4, 0.4, 0.3, 12]} />
-          <meshStandardMaterial color="#333333" />
+
+      {/* Black trim stripe under windows */}
+      {[-1, 1].map((side) => (
+        <mesh key={`stripe-${side}`} position={[side * (obj.width / 2 + 0.01), busHeight / 2 - 0.1, -0.3]}>
+          <boxGeometry args={[0.02, 0.15, obj.length - 1.5]} />
+          <meshStandardMaterial color={trimColor} />
         </mesh>
       ))}
+
+      {/* Individual windows on sides */}
+      {[-1, 1].map((side) => (
+        Array.from({ length: windowCount }, (_, i) => (
+          <group key={`window-${side}-${i}`} position={[side * (obj.width / 2), busHeight / 2 + 0.55, -obj.length / 2 + 2 + (i * 1.2)]}>
+            {/* Window frame */}
+            <mesh position={[side * 0.02, 0, 0]}>
+              <boxGeometry args={[0.04, 0.9, 0.9]} />
+              <meshStandardMaterial color={trimColor} />
+            </mesh>
+            {/* Window glass */}
+            <mesh position={[side * 0.03, 0, 0]}>
+              <boxGeometry args={[0.02, 0.75, 0.75]} />
+              <meshStandardMaterial color="#1a1a2e" transparent opacity={0.6} />
+            </mesh>
+          </group>
+        ))
+      ))}
+
+      {/* Front windshield */}
+      <mesh position={[0, busHeight / 2 + 0.6, obj.length / 2 - 0.6]} rotation={[-0.1, 0, 0]}>
+        <boxGeometry args={[obj.width - 0.3, 1.0, 0.05]} />
+        <meshStandardMaterial color="#1a1a2e" transparent opacity={0.6} />
+      </mesh>
+
+      {/* Rear window */}
+      <mesh position={[0, busHeight / 2 + 0.6, -obj.length / 2 + 0.02]}>
+        <boxGeometry args={[obj.width - 0.4, 0.8, 0.05]} />
+        <meshStandardMaterial color="#1a1a2e" transparent opacity={0.6} />
+      </mesh>
+
+      {/* Front grille */}
+      <mesh position={[0, 0.5, obj.length / 2 + 0.02]}>
+        <boxGeometry args={[obj.width * 0.6, 0.4, 0.04]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* Headlights */}
+      {[-1, 1].map((side) => (
+        <mesh key={`headlight-${side}`} position={[side * (obj.width / 2 - 0.3), 0.6, obj.length / 2 + 0.03]}>
+          <cylinderGeometry args={[0.12, 0.12, 0.04, 12]} rotation={[Math.PI / 2, 0, 0]} />
+          <meshStandardMaterial color="#ffffcc" emissive="#ffffcc" emissiveIntensity={0.3} />
+        </mesh>
+      ))}
+
+      {/* Front turn signals */}
+      {[-1, 1].map((side) => (
+        <mesh key={`turn-${side}`} position={[side * (obj.width / 2 - 0.15), 0.35, obj.length / 2 + 0.03]}>
+          <boxGeometry args={[0.15, 0.08, 0.03]} />
+          <meshStandardMaterial color="#ffaa00" emissive="#ffaa00" emissiveIntensity={0.2} />
+        </mesh>
+      ))}
+
+      {/* STOP sign on left side */}
+      <group position={[-obj.width / 2 - 0.15, busHeight / 2 + 0.4, obj.length / 4]}>
+        {/* Sign arm */}
+        <mesh position={[-0.1, 0, 0]}>
+          <boxGeometry args={[0.2, 0.03, 0.03]} />
+          <meshStandardMaterial color={trimColor} />
+        </mesh>
+        {/* STOP octagon */}
+        <mesh position={[-0.25, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <cylinderGeometry args={[0.2, 0.2, 0.02, 8]} />
+          <meshStandardMaterial color="#cc0000" />
+        </mesh>
+      </group>
+
+      {/* Front bumper */}
+      <mesh position={[0, 0.2, obj.length / 2 + 0.1]} castShadow>
+        <boxGeometry args={[obj.width + 0.1, 0.2, 0.15]} />
+        <meshStandardMaterial color={trimColor} />
+      </mesh>
+
+      {/* Rear bumper */}
+      <mesh position={[0, 0.2, -obj.length / 2 - 0.08]} castShadow>
+        <boxGeometry args={[obj.width + 0.1, 0.2, 0.15]} />
+        <meshStandardMaterial color={trimColor} />
+      </mesh>
+
+      {/* Taillights */}
+      {[-1, 1].map((side) => (
+        <mesh key={`taillight-${side}`} position={[side * (obj.width / 2 - 0.2), 0.8, -obj.length / 2 - 0.02]}>
+          <boxGeometry args={[0.15, 0.25, 0.03]} />
+          <meshStandardMaterial color="#cc0000" emissive="#cc0000" emissiveIntensity={0.2} />
+        </mesh>
+      ))}
+
+      {/* Emergency exit door marking on back */}
+      <mesh position={[0, busHeight / 2 - 0.2, -obj.length / 2 - 0.02]}>
+        <boxGeometry args={[0.8, 1.6, 0.02]} />
+        <meshStandardMaterial color="#E5A800" />
+      </mesh>
+      {/* Emergency exit text bar */}
+      <mesh position={[0, busHeight - 0.1, -obj.length / 2 - 0.03]}>
+        <boxGeometry args={[0.7, 0.15, 0.02]} />
+        <meshStandardMaterial color="#cc0000" />
+      </mesh>
+
+      {/* Side mirrors */}
+      {[-1, 1].map((side) => (
+        <group key={`mirror-${side}`} position={[side * (obj.width / 2 + 0.2), busHeight / 2 + 0.8, obj.length / 2 - 0.3]}>
+          <mesh>
+            <boxGeometry args={[0.1, 0.25, 0.15]} />
+            <meshStandardMaterial color={trimColor} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Wheels with hubs */}
+      {[
+        [-obj.width / 2 + 0.15, obj.length / 2 - 1.3],
+        [obj.width / 2 - 0.15, obj.length / 2 - 1.3],
+        [-obj.width / 2 + 0.15, -obj.length / 2 + 1.3],
+        [obj.width / 2 - 0.15, -obj.length / 2 + 1.3]
+      ].map(([x, z], i) => (
+        <group key={`wheel-${i}`} position={[x, wheelRadius, z]}>
+          {/* Tire */}
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[wheelRadius, wheelRadius, 0.25, 16]} />
+            <meshStandardMaterial color="#1a1a1a" />
+          </mesh>
+          {/* Hub */}
+          <mesh position={[x > 0 ? 0.08 : -0.08, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[wheelRadius * 0.5, wheelRadius * 0.5, 0.05, 16]} />
+            <meshStandardMaterial color="#555555" metalness={0.7} roughness={0.3} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Entry door on right side */}
+      <mesh position={[obj.width / 2 + 0.02, busHeight / 2, obj.length / 2 - 1.5]}>
+        <boxGeometry args={[0.04, busHeight - 0.5, 1.0]} />
+        <meshStandardMaterial color={trimColor} />
+      </mesh>
     </group>
   )
 }
@@ -1743,34 +2452,148 @@ function KingSizeBed3D({ obj }) {
 
 // Studio Apartment Floor Plan
 function StudioApartment3D({ obj }) {
+  const wallHeight = 2.8
+  const wallThickness = 0.15
+
   return (
     <group>
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial color="#9CA3AF" transparent opacity={0.3} />
+      {/* Foundation/floor slab */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+        <planeGeometry args={[obj.width + 0.3, obj.length + 0.3]} />
+        <meshStandardMaterial color="#4a4a4a" />
       </mesh>
-      {/* Walls - low outline */}
-      <mesh position={[0, 0.15, -obj.length / 2]} castShadow>
-        <boxGeometry args={[obj.width, 0.3, 0.1]} />
-        <meshStandardMaterial color="#D1D5DB" />
+
+      {/* Main walls */}
+      <mesh position={[0, wallHeight / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[obj.width, wallHeight, obj.length]} />
+        <meshStandardMaterial color="#E8E4E0" />
       </mesh>
-      <mesh position={[0, 0.15, obj.length / 2]} castShadow>
-        <boxGeometry args={[obj.width, 0.3, 0.1]} />
-        <meshStandardMaterial color="#D1D5DB" />
+
+      {/* Flat roof */}
+      <mesh position={[0, wallHeight + 0.1, 0]} castShadow>
+        <boxGeometry args={[obj.width + 0.2, 0.2, obj.length + 0.2]} />
+        <meshStandardMaterial color="#5C5C5C" />
       </mesh>
-      <mesh position={[-obj.width / 2, 0.15, 0]} castShadow>
-        <boxGeometry args={[0.1, 0.3, obj.length]} />
-        <meshStandardMaterial color="#D1D5DB" />
+
+      {/* Roof edge trim */}
+      <mesh position={[0, wallHeight + 0.25, 0]}>
+        <boxGeometry args={[obj.width + 0.3, 0.1, obj.length + 0.3]} />
+        <meshStandardMaterial color="#3D3D3D" />
       </mesh>
-      <mesh position={[obj.width / 2, 0.15, 0]} castShadow>
-        <boxGeometry args={[0.1, 0.3, obj.length]} />
-        <meshStandardMaterial color="#D1D5DB" />
+
+      {/* Front door with frame */}
+      <group position={[obj.width / 4, 0, obj.length / 2]}>
+        <mesh position={[0, 1.05, 0.02]}>
+          <boxGeometry args={[1.1, 2.2, 0.08]} />
+          <meshStandardMaterial color="#2C2C2C" />
+        </mesh>
+        <mesh position={[0, 1.05, 0.06]}>
+          <boxGeometry args={[0.9, 2.0, 0.05]} />
+          <meshStandardMaterial color="#4A3728" />
+        </mesh>
+        <mesh position={[0.35, 1.05, 0.1]}>
+          <sphereGeometry args={[0.04, 8, 8]} />
+          <meshStandardMaterial color="#C0C0C0" metalness={0.8} roughness={0.2} />
+        </mesh>
+      </group>
+
+      {/* Large front window */}
+      <group position={[-obj.width / 4, wallHeight / 2 + 0.2, obj.length / 2]}>
+        <mesh position={[0, 0, 0.02]}>
+          <boxGeometry args={[1.8, 1.5, 0.08]} />
+          <meshStandardMaterial color="#2C2C2C" />
+        </mesh>
+        <mesh position={[0, 0, 0.05]}>
+          <boxGeometry args={[1.6, 1.3, 0.02]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
+        </mesh>
+        {/* Window divider */}
+        <mesh position={[0, 0, 0.07]}>
+          <boxGeometry args={[0.03, 1.3, 0.02]} />
+          <meshStandardMaterial color="#2C2C2C" />
+        </mesh>
+      </group>
+
+      {/* Side windows */}
+      {[-1, 1].map((side) => (
+        <group key={`side-${side}`} position={[side * obj.width / 2, wallHeight / 2 + 0.2, 0]}>
+          <mesh position={[side * 0.02, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <boxGeometry args={[1.2, 1.2, 0.08]} />
+            <meshStandardMaterial color="#2C2C2C" />
+          </mesh>
+          <mesh position={[side * 0.05, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <boxGeometry args={[1.0, 1.0, 0.02]} />
+            <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Back window */}
+      <group position={[0, wallHeight / 2 + 0.2, -obj.length / 2]}>
+        <mesh position={[0, 0, -0.02]}>
+          <boxGeometry args={[1.4, 1.2, 0.08]} />
+          <meshStandardMaterial color="#2C2C2C" />
+        </mesh>
+        <mesh position={[0, 0, -0.05]}>
+          <boxGeometry args={[1.2, 1.0, 0.02]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
+        </mesh>
+      </group>
+
+      {/* Small balcony on side */}
+      <group position={[-obj.width / 2 - 0.5, 0, obj.length / 4]}>
+        {/* Balcony floor */}
+        <mesh position={[0, 0.1, 0]}>
+          <boxGeometry args={[1.0, 0.15, 1.5]} />
+          <meshStandardMaterial color="#5C5C5C" />
+        </mesh>
+        {/* Balcony railing - posts */}
+        {[-0.6, 0.6].map((z, i) => (
+          <mesh key={i} position={[-0.4, 0.55, z]}>
+            <boxGeometry args={[0.05, 0.8, 0.05]} />
+            <meshStandardMaterial color="#333333" />
+          </mesh>
+        ))}
+        {/* Balcony railing - top rail */}
+        <mesh position={[-0.4, 0.95, 0]}>
+          <boxGeometry args={[0.06, 0.06, 1.5]} />
+          <meshStandardMaterial color="#333333" />
+        </mesh>
+        {/* Balcony railing - glass panel */}
+        <mesh position={[-0.4, 0.5, 0]}>
+          <boxGeometry args={[0.02, 0.7, 1.4]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.3} />
+        </mesh>
+      </group>
+
+      {/* Balcony door */}
+      <group position={[-obj.width / 2, wallHeight / 2 - 0.2, obj.length / 4]}>
+        <mesh position={[-0.02, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[1.0, 2.2, 0.08]} />
+          <meshStandardMaterial color="#2C2C2C" />
+        </mesh>
+        <mesh position={[-0.05, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[0.8, 2.0, 0.02]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.4} />
+        </mesh>
+      </group>
+
+      {/* AC unit on roof */}
+      <mesh position={[obj.width / 4, wallHeight + 0.55, -obj.length / 4]} castShadow>
+        <boxGeometry args={[0.8, 0.5, 0.6]} />
+        <meshStandardMaterial color="#D0D0D0" />
       </mesh>
-      {/* Kitchen area indicator */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-obj.width / 4, 0.03, -obj.length / 4]}>
-        <planeGeometry args={[obj.width / 2.5, obj.length / 3]} />
-        <meshStandardMaterial color="#6B7280" transparent opacity={0.3} />
+
+      {/* Address number */}
+      <mesh position={[obj.width / 4 + 0.8, wallHeight - 0.3, obj.length / 2 + 0.02]}>
+        <boxGeometry args={[0.3, 0.3, 0.02]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* Small steps at entrance */}
+      <mesh position={[obj.width / 4, 0.08, obj.length / 2 + 0.4]}>
+        <boxGeometry args={[1.2, 0.15, 0.4]} />
+        <meshStandardMaterial color="#6B6B6B" />
       </mesh>
     </group>
   )
@@ -2133,12 +2956,8 @@ function ComparisonObject({ obj, index, totalObjects, lengthUnit = 'm', position
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
     >
-      {/* Wrapper for opacity during drag */}
+      {/* Content wrapper */}
       <group>
-        <mesh visible={false}>
-          <boxGeometry args={[obj.width, 2, obj.length]} />
-          <meshBasicMaterial transparent opacity={0} />
-        </mesh>
         {is2D ? render2DObject() : render3DObject()}
       </group>
 
@@ -3012,6 +3831,16 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   const handleLandClick = (e) => {
     e.stopPropagation()
     const point = e.point
+
+    // Check if click was on a comparison object - if so, don't handle here
+    // (ComparisonObject's onPointerDown will handle it)
+    if (e.intersections && e.intersections.length > 1) {
+      // Multiple objects hit - check if any is above the land (y > 0.01)
+      const hasObjectAboveLand = e.intersections.some(int => int.point && int.point.y > 0.01)
+      if (hasObjectAboveLand) {
+        return // Let the other object handle this click
+      }
+    }
 
     // Floor plan placement mode - place building on click
     if (floorPlanPlacementMode && placeFloorPlanBuilding) {
