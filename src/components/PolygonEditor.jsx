@@ -17,6 +17,239 @@ function distance(p1, p2) {
   return Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2)
 }
 
+// ============================================
+// Canvas Drawing Helper Functions
+// ============================================
+
+// Draw grid lines and axes
+function drawGrid(ctx, canvasWidth, canvasHeight, scale, panOffset) {
+  // Clear canvas
+  ctx.fillStyle = '#1a1a2e'
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+
+  // Draw grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)'
+  ctx.lineWidth = 1
+  const gridStep = scale * 5
+  for (let i = 0; i <= canvasWidth; i += gridStep) {
+    ctx.beginPath()
+    ctx.moveTo(i, 0)
+    ctx.lineTo(i, canvasHeight)
+    ctx.stroke()
+  }
+  for (let j = 0; j <= canvasHeight; j += gridStep) {
+    ctx.beginPath()
+    ctx.moveTo(0, j)
+    ctx.lineTo(canvasWidth, j)
+    ctx.stroke()
+  }
+
+  // Draw axes
+  const centerX = canvasWidth / 2
+  const centerY = canvasHeight / 2
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'
+  ctx.beginPath()
+  ctx.moveTo(centerX, 0)
+  ctx.lineTo(centerX, canvasHeight)
+  ctx.moveTo(0, centerY)
+  ctx.lineTo(canvasWidth, centerY)
+  ctx.stroke()
+}
+
+// Draw the polygon shape and fill
+function drawPolygon(ctx, points, toCanvasLocal) {
+  if (points.length === 0) return
+
+  ctx.beginPath()
+  ctx.strokeStyle = '#4ade80'
+  ctx.fillStyle = 'rgba(74, 222, 128, 0.2)'
+  ctx.lineWidth = 2
+
+  const first = toCanvasLocal(points[0])
+  ctx.moveTo(first.x, first.y)
+
+  for (let i = 1; i < points.length; i++) {
+    const p = toCanvasLocal(points[i])
+    ctx.lineTo(p.x, p.y)
+  }
+
+  if (points.length >= 3) {
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.stroke()
+}
+
+// Draw segment length labels
+function drawSegmentLabels(ctx, points, toCanvasLocal, formatLength) {
+  if (points.length < 2) return
+
+  ctx.font = '10px sans-serif'
+  ctx.fillStyle = '#22d3ee'
+  ctx.textAlign = 'center'
+
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length
+    // Skip closing segment if not enough points
+    if (points.length < 3 && j === 0) continue
+
+    const p1 = toCanvasLocal(points[i])
+    const p2 = toCanvasLocal(points[j])
+    const midX = (p1.x + p2.x) / 2
+    const midY = (p1.y + p2.y) / 2
+    const len = distance(points[i], points[j])
+
+    // Draw background for text
+    const text = formatLength(len)
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'
+    ctx.fillRect(midX - 15, midY - 7, 30, 14)
+    ctx.fillStyle = '#22d3ee'
+    ctx.fillText(text, midX, midY + 3)
+  }
+}
+
+// Draw point markers with hover/drag states
+function drawPoints(ctx, points, toCanvasLocal, hoveredPoint, draggingPoint, nearFirstPoint) {
+  points.forEach((point, i) => {
+    const p = toCanvasLocal(point)
+    const isHovered = hoveredPoint === i
+    const isDragged = draggingPoint === i
+    const isFirstAndNear = i === 0 && nearFirstPoint && points.length >= 3
+
+    // Pulsing ring for close indicator on first point
+    if (isFirstAndNear) {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 12, 0, Math.PI * 2)
+      ctx.strokeStyle = '#14b8a6'
+      ctx.lineWidth = 2
+      ctx.setLineDash([3, 3])
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, isHovered || isDragged ? 9 : 7, 0, Math.PI * 2)
+    ctx.fillStyle = isDragged ? '#f59e0b' : (isFirstAndNear ? '#14b8a6' : (i === 0 ? '#22d3ee' : '#4ade80'))
+    ctx.fill()
+    ctx.strokeStyle = isHovered || isFirstAndNear ? '#fff' : 'rgba(255,255,255,0.7)'
+    ctx.lineWidth = isHovered || isDragged ? 3 : 2
+    ctx.stroke()
+
+    // Show "Click to close" hint on first point
+    if (isFirstAndNear) {
+      ctx.font = '9px sans-serif'
+      ctx.fillStyle = 'rgba(0,0,0,0.8)'
+      ctx.fillRect(p.x - 28, p.y - 24, 56, 14)
+      ctx.fillStyle = '#14b8a6'
+      ctx.textAlign = 'center'
+      ctx.fillText('Click to close', p.x, p.y - 14)
+    }
+    // Show coordinates on hover
+    else if (isHovered && !isDragged) {
+      const coordText = `(${point.x}, ${point.y})`
+      ctx.font = '10px sans-serif'
+      const textWidth = ctx.measureText(coordText).width
+      ctx.fillStyle = 'rgba(0,0,0,0.8)'
+      ctx.fillRect(p.x - textWidth/2 - 4, p.y - 22, textWidth + 8, 14)
+      ctx.fillStyle = '#fff'
+      ctx.textAlign = 'center'
+      ctx.fillText(coordText, p.x, p.y - 12)
+    }
+  })
+}
+
+// Draw corner angles
+function drawCornerAngles(ctx, points, toCanvasLocal, scale) {
+  if (points.length < 3) return
+
+  ctx.font = '9px sans-serif'
+  ctx.textAlign = 'center'
+
+  points.forEach((point, i) => {
+    const prev = points[(i - 1 + points.length) % points.length]
+    const next = points[(i + 1) % points.length]
+
+    // Calculate vectors
+    const v1 = { x: prev.x - point.x, y: prev.y - point.y }
+    const v2 = { x: next.x - point.x, y: next.y - point.y }
+
+    // Calculate angle using dot product
+    const dot = v1.x * v2.x + v1.y * v2.y
+    const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y)
+    const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y)
+    const cosAngle = dot / (mag1 * mag2)
+    const angleRad = Math.acos(Math.max(-1, Math.min(1, cosAngle)))
+    const angleDeg = Math.round(angleRad * 180 / Math.PI)
+
+    // Position angle text slightly inside the corner
+    const p = toCanvasLocal(point)
+    const centerX = (prev.x + point.x + next.x) / 3
+    const centerY = (prev.y + point.y + next.y) / 3
+    const offsetX = (centerX - point.x) * 0.4
+    const offsetY = (centerY - point.y) * 0.4
+
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'
+    ctx.fillRect(p.x + offsetX * scale - 12, p.y - offsetY * scale - 6, 24, 12)
+    ctx.fillStyle = '#fbbf24'
+    ctx.fillText(`${angleDeg}°`, p.x + offsetX * scale, p.y - offsetY * scale + 3)
+  })
+}
+
+// Draw preview line while drawing
+function drawPreviewLine(ctx, points, mousePos, toCanvasLocal, shiftHeld, drawDimension, lengthUnit, formatLength) {
+  if (!mousePos || points.length === 0) return
+
+  const lastPoint = toCanvasLocal(points[points.length - 1])
+  const previewPoint = toCanvasLocal(mousePos)
+
+  // Dashed preview line
+  ctx.beginPath()
+  ctx.setLineDash([4, 4])
+  ctx.strokeStyle = shiftHeld ? '#f59e0b' : '#22d3ee'
+  ctx.lineWidth = 2
+  ctx.moveTo(lastPoint.x, lastPoint.y)
+  ctx.lineTo(previewPoint.x, previewPoint.y)
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  // Preview point
+  ctx.beginPath()
+  ctx.arc(previewPoint.x, previewPoint.y, 5, 0, Math.PI * 2)
+  ctx.fillStyle = shiftHeld ? '#f59e0b' : '#22d3ee'
+  ctx.globalAlpha = 0.6
+  ctx.fill()
+  ctx.globalAlpha = 1
+
+  // Preview distance - show typed dimension if entered, otherwise actual distance
+  const previewDist = distance(points[points.length - 1], mousePos)
+  const dim = parseFloat(drawDimension)
+  const displayDist = dim > 0 ? (lengthUnit === 'ft' ? dim / 3.28084 : dim) : previewDist
+
+  if (displayDist > 1) {
+    const midX = (lastPoint.x + previewPoint.x) / 2
+    const midY = (lastPoint.y + previewPoint.y) / 2
+    const displayText = dim > 0 ? `${drawDimension}` : formatLength(previewDist)
+    const textWidth = dim > 0 ? 36 : 30
+    ctx.font = dim > 0 ? 'bold 11px sans-serif' : '10px sans-serif'
+    ctx.fillStyle = dim > 0 ? 'rgba(20,184,166,0.9)' : 'rgba(0,0,0,0.7)'
+    ctx.fillRect(midX - textWidth/2, midY - 8, textWidth, 16)
+    ctx.fillStyle = dim > 0 ? '#fff' : (shiftHeld ? '#f59e0b' : '#22d3ee')
+    ctx.textAlign = 'center'
+    ctx.fillText(displayText, midX, midY + 4)
+
+    // Show angle if shift held
+    if (shiftHeld) {
+      const dx = mousePos.x - points[points.length - 1].x
+      const dy = mousePos.y - points[points.length - 1].y
+      const angle = Math.round(Math.atan2(dy, dx) * 180 / Math.PI)
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'
+      ctx.fillRect(previewPoint.x + 10, previewPoint.y - 7, 30, 14)
+      ctx.fillStyle = '#f59e0b'
+      ctx.fillText(`${angle}°`, previewPoint.x + 25, previewPoint.y + 3)
+    }
+  }
+}
+
 // Calculate perimeter
 export function calculatePerimeter(points) {
   if (points.length < 2) return 0
@@ -162,38 +395,17 @@ export default function PolygonEditor({ points, onChange, onComplete, onClear, o
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
-
-    // Clear
-    ctx.fillStyle = '#1a1a2e'
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
-
-    // Draw grid
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)'
-    ctx.lineWidth = 1
-    const gridStep = scale * 5
-    for (let i = 0; i <= canvasWidth; i += gridStep) {
-      ctx.beginPath()
-      ctx.moveTo(i, 0)
-      ctx.lineTo(i, canvasHeight)
-      ctx.stroke()
-    }
-    for (let j = 0; j <= canvasHeight; j += gridStep) {
-      ctx.beginPath()
-      ctx.moveTo(0, j)
-      ctx.lineTo(canvasWidth, j)
-      ctx.stroke()
-    }
-
-    // Draw axes
     const centerX = canvasWidth / 2
     const centerY = canvasHeight / 2
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)'
-    ctx.beginPath()
-    ctx.moveTo(centerX, 0)
-    ctx.lineTo(centerX, canvasHeight)
-    ctx.moveTo(0, centerY)
-    ctx.lineTo(canvasWidth, centerY)
-    ctx.stroke()
+
+    // Helper to convert world coords to canvas coords (with pan offset)
+    const toCanvasLocal = (p) => ({
+      x: centerX + (p.x - panOffset.x) * scale,
+      y: centerY - (p.y - panOffset.y) * scale // Flip Y
+    })
+
+    // Draw grid and axes
+    drawGrid(ctx, canvasWidth, canvasHeight, scale, panOffset)
 
     // Draw instruction text when empty
     if (points.length === 0) {
@@ -203,191 +415,17 @@ export default function PolygonEditor({ points, onChange, onComplete, onClear, o
       ctx.fillText('Click to add points', canvasWidth / 2, canvasHeight / 2)
     }
 
-    // Helper to convert world coords to canvas coords (with pan offset)
-    const toCanvasLocal = (p) => ({
-      x: centerX + (p.x - panOffset.x) * scale,
-      y: centerY - (p.y - panOffset.y) * scale // Flip Y
-    })
-
-    // Draw polygon
+    // Draw polygon and its elements
     if (points.length > 0) {
-      ctx.beginPath()
-      ctx.strokeStyle = '#4ade80'
-      ctx.fillStyle = 'rgba(74, 222, 128, 0.2)'
-      ctx.lineWidth = 2
-
-      const first = toCanvasLocal(points[0])
-      ctx.moveTo(first.x, first.y)
-
-      for (let i = 1; i < points.length; i++) {
-        const p = toCanvasLocal(points[i])
-        ctx.lineTo(p.x, p.y)
-      }
-
-      if (points.length >= 3) {
-        ctx.closePath()
-        ctx.fill()
-      }
-      ctx.stroke()
-
-      // Draw segment lengths
-      if (points.length >= 2) {
-        ctx.font = '10px sans-serif'
-        ctx.fillStyle = '#22d3ee'
-        ctx.textAlign = 'center'
-        for (let i = 0; i < points.length; i++) {
-          const j = (i + 1) % points.length
-          // Skip closing segment if not enough points
-          if (points.length < 3 && j === 0) continue
-
-          const p1 = toCanvasLocal(points[i])
-          const p2 = toCanvasLocal(points[j])
-          const midX = (p1.x + p2.x) / 2
-          const midY = (p1.y + p2.y) / 2
-          const len = distance(points[i], points[j])
-
-          // Draw background for text
-          const text = formatLength(len)
-          ctx.fillStyle = 'rgba(0,0,0,0.7)'
-          ctx.fillRect(midX - 15, midY - 7, 30, 14)
-          ctx.fillStyle = '#22d3ee'
-          ctx.fillText(text, midX, midY + 3)
-        }
-      }
-
-      // Draw points (larger for easier clicking)
-      points.forEach((point, i) => {
-        const p = toCanvasLocal(point)
-        const isHovered = hoveredPoint === i
-        const isDragged = draggingPoint === i
-        const isFirstAndNear = i === 0 && nearFirstPoint && points.length >= 3
-
-        // Pulsing ring for close indicator on first point
-        if (isFirstAndNear) {
-          ctx.beginPath()
-          ctx.arc(p.x, p.y, 12, 0, Math.PI * 2)
-          ctx.strokeStyle = '#14b8a6'
-          ctx.lineWidth = 2
-          ctx.setLineDash([3, 3])
-          ctx.stroke()
-          ctx.setLineDash([])
-        }
-
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, isHovered || isDragged ? 9 : 7, 0, Math.PI * 2)
-        ctx.fillStyle = isDragged ? '#f59e0b' : (isFirstAndNear ? '#14b8a6' : (i === 0 ? '#22d3ee' : '#4ade80'))
-        ctx.fill()
-        ctx.strokeStyle = isHovered || isFirstAndNear ? '#fff' : 'rgba(255,255,255,0.7)'
-        ctx.lineWidth = isHovered || isDragged ? 3 : 2
-        ctx.stroke()
-
-        // Show "Click to close" hint on first point
-        if (isFirstAndNear) {
-          ctx.font = '9px sans-serif'
-          ctx.fillStyle = 'rgba(0,0,0,0.8)'
-          ctx.fillRect(p.x - 28, p.y - 24, 56, 14)
-          ctx.fillStyle = '#14b8a6'
-          ctx.textAlign = 'center'
-          ctx.fillText('Click to close', p.x, p.y - 14)
-        }
-        // Show coordinates on hover
-        else if (isHovered && !isDragged) {
-          const coordText = `(${point.x}, ${point.y})`
-          ctx.font = '10px sans-serif'
-          const textWidth = ctx.measureText(coordText).width
-          ctx.fillStyle = 'rgba(0,0,0,0.8)'
-          ctx.fillRect(p.x - textWidth/2 - 4, p.y - 22, textWidth + 8, 14)
-          ctx.fillStyle = '#fff'
-          ctx.textAlign = 'center'
-          ctx.fillText(coordText, p.x, p.y - 12)
-        }
-      })
-
-      // Draw corner angles when shape is closed (3+ points)
-      if (points.length >= 3) {
-        ctx.font = '9px sans-serif'
-        ctx.textAlign = 'center'
-        points.forEach((point, i) => {
-          const prev = points[(i - 1 + points.length) % points.length]
-          const next = points[(i + 1) % points.length]
-
-          // Calculate vectors
-          const v1 = { x: prev.x - point.x, y: prev.y - point.y }
-          const v2 = { x: next.x - point.x, y: next.y - point.y }
-
-          // Calculate angle using dot product
-          const dot = v1.x * v2.x + v1.y * v2.y
-          const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y)
-          const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y)
-          const cosAngle = dot / (mag1 * mag2)
-          const angleRad = Math.acos(Math.max(-1, Math.min(1, cosAngle)))
-          const angleDeg = Math.round(angleRad * 180 / Math.PI)
-
-          // Position angle text slightly inside the corner
-          const p = toCanvasLocal(point)
-          const centerX = (prev.x + point.x + next.x) / 3
-          const centerY = (prev.y + point.y + next.y) / 3
-          const offsetX = (centerX - point.x) * 0.4
-          const offsetY = (centerY - point.y) * 0.4
-
-          ctx.fillStyle = 'rgba(0,0,0,0.6)'
-          ctx.fillRect(p.x + offsetX * scale - 12, p.y - offsetY * scale - 6, 24, 12)
-          ctx.fillStyle = '#fbbf24'
-          ctx.fillText(`${angleDeg}°`, p.x + offsetX * scale, p.y - offsetY * scale + 3)
-        })
-      }
+      drawPolygon(ctx, points, toCanvasLocal)
+      drawSegmentLabels(ctx, points, toCanvasLocal, formatLength)
+      drawPoints(ctx, points, toCanvasLocal, hoveredPoint, draggingPoint, nearFirstPoint)
+      drawCornerAngles(ctx, points, toCanvasLocal, scale)
     }
 
     // Draw preview line (not when shape complete or preview paused)
-    if (mousePos && points.length > 0 && draggingPoint === null && !isShapeComplete && !previewPaused) {
-      const lastPoint = toCanvasLocal(points[points.length - 1])
-      const previewPoint = toCanvasLocal(mousePos)
-
-      // Dashed preview line
-      ctx.beginPath()
-      ctx.setLineDash([4, 4])
-      ctx.strokeStyle = shiftHeld ? '#f59e0b' : '#22d3ee'
-      ctx.lineWidth = 2
-      ctx.moveTo(lastPoint.x, lastPoint.y)
-      ctx.lineTo(previewPoint.x, previewPoint.y)
-      ctx.stroke()
-      ctx.setLineDash([])
-
-      // Preview point
-      ctx.beginPath()
-      ctx.arc(previewPoint.x, previewPoint.y, 5, 0, Math.PI * 2)
-      ctx.fillStyle = shiftHeld ? '#f59e0b' : '#22d3ee'
-      ctx.globalAlpha = 0.6
-      ctx.fill()
-      ctx.globalAlpha = 1
-
-      // Preview distance - show typed dimension if entered, otherwise actual distance
-      const previewDist = distance(points[points.length - 1], mousePos)
-      const dim = parseFloat(drawDimension)
-      const displayDist = dim > 0 ? (lengthUnit === 'ft' ? dim / 3.28084 : dim) : previewDist
-      if (displayDist > 1) {
-        const midX = (lastPoint.x + previewPoint.x) / 2
-        const midY = (lastPoint.y + previewPoint.y) / 2
-        const displayText = dim > 0 ? `${drawDimension}` : formatLength(previewDist)
-        const textWidth = dim > 0 ? 36 : 30
-        ctx.font = dim > 0 ? 'bold 11px sans-serif' : '10px sans-serif'
-        ctx.fillStyle = dim > 0 ? 'rgba(20,184,166,0.9)' : 'rgba(0,0,0,0.7)'
-        ctx.fillRect(midX - textWidth/2, midY - 8, textWidth, 16)
-        ctx.fillStyle = dim > 0 ? '#fff' : (shiftHeld ? '#f59e0b' : '#22d3ee')
-        ctx.textAlign = 'center'
-        ctx.fillText(displayText, midX, midY + 4)
-
-        // Show angle if shift held
-        if (shiftHeld) {
-          const dx = mousePos.x - points[points.length - 1].x
-          const dy = mousePos.y - points[points.length - 1].y
-          const angle = Math.round(Math.atan2(dy, dx) * 180 / Math.PI)
-          ctx.fillStyle = 'rgba(0,0,0,0.7)'
-          ctx.fillRect(previewPoint.x + 10, previewPoint.y - 7, 30, 14)
-          ctx.fillStyle = '#f59e0b'
-          ctx.fillText(`${angle}°`, previewPoint.x + 25, previewPoint.y + 3)
-        }
-      }
+    if (draggingPoint === null && !isShapeComplete && !previewPaused) {
+      drawPreviewLine(ctx, points, mousePos, toCanvasLocal, shiftHeld, drawDimension, lengthUnit, formatLength)
     }
   }, [points, lengthUnit, mousePos, shiftHeld, hoveredPoint, draggingPoint, zoom, scale, panOffset, nearFirstPoint, drawDimension, isShapeComplete, previewPaused, canvasWidth, canvasHeight, fullscreen])
 

@@ -553,10 +553,10 @@ Improvements:
 
 ---
 
-## Task: Refactor PolygonEditor Canvas Drawing Logic (IN PROGRESS)
+## Task: Refactor PolygonEditor Canvas Drawing Logic (COMPLETED)
 
 ### Problem
-The `useEffect` for canvas drawing in `PolygonEditor.jsx` (lines 162-392) is 230+ lines and handles multiple distinct drawing responsibilities:
+The `useEffect` for canvas drawing in `PolygonEditor.jsx` (lines 162-392) was 230+ lines and handled multiple distinct drawing responsibilities:
 1. Background and grid drawing
 2. Axes drawing
 3. Instruction text when empty
@@ -566,26 +566,48 @@ The `useEffect` for canvas drawing in `PolygonEditor.jsx` (lines 162-392) is 230
 7. Corner angle labels
 8. Preview line while drawing
 
-This makes the code hard to read, maintain, and debug.
+This made the code hard to read, maintain, and debug.
 
 ### Solution
-Extract each drawing responsibility into a separate helper function, keeping them within the same file to minimize impact. This maintains the same external behavior while improving readability.
+Extracted each drawing responsibility into a separate helper function, keeping them within the same file to minimize impact. This maintains the same external behavior while improving readability.
 
 ### Tasks
-- [ ] Extract grid and axes drawing into `drawGrid()` helper
-- [ ] Extract polygon drawing (shape + fill) into `drawPolygon()` helper
-- [ ] Extract segment length labels into `drawSegmentLabels()` helper
-- [ ] Extract point markers into `drawPoints()` helper
-- [ ] Extract corner angles into `drawCornerAngles()` helper
-- [ ] Extract preview line into `drawPreviewLine()` helper
-- [ ] Refactor main useEffect to use the new helpers
-- [ ] Test that behavior remains identical
+- [x] Extract grid and axes drawing into `drawGrid()` helper
+- [x] Extract polygon drawing (shape + fill) into `drawPolygon()` helper
+- [x] Extract segment length labels into `drawSegmentLabels()` helper
+- [x] Extract point markers into `drawPoints()` helper
+- [x] Extract corner angles into `drawCornerAngles()` helper
+- [x] Extract preview line into `drawPreviewLine()` helper
+- [x] Refactor main useEffect to use the new helpers
+- [x] Test that behavior remains identical
 
-### Scope
-- Only modifying `src/components/PolygonEditor.jsx`
-- No changes to external API or behavior
-- No changes to other files
-- Simple extraction refactoring only
+### Review
+
+**Changes Made to `src/components/PolygonEditor.jsx`:**
+
+Added 6 helper functions before the component (lines 24-251):
+- `drawGrid(ctx, canvasWidth, canvasHeight, scale, panOffset)` - Clears canvas, draws grid lines and axes
+- `drawPolygon(ctx, points, toCanvasLocal)` - Draws polygon shape with fill
+- `drawSegmentLabels(ctx, points, toCanvasLocal, formatLength)` - Draws length labels on edges
+- `drawPoints(ctx, points, toCanvasLocal, hoveredPoint, draggingPoint, nearFirstPoint)` - Draws point markers with hover/drag states
+- `drawCornerAngles(ctx, points, toCanvasLocal, scale)` - Draws angle labels at corners
+- `drawPreviewLine(ctx, points, mousePos, toCanvasLocal, shiftHeld, drawDimension, lengthUnit, formatLength)` - Draws preview line while drawing
+
+**Refactored useEffect (lines 394-430):**
+- Reduced from ~230 lines to ~35 lines
+- Now calls helper functions instead of inline drawing code
+- Same dependencies, same behavior
+
+**Benefits:**
+- Each drawing function has a single responsibility
+- Easier to understand what each section does
+- Easier to modify individual drawing aspects without affecting others
+- Code is more maintainable and testable
+
+**No changes to:**
+- Component API (props, exported functions)
+- External behavior
+- Other files in the codebase
 
 ---
 
