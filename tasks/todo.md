@@ -551,6 +551,44 @@ Improvements:
 
 ---
 
+---
+
+## Task: Refactor PolygonEditor Canvas Drawing Logic (IN PROGRESS)
+
+### Problem
+The `useEffect` for canvas drawing in `PolygonEditor.jsx` (lines 162-392) is 230+ lines and handles multiple distinct drawing responsibilities:
+1. Background and grid drawing
+2. Axes drawing
+3. Instruction text when empty
+4. Polygon shape and fill
+5. Segment length labels
+6. Point markers with hover/drag states
+7. Corner angle labels
+8. Preview line while drawing
+
+This makes the code hard to read, maintain, and debug.
+
+### Solution
+Extract each drawing responsibility into a separate helper function, keeping them within the same file to minimize impact. This maintains the same external behavior while improving readability.
+
+### Tasks
+- [ ] Extract grid and axes drawing into `drawGrid()` helper
+- [ ] Extract polygon drawing (shape + fill) into `drawPolygon()` helper
+- [ ] Extract segment length labels into `drawSegmentLabels()` helper
+- [ ] Extract point markers into `drawPoints()` helper
+- [ ] Extract corner angles into `drawCornerAngles()` helper
+- [ ] Extract preview line into `drawPreviewLine()` helper
+- [ ] Refactor main useEffect to use the new helpers
+- [ ] Test that behavior remains identical
+
+### Scope
+- Only modifying `src/components/PolygonEditor.jsx`
+- No changes to external API or behavior
+- No changes to other files
+- Simple extraction refactoring only
+
+---
+
 ## Previous Tasks (Completed)
 - Export Floor Plan (PNG)
 - Build Tool Previews in All View Modes
