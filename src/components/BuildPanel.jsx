@@ -71,6 +71,40 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
   ),
+  // Tool icons
+  room: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5M12 3.75v16.5" />
+    </svg>
+  ),
+  wall: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18M18.75 3v18M9 3v18M15 3v18M9 12h6" />
+    </svg>
+  ),
+  door: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 21V4.5A1.5 1.5 0 016 3h12a1.5 1.5 0 011.5 1.5V21M4.5 21h15M9 21v-6a1.5 1.5 0 011.5-1.5h3A1.5 1.5 0 0115 15v6" />
+      <circle cx="14.5" cy="12" r="0.75" fill="currentColor" />
+    </svg>
+  ),
+  window: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.25A1.5 1.5 0 016.75 3.75h10.5a1.5 1.5 0 011.5 1.5v13.5a1.5 1.5 0 01-1.5 1.5H6.75a1.5 1.5 0 01-1.5-1.5V5.25z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 12h13.5M12 3.75v16.5" />
+    </svg>
+  ),
+  select: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" />
+    </svg>
+  ),
+  trash: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+  ),
 }
 
 export default function BuildPanel({
@@ -525,7 +559,7 @@ export default function BuildPanel({
                     disabled={!canEdit}
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.ROOM ? 'active' : ''}`}
                   >
-                    <span className="text-lg">🏠</span>
+                    <span className="w-5 h-5">{Icons.room}</span>
                     <span className="text-[10px]">Room</span>
                   </button>
 
@@ -535,7 +569,7 @@ export default function BuildPanel({
                     disabled={!canEdit}
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.WALL ? 'active' : ''}`}
                   >
-                    <span className="text-lg">📐</span>
+                    <span className="w-5 h-5">{Icons.wall}</span>
                     <span className="text-[10px]">Wall</span>
                   </button>
 
@@ -545,7 +579,7 @@ export default function BuildPanel({
                     disabled={!canEdit}
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.DOOR ? 'active' : ''}`}
                   >
-                    <span className="text-lg">🚪</span>
+                    <span className="w-5 h-5">{Icons.door}</span>
                     <span className="text-[10px]">Door</span>
                   </button>
 
@@ -555,7 +589,7 @@ export default function BuildPanel({
                     disabled={!canEdit}
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.WINDOW ? 'active' : ''}`}
                   >
-                    <span className="text-lg">🪟</span>
+                    <span className="w-5 h-5">{Icons.window}</span>
                     <span className="text-[10px]">Window</span>
                   </button>
 
@@ -565,7 +599,7 @@ export default function BuildPanel({
                     disabled={!canEdit}
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.SELECT ? 'active' : ''}`}
                   >
-                    <span className="text-lg">🔍</span>
+                    <span className="w-5 h-5">{Icons.select}</span>
                     <span className="text-[10px]">Select</span>
                   </button>
 
@@ -575,7 +609,7 @@ export default function BuildPanel({
                     disabled={!canEdit}
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.DELETE ? 'active' : ''} ${activeBuildTool === BUILD_TOOLS.DELETE ? '!bg-red-500/20 !border-red-500/50' : ''}`}
                   >
-                    <span className="text-lg">🗑️</span>
+                    <span className="w-5 h-5">{Icons.trash}</span>
                     <span className="text-[10px]">Delete</span>
                   </button>
                 </div>

@@ -551,6 +551,37 @@ Improvements:
 
 ---
 
+## Task: Fix Camera Jump When Drawing First Room (COMPLETED)
+
+### Goal
+Fix the issue where camera angle changes when clicking to draw the first room.
+
+### Root Cause
+The camera initialization useEffect (line ~4131) was re-running during room drawing and resetting the camera to ground level (1.65m eye height). The useEffect had dependencies `[length, width, polygonPoints, camera]` but no guard to prevent re-execution.
+
+### Fix Applied
+1. Added `cameraInitialized` ref to track if camera has been positioned
+2. Modified useEffect to return early if `cameraInitialized.current` is true
+3. Camera position is now only set once on initial mount
+
+---
+
+## Task: Fix Room Preview Outline Not Matching 3D Preview (COMPLETED)
+
+### Goal
+Fix the cyan outline on the ground not matching the 3D wall preview when drawing rooms.
+
+### Root Cause
+Two issues:
+1. The bufferAttribute in R3F doesn't update properly when array values change
+2. The rotation transformation was adding complexity
+
+### Fix Applied
+1. Removed rotation - now using direct 3D world coordinates (x, y, z) instead of rotating a 2D shape
+2. Added key prop based on coordinates to force React to recreate the line element when coordinates change
+
+---
+
 ## Previous Tasks (Completed)
 - Export Floor Plan (PNG)
 - Build Tool Previews in All View Modes
