@@ -226,6 +226,23 @@ The ref check and set are not atomic. In React 18 concurrent mode, this could th
 
 ---
 
+## Fixes Applied ✅
+
+The following issues from this review have been addressed:
+
+| Issue | Status | Details |
+|-------|--------|---------|
+| Duplicated FEET_PER_METER constant | **Fixed** | Removed local definition in RoomFloor, using imported constant |
+| SQ_FEET_PER_SQ_METER missing from constants | **Fixed** | Added to `landSceneConstants.js` |
+| Unused usePoolTexture hook | **Fixed** | Removed 45 lines of dead code |
+| Missing error boundary | **Fixed** | Added `Canvas3DErrorBoundary` component |
+| Group Scene component props | **Deferred** | Large refactor - risk of introducing bugs |
+| Extract comparison objects | **Deferred** | Large refactor - would move ~2000 lines |
+
+**Commit:** `3068071` - Fix code review issues: constants, unused code, error boundary
+
+---
+
 ## Conclusion
 
 The codebase is functional and the recent bug fixes were well-executed. The main architectural concern is the size of `LandScene.jsx` at 5000+ lines - this should be the top priority for future refactoring to improve maintainability.
