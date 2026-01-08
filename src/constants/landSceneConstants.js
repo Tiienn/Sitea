@@ -78,6 +78,7 @@ export const CAMERA_BOB_SPEED = 10
 
 // Unit conversion
 export const FEET_PER_METER = 3.28084
+export const SQ_FEET_PER_SQ_METER = 10.7639
 
 // Preview colors
 export const PREVIEW_COLOR_VALID = '#14B8A6'

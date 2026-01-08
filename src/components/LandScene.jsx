@@ -30,6 +30,7 @@ import {
   CAMERA_BOB_RUN,
   CAMERA_BOB_SPEED,
   FEET_PER_METER,
+  SQ_FEET_PER_SQ_METER,
   PREVIEW_COLOR_VALID,
   PREVIEW_COLOR_INVALID,
   PREVIEW_OPACITY,
@@ -60,6 +61,62 @@ import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
 import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
 import { calculateNPCPositions } from '../utils/npcHelpers'
+import { Component } from 'react'
+
+// Error boundary for 3D canvas - prevents crashes from taking down the whole app
+class Canvas3DErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('3D Canvas error:', error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#1a1a1a',
+          color: '#fff',
+          padding: '20px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+          <h2 style={{ margin: '0 0 8px 0' }}>3D View Error</h2>
+          <p style={{ color: '#888', margin: '0 0 16px 0' }}>
+            Something went wrong with the 3D rendering.
+          </p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{
+              padding: '8px 16px',
+              background: '#14B8A6',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Try Again
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // Floor Plan Background Component - renders uploaded floor plan as a textured plane
 function FloorPlanBackground({ imageUrl, settings = {} }) {
@@ -1265,52 +1322,6 @@ function useTennisCourtTexture(width, length) {
     ctx.lineTo(w - 15, h / 2)
     ctx.stroke()
     ctx.setLineDash([])
-
-    return new THREE.CanvasTexture(canvas)
-  }, [width, length])
-}
-
-function usePoolTexture(width, length) {
-  return useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = Math.round(512 * (length / width))
-    const ctx = canvas.getContext('2d')
-    const w = canvas.width, h = canvas.height
-
-    // Pool water
-    const gradient = ctx.createLinearGradient(0, 0, w, h)
-    gradient.addColorStop(0, '#0891b2')
-    gradient.addColorStop(0.5, '#06b6d4')
-    gradient.addColorStop(1, '#0891b2')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, w, h)
-
-    // Lane lines
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)'
-    ctx.lineWidth = 2
-    for (let i = 1; i < 8; i++) {
-      ctx.beginPath()
-      ctx.moveTo(0, (h / 8) * i)
-      ctx.lineTo(w, (h / 8) * i)
-      ctx.stroke()
-    }
-
-    // Water ripple effect
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
-    ctx.lineWidth = 1
-    for (let i = 0; i < 20; i++) {
-      const y = Math.random() * h
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.bezierCurveTo(w * 0.25, y + 5, w * 0.75, y - 5, w, y)
-      ctx.stroke()
-    }
-
-    // Pool edge
-    ctx.strokeStyle = '#94a3b8'
-    ctx.lineWidth = 12
-    ctx.strokeRect(6, 6, w - 12, h - 12)
 
     return new THREE.CanvasTexture(canvas)
   }, [width, length])
@@ -3299,9 +3310,7 @@ function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUnit = 'm
 
   if (!shape) return null
 
-  // Calculate area display
-  const FEET_PER_METER = 3.28084
-  const SQ_FEET_PER_SQ_METER = 10.7639
+  // Calculate area display (using imported constants)
   const areaDisplay = lengthUnit === 'ft'
     ? `${(room.area * SQ_FEET_PER_SQ_METER).toFixed(0)} ft²`
     : `${room.area.toFixed(1)} m²`
@@ -4922,15 +4931,16 @@ export default function LandScene({ length, width, isExploring, comparisonObject
   const bgColor = viewMode === '2d' ? '#1a1a1a' : '#87ceeb'
 
   return (
-    <Canvas
-      dpr={dpr}
-      shadows={qualitySettings.shadowsEnabled ? qualitySettings.shadowType : false}
-      camera={{ fov: 60, near: 0.1, far: 1000 }}
-      style={{ background: bgColor, cursor: viewMode === '2d' ? 'crosshair' : 'default' }}
-      gl={{
-        preserveDrawingBuffer: true
-      }}
-    >
+    <Canvas3DErrorBoundary>
+      <Canvas
+        dpr={dpr}
+        shadows={qualitySettings.shadowsEnabled ? qualitySettings.shadowType : false}
+        camera={{ fov: 60, near: 0.1, far: 1000 }}
+        style={{ background: bgColor, cursor: viewMode === '2d' ? 'crosshair' : 'default' }}
+        gl={{
+          preserveDrawingBuffer: true
+        }}
+      >
       <Scene
         length={length}
         width={width}
@@ -5005,8 +5015,9 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         moveSelectedBuilding={moveSelectedBuilding}
         selectedComparisonId={selectedComparisonId}
         setSelectedComparisonId={setSelectedComparisonId}
-      />
-    </Canvas>
+        />
+      </Canvas>
+    </Canvas3DErrorBoundary>
   )
 }
 
