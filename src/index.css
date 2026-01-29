@@ -684,3 +684,34 @@ body {
 .heading-enter {
   animation: headingEnter 0.4s ease-out forwards;
 }
+
+/* ========================================
+   Mobile Safe Areas & Animations
+   ======================================== */
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+@keyframes slideInFromBottom {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideInFromBottom2 {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-in-bottom {
+  animation: slideInFromBottom 0.2s ease-out;
+}
+
+.animate-slide-in-bottom-2 {
+  animation: slideInFromBottom2 0.15s ease-out;
+}

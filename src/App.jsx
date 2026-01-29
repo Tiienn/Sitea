@@ -1,23 +1,53 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useBuildHistory } from './hooks/useBuildHistory'
+import { useIsMobile } from './hooks/useIsMobile'
 import { useParams, useNavigate, Routes, Route } from 'react-router-dom'
 import nipplejs from 'nipplejs'
-import LandScene, { CAMERA_MODE, DEFAULT_TP_DISTANCE, ORBIT_START_DISTANCE, QUALITY } from './components/LandScene'
-import PolygonEditor, { calculatePolygonArea } from './components/PolygonEditor'
-import ImageTracer from './components/ImageTracer'
+
+// Lazy load heavy components for better initial bundle size
+const LandScene = lazy(() => import('./components/LandScene'))
+const FloorPlanGeneratorModal = lazy(() => import('./components/FloorPlanGeneratorModal'))
+const UploadImageModal = lazy(() => import('./components/UploadImageModal'))
+const PricingModal = lazy(() => import('./components/PricingModal'))
+
+// Named export from PolygonEditor (used for area calculation)
+import { calculatePolygonArea } from './components/PolygonEditor'
+
+// Loading fallback for Suspense boundaries
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center w-full h-full min-h-[200px] bg-[#1a1a1a]">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-sm text-gray-400">Loading...</span>
+    </div>
+  </div>
+)
+
+// These are lighter, load normally
 import Minimap from './components/Minimap'
 import Onboarding from './components/Onboarding'
 import BuildPanel from './components/BuildPanel'
 import ComparePanel from './components/ComparePanel'
 import LandPanel from './components/LandPanel'
 import ExportPanel from './components/ExportPanel'
-import UploadImageModal from './components/UploadImageModal'
-import FloorPlanGeneratorModal from './components/FloorPlanGeneratorModal'
+import RoomPropertiesPanel from './components/RoomPropertiesPanel'
+import WallPropertiesPanel from './components/WallPropertiesPanel'
+import FencePropertiesPanel from './components/FencePropertiesPanel'
+import PoolPropertiesPanel from './components/PoolPropertiesPanel'
+import FoundationPropertiesPanel from './components/FoundationPropertiesPanel'
+import StairsPropertiesPanel from './components/StairsPropertiesPanel'
+import RoofPropertiesPanel from './components/RoofPropertiesPanel'
+
+// Import constants from LandScene (these are re-exported)
+import { CAMERA_MODE, DEFAULT_TP_DISTANCE, ORBIT_START_DISTANCE, QUALITY } from './constants/landSceneConstants'
 import { useUser } from './hooks/useUser'
 import { exportFloorPlanAsPNG } from './utils/exportFloorPlan'
+import { captureAndDownload } from './utils/screenshotCapture'
+import { exportModel } from './utils/modelExport'
+import { exportToPDF } from './utils/pdfExport'
 import { computeOverlappingIds, checkPreviewOverlap } from './utils/collision2d'
 import { computeCompassRotation } from './utils/labels'
-import { detectRooms } from './utils/roomDetection'
+import { detectRooms, findWallsForRoom } from './utils/roomDetection'
 import { buildScenePayload, createSharedScene, fetchSharedScene } from './services/shareScene'
 import { isSupabaseConfigured } from './lib/supabaseClient'
 import {
@@ -31,19 +61,26 @@ import {
 
 // Unit conversion constants
 const FEET_PER_METER = 3.28084
+const MM_PER_METER = 1000
 const SQ_FEET_PER_SQ_METER = 10.7639
 const SQ_METERS_PER_ACRE = 4046.86
 const SQ_METERS_PER_HECTARE = 10000
 
 // Conversion utilities
 const convertLength = (meters, unit) => {
-  if (unit === 'ft') return meters * FEET_PER_METER
-  return meters
+  switch (unit) {
+    case 'ft': return meters * FEET_PER_METER
+    case 'mm': return meters * MM_PER_METER
+    default: return meters
+  }
 }
 
 const convertLengthToMeters = (value, unit) => {
-  if (unit === 'ft') return value / FEET_PER_METER
-  return value
+  switch (unit) {
+    case 'ft': return value / FEET_PER_METER
+    case 'mm': return value / MM_PER_METER
+    default: return value
+  }
 }
 
 const convertArea = (sqMeters, unit) => {
@@ -84,26 +121,65 @@ const COMPARISON_OBJECTS = [
   { id: 'parkingSpace', name: 'Parking Space', width: 2.5, length: 5, color: '#696969' },
   { id: 'swimmingPool', name: 'Olympic Pool', width: 25, length: 50, color: '#00CED1' },
   { id: 'kingSizeBed', name: 'King Size Bed', width: 2, length: 2.1, color: '#E8DCC8' },
+  // Landmarks
+  { id: 'eiffelTower', name: 'Eiffel Tower', width: 125, length: 125, color: '#8B7355' },
+  { id: 'statueOfLiberty', name: 'Statue of Liberty', width: 47, length: 47, color: '#4A7C59' },
+  { id: 'greatPyramid', name: 'Great Pyramid', width: 230, length: 230, color: '#D4A84B' },
+  { id: 'tajMahal', name: 'Taj Mahal', width: 57, length: 57, color: '#F5F5F5' },
+  { id: 'colosseum', name: 'Colosseum', width: 156, length: 189, color: '#C9B896' },
+  { id: 'bigBen', name: 'Big Ben', width: 12, length: 12, color: '#8B7355' },
+  // Commercial
+  { id: 'sevenEleven', name: '7-Eleven', width: 15, length: 17, color: '#FF7E00' },
+  { id: 'mcdonalds', name: "McDonald's", width: 19, length: 21, color: '#FFC72C' },
+  { id: 'gasStation', name: 'Gas Station', width: 50, length: 56, color: '#4A4A4A' },
+  { id: 'supermarket', name: 'Supermarket', width: 60, length: 62, color: '#2E8B57' },
+  { id: 'starbucks', name: 'Starbucks', width: 13, length: 14, color: '#00704A' },
+  { id: 'walmart', name: 'Walmart', width: 130, length: 130, color: '#0071CE' },
+  // Gaming
+  { id: 'pokemonCenter', name: 'Pokémon Center', width: 20, length: 25, color: '#EE1515' },
+  { id: 'minecraftHouse', name: 'Minecraft House', width: 7, length: 7, color: '#8B6914' },
+  { id: 'acHouse', name: 'AC Villager House', width: 5, length: 4, color: '#90EE90' },
+  { id: 'fortnite1x1', name: 'Fortnite 1×1', width: 5, length: 5, color: '#5B7FDE' },
+  { id: 'zeldaHouse', name: "Link's House", width: 8, length: 10, color: '#228B22' },
+  { id: 'simsHouse', name: 'Sims Starter Home', width: 10, length: 12, color: '#32CD32' },
 ]
 
 const BUILDING_TYPES = [
-  { id: 'smallHouse', name: 'Small House', width: 8, length: 10, height: 5, color: '#D2691E' },
-  { id: 'mediumHouse', name: 'Medium House', width: 12, length: 15, height: 6, color: '#CD853F' },
-  { id: 'largeHouse', name: 'Large House', width: 15, length: 20, height: 7, color: '#8B4513' },
-  { id: 'shed', name: 'Shed', width: 3, length: 4, height: 2.5, color: '#A0522D' },
-  { id: 'garage', name: 'Garage', width: 6, length: 6, height: 3, color: '#808080' },
-  { id: 'pool', name: 'Swimming Pool', width: 5, length: 10, height: -1.5, color: '#00CED1' },
+  // Houses
+  { id: 'smallHouse', name: 'Small House', width: 8, length: 10, height: 5, color: '#D2691E', icon: 'smallHouse' },
+  { id: 'mediumHouse', name: 'Medium House', width: 12, length: 15, height: 6, color: '#CD853F', icon: 'mediumHouse' },
+  { id: 'largeHouse', name: 'Large House', width: 15, length: 20, height: 7, color: '#8B4513', icon: 'largeHouse' },
+  // Outbuildings
+  { id: 'shed', name: 'Shed', width: 3, length: 4, height: 2.5, color: '#A0522D', icon: 'shed' },
+  { id: 'garage', name: 'Garage', width: 6, length: 6, height: 3, color: '#808080', icon: 'garage' },
+  { id: 'barn', name: 'Barn', width: 10, length: 14, height: 6, color: '#8B0000', icon: 'barn' },
+  { id: 'workshop', name: 'Workshop', width: 6, length: 8, height: 3.5, color: '#556B2F', icon: 'workshop' },
+  // Garden structures
+  { id: 'greenhouse', name: 'Greenhouse', width: 4, length: 6, height: 3, color: '#98FB98', icon: 'greenhouse' },
+  { id: 'gazebo', name: 'Gazebo', width: 4, length: 4, height: 3, color: '#DEB887', icon: 'gazebo' },
+  { id: 'carport', name: 'Carport', width: 3, length: 6, height: 2.5, color: '#696969', icon: 'carport' },
+  // Other
+  { id: 'pool', name: 'Swimming Pool', width: 5, length: 10, height: -1.5, color: '#00CED1', icon: 'poolStructure' },
 ]
 
 // Build tool constants
 const BUILD_TOOLS = {
   NONE: 'none',
-  ROOM: 'room',       // Click-drag rectangular room
-  WALL: 'wall',       // Click-drag single wall
-  DOOR: 'door',       // Click on wall to place door
-  WINDOW: 'window',   // Click on wall to place window
-  SELECT: 'select',   // Click to select elements
-  DELETE: 'delete',   // Click to delete elements
+  ROOM: 'room',             // Click-click rectangular room
+  POLYGON_ROOM: 'polygon',  // Multi-click polygon room
+  WALL: 'wall',             // Click-click wall segments
+  HALF_WALL: 'halfWall',    // Shorter walls (railings, dividers)
+  FENCE: 'fence',           // Low decorative fences
+  DOOR: 'door',             // Click on wall to place door
+  WINDOW: 'window',         // Click on wall to place window
+  SELECT: 'select',         // Click to select elements
+  DELETE: 'delete',         // Click to delete elements
+  // Sims 4-style features
+  POOL: 'pool',             // Polygon pool tool
+  FOUNDATION: 'foundation', // Elevated platform tool
+  STAIRS: 'stairs',         // Stairs placement tool
+  ROOF: 'roof',             // Click room to add roof
+  ADD_FLOORS: 'addFloors',  // Click room to add multiple floors
 }
 
 // Snap constants (tunable)
@@ -373,7 +449,11 @@ function VirtualJoystick({ joystickInput }) {
 
 function App() {
   // User context for paid features
-  const { isPaidUser } = useUser()
+  const { isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid } = useUser()
+  const isMobile = useIsMobile()
+  const [showOverflow, setShowOverflow] = useState(false)
+  const [showMobileViewControls, setShowMobileViewControls] = useState(false)
+  const [mobileCtaExpanded, setMobileCtaExpanded] = useState(false)
 
   // Floor plan generator modal state
   const [showFloorPlanGenerator, setShowFloorPlanGenerator] = useState(false)
@@ -443,6 +523,7 @@ function App() {
   const {
     currentState: walls,
     pushState: pushWallsState,
+    replaceCurrentState: replaceWallsState,
     undo: undoWalls,
     redo: redoWalls,
     canUndo,
@@ -462,6 +543,12 @@ function App() {
   const [pendingFloorPlan, setPendingFloorPlan] = useState(null) // { walls, rooms, stats }
   const [selectedBuildingId, setSelectedBuildingId] = useState(null)
   const [selectedComparisonId, setSelectedComparisonId] = useState(null)
+  const [selectedRoomId, setSelectedRoomId] = useState(null)
+  const [roomLabels, setRoomLabels] = useState({}) // { [roomId]: string } for Phase 2
+  const [roomStyles, setRoomStyles] = useState({}) // { [roomId]: { floorColor, floorOpacity } }
+  const [roomPropertiesOpen, setRoomPropertiesOpen] = useState(false) // Room properties panel
+  const [wallPropertiesOpen, setWallPropertiesOpen] = useState(false) // Wall properties panel
+  const [fencePropertiesOpen, setFencePropertiesOpen] = useState(false) // Fence properties panel
   const [buildingPreviewPosition, setBuildingPreviewPosition] = useState({ x: 0, z: 0 })
   const [buildingPreviewRotation, setBuildingPreviewRotation] = useState(0)
 
@@ -472,12 +559,137 @@ function App() {
   // Door/Window size state
   const [doorWidth, setDoorWidth] = useState(0.9)
   const [doorHeight, setDoorHeight] = useState(2.1)
+  const [doorType, setDoorType] = useState('single') // 'single', 'double', 'sliding', 'garage'
+  const [fenceType, setFenceType] = useState('picket') // 'picket', 'privacy', 'chainLink', 'iron', 'ranch'
   const [windowWidth, setWindowWidth] = useState(1.2)
   const [windowHeight, setWindowHeight] = useState(1.2)
   const [windowSillHeight, setWindowSillHeight] = useState(0.9)
 
-  // Room detection (auto-detect enclosed areas from walls)
-  const rooms = useMemo(() => detectRooms(walls), [walls])
+  // Half wall height state
+  const [halfWallHeight, setHalfWallHeight] = useState(1.2) // Default 1.2m (counter height)
+
+  // Sims 4-style features state
+  const [pools, setPools] = useState([])
+  const [foundations, setFoundations] = useState([])
+  const [stairs, setStairs] = useState([])
+  const [roofs, setRoofs] = useState([])
+
+  // Tool-specific drawing state
+  const [poolPolygonPoints, setPoolPolygonPoints] = useState([])
+  const [foundationPolygonPoints, setFoundationPolygonPoints] = useState([])
+  const [stairsStartPoint, setStairsStartPoint] = useState(null)
+
+  // Selection state for new features
+  const [selectedPoolId, setSelectedPoolId] = useState(null)
+  const [selectedFoundationId, setSelectedFoundationId] = useState(null)
+  const [selectedStairsId, setSelectedStairsId] = useState(null)
+  const [selectedRoofId, setSelectedRoofId] = useState(null)
+  const [selectedPlacedBuildingId, setSelectedPlacedBuildingId] = useState(null)
+
+  // Properties panels state
+  const [poolPropertiesOpen, setPoolPropertiesOpen] = useState(false)
+  const [foundationPropertiesOpen, setFoundationPropertiesOpen] = useState(false)
+  const [stairsPropertiesOpen, setStairsPropertiesOpen] = useState(false)
+  const [roofPropertiesOpen, setRoofPropertiesOpen] = useState(false)
+
+  // Tool options state
+  const [poolDepth, setPoolDepth] = useState(1.5)
+  const [poolDeckMaterial, setPoolDeckMaterial] = useState('concrete')
+  const [foundationHeight, setFoundationHeight] = useState(0.6)
+  const [foundationMaterial, setFoundationMaterial] = useState('concrete')
+  const [stairsWidth, setStairsWidth] = useState(1.0)
+  const [stairsStyle, setStairsStyle] = useState('straight')
+  const [stairsTopY, setStairsTopY] = useState(2.7)
+  const [roofType, setRoofType] = useState('gable')
+  const [roofPitch, setRoofPitch] = useState(30)
+  const [roofOverhang, setRoofOverhang] = useState(0.5)
+  const [roofThickness, setRoofThickness] = useState(0.15)
+
+  // Multi-story building state
+  const [currentFloor, setCurrentFloor] = useState(0) // 0 = ground floor
+  const [floorHeight, setFloorHeight] = useState(2.7) // Height per floor in meters
+  const [floorCountToAdd, setFloorCountToAdd] = useState(2) // Number of floors to add when clicking room
+  const totalFloors = useMemo(() => {
+    if (walls.length === 0) return 1
+    const maxFloor = Math.max(...walls.map(w => w.floorLevel ?? 0))
+    return maxFloor + 1
+  }, [walls])
+
+  // Room detection (auto-detect enclosed areas from walls per floor)
+  const rooms = useMemo(() => {
+    // Group walls by floor level
+    const wallsByFloor = {}
+    for (const wall of walls) {
+      const floor = wall.floorLevel ?? 0
+      if (!wallsByFloor[floor]) wallsByFloor[floor] = []
+      wallsByFloor[floor].push(wall)
+    }
+    // Detect rooms for each floor and add floorLevel
+    const allRooms = []
+    for (const [floor, floorWalls] of Object.entries(wallsByFloor)) {
+      const floorRooms = detectRooms(floorWalls)
+      for (const room of floorRooms) {
+        allRooms.push({ ...room, floorLevel: parseInt(floor, 10) })
+      }
+    }
+    return allRooms
+  }, [walls])
+
+  // Ref to track pending room re-selection after rotation (rooms regenerate with new IDs)
+  const pendingRoomSelectionRef = useRef(null)
+
+  // Re-select room after changes (rooms regenerate with new IDs, so we match by center)
+  useEffect(() => {
+    if (pendingRoomSelectionRef.current && rooms.length > 0) {
+      const { x: cx, z: cz } = pendingRoomSelectionRef.current
+      // Use 2m tolerance to handle center shift from wall resizing
+      const matchingRoom = rooms.find(r =>
+        Math.abs(r.center.x - cx) < 2 && Math.abs(r.center.z - cz) < 2
+      )
+      if (matchingRoom) {
+        setSelectedRoomId(matchingRoom.id)
+      }
+      pendingRoomSelectionRef.current = null
+    }
+  }, [rooms])
+
+  // Update roof roomIds when rooms regenerate (rooms get new IDs after wall moves)
+  useEffect(() => {
+    if (roofs.length === 0 || rooms.length === 0) return
+
+    // Check if any roof's roomId no longer exists
+    const orphanedRoofs = roofs.filter(roof => !rooms.find(r => r.id === roof.roomId))
+
+    if (orphanedRoofs.length > 0) {
+      // For each orphaned roof, find matching room by wall IDs
+      const updates = []
+      orphanedRoofs.forEach(roof => {
+        // If roof has stored wallIds, find room with same walls
+        if (roof.wallIds && roof.wallIds.length > 0) {
+          const newRoom = rooms.find(r => {
+            const roomWallIds = findWallsForRoom(r, walls)
+            // Check if same walls (order may differ)
+            return roof.wallIds.length === roomWallIds.length &&
+              roof.wallIds.every(id => roomWallIds.includes(id))
+          })
+          if (newRoom) {
+            updates.push({ roofId: roof.id, newRoomId: newRoom.id })
+          }
+        }
+      })
+
+      // Apply updates
+      if (updates.length > 0) {
+        setRoofs(prev => prev.map(roof => {
+          const update = updates.find(u => u.roofId === roof.id)
+          if (update) {
+            return { ...roof, roomId: update.newRoomId }
+          }
+          return roof
+        }))
+      }
+    }
+  }, [rooms, roofs, walls])
 
   // Floor plan background state (for tracing walls over uploaded image)
   const [floorPlanImage, setFloorPlanImage] = useState(null) // Base64 image data
@@ -496,7 +708,7 @@ function App() {
     if (saved) {
       try { return JSON.parse(saved) } catch (e) { /* ignore */ }
     }
-    return { land: true, buildings: false, orientation: false }
+    return { land: true, buildings: false, buildingDimensions: false, orientation: false }
   })
 
   // Shared scene state
@@ -505,6 +717,11 @@ function App() {
   const [shareError, setShareError] = useState(null)
   const [shareStatus, setShareStatus] = useState(null) // 'copied' | 'error' | null
   const [isExporting, setIsExporting] = useState(false)
+  const [isCapturing, setIsCapturing] = useState(false)
+  const [isExportingModel, setIsExportingModel] = useState(false)
+  const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const canvasRef = useRef(null)
+  const sceneRef = useRef(null)
 
   // Centralized edit permission - gates all editing actions
   const canEdit = !isReadOnly
@@ -673,13 +890,15 @@ function App() {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
       // Ignore if land panel is open (user may be typing dimensions)
       if (activePanel === 'land') return
+      // Ignore if drawing tool is active (user may be typing dimensions)
+      if (activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE || activeBuildTool === BUILD_TOOLS.POOL || activeBuildTool === BUILD_TOOLS.FOUNDATION || activeBuildTool === BUILD_TOOLS.POLYGON_ROOM) return
       if (e.key === '1') setViewMode('firstPerson')
       else if (e.key === '2') setViewMode('orbit')
       else if (e.key === '3') setViewMode('2d')
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activePanel])
+  }, [activePanel, activeBuildTool])
 
   // Undo/Redo keyboard shortcuts (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y)
   useEffect(() => {
@@ -854,12 +1073,14 @@ function App() {
     setOverlappingBuildingIds(overlaps)
   }, [placedBuildings])
 
-  // When length unit changes, update area unit to match (m→m², ft→ft²)
+  // When length unit changes, update area unit to match (m→m², ft→ft², mm→m²)
   const handleLengthUnitChange = (unit) => {
     setLengthUnit(unit)
     // Auto-switch area unit to match, unless using acres/hectares
+    // For mm, keep m² since mm² is too small for land areas
     if (areaUnit !== 'acres' && areaUnit !== 'hectares') {
-      setAreaUnit(unit === 'm' ? 'm²' : 'ft²')
+      if (unit === 'ft') setAreaUnit('ft²')
+      else setAreaUnit('m²') // m and mm both use m²
     }
   }
 
@@ -883,8 +1104,11 @@ function App() {
   }
 
   const handleVisualize = () => {
-    const lengthInput = parseFloat(inputValues.length) || (lengthUnit === 'm' ? 20 : 65)
-    const widthInput = parseFloat(inputValues.width) || (lengthUnit === 'm' ? 15 : 50)
+    // Default values: 20m x 15m (65ft x 50ft, 20000mm x 15000mm)
+    const defaultLength = lengthUnit === 'ft' ? 65 : lengthUnit === 'mm' ? 20000 : 20
+    const defaultWidth = lengthUnit === 'ft' ? 50 : lengthUnit === 'mm' ? 15000 : 15
+    const lengthInput = parseFloat(inputValues.length) || defaultLength
+    const widthInput = parseFloat(inputValues.width) || defaultWidth
     // Convert from display unit to meters for internal storage
     const lengthMeters = convertLengthToMeters(lengthInput, lengthUnit)
     const widthMeters = convertLengthToMeters(widthInput, lengthUnit)
@@ -941,7 +1165,7 @@ function App() {
   }, [])
 
   // Wall builder callbacks
-  const addWallFromPoints = useCallback((points) => {
+  const addWallFromPoints = useCallback((points, wallHeight = 2.7, isFence = false, fenceStyle = 'picket') => {
     if (points.length < 2) return
     const newWalls = []
     for (let i = 0; i < points.length - 1; i++) {
@@ -949,13 +1173,16 @@ function App() {
         id: `wall-${Date.now()}-${i}`,
         start: { x: points[i].x, z: points[i].z },
         end: { x: points[i + 1].x, z: points[i + 1].z },
-        height: 2.7,
-        thickness: 0.15,
-        openings: [] // Doors and windows
+        height: isFence ? 1.0 : wallHeight, // Fences are 1.0m tall by default
+        thickness: isFence ? 0.08 : 0.15,   // Fences are thinner
+        openings: [],
+        isFence: isFence, // Mark as fence for special rendering
+        fenceType: isFence ? fenceStyle : undefined, // Fence style type
+        floorLevel: isFence ? 0 : currentFloor // Fences always on ground, walls on current floor
       })
     }
     pushWallsState([...walls, ...newWalls])
-  }, [walls, pushWallsState])
+  }, [walls, pushWallsState, currentFloor])
 
   // Add opening (door/window) to a wall
   const addOpeningToWall = useCallback((wallId, opening) => {
@@ -982,6 +1209,302 @@ function App() {
       setSelectedElement(null)
     }
   }, [walls, pushWallsState, selectedElement])
+
+  // Resize a wall to a new length (keeps start point fixed, moves end point)
+  // Also updates adjacent walls that share the moved endpoint
+  // Optional roomCenter parameter for re-selecting room after regeneration
+  const resizeWall = useCallback((wallId, newLength, roomCenter) => {
+    const wall = walls.find(w => w.id === wallId)
+    if (!wall) return
+
+    // Calculate current direction vector
+    const dx = wall.end.x - wall.start.x
+    const dz = wall.end.z - wall.start.z
+    const currentLength = Math.sqrt(dx * dx + dz * dz)
+
+    if (currentLength === 0) return // Can't resize a zero-length wall
+
+    // Store room center for re-selection after rooms regenerate
+    if (roomCenter) {
+      pendingRoomSelectionRef.current = { x: roomCenter.x, z: roomCenter.z }
+    }
+
+    // Normalize and scale to new length
+    const scale = newLength / currentLength
+    const newEnd = {
+      x: wall.start.x + dx * scale,
+      z: wall.start.z + dz * scale
+    }
+
+    const oldEnd = wall.end
+    const SNAP_THRESHOLD = 0.01 // 1cm tolerance for finding connected walls
+
+    const newWalls = walls.map(w => {
+      if (w.id === wallId) {
+        return { ...w, end: newEnd }
+      }
+      // Check if this wall's start connects to the old end point
+      if (Math.abs(w.start.x - oldEnd.x) < SNAP_THRESHOLD && Math.abs(w.start.z - oldEnd.z) < SNAP_THRESHOLD) {
+        return { ...w, start: newEnd }
+      }
+      // Check if this wall's end connects to the old end point
+      if (Math.abs(w.end.x - oldEnd.x) < SNAP_THRESHOLD && Math.abs(w.end.z - oldEnd.z) < SNAP_THRESHOLD) {
+        return { ...w, end: newEnd }
+      }
+      return w
+    })
+    pushWallsState(newWalls)
+  }, [walls, pushWallsState])
+
+  // Change wall height
+  const changeWallHeight = useCallback((wallId, newHeight) => {
+    const newWalls = walls.map(w => {
+      if (w.id !== wallId) return w
+      return { ...w, height: newHeight }
+    })
+    pushWallsState(newWalls)
+  }, [walls, pushWallsState])
+
+  // Change wall color
+  const changeWallColor = useCallback((wallId, color) => {
+    const newWalls = walls.map(w => {
+      if (w.id !== wallId) return w
+      return { ...w, color }
+    })
+    pushWallsState(newWalls)
+  }, [walls, pushWallsState])
+
+  // Change wall pattern/texture
+  const changeWallPattern = useCallback((wallId, pattern) => {
+    const newWalls = walls.map(w => {
+      if (w.id !== wallId) return w
+      return { ...w, pattern }
+    })
+    pushWallsState(newWalls)
+  }, [walls, pushWallsState])
+
+  // Change fence height
+  const changeFenceHeight = useCallback((fenceId, newHeight) => {
+    const newWalls = walls.map(w => {
+      if (w.id !== fenceId) return w
+      return { ...w, height: newHeight }
+    })
+    pushWallsState(newWalls)
+  }, [walls, pushWallsState])
+
+  // Change fence type/style
+  const changeFenceType = useCallback((fenceId, newFenceType) => {
+    const newWalls = walls.map(w => {
+      if (w.id !== fenceId) return w
+      return { ...w, fenceType: newFenceType }
+    })
+    pushWallsState(newWalls)
+  }, [walls, pushWallsState])
+
+  // Floor management callbacks
+  const addFloor = useCallback(() => {
+    const newFloorLevel = totalFloors
+    setCurrentFloor(newFloorLevel)
+  }, [totalFloors])
+
+  const removeCurrentFloor = useCallback(() => {
+    if (currentFloor === 0) return // Cannot remove ground floor
+    // Remove walls on current floor
+    const newWalls = walls.filter(w => (w.floorLevel ?? 0) !== currentFloor)
+    pushWallsState(newWalls)
+    // Switch to floor below
+    setCurrentFloor(currentFloor - 1)
+  }, [currentFloor, walls, pushWallsState])
+
+  const switchFloor = useCallback((floorLevel) => {
+    if (floorLevel >= 0 && floorLevel < totalFloors) {
+      setCurrentFloor(floorLevel)
+    }
+  }, [totalFloors])
+
+  // Add multiple floors to an existing room by duplicating its walls
+  const addFloorsToRoom = useCallback((roomId) => {
+    const room = rooms.find(r => r.id === roomId)
+    if (!room) return
+
+    const roomFloorLevel = room.floorLevel ?? 0
+    const roomWallIds = room.wallIds || []
+    const roomWalls = walls.filter(w => roomWallIds.includes(w.id))
+
+    if (roomWalls.length === 0) return
+
+    const newWalls = []
+    for (let floorOffset = 1; floorOffset <= floorCountToAdd; floorOffset++) {
+      const newFloorLevel = roomFloorLevel + floorOffset
+      for (const wall of roomWalls) {
+        // Duplicate wall with new ID and floor level
+        newWalls.push({
+          ...wall,
+          id: `wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          floorLevel: newFloorLevel,
+          openings: [] // New floors start without doors/windows
+        })
+      }
+    }
+
+    pushWallsState([...walls, ...newWalls])
+    setActiveBuildTool(BUILD_TOOLS.NONE)
+  }, [rooms, walls, floorCountToAdd, pushWallsState, setActiveBuildTool])
+
+  // Pool callbacks
+  const addPool = useCallback((points) => {
+    if (points.length < 3) return
+    const xs = points.map(p => p.x)
+    const zs = points.map(p => p.z)
+    const newPool = {
+      id: `pool-${Date.now()}`,
+      points,
+      depth: poolDepth,
+      deckWidth: 0.8,
+      waterColor: '#00CED1',
+      deckMaterial: poolDeckMaterial,
+      center: { x: xs.reduce((a, b) => a + b, 0) / points.length, z: zs.reduce((a, b) => a + b, 0) / points.length }
+    }
+    setPools(prev => [...prev, newPool])
+  }, [poolDepth, poolDeckMaterial])
+
+  const deletePool = useCallback((poolId) => {
+    setPools(prev => prev.filter(p => p.id !== poolId))
+    if (selectedPoolId === poolId) setSelectedPoolId(null)
+  }, [selectedPoolId])
+
+  const updatePool = useCallback((poolId, updates) => {
+    setPools(prev => prev.map(p => p.id === poolId ? { ...p, ...updates } : p))
+  }, [])
+
+  // Foundation callbacks
+  const addFoundation = useCallback((points) => {
+    if (points.length < 3) return
+    const xs = points.map(p => p.x)
+    const zs = points.map(p => p.z)
+    const newFoundation = {
+      id: `foundation-${Date.now()}`,
+      points,
+      height: foundationHeight,
+      hasSteps: true,
+      material: foundationMaterial,
+      center: { x: xs.reduce((a, b) => a + b, 0) / points.length, z: zs.reduce((a, b) => a + b, 0) / points.length }
+    }
+    setFoundations(prev => [...prev, newFoundation])
+  }, [foundationHeight, foundationMaterial])
+
+  const deleteFoundation = useCallback((foundationId) => {
+    setFoundations(prev => prev.filter(f => f.id !== foundationId))
+    if (selectedFoundationId === foundationId) setSelectedFoundationId(null)
+  }, [selectedFoundationId])
+
+  const updateFoundation = useCallback((foundationId, updates) => {
+    setFoundations(prev => prev.map(f => f.id === foundationId ? { ...f, ...updates } : f))
+  }, [])
+
+  // Stairs callbacks - preset-based single-click placement
+  const addStairs = useCallback((position, nearbyFoundationHeight = null) => {
+    // Auto-detect height from nearby foundation or use default
+    const topY = nearbyFoundationHeight || stairsTopY
+    const segmentLength = 1.5 // Length of each stair segment
+
+    // Calculate stairs based on preset style
+    const start = { x: position.x, z: position.z }
+    let newStairs
+
+    if (stairsStyle === 'l-left' || stairsStyle === 'l-right') {
+      // L-shaped stairs: two segments with a landing
+      const turnDir = stairsStyle === 'l-left' ? -1 : 1
+      const mid = { x: position.x, z: position.z - segmentLength } // Landing center (first segment ends here)
+      // Second segment starts from edge of landing, not center
+      const mid2 = { x: position.x + (stairsWidth / 2 * turnDir), z: position.z - segmentLength }
+      const end = { x: position.x + (stairsWidth / 2 * turnDir) + (segmentLength * turnDir), z: position.z - segmentLength }
+
+      newStairs = {
+        id: `stairs-${Date.now()}`,
+        start,
+        mid, // Landing center (first segment ends here)
+        mid2, // Edge of landing (second segment starts here)
+        end,
+        bottomY: 0,
+        topY: topY,
+        width: stairsWidth,
+        style: stairsStyle,
+        railings: true,
+        material: 'wood'
+      }
+    } else {
+      // Straight stairs
+      const length = stairsStyle === 'wide' ? 2 : 2
+      const width = stairsStyle === 'wide' ? 1.5 : stairsWidth
+      const end = { x: position.x, z: position.z - length }
+
+      newStairs = {
+        id: `stairs-${Date.now()}`,
+        start,
+        end,
+        bottomY: 0,
+        topY: topY,
+        width: width,
+        style: stairsStyle,
+        railings: true,
+        material: 'wood'
+      }
+    }
+
+    setStairs(prev => [...prev, newStairs])
+  }, [stairsWidth, stairsStyle, stairsTopY])
+
+  const deleteStairs = useCallback((stairsId) => {
+    setStairs(prev => prev.filter(s => s.id !== stairsId))
+    if (selectedStairsId === stairsId) setSelectedStairsId(null)
+  }, [selectedStairsId])
+
+  const updateStairs = useCallback((stairsId, updates) => {
+    setStairs(prev => prev.map(s => s.id === stairsId ? { ...s, ...updates } : s))
+  }, [])
+
+  // Roof callbacks
+  const addRoof = useCallback((roomId) => {
+    // Check if roof already exists for this room
+    if (roofs.some(r => r.roomId === roomId)) return
+    // Find the room and its wall IDs to track the roof even when room ID changes
+    const room = rooms.find(r => r.id === roomId)
+    const wallIds = room ? findWallsForRoom(room, walls) : []
+    const newRoof = {
+      id: `roof-${Date.now()}`,
+      roomId,
+      wallIds, // Store wall IDs so we can find the room after it regenerates
+      type: roofType,
+      pitch: roofPitch,
+      overhang: roofOverhang,
+      thickness: roofThickness,
+      material: 'shingle',
+      color: '#8B4513'
+    }
+    setRoofs(prev => [...prev, newRoof])
+  }, [roofType, roofPitch, roofOverhang, roofThickness, roofs, rooms, walls])
+
+  const deleteRoof = useCallback((roofId) => {
+    setRoofs(prev => prev.filter(r => r.id !== roofId))
+    if (selectedRoofId === roofId) setSelectedRoofId(null)
+  }, [selectedRoofId])
+
+  const updateRoof = useCallback((roofId, updates) => {
+    setRoofs(prev => prev.map(r => r.id === roofId ? { ...r, ...updates } : r))
+  }, [])
+
+  // Delete an opening from a wall
+  const deleteOpening = useCallback((wallId, openingId) => {
+    const newWalls = walls.map(w => {
+      if (w.id !== wallId) return w
+      return {
+        ...w,
+        openings: (w.openings || []).filter(o => o.id !== openingId)
+      }
+    })
+    pushWallsState(newWalls)
+  }, [walls, pushWallsState])
 
   // Handle generated floor plan from AI - enters placement mode
   const handleFloorPlanGenerated = useCallback((generatedData) => {
@@ -1079,16 +1602,166 @@ function App() {
     setSelectedComparisonId(null)
   }, [selectedComparisonId])
 
-  // Wrapper to select building and deselect comparison
-  const selectBuilding = useCallback((id) => {
-    setSelectedBuildingId(id)
-    if (id) setSelectedComparisonId(null) // Deselect comparison when selecting building
+  // Delete selected room (by deleting its boundary walls)
+  const deleteSelectedRoom = useCallback(() => {
+    if (!selectedRoomId) return
+    const room = rooms.find(r => r.id === selectedRoomId)
+    if (!room) return
+    const wallIds = findWallsForRoom(room, walls)
+    if (wallIds.length > 0) {
+      pushWallsState(walls.filter(w => !wallIds.includes(w.id)))
+    }
+    setSelectedRoomId(null)
+  }, [selectedRoomId, rooms, walls, pushWallsState])
+
+  // Rotate selected room by 90 degrees around its center
+  const rotateSelectedRoom = useCallback(() => {
+    if (!selectedRoomId) return
+    const room = rooms.find(r => r.id === selectedRoomId)
+    if (!room || !room.center) return
+    const wallIds = findWallsForRoom(room, walls)
+    if (wallIds.length === 0) return
+
+    const cx = room.center.x
+    const cz = room.center.z
+
+    // Store center for re-selection after rooms regenerate
+    pendingRoomSelectionRef.current = { x: cx, z: cz }
+
+    // Rotate each wall's endpoints 90 degrees clockwise around center
+    // For 90° rotation: newX = cx - (z - cz), newZ = cz + (x - cx)
+    const newWalls = walls.map(wall => {
+      if (!wallIds.includes(wall.id)) return wall
+      return {
+        ...wall,
+        start: {
+          x: cx - (wall.start.z - cz),
+          z: cz + (wall.start.x - cx)
+        },
+        end: {
+          x: cx - (wall.end.z - cz),
+          z: cz + (wall.end.x - cx)
+        }
+      }
+    })
+    pushWallsState(newWalls)
+  }, [selectedRoomId, rooms, walls, pushWallsState])
+
+  // Resize selected room by scale factor (e.g., 1.1 = 10% larger)
+  const resizeSelectedRoom = useCallback((scaleFactor) => {
+    if (!selectedRoomId) return
+    const room = rooms.find(r => r.id === selectedRoomId)
+    if (!room || !room.center) return
+    const wallIds = findWallsForRoom(room, walls)
+    if (wallIds.length === 0) return
+
+    const cx = room.center.x
+    const cz = room.center.z
+
+    // Store center for re-selection after rooms regenerate
+    pendingRoomSelectionRef.current = { x: cx, z: cz }
+
+    // Scale each wall's endpoints relative to center
+    const newWalls = walls.map(wall => {
+      if (!wallIds.includes(wall.id)) return wall
+      return {
+        ...wall,
+        start: {
+          x: cx + (wall.start.x - cx) * scaleFactor,
+          z: cz + (wall.start.z - cz) * scaleFactor
+        },
+        end: {
+          x: cx + (wall.end.x - cx) * scaleFactor,
+          z: cz + (wall.end.z - cz) * scaleFactor
+        }
+      }
+    })
+    pushWallsState(newWalls)
+  }, [selectedRoomId, rooms, walls, pushWallsState])
+
+  // Wrapper to select room and deselect others
+  const selectRoom = useCallback((id) => {
+    setSelectedRoomId(id)
+    if (id) {
+      setSelectedBuildingId(null)
+      setSelectedComparisonId(null)
+    }
   }, [])
 
-  // Wrapper to select comparison and deselect building
+  // Set room label
+  const handleSetRoomLabel = useCallback((roomId, label) => {
+    setRoomLabels(prev => ({
+      ...prev,
+      [roomId]: label
+    }))
+  }, [])
+
+  // Set room style (color, opacity, etc.)
+  const handleSetRoomStyle = useCallback((roomId, style) => {
+    setRoomStyles(prev => ({
+      ...prev,
+      [roomId]: { ...prev[roomId], ...style }
+    }))
+  }, [])
+
+  // Move room by moving its boundary walls
+  const moveRoom = useCallback((roomId, delta) => {
+    const room = rooms.find(r => r.id === roomId)
+    if (!room) return
+    const wallIds = findWallsForRoom(room, walls)
+    if (wallIds.length === 0) return
+
+    const newWalls = walls.map(wall => {
+      if (wallIds.includes(wall.id)) {
+        return {
+          ...wall,
+          start: { x: wall.start.x + delta.x, z: wall.start.z + delta.z },
+          end: { x: wall.end.x + delta.x, z: wall.end.z + delta.z }
+        }
+      }
+      return wall
+    })
+    pushWallsState(newWalls)
+  }, [rooms, walls, pushWallsState])
+
+  // Move walls by IDs directly (used for room dragging to avoid ID regeneration issues)
+  // Uses replaceWallsState for smooth real-time dragging (no history spam)
+  const moveWallsByIds = useCallback((wallIds, delta) => {
+    if (!wallIds || wallIds.length === 0) return
+    const newWalls = walls.map(wall => {
+      if (wallIds.includes(wall.id)) {
+        return {
+          ...wall,
+          start: { x: wall.start.x + delta.x, z: wall.start.z + delta.z },
+          end: { x: wall.end.x + delta.x, z: wall.end.z + delta.z }
+        }
+      }
+      return wall
+    })
+    replaceWallsState(newWalls)
+  }, [walls, replaceWallsState])
+
+  // Commit current walls state to history (call after drag ends for undo support)
+  const commitWallsToHistory = useCallback(() => {
+    pushWallsState(walls)
+  }, [walls, pushWallsState])
+
+  // Wrapper to select building and deselect others
+  const selectBuilding = useCallback((id) => {
+    setSelectedBuildingId(id)
+    if (id) {
+      setSelectedComparisonId(null)
+      setSelectedRoomId(null)
+    }
+  }, [])
+
+  // Wrapper to select comparison and deselect others
   const selectComparison = useCallback((id) => {
     setSelectedComparisonId(id)
-    if (id) setSelectedBuildingId(null) // Deselect building when selecting comparison
+    if (id) {
+      setSelectedBuildingId(null)
+      setSelectedRoomId(null)
+    }
   }, [])
 
   // Building/Comparison keyboard shortcuts (R to rotate, ESC to cancel, Delete to remove)
@@ -1105,6 +1778,9 @@ function App() {
         } else if (selectedComparisonId) {
           e.preventDefault()
           rotateSelectedComparison(90)
+        } else if (selectedRoomId) {
+          e.preventDefault()
+          rotateSelectedRoom()
         }
       }
 
@@ -1119,6 +1795,10 @@ function App() {
         } else if (selectedComparisonId) {
           e.preventDefault()
           setSelectedComparisonId(null)
+        } else if (selectedRoomId) {
+          e.preventDefault()
+          setRoomPropertiesOpen(false)  // Close properties panel first
+          setSelectedRoomId(null)
         }
       }
 
@@ -1130,24 +1810,29 @@ function App() {
         } else if (selectedComparisonId) {
           e.preventDefault()
           deleteSelectedComparison()
+        } else if (selectedRoomId) {
+          e.preventDefault()
+          deleteSelectedRoom()
         }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, rotateBuildingPreview, rotateSelectedComparison, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison])
+  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom])
 
-  // Show toast when building or comparison is selected
+  // Show toast when building, comparison, or room is selected
   useEffect(() => {
     if (selectedBuildingId) {
       setUndoRedoToast('Building selected • Drag to move • R to rotate • ESC to deselect • Del to delete')
     } else if (selectedComparisonId) {
       setUndoRedoToast('Object selected • Drag to move • R to rotate • ESC to deselect • Del to remove')
+    } else if (selectedRoomId) {
+      setUndoRedoToast('Room selected • Drag to move • R to rotate • Double-click to name • ESC to deselect • Del to delete')
     } else if (!floorPlanPlacementMode) {
       setUndoRedoToast(null)
     }
-  }, [selectedBuildingId, selectedComparisonId, floorPlanPlacementMode])
+  }, [selectedBuildingId, selectedComparisonId, selectedRoomId, floorPlanPlacementMode])
 
   // Get current polygon for snapping (memoized)
   const currentPolygon = useMemo(() => {
@@ -1215,6 +1900,16 @@ function App() {
   const handleDeleteBuilding = (buildingId) => {
     if (!canEdit) return
     setPlacedBuildings(prev => prev.filter(b => b.id !== buildingId))
+    if (selectedPlacedBuildingId === buildingId) {
+      setSelectedPlacedBuildingId(null)
+    }
+  }
+
+  const handleMoveBuilding = (buildingId, newPosition) => {
+    if (!canEdit) return
+    setPlacedBuildings(prev => prev.map(b =>
+      b.id === buildingId ? { ...b, position: newPosition } : b
+    ))
   }
 
   // Handle pointer move for preview snapping
@@ -1321,6 +2016,9 @@ function App() {
   }
 
   const handleExport = async (options = {}) => {
+    // Export is a Pro feature
+    if (!requirePaid()) return
+
     setIsExporting(true)
     try {
       await exportFloorPlanAsPNG({
@@ -1336,6 +2034,71 @@ function App() {
       console.error('Export error:', error)
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  // Handle 3D screenshot capture
+  const handleScreenshot = async (options = {}) => {
+    const canvas = canvasRef.current
+    if (!canvas) {
+      console.error('Canvas not available for screenshot')
+      return
+    }
+
+    setIsCapturing(true)
+    try {
+      await captureAndDownload(canvas, {
+        format: options.format || 'png',
+        scale: options.scale || 1,
+        quality: 0.92,
+      })
+    } catch (error) {
+      console.error('Screenshot error:', error)
+    } finally {
+      setIsCapturing(false)
+    }
+  }
+
+  // Handle 3D model export
+  const handleModelExport = async (options = {}) => {
+    const scene = sceneRef.current
+    if (!scene) {
+      console.error('Scene not available for export')
+      return
+    }
+
+    setIsExportingModel(true)
+    try {
+      await exportModel(scene, options.format || 'glb', {
+        filename: options.filename,
+      })
+    } catch (error) {
+      console.error('Model export error:', error)
+    } finally {
+      setIsExportingModel(false)
+    }
+  }
+
+  // Handle PDF export
+  const handlePdfExport = async (options = {}) => {
+    setIsExportingPdf(true)
+    try {
+      await exportToPDF({
+        title: options.title || 'Floor Plan',
+        wallCount: walls.length,
+        roomCount: rooms.length,
+        landArea: area,
+        buildingArea: computeCoverage(placedBuildings, area).coverageAreaM2,
+        landPoints: currentPolygon || [],
+        walls,
+        rooms,
+        includeDimensions: options.includeDimensions ?? true,
+        includeRoomLabels: options.includeRoomLabels ?? true,
+      })
+    } catch (error) {
+      console.error('PDF export error:', error)
+    } finally {
+      setIsExportingPdf(false)
     }
   }
 
@@ -1533,10 +2296,11 @@ function App() {
         />
       )}
 
-      <LandScene
-        length={dimensions.length}
-        width={dimensions.width}
-        isExploring={isExploring && !selectedBuilding}
+      <Suspense fallback={<LoadingFallback />}>
+        <LandScene
+          length={dimensions.length}
+          width={dimensions.width}
+          isExploring={isExploring && !selectedBuilding}
         comparisonObjects={COMPARISON_OBJECTS.filter(obj => activeComparisons[obj.id])}
         polygonPoints={(shapeMode === 'polygon' || shapeMode === 'upload') ? confirmedPolygon : null}
         placedBuildings={placedBuildings}
@@ -1544,6 +2308,9 @@ function App() {
         selectedBuildingType={canEdit ? selectedBuildingType : null}
         onPlaceBuilding={canEdit ? handlePlaceBuilding : undefined}
         onDeleteBuilding={canEdit ? handleDeleteBuilding : undefined}
+        onMoveBuilding={canEdit ? handleMoveBuilding : undefined}
+        selectedPlacedBuildingId={selectedPlacedBuildingId}
+        setSelectedPlacedBuildingId={setSelectedPlacedBuildingId}
         canEdit={canEdit}
         joystickInput={joystickInput}
         lengthUnit={lengthUnit}
@@ -1589,9 +2356,12 @@ function App() {
         deleteWall={deleteWall}
         doorWidth={doorWidth}
         doorHeight={doorHeight}
+        doorType={doorType}
         windowWidth={windowWidth}
         windowHeight={windowHeight}
         windowSillHeight={windowSillHeight}
+        halfWallHeight={halfWallHeight}
+        fenceType={fenceType}
         rooms={rooms}
         floorPlanImage={floorPlanImage}
         floorPlanSettings={floorPlanSettings}
@@ -1608,7 +2378,70 @@ function App() {
         moveSelectedBuilding={moveSelectedBuilding}
         selectedComparisonId={selectedComparisonId}
         setSelectedComparisonId={selectComparison}
-      />
+        selectedRoomId={selectedRoomId}
+        setSelectedRoomId={selectRoom}
+        roomLabels={roomLabels}
+        roomStyles={roomStyles}
+        setRoomLabel={handleSetRoomLabel}
+        moveRoom={moveRoom}
+        moveWallsByIds={moveWallsByIds}
+        commitWallsToHistory={commitWallsToHistory}
+        setRoomPropertiesOpen={setRoomPropertiesOpen}
+        setWallPropertiesOpen={setWallPropertiesOpen}
+        setFencePropertiesOpen={setFencePropertiesOpen}
+        // Sims 4-style features
+        pools={pools}
+        addPool={addPool}
+        deletePool={deletePool}
+        updatePool={updatePool}
+        poolPolygonPoints={poolPolygonPoints}
+        setPoolPolygonPoints={setPoolPolygonPoints}
+        poolDepth={poolDepth}
+        poolDeckMaterial={poolDeckMaterial}
+        selectedPoolId={selectedPoolId}
+        setSelectedPoolId={setSelectedPoolId}
+        setPoolPropertiesOpen={setPoolPropertiesOpen}
+        foundations={foundations}
+        addFoundation={addFoundation}
+        deleteFoundation={deleteFoundation}
+        updateFoundation={updateFoundation}
+        foundationPolygonPoints={foundationPolygonPoints}
+        setFoundationPolygonPoints={setFoundationPolygonPoints}
+        foundationHeight={foundationHeight}
+        foundationMaterial={foundationMaterial}
+        selectedFoundationId={selectedFoundationId}
+        setSelectedFoundationId={setSelectedFoundationId}
+        setFoundationPropertiesOpen={setFoundationPropertiesOpen}
+        stairs={stairs}
+        addStairs={addStairs}
+        deleteStairs={deleteStairs}
+        updateStairs={updateStairs}
+        stairsStartPoint={stairsStartPoint}
+        setStairsStartPoint={setStairsStartPoint}
+        stairsWidth={stairsWidth}
+        stairsTopY={stairsTopY}
+        stairsStyle={stairsStyle}
+        selectedStairsId={selectedStairsId}
+        setSelectedStairsId={setSelectedStairsId}
+        setStairsPropertiesOpen={setStairsPropertiesOpen}
+        roofs={roofs}
+        addRoof={addRoof}
+        deleteRoof={deleteRoof}
+        updateRoof={updateRoof}
+        roofType={roofType}
+        roofPitch={roofPitch}
+        selectedRoofId={selectedRoofId}
+        setSelectedRoofId={setSelectedRoofId}
+        setRoofPropertiesOpen={setRoofPropertiesOpen}
+        canvasRef={canvasRef}
+        sceneRef={sceneRef}
+        // Multi-story floor props
+        currentFloor={currentFloor}
+        floorHeight={floorHeight}
+        totalFloors={totalFloors}
+        addFloorsToRoom={addFloorsToRoom}
+        />
+      </Suspense>
 
       {/* Minimap (hidden in 2D mode - redundant with top-down view) */}
       {viewMode !== '2d' && (
@@ -1691,7 +2524,7 @@ function App() {
           onExpandedChange={setPanelExpanded}
           isActive={activePanel === 'land'}
           onDetectedFloorPlan={(imageData) => {
-            // Detected floor plan - open AI generator modal
+            // Floor plan analysis - upload gating handled in modal
             setFloorPlanImageForGenerator(imageData)
             setShowFloorPlanGenerator(true)
           }}
@@ -1750,12 +2583,18 @@ function App() {
           setDoorWidth={setDoorWidth}
           doorHeight={doorHeight}
           setDoorHeight={setDoorHeight}
+          doorType={doorType}
+          setDoorType={setDoorType}
           windowWidth={windowWidth}
           setWindowWidth={setWindowWidth}
           windowHeight={windowHeight}
           setWindowHeight={setWindowHeight}
           windowSillHeight={windowSillHeight}
           setWindowSillHeight={setWindowSillHeight}
+          halfWallHeight={halfWallHeight}
+          setHalfWallHeight={setHalfWallHeight}
+          fenceType={fenceType}
+          setFenceType={setFenceType}
           rooms={rooms}
           onUndo={undoWalls}
           onRedo={redoWalls}
@@ -1772,10 +2611,50 @@ function App() {
             setActivePanel('land')
           }}
           onOpenFloorPlanGenerator={(imageData) => {
-            // Open AI floor plan generator modal
+            // Floor plan analysis - upload gating handled in modal
             setFloorPlanImageForGenerator(imageData)
             setShowFloorPlanGenerator(true)
           }}
+          // Sims 4-style features
+          pools={pools}
+          foundations={foundations}
+          stairs={stairs}
+          roofs={roofs}
+          poolDepth={poolDepth}
+          setPoolDepth={setPoolDepth}
+          poolDeckMaterial={poolDeckMaterial}
+          setPoolDeckMaterial={setPoolDeckMaterial}
+          foundationHeight={foundationHeight}
+          setFoundationHeight={setFoundationHeight}
+          foundationMaterial={foundationMaterial}
+          setFoundationMaterial={setFoundationMaterial}
+          stairsWidth={stairsWidth}
+          setStairsWidth={setStairsWidth}
+          stairsStyle={stairsStyle}
+          setStairsStyle={setStairsStyle}
+          stairsTopY={stairsTopY}
+          setStairsTopY={setStairsTopY}
+          roofType={roofType}
+          setRoofType={setRoofType}
+          roofPitch={roofPitch}
+          setRoofPitch={setRoofPitch}
+          roofOverhang={roofOverhang}
+          setRoofOverhang={setRoofOverhang}
+          roofThickness={roofThickness}
+          setRoofThickness={setRoofThickness}
+          selectedRoofId={selectedRoofId}
+          updateRoof={updateRoof}
+          // Multi-story floor props
+          currentFloor={currentFloor}
+          setCurrentFloor={setCurrentFloor}
+          totalFloors={totalFloors}
+          floorHeight={floorHeight}
+          setFloorHeight={setFloorHeight}
+          addFloor={addFloor}
+          removeCurrentFloor={removeCurrentFloor}
+          switchFloor={switchFloor}
+          floorCountToAdd={floorCountToAdd}
+          setFloorCountToAdd={setFloorCountToAdd}
         />
       </div>
 
@@ -1787,24 +2666,28 @@ function App() {
           bottom: '56px',
         }}
       >
-        <div className="h-full flex text-white">
-          <div className="flex-1 p-4 overflow-y-auto">
-            <div className="flex items-center px-0 py-3 border-b border-[var(--color-border)] mb-4">
-              <h2 className="font-display font-semibold text-sm">Export Floor Plan</h2>
-            </div>
-            <ExportPanel
-              onExport={handleExport}
-              isExporting={isExporting}
-              wallCount={walls.length}
-              roomCount={rooms.length}
-              hasLand={!!currentPolygon && currentPolygon.length >= 3}
-            />
-          </div>
-        </div>
+        <ExportPanel
+          onExport={handleExport}
+          isExporting={isExporting}
+          wallCount={walls.length}
+          roomCount={rooms.length}
+          hasLand={!!currentPolygon && currentPolygon.length >= 3}
+          onExpandedChange={setPanelExpanded}
+          isActive={activePanel === 'export'}
+          onScreenshot={handleScreenshot}
+          isCapturing={isCapturing}
+          viewMode={viewMode}
+          onModelExport={handleModelExport}
+          isExportingModel={isExportingModel}
+          onPdfExport={handlePdfExport}
+          isExportingPdf={isExportingPdf}
+          landArea={area}
+          buildingArea={computeCoverage(placedBuildings, area).coverageAreaM2}
+        />
       </div>
 
       {/* Bottom ribbon navigation */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up">
+      <div className="fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up safe-area-bottom">
         <div className="flex justify-around items-center h-14">
           <button
             onClick={() => canEdit && togglePanel('land')}
@@ -1864,94 +2747,186 @@ function App() {
             <span className="label">{saveStatus === 'saved' ? 'Saved' : 'Save'}</span>
           </button>
 
-          <button
-            onClick={() => togglePanel('export')}
-            className={`ribbon-btn ${activePanel === 'export' ? 'active' : ''}`}
-          >
-            <span className="icon">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
-            </span>
-            <span className="label">Export</span>
-          </button>
+          {/* Desktop: show Export, Share, Help inline */}
+          {!isMobile && (
+            <>
+              <button
+                onClick={() => togglePanel('export')}
+                className={`ribbon-btn ${activePanel === 'export' ? 'active' : ''}`}
+              >
+                <span className="icon">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                  </svg>
+                </span>
+                <span className="label">Export</span>
+              </button>
 
-          <button
-            onClick={handleShare}
-            className={`ribbon-btn ${shareStatus === 'copied' ? 'text-[var(--color-accent)]' : shareStatus === 'error' ? 'text-red-400' : ''}`}
-            title={shareStatus === 'error' ? 'Sharing unavailable' : 'Copy share link'}
-          >
-            <span className="icon">
-              {shareStatus === 'copied' ? (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
+              <button
+                onClick={handleShare}
+                className={`ribbon-btn ${shareStatus === 'copied' ? 'text-[var(--color-accent)]' : shareStatus === 'error' ? 'text-red-400' : ''}`}
+                title={shareStatus === 'error' ? 'Sharing unavailable' : 'Copy share link'}
+              >
+                <span className="icon">
+                  {shareStatus === 'copied' ? (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+                    </svg>
+                  )}
+                </span>
+                <span className="label">{shareStatus === 'copied' ? 'Copied' : shareStatus === 'error' ? 'Error' : 'Share'}</span>
+              </button>
+
+              <button
+                onClick={resetToExample}
+                className="ribbon-btn w-12 flex-none"
+                title="Reset to example"
+              >
+                <span className="icon">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                  </svg>
+                </span>
+              </button>
+            </>
+          )}
+
+          {/* Mobile: "More" overflow button */}
+          {isMobile && (
+            <button
+              onClick={() => setShowOverflow(!showOverflow)}
+              className={`ribbon-btn ${showOverflow ? 'active' : ''}`}
+            >
+              <span className="icon">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
                 </svg>
-              )}
-            </span>
-            <span className="label">{shareStatus === 'copied' ? 'Copied' : shareStatus === 'error' ? 'Error' : 'Share'}</span>
-          </button>
-
-          <button
-            onClick={resetToExample}
-            className="ribbon-btn w-12 flex-none"
-            title="Reset to example"
-          >
-            <span className="icon">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-              </svg>
-            </span>
-          </button>
+              </span>
+              <span className="label">More</span>
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Mobile overflow menu popup */}
+      {isMobile && showOverflow && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
+          <div className="fixed bottom-[72px] right-4 bg-[var(--color-panel)] backdrop-blur-xl rounded-xl shadow-2xl border border-[var(--color-border)] py-2 min-w-[180px] z-50 animate-slide-in-bottom-2">
+            <button
+              onClick={() => { togglePanel('export'); setShowOverflow(false) }}
+              className={`flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors ${activePanel === 'export' ? 'text-[var(--color-accent)]' : 'text-white'}`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              <span>Export</span>
+            </button>
+            <button
+              onClick={() => { handleShare(); setShowOverflow(false) }}
+              className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+              </svg>
+              <span>Share</span>
+            </button>
+            {!isPaidUser && (
+              <>
+                <div className="border-t border-[var(--color-border)] my-2" />
+                <button
+                  onClick={() => { setShowPricingModal(true); setShowOverflow(false) }}
+                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors"
+                >
+                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                  </svg>
+                  <span className="text-amber-400 font-medium">Upgrade to Pro</span>
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
       {/* Primary CTA Card - top left, shifts right when sidebar open */}
       {!isReadOnly && !isDefiningLand && (
-        <div
-          className="absolute top-4 panel-premium p-5 text-white z-50 min-w-[220px] animate-fade-in transition-all duration-300"
-          style={{
-            // 16px = no sidebar, 72px = icon rail only (56px + 16px), 332px = full expanded (56px + 260px + 16px)
-            left: (activePanel === 'build' || activePanel === 'compare' || activePanel === 'land' || activePanel === 'export')
-              ? (panelExpanded ? '332px' : '72px')
-              : '16px',
-          }}
-        >
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)] flex items-center justify-center">
-              <svg className="w-5 h-5 text-[var(--color-bg-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="font-display font-semibold text-[15px] text-white leading-tight">Define Your Land</h2>
-              <p className="text-[var(--color-text-secondary)] text-xs mt-0.5">
-                Ready to plan
-              </p>
-            </div>
+        isMobile ? (
+          /* Mobile: compact collapsible version */
+          <div className="absolute top-4 left-4 z-50">
+            <button
+              onClick={() => setMobileCtaExpanded(!mobileCtaExpanded)}
+              className="panel-premium p-3 text-white animate-fade-in"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <p className="font-display font-bold text-lg leading-tight">{formatArea(area, areaUnit)}</p>
+                  <p className="text-[var(--color-text-secondary)] text-xs">Ready to plan</p>
+                </div>
+                <svg className={`w-4 h-4 text-[var(--color-text-secondary)] ml-2 transition-transform ${mobileCtaExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </button>
+            {mobileCtaExpanded && (
+              <div className="mt-2 panel-premium p-3 animate-slide-in-bottom-2">
+                <button
+                  onClick={startDefiningLand}
+                  className="btn-primary w-full flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                  </svg>
+                  <span>Edit Land</span>
+                </button>
+              </div>
+            )}
           </div>
-
-          {/* Area display */}
-          <div className="mb-4 py-3 px-4 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)]">
-            <div className="text-[var(--color-text-muted)] text-[10px] uppercase tracking-wider mb-1">Total Area</div>
-            <div className="font-display font-bold text-2xl text-white tracking-tight">{formatArea(area, areaUnit)}</div>
-          </div>
-
-          {/* CTA Button */}
-          <button
-            onClick={startDefiningLand}
-            className="btn-primary w-full flex items-center justify-center gap-2"
+        ) : (
+          /* Desktop: full version */
+          <div
+            className="absolute top-4 panel-premium p-5 text-white z-50 min-w-[220px] animate-fade-in transition-all duration-300"
+            style={{
+              left: (activePanel === 'build' || activePanel === 'compare' || activePanel === 'land' || activePanel === 'export')
+                ? (panelExpanded ? '332px' : '72px')
+                : '16px',
+            }}
           >
-            <span>Edit Land</span>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-            </svg>
-          </button>
-        </div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)] flex items-center justify-center">
+                <svg className="w-5 h-5 text-[var(--color-bg-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-display font-semibold text-[15px] text-white leading-tight">Define Your Land</h2>
+                <p className="text-[var(--color-text-secondary)] text-xs mt-0.5">Ready to plan</p>
+              </div>
+            </div>
+            <div className="mb-4 py-3 px-4 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)]">
+              <div className="text-[var(--color-text-muted)] text-[10px] uppercase tracking-wider mb-1">Total Area</div>
+              <div className="font-display font-bold text-2xl text-white tracking-tight">{formatArea(area, areaUnit)}</div>
+            </div>
+            <button
+              onClick={startDefiningLand}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              <span>Edit Land</span>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+              </svg>
+            </button>
+          </div>
+        )
       )}
 
       {/* Non-blocking walkthrough hint (first visit only) */}
@@ -2018,7 +2993,7 @@ function App() {
       {/* Room tool indicator */}
       {activeBuildTool === BUILD_TOOLS.ROOM && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse">
-          Click and drag to draw a room · Escape to cancel
+          Click to set corner · Click again to finish · Escape to cancel
         </div>
       )}
 
@@ -2063,10 +3038,70 @@ function App() {
       )}
 
       {/* Grouped View Controls - top right */}
+      {/* Mobile: settings icon + slide-up sheet */}
+      {isMobile && (
+        <button
+          onClick={() => setShowMobileViewControls(true)}
+          className={`absolute right-4 z-30 panel-premium p-3 animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}
+        >
+          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+      )}
+
+      {/* Mobile view controls slide-up sheet */}
+      {isMobile && showMobileViewControls && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileViewControls(false)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pb-20 animate-slide-in-bottom">
+            <div className="panel-premium p-4 text-white">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-semibold text-white">View Settings</h3>
+                <button onClick={() => setShowMobileViewControls(false)} className="p-1 hover:bg-white/10 rounded-lg">
+                  <svg className="w-5 h-5 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <span className="text-[var(--color-text-secondary)] text-sm">View</span>
+                  <div className="flex bg-[var(--color-bg-secondary)] rounded-lg p-1 gap-1">
+                    {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
+                      <button key={mode} onClick={() => setViewMode(mode)}
+                        className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === mode ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)] hover:text-white'}`}
+                      >{label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-6">
+                  <span className="text-[var(--color-text-secondary)] text-sm">Dimensions</span>
+                  <button onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))} className={`toggle-switch ${labels.land ? 'active' : ''}`}><span className="toggle-knob" /></button>
+                </div>
+                <div className="flex items-center justify-between gap-6">
+                  <span className="text-[var(--color-text-secondary)] text-sm">Grid</span>
+                  <button onClick={() => setGridSnapEnabled(!gridSnapEnabled)} className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}><span className="toggle-knob" /></button>
+                </div>
+                <div className="flex items-center justify-between gap-6">
+                  <span className="text-[var(--color-text-secondary)] text-sm">Quality</span>
+                  <select value={graphicsQuality} onChange={(e) => setGraphicsQuality(e.target.value)} className="select-premium" style={{ fontSize: '11px', padding: '4px 22px 4px 8px', borderRadius: '6px' }}>
+                    <option value={QUALITY.LOW}>Low</option>
+                    <option value={QUALITY.MEDIUM}>Medium</option>
+                    <option value={QUALITY.HIGH}>High</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Desktop: always-visible view controls */}
+      {!isMobile && (
       <div className={`absolute right-4 panel-premium text-white overflow-hidden animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}>
-        {/* Controls only - area is shown in CTA card */}
         <div className="px-4 py-3 space-y-3">
-          {/* View mode segmented control */}
           <div className="space-y-2">
             <span className="text-[var(--color-text-secondary)] text-sm text-center block">View</span>
             <div className="flex bg-[var(--color-bg-secondary)] rounded-lg p-1 gap-1">
@@ -2106,7 +3141,6 @@ function App() {
             </div>
           </div>
 
-          {/* Fit to Land button (in orbit and 2D modes) */}
           {(viewMode === 'orbit' || viewMode === '2d') && (
             <button
               onClick={() => setFitToLandTrigger(t => t + 1)}
@@ -2116,7 +3150,6 @@ function App() {
             </button>
           )}
 
-          {/* Distance labels toggle */}
           <div className="flex items-center justify-between gap-6">
             <span className="text-[var(--color-text-secondary)] text-sm">Dimensions</span>
             <button
@@ -2128,7 +3161,6 @@ function App() {
             </button>
           </div>
 
-          {/* Grid toggle */}
           <div className="flex items-center justify-between gap-6">
             <span className="text-[var(--color-text-secondary)] text-sm">Grid</span>
             <button
@@ -2140,7 +3172,6 @@ function App() {
             </button>
           </div>
 
-          {/* Quality dropdown */}
           <div className="flex items-center justify-between gap-6">
             <span className="text-[var(--color-text-secondary)] text-sm">Quality</span>
             <select
@@ -2156,6 +3187,7 @@ function App() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Compass overlay - positioned below view controls */}
       {labels.orientation && (
@@ -2182,32 +3214,166 @@ function App() {
 
       {/* Unified Upload Modal */}
       {showUploadModal && (
-        <UploadImageModal
-          onClose={() => setShowUploadModal(false)}
-          onUploadForLand={(imageData) => {
-            // Set the image for land boundary tracing
-            setUploadedImage(imageData)
-            setActivePanel('land') // Switch to land panel
-          }}
-          onUploadForFloorPlan={(imageData) => {
-            // Open the floor plan generator modal for AI analysis
-            setFloorPlanImageForGenerator(imageData)
-            setShowFloorPlanGenerator(true)
-          }}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <UploadImageModal
+            onClose={() => setShowUploadModal(false)}
+            onUploadForLand={(imageData) => {
+              // Set the image for land boundary tracing
+              setUploadedImage(imageData)
+              setActivePanel('land') // Switch to land panel
+            }}
+            onUploadForFloorPlan={(imageData) => {
+              // Floor plan analysis - upload gating handled in modal
+              setFloorPlanImageForGenerator(imageData)
+              setShowFloorPlanGenerator(true)
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Floor Plan Generator Modal (AI-powered) */}
       {showFloorPlanGenerator && floorPlanImageForGenerator && (
-        <FloorPlanGeneratorModal
-          image={floorPlanImageForGenerator}
-          onGenerate={handleFloorPlanGenerated}
-          onCancel={() => {
-            setShowFloorPlanGenerator(false)
-            setFloorPlanImageForGenerator(null)
+        <Suspense fallback={<LoadingFallback />}>
+          <FloorPlanGeneratorModal
+            image={floorPlanImageForGenerator}
+            onGenerate={handleFloorPlanGenerated}
+            onCancel={() => {
+              setShowFloorPlanGenerator(false)
+              setFloorPlanImageForGenerator(null)
+            }}
+            isPaidUser={true}
+          />
+        </Suspense>
+      )}
+
+      {/* Room Properties Panel */}
+      {roomPropertiesOpen && selectedRoomId && (
+        <RoomPropertiesPanel
+          room={rooms.find(r => r.id === selectedRoomId)}
+          walls={walls}
+          roomLabel={roomLabels[selectedRoomId] || ''}
+          onLabelChange={(label) => handleSetRoomLabel(selectedRoomId, label)}
+          onClose={() => {
+            setRoomPropertiesOpen(false)
+            setSelectedRoomId(null)
           }}
-          isPaidUser={true}
+          selectedWallId={selectedElement?.type === 'wall' ? selectedElement.id : null}
+          onSelectWall={(wallId) => {
+            // Toggle - if already selected, deselect
+            if (selectedElement?.type === 'wall' && selectedElement?.id === wallId) {
+              setSelectedElement(null)
+            } else {
+              setSelectedElement({ type: 'wall', id: wallId })
+            }
+          }}
+          onDeleteWall={(wallId) => {
+            deleteWall(wallId)
+          }}
+          onResizeWall={resizeWall}
+          roomStyle={roomStyles[selectedRoomId] || {}}
+          onStyleChange={(style) => handleSetRoomStyle(selectedRoomId, style)}
+          lengthUnit={lengthUnit}
         />
+      )}
+
+      {/* Wall Properties Panel */}
+      {wallPropertiesOpen && selectedElement?.type === 'wall' && (
+        <WallPropertiesPanel
+          wall={walls.find(w => w.id === selectedElement.id)}
+          onClose={() => {
+            setWallPropertiesOpen(false)
+            setSelectedElement(null)
+          }}
+          onResizeWall={resizeWall}
+          onChangeHeight={changeWallHeight}
+          onChangeColor={changeWallColor}
+          onChangePattern={changeWallPattern}
+          onDeleteOpening={deleteOpening}
+          lengthUnit={lengthUnit}
+        />
+      )}
+
+      {/* Fence Properties Panel */}
+      {fencePropertiesOpen && selectedElement?.type === 'fence' && (
+        <FencePropertiesPanel
+          fence={walls.find(w => w.id === selectedElement.id && w.isFence)}
+          onClose={() => {
+            setFencePropertiesOpen(false)
+            setSelectedElement(null)
+          }}
+          onChangeHeight={changeFenceHeight}
+          onChangeFenceType={changeFenceType}
+          lengthUnit={lengthUnit}
+        />
+      )}
+
+      {/* Pool Properties Panel */}
+      {poolPropertiesOpen && selectedPoolId && (
+        <PoolPropertiesPanel
+          pool={pools.find(p => p.id === selectedPoolId)}
+          onClose={() => {
+            setPoolPropertiesOpen(false)
+            setSelectedPoolId(null)
+          }}
+          onUpdatePool={updatePool}
+        />
+      )}
+
+      {/* Foundation Properties Panel */}
+      {foundationPropertiesOpen && selectedFoundationId && (
+        <FoundationPropertiesPanel
+          foundation={foundations.find(f => f.id === selectedFoundationId)}
+          onClose={() => {
+            setFoundationPropertiesOpen(false)
+            setSelectedFoundationId(null)
+          }}
+          onUpdateFoundation={updateFoundation}
+        />
+      )}
+
+      {/* Stairs Properties Panel */}
+      {stairsPropertiesOpen && selectedStairsId && (
+        <StairsPropertiesPanel
+          stairs={stairs.find(s => s.id === selectedStairsId)}
+          onClose={() => {
+            setStairsPropertiesOpen(false)
+            setSelectedStairsId(null)
+          }}
+          onUpdateStairs={updateStairs}
+          onDeleteStairs={deleteStairs}
+        />
+      )}
+
+      {/* Roof Properties Panel */}
+      {roofPropertiesOpen && selectedRoofId && (
+        <RoofPropertiesPanel
+          roof={roofs.find(r => r.id === selectedRoofId)}
+          onClose={() => {
+            setRoofPropertiesOpen(false)
+            setSelectedRoofId(null)
+          }}
+          onUpdateRoof={updateRoof}
+        />
+      )}
+
+      {/* Upgrade button - hidden on mobile (in overflow menu instead) */}
+      {!isMobile && (
+        <button
+          onClick={() => setShowPricingModal(true)}
+          className="fixed bottom-4 right-4 z-50 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold rounded-lg shadow-lg hover:from-amber-400 hover:to-orange-400"
+        >
+          Upgrade to Pro
+        </button>
+      )}
+
+      {/* Pricing Modal for upgrades */}
+      {showPricingModal && (
+        <Suspense fallback={<LoadingFallback />}>
+          <PricingModal
+            onClose={() => setShowPricingModal(false)}
+            onSuccess={onPaymentSuccess}
+          />
+        </Suspense>
       )}
     </div>
   )

@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const FEET_PER_METER = 3.28084
 
@@ -19,7 +20,8 @@ export default function Minimap({
 }) {
   const canvasRef = useRef(null)
   const [showDimensions, setShowDimensions] = useState(true)
-  const size = 160
+  const isMobile = useIsMobile()
+  const size = isMobile ? 100 : 160
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -402,7 +404,7 @@ export default function Minimap({
   }, [landWidth, landLength, polygonPoints, placedBuildings, comparisonObjects, comparisonPositions, comparisonRotations, playerPosition, playerRotation, showDimensions, lengthUnit, walls, rooms, buildings])
 
   return (
-    <div className="fixed bottom-20 right-4 z-40 minimap-frame p-1 animate-fade-in">
+    <div className={`fixed z-40 minimap-frame p-1 animate-fade-in ${isMobile ? 'bottom-[72px] right-2' : 'bottom-20 right-4'}`}>
       <canvas
         ref={canvasRef}
         width={size}
