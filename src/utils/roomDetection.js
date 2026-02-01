@@ -305,3 +305,48 @@ export function isPointInPolygon(point, polygon) {
 
   return inside
 }
+
+/**
+ * Find wall IDs that form a room's boundary
+ * Matches walls whose endpoints align with consecutive room vertices
+ * @param {Object} room - Room object with points array
+ * @param {Array} walls - Array of wall objects
+ * @returns {Array} Array of wall IDs that form the room boundary
+ */
+export function findWallsForRoom(room, walls) {
+  if (!room?.points || !walls) return []
+
+  const MATCH_THRESHOLD = 0.5 // 50cm tolerance for matching endpoints (increased for room dragging)
+  const wallIds = []
+
+  // Check each edge of the room polygon
+  for (let i = 0; i < room.points.length; i++) {
+    const p1 = room.points[i]
+    const p2 = room.points[(i + 1) % room.points.length]
+
+    // Find wall that matches this edge
+    for (const wall of walls) {
+      if (!wall.id?.startsWith('wall-')) continue
+
+      // Check if wall matches edge in either direction
+      const matchForward = (
+        Math.abs(wall.start.x - p1.x) < MATCH_THRESHOLD &&
+        Math.abs(wall.start.z - p1.z) < MATCH_THRESHOLD &&
+        Math.abs(wall.end.x - p2.x) < MATCH_THRESHOLD &&
+        Math.abs(wall.end.z - p2.z) < MATCH_THRESHOLD
+      )
+      const matchBackward = (
+        Math.abs(wall.start.x - p2.x) < MATCH_THRESHOLD &&
+        Math.abs(wall.start.z - p2.z) < MATCH_THRESHOLD &&
+        Math.abs(wall.end.x - p1.x) < MATCH_THRESHOLD &&
+        Math.abs(wall.end.z - p1.z) < MATCH_THRESHOLD
+      )
+
+      if ((matchForward || matchBackward) && !wallIds.includes(wall.id)) {
+        wallIds.push(wall.id)
+      }
+    }
+  }
+
+  return wallIds
+}

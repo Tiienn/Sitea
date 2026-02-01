@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { useUser } from '../hooks/useUser.jsx'
 
 export default function ImageTracer({
   uploadedImage,
@@ -14,6 +15,7 @@ export default function ImageTracer({
   const [scaleMode, setScaleMode] = useState(false)
   const [scalePoints, setScalePoints] = useState([]) // Two points for scale reference
   const [scaleDistance, setScaleDistance] = useState('')
+  const [scaleUnit, setScaleUnit] = useState(lengthUnit) // Unit for scale input (m, ft, mm)
   const [isDragging, setIsDragging] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
 
@@ -28,6 +30,9 @@ export default function ImageTracer({
 
   const canvasSize = 300
   const image = uploadedImage // Alias for compatibility
+
+  // Upload tracking (for analytics, parent handles gating)
+  const { markUploadUsed } = useUser()
 
   // Handle file selection
   const handleFileSelect = useCallback((file) => {
@@ -48,6 +53,9 @@ export default function ImageTracer({
 
     const reader = new FileReader()
     reader.onload = (e) => {
+      // Mark upload as used (consumes free trial)
+      markUploadUsed()
+
       setUploadedImage(e.target.result)
       // Reset state for new image
       setPoints([])
@@ -58,7 +66,7 @@ export default function ImageTracer({
       setPan({ x: 0, y: 0 })
     }
     reader.readAsDataURL(file)
-  }, [setUploadedImage])
+  }, [setUploadedImage, markUploadUsed])
 
   // Handle file input change
   const handleFileInputChange = (e) => {
@@ -343,8 +351,11 @@ export default function ImageTracer({
     console.log('Pixel distance:', pixelDistance)
 
     let distanceMeters = parseFloat(scaleDistance)
-    if (lengthUnit === 'ft') {
+    // Convert to meters based on selected scale unit
+    if (scaleUnit === 'ft') {
       distanceMeters = distanceMeters / 3.28084
+    } else if (scaleUnit === 'mm') {
+      distanceMeters = distanceMeters / 1000
     }
 
     console.log('Distance in meters:', distanceMeters)
@@ -730,7 +741,15 @@ export default function ImageTracer({
                   className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm"
                   autoFocus
                 />
-                <span className="flex items-center text-sm text-white/60">{lengthUnit}</span>
+                <select
+                  value={scaleUnit}
+                  onChange={(e) => setScaleUnit(e.target.value)}
+                  className="px-2 py-2 bg-[#1a1a2e] border border-white/20 rounded text-white text-sm"
+                >
+                  <option value="m" className="bg-[#1a1a2e] text-white">m</option>
+                  <option value="ft" className="bg-[#1a1a2e] text-white">ft</option>
+                  <option value="mm" className="bg-[#1a1a2e] text-white">mm</option>
+                </select>
               </div>
               <div className="flex gap-2 mt-2">
                 <button

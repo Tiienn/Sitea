@@ -117,7 +117,49 @@ CREATE POLICY "Server can manage subscriptions" ON subscriptions
 
 ---
 
+## 🟢 Enable Talk & Use Mobile Buttons
+
+**Goal:** Wire up Talk and Use mobile buttons so they actually trigger actions.
+
+### Tasks
+- [x] 1. App.jsx — Add `mobileTalkTrigger`, `mobileUseTrigger`, `nearbyNPC`, `nearbyBuilding` states
+- [x] 2. VirtualJoystick — Wire Talk/Use button handlers + visual feedback
+- [x] 3. LandScene inner — Report NPC proximity to App via callback
+- [x] 4. LandScene inner — Handle mobileTalkTrigger (same as E key)
+- [x] 5. LandScene inner — Building proximity detection + report to App
+- [x] 6. LandScene inner — Handle mobileUseTrigger (select nearest building)
+- [x] 7. LandScene wrapper — Thread new props through
+- [x] 8. Build verification — `npx vite build` passes
+
+---
+
 ## Review
+
+### Session: February 1, 2026 — Enable Talk & Use Mobile Buttons
+**Changes:**
+1. `src/App.jsx`:
+   - Added 4 new states: `mobileTalkTrigger`, `mobileUseTrigger`, `nearbyNPC`, `nearbyBuilding`
+   - VirtualJoystick now receives `onTalk`, `onUse`, `nearbyNPC`, `nearbyBuilding` props
+   - LandScene receives `mobileTalkTrigger`, `mobileUseTrigger`, `onNearbyNPCChange`, `onNearbyBuildingChange`
+   - Talk/Use buttons now have touch+click handlers and accent-color highlight when nearby
+
+2. `src/components/LandScene.jsx` (Scene inner):
+   - NPC proximity useEffect now calls `onNearbyNPCChange(!!nearby)` to report state to App
+   - Added `mobileTalkTrigger` useEffect: triggers `onNPCInteract` when Talk pressed near NPC
+   - Added building proximity detection: checks player distance to all `placedBuildings`, reports via `onNearbyBuildingChange`
+   - Added `mobileUseTrigger` useEffect: calls `setSelectedPlacedBuildingId` on nearest building
+
+3. `src/components/LandScene.jsx` (wrapper):
+   - Added 4 new props to wrapper signature and threaded to `<Scene>`
+
+**Bug fix:** Initial implementation used `useEffect` to watch trigger props, but props from
+outside the R3F `<Canvas>` don't reliably trigger `useEffect` inside the Canvas due to R3F's
+separate reconciler. Switched to `useFrame` + ref comparison pattern (same as `mobileJumpTrigger`
+in CameraController), which polls prop changes on every animation frame.
+
+**Pattern used:** Same trigger-counter + useFrame pattern as existing `mobileJumpTrigger`
+**Desktop:** Completely unaffected (buttons only render on touch devices)
+**Build:** `npx vite build` passes clean
 
 ### Session: January 23, 2026 (Ralphy)
 **Multi-Story Buildings Implementation:**
@@ -154,6 +196,24 @@ CREATE POLICY "Server can manage subscriptions" ON subscriptions
 - `src/components/LandScene.jsx` - Multi-floor 3D rendering (walls + rooms)
 - `src/components/scene/WallSegment.jsx` - Y offset support
 - `src/components/scene/RoomFloor.jsx` - Y offset and inactive floor support
+
+### Session: February 1, 2026 — Mobile Landscape Mode
+**Changes:**
+1. `src/hooks/useIsMobile.js` — Added `useIsLandscape` hook (returns true when mobile + width > height, listens to resize + orientationchange)
+2. `src/index.css` — Added `.landscape-nav` styles (hides labels, vertical layout, side active indicator)
+3. `src/App.jsx`:
+   - Imported `useIsLandscape`, added `isLandscape` state
+   - Bottom ribbon conditionally becomes left sidebar (w-12, flex-col) in landscape
+   - VirtualJoystick accepts `isLandscape` — shifts right to clear sidebar, lower bottom offsets
+   - Action buttons (Jump/Talk/Use/Run) — lower bottom values in landscape
+   - Mobile CTA card — shifts right (`left-16`) in landscape
+   - Overflow menu — positions to right of sidebar in landscape
+   - All 4 side panels (Compare/Land/Build/Export) — bottom:0 and left:48px in landscape
+4. `src/components/Minimap.jsx` — Accepts `isLandscape` prop, moves to bottom-right in landscape
+
+**Desktop:** Completely unaffected (hooks only activate on mobile)
+**Portrait mobile:** No visual changes from current behavior
+**Landscape mobile:** Bottom nav becomes a left icon sidebar, all UI repositioned to maximize viewport
 
 ### Session: January 24, 2026 (Ralphy)
 **Fixtures Feature Removed:**

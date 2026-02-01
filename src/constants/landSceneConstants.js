@@ -76,6 +76,11 @@ export const CAMERA_BOB_WALK = 0.012
 export const CAMERA_BOB_RUN = 0.018
 export const CAMERA_BOB_SPEED = 10
 
+// Jump/gravity constants
+export const JUMP_FORCE = 5.0          // Initial upward velocity (m/s)
+export const GRAVITY = 15.0            // Gravity acceleration (m/s²)
+export const PLAYER_HEIGHT = 1.65      // Eye height when standing
+
 // Unit conversion
 export const FEET_PER_METER = 3.28084
 export const SQ_FEET_PER_SQ_METER = 10.7639

@@ -79,9 +79,19 @@ export function useBuildHistory(initialState) {
     setHistoryIndex(0)
   }, [])
 
+  // Replace current state without adding to history (for real-time dragging)
+  const replaceCurrentState = useCallback((newState) => {
+    setHistory(prev => {
+      const newHistory = [...prev]
+      newHistory[indexRef.current] = newState
+      return newHistory
+    })
+  }, [])
+
   return {
     currentState,
     pushState,
+    replaceCurrentState,
     undo,
     redo,
     canUndo,

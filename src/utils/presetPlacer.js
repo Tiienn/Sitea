@@ -285,14 +285,18 @@ export function placePreset(presetId, polygon, setbackM, buildingTypes) {
   // Compute rotation to align with forward direction (degrees)
   const rotation = Math.atan2(forwardDir.z, forwardDir.x) * 180 / Math.PI
 
-  // Inward offset: move toward center, away from edges
-  const inwardOffset = 3 + (setbackM > 0 ? setbackM + 1 : 0)
-
-  // Try 3 positions: center, shift right, shift left
+  // Try multiple positions: centroid first, then with various offsets
   const attempts = [
-    { x: centroid.x - forwardDir.x * inwardOffset, z: centroid.z - forwardDir.z * inwardOffset },
-    { x: centroid.x - forwardDir.x * inwardOffset + rightDir.x * 4, z: centroid.z - forwardDir.z * inwardOffset + rightDir.z * 4 },
-    { x: centroid.x - forwardDir.x * inwardOffset - rightDir.x * 4, z: centroid.z - forwardDir.z * inwardOffset - rightDir.z * 4 }
+    // Try centroid directly
+    { x: centroid.x, z: centroid.z },
+    // Try slight offsets from centroid
+    { x: centroid.x + forwardDir.x * 2, z: centroid.z + forwardDir.z * 2 },
+    { x: centroid.x - forwardDir.x * 2, z: centroid.z - forwardDir.z * 2 },
+    { x: centroid.x + rightDir.x * 2, z: centroid.z + rightDir.z * 2 },
+    { x: centroid.x - rightDir.x * 2, z: centroid.z - rightDir.z * 2 },
+    // Try larger offsets
+    { x: centroid.x + forwardDir.x * 4, z: centroid.z + forwardDir.z * 4 },
+    { x: centroid.x - forwardDir.x * 4, z: centroid.z - forwardDir.z * 4 },
   ]
 
   for (const anchor of attempts) {

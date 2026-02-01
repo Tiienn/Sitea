@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useBuildHistory } from './hooks/useBuildHistory'
-import { useIsMobile } from './hooks/useIsMobile'
+import { useIsMobile, useIsLandscape } from './hooks/useIsMobile'
 import { useParams, useNavigate, Routes, Route } from 'react-router-dom'
 import nipplejs from 'nipplejs'
 
@@ -401,7 +401,7 @@ const EXAMPLE_LAND_POLYGON = [
 const SOCCER_FIELD_AREA = 68 * 105 // 7140 m²
 
 // Virtual Joystick component for mobile
-function VirtualJoystick({ joystickInput }) {
+function VirtualJoystick({ joystickInput, isRunning, setIsRunning, onJump, onTalk, onUse, nearbyNPC, nearbyBuilding, isLandscape }) {
   const joystickRef = useRef(null)
   const containerRef = useRef(null)
 
@@ -411,7 +411,7 @@ function VirtualJoystick({ joystickInput }) {
     const manager = nipplejs.create({
       zone: containerRef.current,
       mode: 'static',
-      position: { left: '80px', bottom: '140px' },
+      position: { left: '70px', top: '50%' },
       color: 'white',
       size: 120,
       restOpacity: 0.5,
@@ -438,12 +438,67 @@ function VirtualJoystick({ joystickInput }) {
     }
   }, [joystickInput])
 
+  const btnBase = "rounded-full font-bold text-xs uppercase tracking-wide transition-all active:scale-90"
+  const btnOff = "bg-white/15 text-white border border-white/25 backdrop-blur-sm"
+
   return (
-    <div
-      ref={containerRef}
-      className="joystick-zone fixed left-4 w-40 h-40 z-50"
-      style={{ touchAction: 'none', bottom: '80px' }}
-    />
+    <>
+      {/* Left side: joystick + run */}
+      <div
+        ref={containerRef}
+        className="joystick-zone fixed w-40 h-40 z-50"
+        style={{ touchAction: 'none', bottom: isLandscape ? '12px' : '68px', left: isLandscape ? '56px' : '12px' }}
+      />
+      <button
+        onTouchStart={(e) => { e.preventDefault(); setIsRunning(r => !r) }}
+        onClick={() => setIsRunning(r => !r)}
+        className={`fixed z-50 w-12 h-12 ${btnBase} ${
+          isRunning
+            ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] border-2 border-[var(--color-accent)]'
+            : btnOff
+        }`}
+        style={{ left: isLandscape ? '200px' : '150px', bottom: isLandscape ? '52px' : '108px', touchAction: 'none' }}
+      >
+        Run
+      </button>
+
+      {/* Right side: 3 buttons in triangle like Genshin Impact */}
+      {/* Center - Jump */}
+      <button
+        onTouchStart={(e) => { e.preventDefault(); onJump?.() }}
+        onClick={() => onJump?.()}
+        className={`fixed z-50 w-12 h-12 ${btnBase} ${btnOff} active:bg-white/30`}
+        style={{ right: '24px', bottom: isLandscape ? '24px' : '86px', touchAction: 'none' }}
+      >
+        Jump
+      </button>
+      {/* Top-right - Talk */}
+      <button
+        onTouchStart={(e) => { e.preventDefault(); onTalk?.() }}
+        onClick={() => onTalk?.()}
+        className={`fixed z-50 w-12 h-12 ${btnBase} ${
+          nearbyNPC
+            ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] border-2 border-[var(--color-accent)]'
+            : btnOff
+        } active:bg-white/30`}
+        style={{ right: '16px', bottom: isLandscape ? '86px' : '148px', touchAction: 'none' }}
+      >
+        Talk
+      </button>
+      {/* Top-left - Use */}
+      <button
+        onTouchStart={(e) => { e.preventDefault(); onUse?.() }}
+        onClick={() => onUse?.()}
+        className={`fixed z-50 w-12 h-12 ${btnBase} ${
+          nearbyBuilding
+            ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] border-2 border-[var(--color-accent)]'
+            : btnOff
+        } active:bg-white/30`}
+        style={{ right: '76px', bottom: isLandscape ? '66px' : '128px', touchAction: 'none' }}
+      >
+        Use
+      </button>
+    </>
   )
 }
 
@@ -451,6 +506,7 @@ function App() {
   // User context for paid features
   const { isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid } = useUser()
   const isMobile = useIsMobile()
+  const isLandscape = useIsLandscape()
   const [showOverflow, setShowOverflow] = useState(false)
   const [showMobileViewControls, setShowMobileViewControls] = useState(false)
   const [mobileCtaExpanded, setMobileCtaExpanded] = useState(false)
@@ -487,6 +543,10 @@ function App() {
   const [walkthroughVisible, setWalkthroughVisible] = useState(true)
   const walkthroughTimerRef = useRef(null)
   const joystickInput = useRef({ x: 0, y: 0 })
+  const [isMobileRunning, setIsMobileRunning] = useState(false)
+  const [mobileJumpTrigger, setMobileJumpTrigger] = useState(0)
+  const [nearbyNPC, setNearbyNPC] = useState(false)
+  const [nearbyBuilding, setNearbyBuilding] = useState(false)
   const [helpTextVisible, setHelpTextVisible] = useState(true)
   const helpTextTimerRef = useRef(null)
 
@@ -2440,6 +2500,10 @@ function App() {
         floorHeight={floorHeight}
         totalFloors={totalFloors}
         addFloorsToRoom={addFloorsToRoom}
+        mobileRunning={isMobileRunning}
+        mobileJumpTrigger={mobileJumpTrigger}
+        onNearbyNPCChange={setNearbyNPC}
+        onNearbyBuildingChange={setNearbyBuilding}
         />
       </Suspense>
 
@@ -2459,11 +2523,12 @@ function App() {
           walls={walls}
           rooms={rooms}
           buildings={buildings}
+          isLandscape={isLandscape}
         />
       )}
 
       {/* Mobile joystick - positioned above ribbon */}
-      {isTouchDevice && <VirtualJoystick joystickInput={joystickInput} />}
+      {isTouchDevice && <VirtualJoystick joystickInput={joystickInput} isRunning={isMobileRunning} setIsRunning={setIsMobileRunning} onJump={() => setMobileJumpTrigger(t => t + 1)} onTalk={() => window.dispatchEvent(new Event('mobileTalk'))} onUse={() => window.dispatchEvent(new Event('mobileUse'))} nearbyNPC={nearbyNPC} nearbyBuilding={nearbyBuilding} isLandscape={isLandscape} />}
 
       {/* Backdrop overlay when panel is open */}
       {activePanel && (
@@ -2478,7 +2543,8 @@ function App() {
         className={`build-sidebar ${activePanel === 'compare' ? 'open' : 'closed'}`}
         style={{
           top: 0,
-          bottom: '56px',
+          bottom: isLandscape ? 0 : '56px',
+          left: isLandscape ? '48px' : 0,
         }}
       >
         <ComparePanel
@@ -2505,7 +2571,8 @@ function App() {
         className={`build-sidebar ${activePanel === 'land' ? 'open' : 'closed'}`}
         style={{
           top: 0,
-          bottom: '56px',
+          bottom: isLandscape ? 0 : '56px',
+          left: isLandscape ? '48px' : 0,
         }}
       >
         <LandPanel
@@ -2536,7 +2603,8 @@ function App() {
         className={`build-sidebar ${activePanel === 'build' ? 'open' : 'closed'}`}
         style={{
           top: 0,
-          bottom: '56px',
+          bottom: isLandscape ? 0 : '56px',
+          left: isLandscape ? '48px' : 0,
         }}
       >
         <BuildPanel
@@ -2663,7 +2731,8 @@ function App() {
         className={`build-sidebar ${activePanel === 'export' ? 'open' : 'closed'}`}
         style={{
           top: 0,
-          bottom: '56px',
+          bottom: isLandscape ? 0 : '56px',
+          left: isLandscape ? '48px' : 0,
         }}
       >
         <ExportPanel
@@ -2686,9 +2755,17 @@ function App() {
         />
       </div>
 
-      {/* Bottom ribbon navigation */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up safe-area-bottom">
-        <div className="flex justify-around items-center h-14">
+      {/* Navigation ribbon - bottom in portrait, left sidebar in landscape */}
+      <div className={
+        isLandscape
+          ? "fixed left-0 top-0 bottom-0 w-12 z-50 ribbon-nav landscape-nav flex flex-col"
+          : "fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up safe-area-bottom"
+      }>
+        <div className={
+          isLandscape
+            ? "flex flex-col items-center justify-center gap-1 flex-1 py-2"
+            : "flex justify-around items-center h-14"
+        }>
           <button
             onClick={() => canEdit && togglePanel('land')}
             className={`ribbon-btn ${activePanel === 'land' ? 'active' : ''}`}
@@ -2816,7 +2893,9 @@ function App() {
       {isMobile && showOverflow && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
-          <div className="fixed bottom-[72px] right-4 bg-[var(--color-panel)] backdrop-blur-xl rounded-xl shadow-2xl border border-[var(--color-border)] py-2 min-w-[180px] z-50 animate-slide-in-bottom-2">
+          <div className={`fixed bg-[var(--color-panel)] backdrop-blur-xl rounded-xl shadow-2xl border border-[var(--color-border)] py-2 min-w-[180px] z-50 animate-slide-in-bottom-2 ${
+            isLandscape ? 'left-14 bottom-4' : 'bottom-[72px] right-4'
+          }`}>
             <button
               onClick={() => { togglePanel('export'); setShowOverflow(false) }}
               className={`flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors ${activePanel === 'export' ? 'text-[var(--color-accent)]' : 'text-white'}`}
@@ -2857,7 +2936,7 @@ function App() {
       {!isReadOnly && !isDefiningLand && (
         isMobile ? (
           /* Mobile: compact collapsible version */
-          <div className="absolute top-4 left-4 z-50">
+          <div className={`absolute top-4 z-50 ${isLandscape ? 'left-16' : 'left-4'}`}>
             <button
               onClick={() => setMobileCtaExpanded(!mobileCtaExpanded)}
               className="panel-premium p-3 text-white animate-fade-in"
@@ -3040,15 +3119,24 @@ function App() {
       {/* Grouped View Controls - top right */}
       {/* Mobile: settings icon + slide-up sheet */}
       {isMobile && (
-        <button
-          onClick={() => setShowMobileViewControls(true)}
-          className={`absolute right-4 z-30 panel-premium p-3 animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}
-        >
-          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
+        <div className={`absolute right-3 z-30 flex items-center gap-2 animate-fade-in ${isReadOnly ? 'top-14' : 'top-3'}`}>
+          <div className="panel-premium flex items-center rounded-xl p-1.5 gap-1">
+            {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
+              <button key={mode} onClick={() => setViewMode(mode)}
+                className={`px-5 py-2.5 text-base font-bold rounded-lg transition-all ${viewMode === mode ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)]'}`}
+              >{label}</button>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowMobileViewControls(true)}
+            className="panel-premium p-3 rounded-xl"
+          >
+            <svg className="w-6 h-6 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </div>
       )}
 
       {/* Mobile view controls slide-up sheet */}
@@ -3066,16 +3154,6 @@ function App() {
                 </button>
               </div>
               <div className="space-y-3">
-                <div className="space-y-2">
-                  <span className="text-[var(--color-text-secondary)] text-sm">View</span>
-                  <div className="flex bg-[var(--color-bg-secondary)] rounded-lg p-1 gap-1">
-                    {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
-                      <button key={mode} onClick={() => setViewMode(mode)}
-                        className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === mode ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)] hover:text-white'}`}
-                      >{label}</button>
-                    ))}
-                  </div>
-                </div>
                 <div className="flex items-center justify-between gap-6">
                   <span className="text-[var(--color-text-secondary)] text-sm">Dimensions</span>
                   <button onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))} className={`toggle-switch ${labels.land ? 'active' : ''}`}><span className="toggle-knob" /></button>

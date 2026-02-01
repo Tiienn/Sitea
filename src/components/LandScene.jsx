@@ -1,8 +1,10 @@
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber'
-import { Grid, Text, Billboard, OrbitControls, MapControls, OrthographicCamera, PerspectiveCamera, Line, useTexture } from '@react-three/drei'
+import { Grid, Text, Billboard, OrbitControls, MapControls, OrthographicCamera, PerspectiveCamera, Line, useTexture, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { computeEdgeLabelData, formatEdgeLength } from '../utils/labels'
+import { findWallsForRoom } from '../utils/roomDetection'
 import {
   trackFirstMovement,
   trackWalk5sCompleted,
@@ -29,6 +31,9 @@ import {
   CAMERA_BOB_WALK,
   CAMERA_BOB_RUN,
   CAMERA_BOB_SPEED,
+  JUMP_FORCE,
+  GRAVITY,
+  PLAYER_HEIGHT,
   FEET_PER_METER,
   SQ_FEET_PER_SQ_METER,
   PREVIEW_COLOR_VALID,
@@ -60,7 +65,29 @@ import { RealisticSky, EnhancedGround, PostProcessing, DistantTreeline } from '.
 import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
 import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
+import { CameraController } from './scene/CameraController'
 import { calculateNPCPositions } from '../utils/npcHelpers'
+import {
+  createFloorTexture,
+  createWallTexture,
+  createDeckTexture,
+  createFoundationTexture,
+  createStairsTexture,
+  createRoofTexture
+} from '../utils/textureGenerators'
+import {
+  ComparisonObject,
+  SnapGuideLine,
+  isAxisAligned,
+  getRotatedDimensions,
+  getObjectBounds,
+  checkOverlap,
+  SNAP_THRESHOLD
+} from './scene/ComparisonObjects'
+import { WallSegment } from './scene/WallSegment'
+import { RoomFloor } from './scene/RoomFloor'
+import { PlacedBuilding, BuildingPreview, SetbackZone, SnapIndicator, EdgeLabels } from './scene/BuildingComponents'
+import { PoolItem, FoundationItem, StairsItem, RoofItem } from './scene/PolygonRenderers'
 import { Component } from 'react'
 
 // Error boundary for 3D canvas - prevents crashes from taking down the whole app
@@ -176,527 +203,8 @@ function CameraReporter({ onUpdate }) {
   return null
 }
 
-// Unified camera controller handling FP, TP, and zoom switching
-function CameraController({
-  enabled,
-  joystickInput,
-  analyticsMode = 'example',
-  cameraMode,
-  setCameraMode,
-  followDistance,
-  setFollowDistance,
-  orbitEnabled,
-  orbitTarget,
-  onPlayerPositionUpdate,
-  walls = []
-}) {
-  const { camera, gl } = useThree()
+// CameraController extracted to ./scene/CameraController.jsx
 
-  // Player state (separate from camera in TP mode)
-  const playerPosition = useRef(new THREE.Vector3(0, 1.65, 0))
-  const playerYaw = useRef(0) // Y-axis rotation
-
-  // Input state
-  const moveState = useRef({ forward: false, backward: false, left: false, right: false })
-  const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'))
-  const isLocked = useRef(false)
-  const isTouchDevice = useRef(false)
-  const touchLookActive = useRef(false)
-  const lastTouch = useRef({ x: 0, y: 0 })
-  const shiftHeld = useRef(false)
-
-  // Pinch zoom state
-  const lastPinchDistance = useRef(0)
-
-  // Analytics
-  const hasTrackedFirstMove = useRef(false)
-
-  // Movement speed with acceleration
-  const currentSpeed = useRef(0)
-  const accelerationTime = 0.175
-
-  // Camera bob time accumulator
-  const bobTimeRef = useRef(0)
-
-  // Initialize player position from camera on mount
-  useEffect(() => {
-    playerPosition.current.copy(camera.position)
-    playerPosition.current.y = 1.65
-    euler.current.setFromQuaternion(camera.quaternion, 'YXZ')
-    playerYaw.current = euler.current.y
-  }, [])
-
-  useEffect(() => {
-    isTouchDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-
-    if (!enabled || orbitEnabled) {
-      document.exitPointerLock?.()
-      isLocked.current = false
-      return
-    }
-
-    const canvas = gl.domElement
-
-    // Desktop: pointer lock for look (only when camera control is enabled)
-    const lockPointer = () => {
-      if (!isTouchDevice.current && !orbitEnabled && enabled) {
-        canvas.requestPointerLock()
-      }
-    }
-
-    const onPointerLockChange = () => {
-      isLocked.current = document.pointerLockElement === canvas
-    }
-
-    const onMouseMove = (e) => {
-      if (!isLocked.current || orbitEnabled) return
-
-      euler.current.setFromQuaternion(camera.quaternion)
-      euler.current.y -= e.movementX * 0.002
-      euler.current.x -= e.movementY * 0.002
-      euler.current.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.current.x))
-      camera.quaternion.setFromEuler(euler.current)
-
-      // Update player yaw to match camera in both FP and TP
-      playerYaw.current = euler.current.y
-    }
-
-    // Scroll wheel zoom
-    const onWheel = (e) => {
-      if (orbitEnabled) return
-      e.preventDefault()
-
-      const delta = e.deltaY * ZOOM_SPEED
-      const newDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, followDistance + delta))
-      setFollowDistance(newDistance)
-
-      // Apply hysteresis for mode switching
-      if (cameraMode === CAMERA_MODE.FIRST_PERSON && newDistance > SWITCH_OUT_DISTANCE) {
-        setCameraMode(CAMERA_MODE.THIRD_PERSON)
-      } else if (cameraMode === CAMERA_MODE.THIRD_PERSON && newDistance < SWITCH_IN_DISTANCE) {
-        setCameraMode(CAMERA_MODE.FIRST_PERSON)
-      }
-    }
-
-    const onKeyDown = (e) => {
-      if (!enabled || orbitEnabled) return
-      switch (e.code) {
-        case 'KeyW': moveState.current.forward = true; break
-        case 'KeyS': moveState.current.backward = true; break
-        case 'KeyA': moveState.current.left = true; break
-        case 'KeyD': moveState.current.right = true; break
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          if (!isTouchDevice.current) shiftHeld.current = true
-          break
-      }
-    }
-
-    const onKeyUp = (e) => {
-      switch (e.code) {
-        case 'KeyW': moveState.current.forward = false; break
-        case 'KeyS': moveState.current.backward = false; break
-        case 'KeyA': moveState.current.left = false; break
-        case 'KeyD': moveState.current.right = false; break
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          shiftHeld.current = false
-          break
-      }
-    }
-
-    // Touch: look + pinch zoom
-    const onTouchStart = (e) => {
-      if (!isTouchDevice.current || !enabled || orbitEnabled) return
-      const target = e.target
-      if (target.closest('.control-panel') || target.closest('.joystick-zone')) return
-
-      if (e.touches.length === 1) {
-        const touch = e.touches[0]
-        lastTouch.current = { x: touch.clientX, y: touch.clientY }
-        touchLookActive.current = true
-      } else if (e.touches.length === 2) {
-        // Start pinch
-        const dx = e.touches[0].clientX - e.touches[1].clientX
-        const dy = e.touches[0].clientY - e.touches[1].clientY
-        lastPinchDistance.current = Math.sqrt(dx * dx + dy * dy)
-        touchLookActive.current = false
-      }
-    }
-
-    const onTouchMove = (e) => {
-      if (!enabled || orbitEnabled) return
-
-      if (e.touches.length === 1 && touchLookActive.current) {
-        // Single finger: look
-        const touch = e.touches[0]
-        const deltaX = touch.clientX - lastTouch.current.x
-        const deltaY = touch.clientY - lastTouch.current.y
-
-        euler.current.setFromQuaternion(camera.quaternion)
-        euler.current.y -= deltaX * 0.003
-        euler.current.x -= deltaY * 0.003
-        euler.current.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.current.x))
-        camera.quaternion.setFromEuler(euler.current)
-        playerYaw.current = euler.current.y
-
-        lastTouch.current = { x: touch.clientX, y: touch.clientY }
-      } else if (e.touches.length === 2) {
-        // Two fingers: pinch zoom
-        const dx = e.touches[0].clientX - e.touches[1].clientX
-        const dy = e.touches[0].clientY - e.touches[1].clientY
-        const pinchDistance = Math.sqrt(dx * dx + dy * dy)
-
-        if (lastPinchDistance.current > 0) {
-          const delta = (lastPinchDistance.current - pinchDistance) * PINCH_SPEED
-          const newDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, followDistance + delta))
-          setFollowDistance(newDistance)
-
-          // Apply hysteresis
-          if (cameraMode === CAMERA_MODE.FIRST_PERSON && newDistance > SWITCH_OUT_DISTANCE) {
-            setCameraMode(CAMERA_MODE.THIRD_PERSON)
-          } else if (cameraMode === CAMERA_MODE.THIRD_PERSON && newDistance < SWITCH_IN_DISTANCE) {
-            setCameraMode(CAMERA_MODE.FIRST_PERSON)
-          }
-        }
-        lastPinchDistance.current = pinchDistance
-      }
-    }
-
-    const onTouchEnd = () => {
-      touchLookActive.current = false
-      lastPinchDistance.current = 0
-    }
-
-    // Right-click releases pointer lock so user can interact with UI
-    const onMouseDown = (e) => {
-      if (e.button === 2) { // Right mouse button
-        e.preventDefault()
-        document.exitPointerLock?.()
-      }
-    }
-
-    // Also prevent context menu from appearing
-    const onContextMenu = (e) => {
-      e.preventDefault()
-    }
-
-    canvas.addEventListener('click', lockPointer)
-    canvas.addEventListener('mousedown', onMouseDown)
-    canvas.addEventListener('contextmenu', onContextMenu)
-    document.addEventListener('pointerlockchange', onPointerLockChange)
-    document.addEventListener('mousemove', onMouseMove)
-    canvas.addEventListener('wheel', onWheel, { passive: false })
-    document.addEventListener('keydown', onKeyDown)
-    document.addEventListener('keyup', onKeyUp)
-    canvas.addEventListener('touchstart', onTouchStart, { passive: true })
-    canvas.addEventListener('touchmove', onTouchMove, { passive: true })
-    canvas.addEventListener('touchend', onTouchEnd)
-
-    if (!isTouchDevice.current) {
-      lockPointer()
-    }
-
-    return () => {
-      canvas.removeEventListener('click', lockPointer)
-      canvas.removeEventListener('mousedown', onMouseDown)
-      canvas.removeEventListener('contextmenu', onContextMenu)
-      document.removeEventListener('pointerlockchange', onPointerLockChange)
-      document.removeEventListener('mousemove', onMouseMove)
-      canvas.removeEventListener('wheel', onWheel)
-      document.removeEventListener('keydown', onKeyDown)
-      document.removeEventListener('keyup', onKeyUp)
-      canvas.removeEventListener('touchstart', onTouchStart)
-      canvas.removeEventListener('touchmove', onTouchMove)
-      canvas.removeEventListener('touchend', onTouchEnd)
-      moveState.current = { forward: false, backward: false, left: false, right: false }
-    }
-  }, [enabled, camera, gl, orbitEnabled, cameraMode, followDistance, setCameraMode, setFollowDistance])
-
-  useFrame((_, delta) => {
-    if (!enabled || orbitEnabled) return
-
-    // Calculate movement direction
-    const direction = new THREE.Vector3()
-    if (moveState.current.forward) direction.z -= 1
-    if (moveState.current.backward) direction.z += 1
-    if (moveState.current.left) direction.x -= 1
-    if (moveState.current.right) direction.x += 1
-
-    if (joystickInput?.current) {
-      direction.x += joystickInput.current.x
-      direction.z -= joystickInput.current.y
-    }
-
-    const isMoving = direction.length() > 0.1
-
-    // Analytics
-    if (isMoving && !hasTrackedFirstMove.current) {
-      hasTrackedFirstMove.current = true
-      trackFirstMovement(analyticsMode)
-    }
-    if (isMoving) {
-      const deltaMs = delta * 1000
-      const shouldFireWalk5s = accumulateWalkTime(deltaMs)
-      if (shouldFireWalk5s) {
-        trackWalk5sCompleted(analyticsMode)
-      }
-    }
-
-    // Speed calculation
-    const targetSpeed = (shiftHeld.current && isMoving) ? RUN_SPEED : WALK_SPEED
-    if (isMoving) {
-      currentSpeed.current = Math.min(targetSpeed, currentSpeed.current + (targetSpeed / accelerationTime) * delta)
-    } else {
-      currentSpeed.current = Math.max(0, currentSpeed.current - (WALK_SPEED / accelerationTime) * delta)
-    }
-
-    // Move player position with wall collision
-    if (currentSpeed.current > 0 && isMoving) {
-      direction.normalize()
-      // Apply camera yaw to movement direction
-      const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), playerYaw.current)
-      direction.applyQuaternion(yawQuat)
-      direction.y = 0
-      direction.normalize()
-
-      // Calculate desired movement
-      const moveAmount = currentSpeed.current * delta
-      let moveX = direction.x * moveAmount
-      let moveZ = direction.z * moveAmount
-
-      // Wall collision detection and sliding
-      const PLAYER_RADIUS = 0.4 // Player collision radius
-      const WALL_BUFFER = 0.05 // Extra buffer
-
-      // Helper: check if position collides with a wall
-      const checkWallCollision = (posX, posZ, wall) => {
-        const wx1 = wall.start.x
-        const wz1 = wall.start.z
-        const wx2 = wall.end.x
-        const wz2 = wall.end.z
-        const wdx = wx2 - wx1
-        const wdz = wz2 - wz1
-        const wallLen = Math.sqrt(wdx * wdx + wdz * wdz)
-        if (wallLen < 0.01) return { collides: false }
-
-        // Project position onto wall line
-        const t = Math.max(0, Math.min(1, ((posX - wx1) * wdx + (posZ - wz1) * wdz) / (wallLen * wallLen)))
-        const closestX = wx1 + t * wdx
-        const closestZ = wz1 + t * wdz
-        const distX = posX - closestX
-        const distZ = posZ - closestZ
-        const dist = Math.sqrt(distX * distX + distZ * distZ)
-
-        const collisionDist = (wall.thickness || 0.15) / 2 + PLAYER_RADIUS + WALL_BUFFER
-        if (dist >= collisionDist) return { collides: false }
-
-        // Check door openings
-        const posOnWall = t * wallLen
-        for (const opening of wall.openings || []) {
-          if (opening.type === 'door') {
-            const doorStart = opening.position - opening.width / 2 - PLAYER_RADIUS
-            const doorEnd = opening.position + opening.width / 2 + PLAYER_RADIUS
-            if (posOnWall >= doorStart && posOnWall <= doorEnd) {
-              return { collides: false }
-            }
-          }
-        }
-
-        // Return collision info
-        const nx = -wdz / wallLen
-        const nz = wdx / wallLen
-        return {
-          collides: true,
-          normal: { x: nx, z: nz },
-          wallDir: { x: wdx / wallLen, z: wdz / wallLen },
-          penetration: collisionDist - dist,
-          closestPoint: { x: closestX, z: closestZ }
-        }
-      }
-
-      // Calculate intended position
-      let finalX = playerPosition.current.x + moveX
-      let finalZ = playerPosition.current.z + moveZ
-
-      // Check collision with all walls and resolve
-      let iterations = 0
-      const maxIterations = 3
-
-      while (iterations < maxIterations) {
-        let hadCollision = false
-
-        for (const wall of walls) {
-          const result = checkWallCollision(finalX, finalZ, wall)
-          if (result.collides) {
-            hadCollision = true
-
-            // Push out of wall
-            const pushX = (finalX - result.closestPoint.x)
-            const pushZ = (finalZ - result.closestPoint.z)
-            const pushDist = Math.sqrt(pushX * pushX + pushZ * pushZ)
-
-            if (pushDist > 0.001) {
-              const pushNormX = pushX / pushDist
-              const pushNormZ = pushZ / pushDist
-              const pushAmount = result.penetration + 0.01
-              finalX += pushNormX * pushAmount
-              finalZ += pushNormZ * pushAmount
-            } else {
-              // Directly on wall line, push along normal
-              finalX += result.normal.x * (result.penetration + 0.01)
-              finalZ += result.normal.z * (result.penetration + 0.01)
-            }
-          }
-        }
-
-        if (!hadCollision) break
-        iterations++
-      }
-
-      // Final safety: if still colliding after iterations, don't move
-      let stillColliding = false
-      for (const wall of walls) {
-        if (checkWallCollision(finalX, finalZ, wall).collides) {
-          stillColliding = true
-          break
-        }
-      }
-
-      if (stillColliding) {
-        // Don't move at all
-        finalX = playerPosition.current.x
-        finalZ = playerPosition.current.z
-      }
-
-      // Apply final movement
-      playerPosition.current.x = finalX
-      playerPosition.current.z = finalZ
-    } else {
-      // Even when not moving, check if player is stuck inside walls and push out
-      // This handles the case where a room is created around the player
-      const PLAYER_RADIUS = 0.4
-      const WALL_BUFFER = 0.05
-
-      const checkWallCollisionStatic = (posX, posZ, wall) => {
-        const wx1 = wall.start.x
-        const wz1 = wall.start.z
-        const wx2 = wall.end.x
-        const wz2 = wall.end.z
-        const wdx = wx2 - wx1
-        const wdz = wz2 - wz1
-        const wallLen = Math.sqrt(wdx * wdx + wdz * wdz)
-        if (wallLen < 0.01) return { collides: false }
-
-        const t = Math.max(0, Math.min(1, ((posX - wx1) * wdx + (posZ - wz1) * wdz) / (wallLen * wallLen)))
-        const closestX = wx1 + t * wdx
-        const closestZ = wz1 + t * wdz
-        const distX = posX - closestX
-        const distZ = posZ - closestZ
-        const dist = Math.sqrt(distX * distX + distZ * distZ)
-
-        const collisionDist = (wall.thickness || 0.15) / 2 + PLAYER_RADIUS + WALL_BUFFER
-        if (dist >= collisionDist) return { collides: false }
-
-        // Check door openings
-        const posOnWall = t * wallLen
-        for (const opening of wall.openings || []) {
-          if (opening.type === 'door') {
-            const doorStart = opening.position - opening.width / 2 - PLAYER_RADIUS
-            const doorEnd = opening.position + opening.width / 2 + PLAYER_RADIUS
-            if (posOnWall >= doorStart && posOnWall <= doorEnd) {
-              return { collides: false }
-            }
-          }
-        }
-
-        return {
-          collides: true,
-          penetration: collisionDist - dist,
-          closestPoint: { x: closestX, z: closestZ }
-        }
-      }
-
-      let posX = playerPosition.current.x
-      let posZ = playerPosition.current.z
-
-      for (let iter = 0; iter < 3; iter++) {
-        let pushed = false
-        for (const wall of walls) {
-          const result = checkWallCollisionStatic(posX, posZ, wall)
-          if (result.collides) {
-            const pushX = posX - result.closestPoint.x
-            const pushZ = posZ - result.closestPoint.z
-            const pushDist = Math.sqrt(pushX * pushX + pushZ * pushZ)
-            if (pushDist > 0.001) {
-              const pushAmount = result.penetration + 0.02
-              posX += (pushX / pushDist) * pushAmount
-              posZ += (pushZ / pushDist) * pushAmount
-              pushed = true
-            }
-          }
-        }
-        if (!pushed) break
-      }
-
-      playerPosition.current.x = posX
-      playerPosition.current.z = posZ
-    }
-
-    // Update camera based on mode
-    if (cameraMode === CAMERA_MODE.FIRST_PERSON) {
-      // FP: camera at player position with subtle bob
-      camera.position.copy(playerPosition.current)
-
-      // Very subtle camera bob when moving (to avoid motion sickness)
-      if (currentSpeed.current > 0.1) {
-        bobTimeRef.current += delta * CAMERA_BOB_SPEED * (currentSpeed.current / WALK_SPEED)
-        const isRunning = currentSpeed.current > WALK_SPEED * 1.2
-        const bobAmplitude = isRunning ? CAMERA_BOB_RUN : CAMERA_BOB_WALK
-        // Use abs(sin) for double-frequency bob (one per footstep)
-        const bob = Math.abs(Math.sin(bobTimeRef.current)) * bobAmplitude
-        camera.position.y += bob
-      }
-    } else if (cameraMode === CAMERA_MODE.THIRD_PERSON) {
-      // TP: camera behind and above player
-      const pitch = euler.current.x
-      const yaw = playerYaw.current
-
-      // Calculate camera offset (behind player based on yaw and pitch)
-      const offsetX = Math.sin(yaw) * Math.cos(pitch) * followDistance
-      const offsetY = Math.sin(pitch) * followDistance + 1.65 // Add player height
-      const offsetZ = Math.cos(yaw) * Math.cos(pitch) * followDistance
-
-      const targetCamPos = new THREE.Vector3(
-        playerPosition.current.x + offsetX,
-        playerPosition.current.y + offsetY,
-        playerPosition.current.z + offsetZ
-      )
-
-      // Smooth camera follow
-      camera.position.lerp(targetCamPos, FOLLOW_SMOOTH + delta * 5)
-
-      // Camera looks at player
-      const lookTarget = new THREE.Vector3(
-        playerPosition.current.x,
-        playerPosition.current.y,
-        playerPosition.current.z
-      )
-      camera.lookAt(lookTarget)
-    }
-
-    // Report player position and velocity for minimap and animation
-    if (onPlayerPositionUpdate) {
-      onPlayerPositionUpdate({
-        position: { x: playerPosition.current.x, y: playerPosition.current.y, z: playerPosition.current.z },
-        rotation: playerYaw.current,
-        velocity: currentSpeed.current
-      })
-    }
-  })
-
-  return null
-}
 
 function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPointerLeave, onPointerDown, onPointerUp, viewMode = 'firstPerson' }) {
   const is2D = viewMode === '2d'
@@ -790,2597 +298,18 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
   )
 }
 
-function PlacedBuilding({ building, onDelete, lengthUnit = 'm', isOverlapping = false, showLabels = false, canEdit = true, viewMode = 'firstPerson' }) {
-  const { type, position, rotationY = 0 } = building
-  const [hovered, setHovered] = useState(false)
-  const is2D = viewMode === '2d'
-  const isPool = type.height < 0
-  const height = Math.abs(type.height)
-  // For pools: top surface just above ground (visible), rest below
-  // For buildings: bottom at ground level (box centered above ground)
-  const yPos = isPool ? -height / 2 + 0.03 : height / 2
+// PlacedBuilding, BuildingPreview, SetbackZone, SnapIndicator, EdgeLabels are now imported from BuildingComponents.jsx
 
-  // Overlap highlight: subtle orange tint when overlapping
-  const baseColor = isOverlapping ? '#ff9955' : type.color
-  // Only show delete hover color if editing allowed
-  const displayColor = (hovered && canEdit) ? '#ff6666' : baseColor
+// ComparisonObject and utility functions are now imported from ComparisonObjects
 
-  // Show dimensions only when labels enabled AND hovered
-  const showDimensions = showLabels && hovered
+// SnapGuideLine and ComparisonObject are now imported from ComparisonObjects
 
-  // 2D rendering: flat colored rectangle with white outline
-  if (is2D) {
-    return (
-      <group position={[position.x, 0.05, position.z]} rotation={[0, rotationY * Math.PI / 180, 0]}>
-        {/* Building fill */}
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          onPointerOver={(e) => { e.stopPropagation(); setHovered(true) }}
-          onPointerOut={() => setHovered(false)}
-          onClick={(e) => {
-            e.stopPropagation()
-            if (!canEdit || !onDelete) return
-            onDelete(building.id)
-          }}
-        >
-          <planeGeometry args={[type.width, type.length]} />
-          <meshBasicMaterial color={displayColor} transparent opacity={hovered ? 0.9 : 0.7} />
-        </mesh>
-        {/* White outline */}
-        <line rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              count={5}
-              array={new Float32Array([
-                -type.width / 2, -type.length / 2, 0,
-                type.width / 2, -type.length / 2, 0,
-                type.width / 2, type.length / 2, 0,
-                -type.width / 2, type.length / 2, 0,
-                -type.width / 2, -type.length / 2, 0,
-              ])}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial color={hovered ? '#ff6666' : '#ffffff'} />
-        </line>
-        {/* Label on hover */}
-        {hovered && (
-          <Text
-            position={[0, 0.15, 0]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.6}
-            color={hovered ? '#ff6666' : '#ffffff'}
-            anchorX="center"
-            anchorY="middle"
-          >
-            {type.name}
-          </Text>
-        )}
-      </group>
-    )
-  }
+// WallSegment component is now imported from WallSegment.jsx
 
-  // 3D rendering
-  return (
-    <group position={[position.x, yPos, position.z]} rotation={[0, rotationY * Math.PI / 180, 0]}>
-      <mesh
-        castShadow
-        receiveShadow
-        onPointerOver={(e) => { e.stopPropagation(); setHovered(true) }}
-        onPointerOut={() => setHovered(false)}
-        onClick={(e) => {
-          e.stopPropagation()
-          // Guard: only allow deletion if canEdit
-          if (!canEdit || !onDelete) return
-          onDelete(building.id)
-        }}
-      >
-        <boxGeometry args={[type.width, height, type.length]} />
-        <meshStandardMaterial
-          color={displayColor}
-          transparent={isPool || hovered || isOverlapping}
-          opacity={isPool ? 0.7 : (hovered ? 0.85 : (isOverlapping ? 0.9 : 1))}
-          emissive={hovered ? '#ff0000' : (isOverlapping ? '#ff6600' : '#000000')}
-          emissiveIntensity={hovered ? 0.2 : (isOverlapping ? 0.1 : 0)}
-        />
-      </mesh>
-      {/* Overlap outline */}
-      {isOverlapping && !hovered && (
-        <mesh>
-          <boxGeometry args={[type.width + 0.1, height + 0.1, type.length + 0.1]} />
-          <meshBasicMaterial color="#ff6600" wireframe transparent opacity={0.4} />
-        </mesh>
-      )}
-      {/* Labels - name always shows on hover, dimensions only when labels toggle enabled */}
-      {hovered && (
-        <Billboard position={[0, height / 2 + 1, 0]} follow={true}>
-          <Text
-            fontSize={0.8}
-            color={hovered ? '#ff6666' : (isOverlapping ? '#ff9955' : '#ffffff')}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.08}
-            outlineColor="#000000"
-          >
-            {type.name}
-          </Text>
-          <Text
-            position={[0, -0.6, 0]}
-            fontSize={0.5}
-            color={canEdit ? "#ff9999" : "#aaaaaa"}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.05}
-            outlineColor="#000000"
-          >
-            {showDimensions ? formatDimensions(type.width, type.length, lengthUnit) : (canEdit ? 'Click to remove' : '')}
-          </Text>
-        </Billboard>
-      )}
-    </group>
-  )
-}
+// RoomFloor component is now imported from RoomFloor.jsx
 
-// Building preview ghost during placement
-function BuildingPreview({ buildingType, position, rotation = 0, isValid = true }) {
-  if (!buildingType || !position) return null
-  const isPool = buildingType.height < 0
-  const height = Math.abs(buildingType.height)
-  const yPos = isPool ? -height / 2 + 0.03 : height / 2
-
-  // Invalid placement: red color with more opacity
-  const color = isValid ? buildingType.color : '#ff3333'
-  const wireColor = isValid ? '#ffffff' : '#ff0000'
-
-  return (
-    <group position={[position.x, yPos, position.z]} rotation={[0, rotation * Math.PI / 180, 0]}>
-      <mesh>
-        <boxGeometry args={[buildingType.width, height, buildingType.length]} />
-        <meshStandardMaterial
-          color={color}
-          transparent
-          opacity={isValid ? 0.5 : 0.6}
-          wireframe={false}
-        />
-      </mesh>
-      {/* Wireframe outline */}
-      <mesh>
-        <boxGeometry args={[buildingType.width, height, buildingType.length]} />
-        <meshBasicMaterial color={wireColor} wireframe transparent opacity={0.3} />
-      </mesh>
-    </group>
-  )
-}
-
-// Setback zone visualization - renders a shaded band along boundary
-function SetbackZone({ polygonPoints, length, width, setbackDistance }) {
-  if (setbackDistance <= 0) return null
-
-  // Get the land boundary vertices
-  // Note: polygonPoints uses { x, y } where y maps to -z in world space (matching LandPlot's rotation)
-  const vertices = useMemo(() => {
-    if (polygonPoints && polygonPoints.length >= 3) {
-      return polygonPoints.map(p => ({ x: p.x, z: -(p.y ?? p.z) }))
-    }
-    // Rectangle fallback
-    const hw = width / 2, hl = length / 2
-    return [
-      { x: -hw, z: -hl },
-      { x: hw, z: -hl },
-      { x: hw, z: hl },
-      { x: -hw, z: hl }
-    ]
-  }, [polygonPoints, length, width])
-
-  // Compute proper parallel offset polygon (inner boundary)
-  const innerVertices = useMemo(() => {
-    const n = vertices.length
-    if (n < 3) return []
-
-    // Determine winding order using signed area
-    let signedArea = 0
-    for (let i = 0; i < n; i++) {
-      const curr = vertices[i]
-      const next = vertices[(i + 1) % n]
-      signedArea += (next.x - curr.x) * (next.z + curr.z)
-    }
-    // signedArea > 0 means clockwise, < 0 means counter-clockwise
-    const windingSign = signedArea > 0 ? -1 : 1
-
-    const result = []
-    for (let i = 0; i < n; i++) {
-      const prev = vertices[(i - 1 + n) % n]
-      const curr = vertices[i]
-      const next = vertices[(i + 1) % n]
-
-      // Edge vectors
-      const e1x = curr.x - prev.x, e1z = curr.z - prev.z
-      const e2x = next.x - curr.x, e2z = next.z - curr.z
-      const len1 = Math.sqrt(e1x * e1x + e1z * e1z)
-      const len2 = Math.sqrt(e2x * e2x + e2z * e2z)
-
-      if (len1 === 0 || len2 === 0) {
-        result.push({ x: curr.x, z: curr.z })
-        continue
-      }
-
-      // Inward normals (perpendicular, adjusted for winding order)
-      const n1x = (-e1z / len1) * windingSign, n1z = (e1x / len1) * windingSign
-      const n2x = (-e2z / len2) * windingSign, n2z = (e2x / len2) * windingSign
-
-      // Bisector (average of normals)
-      let bx = n1x + n2x, bz = n1z + n2z
-      const bLen = Math.sqrt(bx * bx + bz * bz)
-
-      if (bLen < 0.001) {
-        // Normals nearly opposite (180° corner), use one normal
-        result.push({ x: curr.x + n1x * setbackDistance, z: curr.z + n1z * setbackDistance })
-        continue
-      }
-
-      bx /= bLen
-      bz /= bLen
-
-      // Offset distance along bisector (accounts for corner angle)
-      const dot = n1x * bx + n1z * bz
-      const offsetDist = setbackDistance / Math.max(dot, 0.3) // Clamp to prevent extreme miter
-
-      result.push({ x: curr.x + bx * offsetDist, z: curr.z + bz * offsetDist })
-    }
-    return result
-  }, [vertices, setbackDistance])
-
-  // Create band geometry between outer and inner polygon
-  const bandGeometry = useMemo(() => {
-    const n = vertices.length
-    if (n < 3 || innerVertices.length !== n) return null
-
-    const positions = []
-    const indices = []
-
-    // Add all outer vertices, then all inner vertices
-    for (let i = 0; i < n; i++) {
-      positions.push(vertices[i].x, 0.015, vertices[i].z)
-    }
-    for (let i = 0; i < n; i++) {
-      positions.push(innerVertices[i].x, 0.015, innerVertices[i].z)
-    }
-
-    // Create quads connecting outer to inner
-    for (let i = 0; i < n; i++) {
-      const o1 = i, o2 = (i + 1) % n
-      const i1 = n + i, i2 = n + (i + 1) % n
-
-      indices.push(o1, o2, i2)
-      indices.push(o1, i2, i1)
-    }
-
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-    geometry.setIndex(indices)
-    return geometry
-  }, [vertices, innerVertices])
-
-  if (!bandGeometry) return null
-
-  return (
-    <mesh geometry={bandGeometry}>
-      <meshBasicMaterial color="#ff6600" transparent opacity={0.15} side={THREE.DoubleSide} />
-    </mesh>
-  )
-}
-
-// Snap indicator dot
-function SnapIndicator({ snapInfo }) {
-  if (!snapInfo || snapInfo.type === 'none') return null
-  const color = snapInfo.type === 'vertex' ? '#00ff00' : snapInfo.type === 'edge' ? '#ffff00' : '#00ffff'
-  return (
-    <mesh position={[snapInfo.point.x, 0.1, snapInfo.point.z]}>
-      <sphereGeometry args={[0.2, 16, 16]} />
-      <meshBasicMaterial color={color} />
-    </mesh>
-  )
-}
-
-// Edge dimension labels for land boundary
-function EdgeLabels({ polygonPoints, length, width, lengthUnit, viewMode = 'firstPerson' }) {
-  const is2D = viewMode === '2d'
-
-  // Precompute edge label data (only recomputes when inputs change)
-  const edgeData = useMemo(() => {
-    return computeEdgeLabelData(polygonPoints, length, width)
-  }, [polygonPoints, length, width])
-
-  // Calculate dynamic font size based on land size
-  const fontSize2D = useMemo(() => {
-    let landSize
-    if (polygonPoints && polygonPoints.length >= 3) {
-      const xs = polygonPoints.map(p => p.x)
-      const ys = polygonPoints.map(p => p.y ?? p.z)
-      const minX = Math.min(...xs), maxX = Math.max(...xs)
-      const minY = Math.min(...ys), maxY = Math.max(...ys)
-      landSize = Math.max(maxX - minX, maxY - minY)
-    } else {
-      landSize = Math.max(length, width)
-    }
-    // Scale font: ~2% of land size, clamped between 0.6 and 4
-    return Math.max(0.6, Math.min(4, landSize * 0.025))
-  }, [polygonPoints, length, width])
-
-  // 2D mode: flat cyan labels
-  if (is2D) {
-    return (
-      <group>
-        {edgeData.map(({ position, length: edgeLength, key }) => (
-          <Text
-            key={key}
-            position={[position.x, 0.15, position.z]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={fontSize2D}
-            color="#00ffff"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={fontSize2D * 0.08}
-            outlineColor="#000000"
-          >
-            {formatEdgeLength(edgeLength, lengthUnit)}
-          </Text>
-        ))}
-      </group>
-    )
-  }
-
-  // 3D mode: billboard labels
-  return (
-    <group>
-      {edgeData.map(({ position, length: edgeLength, key }) => (
-        <Billboard key={key} position={[position.x, 0.25, position.z]} follow={true}>
-          <Text
-            fontSize={0.5}
-            color="#ffffff"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.05}
-            outlineColor="#000000"
-            material-transparent={true}
-            material-opacity={0.85}
-          >
-            {formatEdgeLength(edgeLength, lengthUnit)}
-          </Text>
-        </Billboard>
-      ))}
-    </group>
-  )
-}
-
-// Create textures for comparison objects
-function useSoccerFieldTexture(width, length) {
-  return useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = Math.round(512 * (length / width))
-    const ctx = canvas.getContext('2d')
-    const w = canvas.width, h = canvas.height
-
-    // Green grass base
-    ctx.fillStyle = '#2d8a2d'
-    ctx.fillRect(0, 0, w, h)
-
-    // Grass stripes
-    ctx.fillStyle = '#259925'
-    for (let i = 0; i < h; i += h / 12) {
-      ctx.fillRect(0, i, w, h / 24)
-    }
-
-    // White lines
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 4
-
-    // Outer boundary
-    ctx.strokeRect(20, 20, w - 40, h - 40)
-
-    // Center line
-    ctx.beginPath()
-    ctx.moveTo(20, h / 2)
-    ctx.lineTo(w - 20, h / 2)
-    ctx.stroke()
-
-    // Center circle
-    ctx.beginPath()
-    ctx.arc(w / 2, h / 2, w * 0.15, 0, Math.PI * 2)
-    ctx.stroke()
-
-    // Center dot
-    ctx.beginPath()
-    ctx.arc(w / 2, h / 2, 4, 0, Math.PI * 2)
-    ctx.fillStyle = '#ffffff'
-    ctx.fill()
-
-    // Penalty areas
-    const penaltyW = w * 0.6, penaltyH = h * 0.15
-    ctx.strokeRect((w - penaltyW) / 2, 20, penaltyW, penaltyH)
-    ctx.strokeRect((w - penaltyW) / 2, h - 20 - penaltyH, penaltyW, penaltyH)
-
-    // Goal areas
-    const goalW = w * 0.3, goalH = h * 0.05
-    ctx.strokeRect((w - goalW) / 2, 20, goalW, goalH)
-    ctx.strokeRect((w - goalW) / 2, h - 20 - goalH, goalW, goalH)
-
-    return new THREE.CanvasTexture(canvas)
-  }, [width, length])
-}
-
-function useBasketballCourtTexture(width, length) {
-  return useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = Math.round(512 * (length / width))
-    const ctx = canvas.getContext('2d')
-    const w = canvas.width, h = canvas.height
-
-    // Tan court
-    ctx.fillStyle = '#c4a66a'
-    ctx.fillRect(0, 0, w, h)
-
-    // Wood grain effect
-    ctx.strokeStyle = 'rgba(139, 90, 43, 0.15)'
-    ctx.lineWidth = 1
-    for (let i = 0; i < w; i += 8) {
-      ctx.beginPath()
-      ctx.moveTo(i, 0)
-      ctx.lineTo(i, h)
-      ctx.stroke()
-    }
-
-    // White lines
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 3
-
-    // Outer boundary
-    ctx.strokeRect(15, 15, w - 30, h - 30)
-
-    // Center line
-    ctx.beginPath()
-    ctx.moveTo(15, h / 2)
-    ctx.lineTo(w - 15, h / 2)
-    ctx.stroke()
-
-    // Center circle
-    ctx.beginPath()
-    ctx.arc(w / 2, h / 2, w * 0.12, 0, Math.PI * 2)
-    ctx.stroke()
-
-    // Keys/paint areas
-    const keyW = w * 0.25, keyH = h * 0.18
-    ctx.fillStyle = 'rgba(139, 69, 19, 0.3)'
-    ctx.fillRect((w - keyW) / 2, 15, keyW, keyH)
-    ctx.fillRect((w - keyW) / 2, h - 15 - keyH, keyW, keyH)
-    ctx.strokeRect((w - keyW) / 2, 15, keyW, keyH)
-    ctx.strokeRect((w - keyW) / 2, h - 15 - keyH, keyW, keyH)
-
-    // Three-point arcs
-    ctx.beginPath()
-    ctx.arc(w / 2, 15, w * 0.35, 0, Math.PI)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(w / 2, h - 15, w * 0.35, Math.PI, Math.PI * 2)
-    ctx.stroke()
-
-    return new THREE.CanvasTexture(canvas)
-  }, [width, length])
-}
-
-function useTennisCourtTexture(width, length) {
-  return useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = Math.round(512 * (length / width))
-    const ctx = canvas.getContext('2d')
-    const w = canvas.width, h = canvas.height
-
-    // Blue court
-    ctx.fillStyle = '#2563eb'
-    ctx.fillRect(0, 0, w, h)
-
-    // White lines
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 3
-
-    // Outer boundary
-    ctx.strokeRect(20, 20, w - 40, h - 40)
-
-    // Service boxes
-    const serviceH = h * 0.35
-    ctx.beginPath()
-    ctx.moveTo(20, h / 2 - serviceH / 2)
-    ctx.lineTo(w - 20, h / 2 - serviceH / 2)
-    ctx.moveTo(20, h / 2 + serviceH / 2)
-    ctx.lineTo(w - 20, h / 2 + serviceH / 2)
-    ctx.stroke()
-
-    // Center service line
-    ctx.beginPath()
-    ctx.moveTo(w / 2, h / 2 - serviceH / 2)
-    ctx.lineTo(w / 2, h / 2 + serviceH / 2)
-    ctx.stroke()
-
-    // Center mark
-    ctx.beginPath()
-    ctx.moveTo(w / 2, 20)
-    ctx.lineTo(w / 2, 35)
-    ctx.moveTo(w / 2, h - 20)
-    ctx.lineTo(w / 2, h - 35)
-    ctx.stroke()
-
-    // Net line
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 2
-    ctx.setLineDash([8, 4])
-    ctx.beginPath()
-    ctx.moveTo(15, h / 2)
-    ctx.lineTo(w - 15, h / 2)
-    ctx.stroke()
-    ctx.setLineDash([])
-
-    return new THREE.CanvasTexture(canvas)
-  }, [width, length])
-}
-
-function useHouseTexture(width, length) {
-  return useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = 512
-    const ctx = canvas.getContext('2d')
-    const w = canvas.width, h = canvas.height
-
-    // Foundation gray
-    ctx.fillStyle = '#9ca3af'
-    ctx.fillRect(0, 0, w, h)
-
-    // Slight texture
-    ctx.fillStyle = 'rgba(0,0,0,0.05)'
-    for (let i = 0; i < 100; i++) {
-      ctx.fillRect(Math.random() * w, Math.random() * h, 3, 3)
-    }
-
-    // Roof indication (darker center)
-    const gradient = ctx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w/2)
-    gradient.addColorStop(0, 'rgba(107, 114, 128, 0.4)')
-    gradient.addColorStop(1, 'rgba(107, 114, 128, 0)')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, w, h)
-
-    // Border
-    ctx.strokeStyle = '#6b7280'
-    ctx.lineWidth = 8
-    ctx.strokeRect(4, 4, w - 8, h - 8)
-
-    return new THREE.CanvasTexture(canvas)
-  }, [width, length])
-}
-
-function useParkingTexture(width, length) {
-  return useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = 512
-    const ctx = canvas.getContext('2d')
-    const w = canvas.width, h = canvas.height
-
-    // Asphalt gray
-    ctx.fillStyle = '#374151'
-    ctx.fillRect(0, 0, w, h)
-
-    // Asphalt texture
-    for (let i = 0; i < 200; i++) {
-      const shade = Math.random() * 20 - 10
-      ctx.fillStyle = `rgb(${55 + shade}, ${65 + shade}, ${81 + shade})`
-      ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2)
-    }
-
-    // White border lines
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 6
-    ctx.strokeRect(10, 10, w - 20, h - 20)
-
-    // Parking symbol (P)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
-    ctx.font = 'bold 80px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('P', w / 2, h / 2)
-
-    return new THREE.CanvasTexture(canvas)
-  }, [width, length])
-}
-
-// Soccer Field with goal posts
-function SoccerField3D({ obj }) {
-  const texture = useSoccerFieldTexture(obj.width, obj.length)
-  const goalWidth = 7.32, goalHeight = 2.44, goalDepth = 2
-
-  return (
-    <group>
-      {/* Field surface */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} />
-      </mesh>
-
-      {/* Goal posts - both ends */}
-      {[-1, 1].map((side) => (
-        <group key={side} position={[0, 0, side * (obj.length / 2)]}>
-          {/* Left post */}
-          <mesh position={[-goalWidth / 2, goalHeight / 2, 0]} castShadow>
-            <cylinderGeometry args={[0.06, 0.06, goalHeight, 8]} />
-            <meshStandardMaterial color="#ffffff" />
-          </mesh>
-          {/* Right post */}
-          <mesh position={[goalWidth / 2, goalHeight / 2, 0]} castShadow>
-            <cylinderGeometry args={[0.06, 0.06, goalHeight, 8]} />
-            <meshStandardMaterial color="#ffffff" />
-          </mesh>
-          {/* Crossbar */}
-          <mesh position={[0, goalHeight, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-            <cylinderGeometry args={[0.06, 0.06, goalWidth, 8]} />
-            <meshStandardMaterial color="#ffffff" />
-          </mesh>
-          {/* Net (simple back frame) */}
-          <mesh position={[0, goalHeight / 2, side * goalDepth / 2]}>
-            <boxGeometry args={[goalWidth, goalHeight, 0.05]} />
-            <meshStandardMaterial color="#ffffff" transparent opacity={0.3} side={THREE.DoubleSide} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  )
-}
-
-// Basketball Court with hoops
-function BasketballCourt3D({ obj }) {
-  const texture = useBasketballCourtTexture(obj.width, obj.length)
-  const poleHeight = 3, rimHeight = 3.05, backboardWidth = 1.8, backboardHeight = 1.05
-
-  return (
-    <group>
-      {/* Court surface */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} />
-      </mesh>
-
-      {/* Hoops at each end */}
-      {[-1, 1].map((side) => (
-        <group key={side} position={[0, 0, side * (obj.length / 2 - 1.2)]}>
-          {/* Pole */}
-          <mesh position={[0, poleHeight / 2, side * 0.5]} castShadow>
-            <cylinderGeometry args={[0.1, 0.1, poleHeight, 8]} />
-            <meshStandardMaterial color="#333333" />
-          </mesh>
-          {/* Backboard */}
-          <mesh position={[0, rimHeight + backboardHeight / 2 - 0.15, 0]} castShadow>
-            <boxGeometry args={[backboardWidth, backboardHeight, 0.05]} />
-            <meshStandardMaterial color="#ffffff" transparent opacity={0.8} />
-          </mesh>
-          {/* Rim */}
-          <mesh position={[0, rimHeight, -side * 0.2]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.23, 0.02, 8, 16]} />
-            <meshStandardMaterial color="#ff4500" />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  )
-}
-
-// Tennis Court with net
-function TennisCourt3D({ obj }) {
-  const texture = useTennisCourtTexture(obj.width, obj.length)
-  const netHeight = 1.07, postHeight = 1.2
-
-  return (
-    <group>
-      {/* Court surface */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} />
-      </mesh>
-
-      {/* Net posts */}
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * (obj.width / 2 + 0.3), postHeight / 2, 0]} castShadow>
-          <cylinderGeometry args={[0.04, 0.04, postHeight, 8]} />
-          <meshStandardMaterial color="#333333" />
-        </mesh>
-      ))}
-
-      {/* Net */}
-      <mesh position={[0, netHeight / 2 + 0.1, 0]}>
-        <planeGeometry args={[obj.width + 0.6, netHeight]} />
-        <meshStandardMaterial color="#ffffff" transparent opacity={0.6} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Net top cable */}
-      <mesh position={[0, netHeight + 0.1, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.02, 0.02, obj.width + 0.6, 8]} />
-        <meshStandardMaterial color="#ffffff" />
-      </mesh>
-    </group>
-  )
-}
-
-// 3D House with pitched roof
-function House3D({ obj }) {
-  const wallHeight = 3, roofHeight = 1.8
-  const roofOverhang = 0.4
-  const roofWidth = obj.width / 2 + roofOverhang
-  const roofAngle = Math.atan2(roofHeight, obj.width / 2)
-  const roofSlope = Math.sqrt(roofHeight * roofHeight + (obj.width / 2) * (obj.width / 2))
-
-  return (
-    <group>
-      {/* Foundation */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width + 0.6, obj.length + 0.6]} />
-        <meshStandardMaterial color="#808080" />
-      </mesh>
-
-      {/* Main walls */}
-      <mesh position={[0, wallHeight / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[obj.width, wallHeight, obj.length]} />
-        <meshStandardMaterial color="#f5f0e6" />
-      </mesh>
-
-      {/* Roof - left slope */}
-      <mesh
-        position={[-obj.width / 4, wallHeight + roofHeight / 2, 0]}
-        rotation={[0, 0, roofAngle]}
-        castShadow
-      >
-        <boxGeometry args={[roofSlope + 0.3, 0.12, obj.length + roofOverhang * 2]} />
-        <meshStandardMaterial color="#8B4513" />
-      </mesh>
-
-      {/* Roof - right slope */}
-      <mesh
-        position={[obj.width / 4, wallHeight + roofHeight / 2, 0]}
-        rotation={[0, 0, -roofAngle]}
-        castShadow
-      >
-        <boxGeometry args={[roofSlope + 0.3, 0.12, obj.length + roofOverhang * 2]} />
-        <meshStandardMaterial color="#8B4513" />
-      </mesh>
-
-      {/* Roof ridge cap */}
-      <mesh position={[0, wallHeight + roofHeight + 0.05, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.1, obj.length + roofOverhang * 2]} />
-        <meshStandardMaterial color="#6B3A1F" />
-      </mesh>
-
-      {/* Gable ends (triangular fill) - front */}
-      <mesh position={[0, wallHeight, obj.length / 2 + 0.01]}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={3}
-            array={new Float32Array([
-              -obj.width / 2, 0, 0,
-              obj.width / 2, 0, 0,
-              0, roofHeight, 0
-            ])}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <meshStandardMaterial color="#f5f0e6" side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Gable ends - back */}
-      <mesh position={[0, wallHeight, -obj.length / 2 - 0.01]}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={3}
-            array={new Float32Array([
-              -obj.width / 2, 0, 0,
-              obj.width / 2, 0, 0,
-              0, roofHeight, 0
-            ])}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <meshStandardMaterial color="#f5f0e6" side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Door frame */}
-      <mesh position={[0, 1.1, obj.length / 2 + 0.02]}>
-        <boxGeometry args={[1.4, 2.4, 0.08]} />
-        <meshStandardMaterial color="#4a3728" />
-      </mesh>
-
-      {/* Door */}
-      <mesh position={[0, 1.1, obj.length / 2 + 0.06]}>
-        <boxGeometry args={[1.1, 2.2, 0.05]} />
-        <meshStandardMaterial color="#8B5A2B" />
-      </mesh>
-
-      {/* Door handle */}
-      <mesh position={[0.4, 1.1, obj.length / 2 + 0.1]}>
-        <sphereGeometry args={[0.06, 8, 8]} />
-        <meshStandardMaterial color="#C0C0C0" metalness={0.8} roughness={0.2} />
-      </mesh>
-
-      {/* Windows - front */}
-      {[-obj.width / 3, obj.width / 3].map((x, i) => (
-        <group key={`front-${i}`} position={[x, wallHeight / 2 + 0.3, obj.length / 2]}>
-          {/* Window frame */}
-          <mesh position={[0, 0, 0.02]}>
-            <boxGeometry args={[1.2, 1.2, 0.08]} />
-            <meshStandardMaterial color="#4a3728" />
-          </mesh>
-          {/* Window glass */}
-          <mesh position={[0, 0, 0.05]}>
-            <boxGeometry args={[1.0, 1.0, 0.02]} />
-            <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
-          </mesh>
-          {/* Window cross bars */}
-          <mesh position={[0, 0, 0.07]}>
-            <boxGeometry args={[0.05, 1.0, 0.02]} />
-            <meshStandardMaterial color="#4a3728" />
-          </mesh>
-          <mesh position={[0, 0, 0.07]}>
-            <boxGeometry args={[1.0, 0.05, 0.02]} />
-            <meshStandardMaterial color="#4a3728" />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Windows - sides */}
-      {[-1, 1].map((side) => (
-        <group key={`side-${side}`} position={[side * obj.width / 2, wallHeight / 2 + 0.3, 0]}>
-          {/* Window frame */}
-          <mesh position={[side * 0.02, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-            <boxGeometry args={[1.2, 1.2, 0.08]} />
-            <meshStandardMaterial color="#4a3728" />
-          </mesh>
-          {/* Window glass */}
-          <mesh position={[side * 0.05, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-            <boxGeometry args={[1.0, 1.0, 0.02]} />
-            <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
-          </mesh>
-        </group>
-      ))}
-
-    </group>
-  )
-}
-
-// Parking Space (flat)
-function ParkingSpace3D({ obj }) {
-  const texture = useParkingTexture(obj.width, obj.length)
-
-  return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} />
-      </mesh>
-    </group>
-  )
-}
-
-// Olympic Pool (sunken) - 50m x 25m competition pool
-function Pool3D({ obj }) {
-  const poolDepth = 2
-  const laneCount = 8
-  const laneWidth = obj.width / laneCount
-  const deckWidth = 2.5
-
-  return (
-    <group>
-      {/* Outer deck area */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-        <planeGeometry args={[obj.width + deckWidth * 2, obj.length + deckWidth * 2]} />
-        <meshStandardMaterial color="#c9c9c9" />
-      </mesh>
-
-      {/* Pool edge coping (white trim around pool) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
-        <planeGeometry args={[obj.width + 0.3, obj.length + 0.3]} />
-        <meshStandardMaterial color="#f5f5f5" />
-      </mesh>
-
-      {/* Pool walls (sunken box) */}
-      <mesh position={[0, -poolDepth / 2, 0]}>
-        <boxGeometry args={[obj.width, poolDepth, obj.length]} />
-        <meshStandardMaterial color="#0284c7" side={THREE.BackSide} />
-      </mesh>
-
-      {/* Pool floor - slightly lighter blue */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -poolDepth + 0.01, 0]}>
-        <planeGeometry args={[obj.width - 0.1, obj.length - 0.1]} />
-        <meshStandardMaterial color="#38bdf8" />
-      </mesh>
-
-      {/* Lane lines on pool floor */}
-      {Array.from({ length: laneCount - 1 }, (_, i) => (
-        <mesh key={`floor-line-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[-obj.width / 2 + laneWidth * (i + 1), -poolDepth + 0.02, 0]}>
-          <planeGeometry args={[0.1, obj.length - 1]} />
-          <meshStandardMaterial color="#1e3a5f" />
-        </mesh>
-      ))}
-
-      {/* T-marks at ends of lanes */}
-      {Array.from({ length: laneCount }, (_, i) => (
-        <group key={`t-mark-${i}`}>
-          {/* Start end T */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-obj.width / 2 + laneWidth * i + laneWidth / 2, -poolDepth + 0.02, obj.length / 2 - 2]}>
-            <planeGeometry args={[0.5, 0.1]} />
-            <meshStandardMaterial color="#1e3a5f" />
-          </mesh>
-          {/* Turn end T */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-obj.width / 2 + laneWidth * i + laneWidth / 2, -poolDepth + 0.02, -obj.length / 2 + 2]}>
-            <planeGeometry args={[0.5, 0.1]} />
-            <meshStandardMaterial color="#1e3a5f" />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Water surface - box above coping level */}
-      <mesh position={[0, 0.12, 0]}>
-        <boxGeometry args={[obj.width - 0.2, 0.08, obj.length - 0.2]} />
-        <meshStandardMaterial color="#06b6d4" />
-      </mesh>
-
-      {/* Lane lines on water surface */}
-      {Array.from({ length: laneCount - 1 }, (_, i) => (
-        <mesh key={`lane-line-${i}`} position={[-obj.width / 2 + laneWidth * (i + 1), 0.17, 0]}>
-          <boxGeometry args={[0.05, 0.01, obj.length - 1]} />
-          <meshStandardMaterial color="#1e3a5f" />
-        </mesh>
-      ))}
-
-      {/* Lane ropes (floating buoys) */}
-      {Array.from({ length: laneCount - 1 }, (_, i) => {
-        const x = -obj.width / 2 + laneWidth * (i + 1)
-        const buoyCount = Math.floor(obj.length / 0.8)
-        return (
-          <group key={`lane-rope-${i}`}>
-            {/* Rope line */}
-            <mesh position={[x, -0.05, 0]}>
-              <boxGeometry args={[0.02, 0.02, obj.length - 0.5]} />
-              <meshStandardMaterial color="#1e40af" />
-            </mesh>
-            {/* Buoys along the rope */}
-            {Array.from({ length: buoyCount }, (_, j) => {
-              // Alternate colors: blue for outer lanes, green for lanes 1 and 8
-              const isOuterLane = i === 0 || i === laneCount - 2
-              const buoyColor = isOuterLane ? '#22c55e' : '#3b82f6'
-              // Red buoys near ends (5m zone)
-              const zPos = -obj.length / 2 + 0.4 + j * 0.8
-              const isNearEnd = Math.abs(zPos) > obj.length / 2 - 5
-              const color = isNearEnd ? '#ef4444' : buoyColor
-              return (
-                <mesh key={`buoy-${i}-${j}`} position={[x, -0.02, zPos]}>
-                  <cylinderGeometry args={[0.06, 0.06, 0.12, 8]} />
-                  <meshStandardMaterial color={color} />
-                </mesh>
-              )
-            })}
-          </group>
-        )
-      })}
-
-      {/* Starting blocks at both ends - facing pool */}
-      {[-1, 1].map((side) => (
-        Array.from({ length: laneCount }, (_, i) => (
-          <group key={`block-${side}-${i}`} position={[-obj.width / 2 + laneWidth * i + laneWidth / 2, 0, side * (obj.length / 2 + 0.3)]} rotation={[0, side === 1 ? Math.PI : 0, 0]}>
-            {/* Block platform */}
-            <mesh position={[0, 0.35, 0]} castShadow>
-              <boxGeometry args={[0.5, 0.7, 0.6]} />
-              <meshStandardMaterial color="#e5e5e5" />
-            </mesh>
-            {/* Angled top surface */}
-            <mesh position={[0, 0.72, -0.05]} rotation={[-0.15, 0, 0]} castShadow>
-              <boxGeometry args={[0.5, 0.05, 0.65]} />
-              <meshStandardMaterial color="#f5f5f5" />
-            </mesh>
-            {/* Lane number on block */}
-            <mesh position={[0, 0.4, 0.31]}>
-              <boxGeometry args={[0.2, 0.2, 0.02]} />
-              <meshStandardMaterial color="#333333" />
-            </mesh>
-          </group>
-        ))
-      ))}
-
-      {/* Touch pads at both ends */}
-      {[-1, 1].map((side) => (
-        <mesh key={`touchpad-${side}`} position={[0, -poolDepth / 3, side * (obj.length / 2 - 0.02)]}>
-          <boxGeometry args={[obj.width - 0.1, poolDepth * 0.6, 0.04]} />
-          <meshStandardMaterial color="#fef08a" />
-        </mesh>
-      ))}
-
-      {/* Backstroke flags (5m from each end) */}
-      {[-1, 1].map((side) => (
-        <group key={`flags-${side}`} position={[0, 0, side * (obj.length / 2 - 5)]}>
-          {/* Flag poles */}
-          {[-1, 1].map((pSide) => (
-            <mesh key={`pole-${side}-${pSide}`} position={[pSide * (obj.width / 2 + 0.5), 1.25, 0]}>
-              <cylinderGeometry args={[0.03, 0.03, 2.5, 8]} />
-              <meshStandardMaterial color="#666666" />
-            </mesh>
-          ))}
-          {/* Flag line */}
-          <mesh position={[0, 2.4, 0]}>
-            <boxGeometry args={[obj.width + 1.2, 0.02, 0.02]} />
-            <meshStandardMaterial color="#333333" />
-          </mesh>
-          {/* Triangular flags */}
-          {Array.from({ length: Math.floor(obj.width / 0.8) }, (_, i) => (
-            <mesh key={`flag-${side}-${i}`} position={[-obj.width / 2 + 0.4 + i * 0.8, 2.25, 0]} rotation={[0, 0, Math.PI]}>
-              <coneGeometry args={[0.15, 0.3, 3]} />
-              <meshStandardMaterial color={i % 2 === 0 ? '#ef4444' : '#ffffff'} side={THREE.DoubleSide} />
-            </mesh>
-          ))}
-        </group>
-      ))}
-
-      {/* Ladder on side - facing pool */}
-      <group position={[obj.width / 2 + 0.15, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-        {/* Vertical rails */}
-        {[-0.2, 0.2].map((x, i) => (
-          <mesh key={`rail-${i}`} position={[x, -0.3, 0]}>
-            <cylinderGeometry args={[0.025, 0.025, 1.5, 8]} />
-            <meshStandardMaterial color="#c0c0c0" metalness={0.8} roughness={0.2} />
-          </mesh>
-        ))}
-        {/* Rungs */}
-        {Array.from({ length: 4 }, (_, i) => (
-          <mesh key={`rung-${i}`} position={[0, 0.2 - i * 0.4, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
-            <meshStandardMaterial color="#c0c0c0" metalness={0.8} roughness={0.2} />
-          </mesh>
-        ))}
-      </group>
-    </group>
-  )
-}
-
-// Car Sedan - Clean simple design
-function CarSedan3D({ obj }) {
-  const bodyColor = '#3b82f6' // Blue
-  const glassColor = '#87CEEB' // Light blue glass
-  const wheelRadius = 0.3
-
-  return (
-    <group>
-      {/* Shadow */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width + 0.4, obj.length + 0.4]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.25} />
-      </mesh>
-
-      {/* Main body */}
-      <mesh position={[0, 0.4, 0]} castShadow>
-        <boxGeometry args={[obj.width, 0.5, obj.length]} />
-        <meshStandardMaterial color={bodyColor} metalness={0.5} roughness={0.4} />
-      </mesh>
-
-      {/* Cabin */}
-      <mesh position={[0, 0.85, -obj.length * 0.05]} castShadow>
-        <boxGeometry args={[obj.width - 0.1, 0.4, obj.length * 0.45]} />
-        <meshStandardMaterial color={bodyColor} metalness={0.5} roughness={0.4} />
-      </mesh>
-
-      {/* Windshield - on front of cabin */}
-      <mesh position={[0, 0.85, obj.length * 0.18 + 0.02]} rotation={[-0.4, 0, 0]}>
-        <boxGeometry args={[obj.width - 0.15, 0.45, 0.04]} />
-        <meshStandardMaterial color={glassColor} transparent opacity={0.6} />
-      </mesh>
-
-      {/* Rear window - on back of cabin */}
-      <mesh position={[0, 0.83, -obj.length * 0.26 - 0.02]} rotation={[0.35, 0, 0]}>
-        <boxGeometry args={[obj.width - 0.18, 0.4, 0.04]} />
-        <meshStandardMaterial color={glassColor} transparent opacity={0.6} />
-      </mesh>
-
-      {/* Side windows */}
-      {[-1, 1].map((side) => (
-        <mesh key={`window-${side}`} position={[side * (obj.width / 2 - 0.03), 0.88, -obj.length * 0.05]}>
-          <boxGeometry args={[0.04, 0.3, obj.length * 0.35]} />
-          <meshStandardMaterial color={glassColor} transparent opacity={0.5} />
-        </mesh>
-      ))}
-
-      {/* Roof */}
-      <mesh position={[0, 1.08, -obj.length * 0.05]} castShadow>
-        <boxGeometry args={[obj.width - 0.14, 0.06, obj.length * 0.35]} />
-        <meshStandardMaterial color={bodyColor} metalness={0.5} roughness={0.4} />
-      </mesh>
-
-      {/* Door lines */}
-      {[-1, 1].map((side) => (
-        <group key={`door-${side}`}>
-          {/* Front door line */}
-          <mesh position={[side * (obj.width / 2 + 0.005), 0.4, obj.length * 0.05]}>
-            <boxGeometry args={[0.015, 0.45, 0.02]} />
-            <meshStandardMaterial color="#1a1a1a" />
-          </mesh>
-          {/* Rear door line */}
-          <mesh position={[side * (obj.width / 2 + 0.005), 0.4, -obj.length * 0.12]}>
-            <boxGeometry args={[0.015, 0.45, 0.02]} />
-            <meshStandardMaterial color="#1a1a1a" />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Headlights */}
-      {[-1, 1].map((side) => (
-        <mesh key={`headlight-${side}`} position={[side * (obj.width / 2 - 0.22), 0.42, obj.length / 2 + 0.01]}>
-          <boxGeometry args={[0.28, 0.12, 0.03]} />
-          <meshStandardMaterial color="#ffffff" emissive="#ffffee" emissiveIntensity={0.4} />
-        </mesh>
-      ))}
-
-      {/* Grille */}
-      <mesh position={[0, 0.38, obj.length / 2 + 0.01]}>
-        <boxGeometry args={[obj.width * 0.4, 0.14, 0.03]} />
-        <meshStandardMaterial color="#1a1a1a" />
-      </mesh>
-
-      {/* Taillights */}
-      {[-1, 1].map((side) => (
-        <mesh key={`taillight-${side}`} position={[side * (obj.width / 2 - 0.2), 0.45, -obj.length / 2 - 0.01]}>
-          <boxGeometry args={[0.24, 0.1, 0.03]} />
-          <meshStandardMaterial color="#cc0000" emissive="#ff0000" emissiveIntensity={0.35} />
-        </mesh>
-      ))}
-
-      {/* Bumpers */}
-      <mesh position={[0, 0.18, obj.length / 2 + 0.03]} castShadow>
-        <boxGeometry args={[obj.width, 0.12, 0.06]} />
-        <meshStandardMaterial color="#2a2a2a" />
-      </mesh>
-      <mesh position={[0, 0.18, -obj.length / 2 - 0.03]} castShadow>
-        <boxGeometry args={[obj.width, 0.12, 0.06]} />
-        <meshStandardMaterial color="#2a2a2a" />
-      </mesh>
-
-      {/* Wheels - visible outside body */}
-      {[
-        [-obj.width / 2 - 0.02, obj.length * 0.3],
-        [obj.width / 2 + 0.02, obj.length * 0.3],
-        [-obj.width / 2 - 0.02, -obj.length * 0.3],
-        [obj.width / 2 + 0.02, -obj.length * 0.3]
-      ].map(([x, z], i) => (
-        <group key={`wheel-${i}`} position={[x, wheelRadius + 0.05, z]}>
-          {/* Tire */}
-          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-            <cylinderGeometry args={[wheelRadius, wheelRadius, 0.18, 24]} />
-            <meshStandardMaterial color="#1a1a1a" />
-          </mesh>
-          {/* Rim */}
-          <mesh position={[x > 0 ? 0.06 : -0.06, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[wheelRadius * 0.55, wheelRadius * 0.55, 0.05, 24]} />
-            <meshStandardMaterial color="#888888" metalness={0.7} roughness={0.3} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Side mirrors */}
-      {[-1, 1].map((side) => (
-        <mesh key={`mirror-${side}`} position={[side * (obj.width / 2 + 0.06), 0.75, obj.length * 0.2]}>
-          <boxGeometry args={[0.05, 0.06, 0.1]} />
-          <meshStandardMaterial color={bodyColor} metalness={0.5} roughness={0.4} />
-        </mesh>
-      ))}
-    </group>
-  )
-}
-
-// Shipping Container - Realistic ISO container design
-function ShippingContainer3D({ obj }) {
-  const containerHeight = 2.6
-  const containerColor = '#C75B39'
-  const darkColor = '#A64B2E'
-  const frameColor = '#8B4513'
-  const corrugationCount = Math.floor(obj.length / 0.8)
-
-  return (
-    <group>
-      {/* Shadow */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width + 0.4, obj.length + 0.4]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.2} />
-      </mesh>
-
-      {/* Main container box */}
-      <mesh position={[0, containerHeight / 2, 0]} castShadow>
-        <boxGeometry args={[obj.width, containerHeight, obj.length]} />
-        <meshStandardMaterial color={containerColor} />
-      </mesh>
-
-      {/* Bottom frame rails */}
-      {[-1, 1].map((side) => (
-        <mesh key={`rail-${side}`} position={[side * (obj.width / 2 - 0.05), 0.05, 0]}>
-          <boxGeometry args={[0.1, 0.1, obj.length]} />
-          <meshStandardMaterial color={frameColor} />
-        </mesh>
-      ))}
-
-      {/* Cross members under container */}
-      {Array.from({ length: 3 }, (_, i) => (
-        <mesh key={`cross-${i}`} position={[0, 0.05, -obj.length / 2 + (obj.length / 4) * (i + 1)]}>
-          <boxGeometry args={[obj.width, 0.08, 0.1]} />
-          <meshStandardMaterial color={frameColor} />
-        </mesh>
-      ))}
-
-      {/* Corner castings (corner posts) */}
-      {[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([x, z], i) => (
-        <group key={`corner-${i}`}>
-          {/* Vertical corner post */}
-          <mesh position={[x * (obj.width / 2 - 0.06), containerHeight / 2, z * (obj.length / 2 - 0.06)]}>
-            <boxGeometry args={[0.12, containerHeight, 0.12]} />
-            <meshStandardMaterial color={darkColor} />
-          </mesh>
-          {/* Top corner casting */}
-          <mesh position={[x * (obj.width / 2 - 0.06), containerHeight - 0.05, z * (obj.length / 2 - 0.06)]}>
-            <boxGeometry args={[0.15, 0.1, 0.15]} />
-            <meshStandardMaterial color="#333333" />
-          </mesh>
-          {/* Bottom corner casting */}
-          <mesh position={[x * (obj.width / 2 - 0.06), 0.05, z * (obj.length / 2 - 0.06)]}>
-            <boxGeometry args={[0.15, 0.1, 0.15]} />
-            <meshStandardMaterial color="#333333" />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Corrugation lines on both sides */}
-      {[-1, 1].map((side) => (
-        Array.from({ length: corrugationCount }, (_, i) => (
-          <mesh key={`corr-${side}-${i}`} position={[side * (obj.width / 2 + 0.015), containerHeight / 2, -obj.length / 2 + 0.3 + (i * 0.75)]}>
-            <boxGeometry args={[0.03, containerHeight - 0.3, 0.06]} />
-            <meshStandardMaterial color={darkColor} />
-          </mesh>
-        ))
-      ))}
-
-      {/* Top corrugation lines */}
-      {Array.from({ length: corrugationCount }, (_, i) => (
-        <mesh key={`top-corr-${i}`} position={[0, containerHeight + 0.015, -obj.length / 2 + 0.3 + (i * 0.75)]}>
-          <boxGeometry args={[obj.width - 0.2, 0.03, 0.06]} />
-          <meshStandardMaterial color={darkColor} />
-        </mesh>
-      ))}
-
-      {/* Door end panels */}
-      <group position={[0, 0, obj.length / 2]}>
-        {/* Left door */}
-        <mesh position={[-obj.width / 4, containerHeight / 2, 0.02]}>
-          <boxGeometry args={[obj.width / 2 - 0.15, containerHeight - 0.15, 0.04]} />
-          <meshStandardMaterial color={darkColor} />
-        </mesh>
-        {/* Right door */}
-        <mesh position={[obj.width / 4, containerHeight / 2, 0.02]}>
-          <boxGeometry args={[obj.width / 2 - 0.15, containerHeight - 0.15, 0.04]} />
-          <meshStandardMaterial color={darkColor} />
-        </mesh>
-        {/* Door handles/locking bars */}
-        {[-1, 1].map((side) => (
-          <group key={`handle-${side}`}>
-            {/* Vertical locking bar */}
-            <mesh position={[side * (obj.width / 4 - 0.15), containerHeight / 2, 0.05]}>
-              <boxGeometry args={[0.04, containerHeight - 0.4, 0.04]} />
-              <meshStandardMaterial color="#333333" />
-            </mesh>
-            {/* Handle */}
-            <mesh position={[side * (obj.width / 4 - 0.15), containerHeight / 2, 0.08]}>
-              <boxGeometry args={[0.08, 0.25, 0.04]} />
-              <meshStandardMaterial color="#555555" metalness={0.6} roughness={0.4} />
-            </mesh>
-          </group>
-        ))}
-        {/* Door hinges */}
-        {[-1, 1].map((side) => (
-          [0.3, 0.7].map((h, i) => (
-            <mesh key={`hinge-${side}-${i}`} position={[side * (obj.width / 2 - 0.08), containerHeight * h, 0.04]}>
-              <cylinderGeometry args={[0.03, 0.03, 0.15, 8]} />
-              <meshStandardMaterial color="#333333" />
-            </mesh>
-          ))
-        ))}
-      </group>
-
-      {/* Ventilation grilles on front (non-door end) */}
-      <group position={[0, containerHeight - 0.3, -obj.length / 2 - 0.01]}>
-        {[-1, 1].map((side) => (
-          <mesh key={`vent-${side}`} position={[side * (obj.width / 4), 0, 0]}>
-            <boxGeometry args={[0.2, 0.15, 0.02]} />
-            <meshStandardMaterial color="#222222" />
-          </mesh>
-        ))}
-      </group>
-
-      {/* ID plate area on side */}
-      <mesh position={[obj.width / 2 + 0.02, containerHeight - 0.5, obj.length / 2 - 0.8]}>
-        <boxGeometry args={[0.02, 0.3, 0.6]} />
-        <meshStandardMaterial color="#f0f0f0" />
-      </mesh>
-    </group>
-  )
-}
-
-// School Bus - Classic American yellow school bus
-function SchoolBus3D({ obj }) {
-  const busHeight = 2.5
-  const busColor = '#F7B500'  // National School Bus Yellow
-  const trimColor = '#1a1a1a'
-  const wheelRadius = 0.45
-  const windowCount = Math.floor((obj.length - 3) / 1.2)
-
-  return (
-    <group>
-      {/* Shadow */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width + 0.4, obj.length + 0.4]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.2} />
-      </mesh>
-
-      {/* Main body */}
-      <mesh position={[0, busHeight / 2 + 0.3, 0]} castShadow>
-        <boxGeometry args={[obj.width, busHeight, obj.length]} />
-        <meshStandardMaterial color={busColor} />
-      </mesh>
-
-      {/* Hood section at front - slightly lower */}
-      <mesh position={[0, 0.7, obj.length / 2 - 0.3]} castShadow>
-        <boxGeometry args={[obj.width, 1.1, 1.2]} />
-        <meshStandardMaterial color={busColor} />
-      </mesh>
-
-      {/* Roof - black cap */}
-      <mesh position={[0, busHeight + 0.35, -0.5]} castShadow>
-        <boxGeometry args={[obj.width + 0.05, 0.1, obj.length - 1.5]} />
-        <meshStandardMaterial color={trimColor} />
-      </mesh>
-
-      {/* Black trim stripe under windows */}
-      {[-1, 1].map((side) => (
-        <mesh key={`stripe-${side}`} position={[side * (obj.width / 2 + 0.01), busHeight / 2 - 0.1, -0.3]}>
-          <boxGeometry args={[0.02, 0.15, obj.length - 1.5]} />
-          <meshStandardMaterial color={trimColor} />
-        </mesh>
-      ))}
-
-      {/* Individual windows on sides */}
-      {[-1, 1].map((side) => (
-        Array.from({ length: windowCount }, (_, i) => (
-          <group key={`window-${side}-${i}`} position={[side * (obj.width / 2), busHeight / 2 + 0.55, -obj.length / 2 + 2 + (i * 1.2)]}>
-            {/* Window frame */}
-            <mesh position={[side * 0.02, 0, 0]}>
-              <boxGeometry args={[0.04, 0.9, 0.9]} />
-              <meshStandardMaterial color={trimColor} />
-            </mesh>
-            {/* Window glass */}
-            <mesh position={[side * 0.03, 0, 0]}>
-              <boxGeometry args={[0.02, 0.75, 0.75]} />
-              <meshStandardMaterial color="#1a1a2e" transparent opacity={0.6} />
-            </mesh>
-          </group>
-        ))
-      ))}
-
-      {/* Front windshield - visible at front of bus */}
-      <mesh position={[0, busHeight / 2 + 0.6, obj.length / 2 + 0.03]} rotation={[-0.15, 0, 0]}>
-        <boxGeometry args={[obj.width - 0.3, 1.0, 0.05]} />
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
-      </mesh>
-
-      {/* Rear window */}
-      <mesh position={[0, busHeight / 2 + 0.6, -obj.length / 2 + 0.02]}>
-        <boxGeometry args={[obj.width - 0.4, 0.8, 0.05]} />
-        <meshStandardMaterial color="#1a1a2e" transparent opacity={0.6} />
-      </mesh>
-
-      {/* Front grille */}
-      <mesh position={[0, 0.5, obj.length / 2 + 0.02]}>
-        <boxGeometry args={[obj.width * 0.6, 0.4, 0.04]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-
-      {/* Headlights - on front face of hood */}
-      {[-1, 1].map((side) => (
-        <mesh key={`headlight-${side}`} position={[side * (obj.width / 2 - 0.4), 0.6, obj.length / 2 + 0.31]}>
-          <boxGeometry args={[0.3, 0.25, 0.08]} />
-          <meshStandardMaterial color="#ffffdd" emissive="#ffffaa" emissiveIntensity={0.8} />
-        </mesh>
-      ))}
-
-      {/* Front turn signals */}
-      {[-1, 1].map((side) => (
-        <mesh key={`turn-${side}`} position={[side * (obj.width / 2 - 0.15), 0.35, obj.length / 2 + 0.03]}>
-          <boxGeometry args={[0.15, 0.08, 0.03]} />
-          <meshStandardMaterial color="#ffaa00" emissive="#ffaa00" emissiveIntensity={0.2} />
-        </mesh>
-      ))}
-
-      {/* Front bumper */}
-      <mesh position={[0, 0.2, obj.length / 2 + 0.1]} castShadow>
-        <boxGeometry args={[obj.width + 0.1, 0.2, 0.15]} />
-        <meshStandardMaterial color={trimColor} />
-      </mesh>
-
-      {/* Rear bumper */}
-      <mesh position={[0, 0.2, -obj.length / 2 - 0.08]} castShadow>
-        <boxGeometry args={[obj.width + 0.1, 0.2, 0.15]} />
-        <meshStandardMaterial color={trimColor} />
-      </mesh>
-
-      {/* Taillights */}
-      {[-1, 1].map((side) => (
-        <mesh key={`taillight-${side}`} position={[side * (obj.width / 2 - 0.2), 0.8, -obj.length / 2 - 0.02]}>
-          <boxGeometry args={[0.15, 0.25, 0.03]} />
-          <meshStandardMaterial color="#cc0000" emissive="#cc0000" emissiveIntensity={0.2} />
-        </mesh>
-      ))}
-
-      {/* Emergency exit door marking on back */}
-      <mesh position={[0, busHeight / 2 - 0.2, -obj.length / 2 - 0.02]}>
-        <boxGeometry args={[0.8, 1.6, 0.02]} />
-        <meshStandardMaterial color="#E5A800" />
-      </mesh>
-      {/* Emergency exit text bar */}
-      <mesh position={[0, busHeight - 0.1, -obj.length / 2 - 0.03]}>
-        <boxGeometry args={[0.7, 0.15, 0.02]} />
-        <meshStandardMaterial color="#cc0000" />
-      </mesh>
-
-      {/* Side mirrors */}
-      {[-1, 1].map((side) => (
-        <group key={`mirror-${side}`} position={[side * (obj.width / 2 + 0.2), busHeight / 2 + 0.8, obj.length / 2 - 0.3]}>
-          <mesh>
-            <boxGeometry args={[0.1, 0.25, 0.15]} />
-            <meshStandardMaterial color={trimColor} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Wheels with hubs */}
-      {[
-        [-obj.width / 2 + 0.15, obj.length / 2 - 1.3],
-        [obj.width / 2 - 0.15, obj.length / 2 - 1.3],
-        [-obj.width / 2 + 0.15, -obj.length / 2 + 1.3],
-        [obj.width / 2 - 0.15, -obj.length / 2 + 1.3]
-      ].map(([x, z], i) => (
-        <group key={`wheel-${i}`} position={[x, wheelRadius, z]}>
-          {/* Tire */}
-          <mesh rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[wheelRadius, wheelRadius, 0.25, 16]} />
-            <meshStandardMaterial color="#1a1a1a" />
-          </mesh>
-          {/* Hub */}
-          <mesh position={[x > 0 ? 0.08 : -0.08, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[wheelRadius * 0.5, wheelRadius * 0.5, 0.05, 16]} />
-            <meshStandardMaterial color="#555555" metalness={0.7} roughness={0.3} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Entry door on right side */}
-      <mesh position={[obj.width / 2 + 0.02, busHeight / 2, obj.length / 2 - 1.5]}>
-        <boxGeometry args={[0.04, busHeight - 0.5, 1.0]} />
-        <meshStandardMaterial color={trimColor} />
-      </mesh>
-    </group>
-  )
-}
-
-// King Size Bed
-function KingSizeBed3D({ obj }) {
-  return (
-    <group>
-      {/* Shadow */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width + 0.2, obj.length + 0.2]} />
-        <meshStandardMaterial color="#000000" transparent opacity={0.1} />
-      </mesh>
-      {/* Bed frame */}
-      <mesh position={[0, 0.2, 0]} castShadow>
-        <boxGeometry args={[obj.width, 0.4, obj.length]} />
-        <meshStandardMaterial color="#5C4033" />
-      </mesh>
-      {/* Mattress */}
-      <mesh position={[0, 0.55, 0]} castShadow>
-        <boxGeometry args={[obj.width - 0.1, 0.3, obj.length - 0.1]} />
-        <meshStandardMaterial color="#E8DCC8" />
-      </mesh>
-      {/* Headboard */}
-      <mesh position={[0, 0.6, -obj.length / 2 + 0.05]} castShadow>
-        <boxGeometry args={[obj.width, 0.8, 0.1]} />
-        <meshStandardMaterial color="#5C4033" />
-      </mesh>
-      {/* Pillows */}
-      <mesh position={[-obj.width / 4, 0.75, -obj.length / 2 + 0.35]}>
-        <boxGeometry args={[obj.width / 3, 0.12, 0.4]} />
-        <meshStandardMaterial color="#F5F0E6" />
-      </mesh>
-      <mesh position={[obj.width / 4, 0.75, -obj.length / 2 + 0.35]}>
-        <boxGeometry args={[obj.width / 3, 0.12, 0.4]} />
-        <meshStandardMaterial color="#F5F0E6" />
-      </mesh>
-    </group>
-  )
-}
-
-// Studio Apartment Floor Plan
-function StudioApartment3D({ obj }) {
-  const wallHeight = 2.8
-  const wallThickness = 0.15
-
-  return (
-    <group>
-      {/* Foundation/floor slab */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-        <planeGeometry args={[obj.width + 0.3, obj.length + 0.3]} />
-        <meshStandardMaterial color="#4a4a4a" />
-      </mesh>
-
-      {/* Main walls */}
-      <mesh position={[0, wallHeight / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[obj.width, wallHeight, obj.length]} />
-        <meshStandardMaterial color="#E8E4E0" />
-      </mesh>
-
-      {/* Flat roof */}
-      <mesh position={[0, wallHeight + 0.1, 0]} castShadow>
-        <boxGeometry args={[obj.width + 0.2, 0.2, obj.length + 0.2]} />
-        <meshStandardMaterial color="#5C5C5C" />
-      </mesh>
-
-      {/* Roof edge trim */}
-      <mesh position={[0, wallHeight + 0.25, 0]}>
-        <boxGeometry args={[obj.width + 0.3, 0.1, obj.length + 0.3]} />
-        <meshStandardMaterial color="#3D3D3D" />
-      </mesh>
-
-      {/* Front door with frame */}
-      <group position={[obj.width / 4, 0, obj.length / 2]}>
-        <mesh position={[0, 1.05, 0.02]}>
-          <boxGeometry args={[1.1, 2.2, 0.08]} />
-          <meshStandardMaterial color="#2C2C2C" />
-        </mesh>
-        <mesh position={[0, 1.05, 0.06]}>
-          <boxGeometry args={[0.9, 2.0, 0.05]} />
-          <meshStandardMaterial color="#4A3728" />
-        </mesh>
-        <mesh position={[0.35, 1.05, 0.1]}>
-          <sphereGeometry args={[0.04, 8, 8]} />
-          <meshStandardMaterial color="#C0C0C0" metalness={0.8} roughness={0.2} />
-        </mesh>
-      </group>
-
-      {/* Large front window */}
-      <group position={[-obj.width / 4, wallHeight / 2 + 0.2, obj.length / 2]}>
-        <mesh position={[0, 0, 0.02]}>
-          <boxGeometry args={[1.8, 1.5, 0.08]} />
-          <meshStandardMaterial color="#2C2C2C" />
-        </mesh>
-        <mesh position={[0, 0, 0.05]}>
-          <boxGeometry args={[1.6, 1.3, 0.02]} />
-          <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
-        </mesh>
-        {/* Window divider */}
-        <mesh position={[0, 0, 0.07]}>
-          <boxGeometry args={[0.03, 1.3, 0.02]} />
-          <meshStandardMaterial color="#2C2C2C" />
-        </mesh>
-      </group>
-
-      {/* Side windows */}
-      {[-1, 1].map((side) => (
-        <group key={`side-${side}`} position={[side * obj.width / 2, wallHeight / 2 + 0.2, 0]}>
-          <mesh position={[side * 0.02, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-            <boxGeometry args={[1.2, 1.2, 0.08]} />
-            <meshStandardMaterial color="#2C2C2C" />
-          </mesh>
-          <mesh position={[side * 0.05, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-            <boxGeometry args={[1.0, 1.0, 0.02]} />
-            <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Back window */}
-      <group position={[0, wallHeight / 2 + 0.2, -obj.length / 2]}>
-        <mesh position={[0, 0, -0.02]}>
-          <boxGeometry args={[1.4, 1.2, 0.08]} />
-          <meshStandardMaterial color="#2C2C2C" />
-        </mesh>
-        <mesh position={[0, 0, -0.05]}>
-          <boxGeometry args={[1.2, 1.0, 0.02]} />
-          <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
-        </mesh>
-      </group>
-
-      {/* Small balcony on side */}
-      <group position={[-obj.width / 2 - 0.5, 0, obj.length / 4]}>
-        {/* Balcony floor */}
-        <mesh position={[0, 0.1, 0]}>
-          <boxGeometry args={[1.0, 0.15, 1.5]} />
-          <meshStandardMaterial color="#5C5C5C" />
-        </mesh>
-        {/* Balcony railing - posts */}
-        {[-0.6, 0.6].map((z, i) => (
-          <mesh key={i} position={[-0.4, 0.55, z]}>
-            <boxGeometry args={[0.05, 0.8, 0.05]} />
-            <meshStandardMaterial color="#333333" />
-          </mesh>
-        ))}
-        {/* Balcony railing - top rail */}
-        <mesh position={[-0.4, 0.95, 0]}>
-          <boxGeometry args={[0.06, 0.06, 1.5]} />
-          <meshStandardMaterial color="#333333" />
-        </mesh>
-        {/* Balcony railing - glass panel */}
-        <mesh position={[-0.4, 0.5, 0]}>
-          <boxGeometry args={[0.02, 0.7, 1.4]} />
-          <meshStandardMaterial color="#87CEEB" transparent opacity={0.3} />
-        </mesh>
-      </group>
-
-      {/* Balcony door */}
-      <group position={[-obj.width / 2, wallHeight / 2 - 0.2, obj.length / 4]}>
-        <mesh position={[-0.02, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[1.0, 2.2, 0.08]} />
-          <meshStandardMaterial color="#2C2C2C" />
-        </mesh>
-        <mesh position={[-0.05, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[0.8, 2.0, 0.02]} />
-          <meshStandardMaterial color="#87CEEB" transparent opacity={0.4} />
-        </mesh>
-      </group>
-
-      {/* AC unit on roof */}
-      <mesh position={[obj.width / 4, wallHeight + 0.55, -obj.length / 4]} castShadow>
-        <boxGeometry args={[0.8, 0.5, 0.6]} />
-        <meshStandardMaterial color="#D0D0D0" />
-      </mesh>
-
-      {/* Address number */}
-      <mesh position={[obj.width / 4 + 0.8, wallHeight - 0.3, obj.length / 2 + 0.02]}>
-        <boxGeometry args={[0.3, 0.3, 0.02]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-
-      {/* Small steps at entrance */}
-      <mesh position={[obj.width / 4, 0.08, obj.length / 2 + 0.4]}>
-        <boxGeometry args={[1.2, 0.15, 0.4]} />
-        <meshStandardMaterial color="#6B6B6B" />
-      </mesh>
-    </group>
-  )
-}
-
-const SNAP_THRESHOLD = 1.5 // meters - snap distance for edge snapping
-
-// Check if rotation is axis-aligned (0, 90, 180, 270 degrees)
-function isAxisAligned(rotation) {
-  const normalized = ((rotation % 360) + 360) % 360
-  return normalized < 5 || Math.abs(normalized - 90) < 5 || Math.abs(normalized - 180) < 5 || Math.abs(normalized - 270) < 5
-}
-
-// Get effective width/length after rotation (swapped for 90°/270°)
-function getRotatedDimensions(width, length, rotation) {
-  const normalized = ((rotation % 360) + 360) % 360
-  // At 90° or 270°, width and length are swapped
-  if (Math.abs(normalized - 90) < 5 || Math.abs(normalized - 270) < 5) {
-    return { width: length, length: width }
-  }
-  return { width, length }
-}
-
-// Get object bounding box (accounts for axis-aligned rotation)
-function getObjectBounds(x, z, width, length, rotation = 0) {
-  const dims = getRotatedDimensions(width, length, rotation)
-  return {
-    left: x - dims.width / 2,
-    right: x + dims.width / 2,
-    top: z + dims.length / 2,
-    bottom: z - dims.length / 2,
-    centerX: x,
-    centerZ: z,
-  }
-}
-
-// Check if two objects overlap
-function checkOverlap(bounds1, bounds2) {
-  return !(
-    bounds1.right <= bounds2.left ||
-    bounds1.left >= bounds2.right ||
-    bounds1.top <= bounds2.bottom ||
-    bounds1.bottom >= bounds2.top
-  )
-}
-
-function ComparisonObject({ obj, index, totalObjects, lengthUnit = 'm', position, onPositionChange, rotation = 0, onRotationChange, polygonPoints, allObjects, allPositions, allRotations = {}, onSnapLineChange, isOverlapping, gridSnapEnabled = false, gridSize = 1, viewMode = 'firstPerson', isSelected = false, onSelect, onDeselect }) {
+function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.MEDIUM, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, roofs = [], addRoof, deleteRoof, roofType = 'gable', roofPitch = 30, selectedRoofId = null, setSelectedRoofId, setRoofPropertiesOpen, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange }) {
   const { camera, gl } = useThree()
-  const groupRef = useRef()
-  const [isDragging, setIsDragging] = useState(false)
-  const [isHovered, setIsHovered] = useState(false)
-  const [snapType, setSnapType] = useState('none') // 'none', 'edge', 'object', 'center'
-  const dragStartRef = useRef(null)
-  const DRAG_THRESHOLD = 5
-
-  // Default position: stagger objects so they don't stack
-  const defaultX = (index - (totalObjects - 1) / 2) * 15
-  const defaultZ = 0
-  const currentPos = position || { x: defaultX, z: defaultZ }
-
-  // Ground plane for raycasting
-  const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
-  const raycaster = useMemo(() => new THREE.Raycaster(), [])
-
-  // Calculate snapped position with edge-to-edge and land boundary snapping
-  const applySnap = useCallback((pos) => {
-    let snappedX = pos.x
-    let snappedZ = pos.z
-    let snapLines = []
-    let foundSnap = false
-
-    // Get rotated dimensions for this object
-    const dims = getRotatedDimensions(obj.width, obj.length, rotation)
-    const draggedBounds = getObjectBounds(pos.x, pos.z, obj.width, obj.length, rotation)
-
-    // Only do edge snapping if this object is axis-aligned
-    const canEdgeSnap = isAxisAligned(rotation)
-
-    // 1. Check edge-to-edge snap with other objects (only if axis-aligned)
-    if (canEdgeSnap && allObjects && allPositions) {
-      for (const other of allObjects) {
-        if (other.id === obj.id) continue
-
-        const otherDefaultX = (allObjects.indexOf(other) - (allObjects.length - 1) / 2) * 15
-        const otherPos = allPositions[other.id] || { x: otherDefaultX, z: 0 }
-        const otherRotation = allRotations[other.id] || 0
-
-        // Only snap to other objects that are also axis-aligned
-        if (!isAxisAligned(otherRotation)) continue
-
-        const otherBounds = getObjectBounds(otherPos.x, otherPos.z, other.width, other.length, otherRotation)
-
-        // Check X-axis snapping (left/right edges)
-        // Dragged right edge → Other left edge
-        const rightToLeft = Math.abs(draggedBounds.right - otherBounds.left)
-        if (rightToLeft < SNAP_THRESHOLD && !foundSnap) {
-          snappedX = otherBounds.left - dims.width / 2
-          snapLines.push({ type: 'vertical', x: otherBounds.left, z1: Math.min(draggedBounds.bottom, otherBounds.bottom) - 2, z2: Math.max(draggedBounds.top, otherBounds.top) + 2 })
-          foundSnap = true
-        }
-        // Dragged left edge → Other right edge
-        const leftToRight = Math.abs(draggedBounds.left - otherBounds.right)
-        if (leftToRight < SNAP_THRESHOLD && !foundSnap) {
-          snappedX = otherBounds.right + dims.width / 2
-          snapLines.push({ type: 'vertical', x: otherBounds.right, z1: Math.min(draggedBounds.bottom, otherBounds.bottom) - 2, z2: Math.max(draggedBounds.top, otherBounds.top) + 2 })
-          foundSnap = true
-        }
-
-        // Check Z-axis snapping (top/bottom edges)
-        // Dragged top edge → Other bottom edge
-        const topToBottom = Math.abs(draggedBounds.top - otherBounds.bottom)
-        if (topToBottom < SNAP_THRESHOLD && !foundSnap) {
-          snappedZ = otherBounds.bottom - dims.length / 2
-          snapLines.push({ type: 'horizontal', z: otherBounds.bottom, x1: Math.min(draggedBounds.left, otherBounds.left) - 2, x2: Math.max(draggedBounds.right, otherBounds.right) + 2 })
-          foundSnap = true
-        }
-        // Dragged bottom edge → Other top edge
-        const bottomToTop = Math.abs(draggedBounds.bottom - otherBounds.top)
-        if (bottomToTop < SNAP_THRESHOLD && !foundSnap) {
-          snappedZ = otherBounds.top + dims.length / 2
-          snapLines.push({ type: 'horizontal', z: otherBounds.top, x1: Math.min(draggedBounds.left, otherBounds.left) - 2, x2: Math.max(draggedBounds.right, otherBounds.right) + 2 })
-          foundSnap = true
-        }
-
-        // Center alignment (lower priority, only if no edge snap)
-        if (!foundSnap) {
-          const centerXDiff = Math.abs(pos.x - otherPos.x)
-          const centerZDiff = Math.abs(pos.z - otherPos.z)
-          if (centerXDiff < SNAP_THRESHOLD * 0.7) {
-            snappedX = otherPos.x
-            snapLines.push({ type: 'vertical', x: otherPos.x, z1: Math.min(pos.z, otherPos.z) - 5, z2: Math.max(pos.z, otherPos.z) + 5 })
-            foundSnap = true
-          }
-          if (centerZDiff < SNAP_THRESHOLD * 0.7 && !foundSnap) {
-            snappedZ = otherPos.z
-            snapLines.push({ type: 'horizontal', z: otherPos.z, x1: Math.min(pos.x, otherPos.x) - 5, x2: Math.max(pos.x, otherPos.x) + 5 })
-            foundSnap = true
-          }
-        }
-      }
-    }
-
-    // 2. Check snap to land boundary edges (only if axis-aligned)
-    if (canEdgeSnap && !foundSnap && polygonPoints && polygonPoints.length >= 3) {
-      const vertices = polygonPoints.map(p => ({ x: p.x, z: -p.y }))
-
-      for (let i = 0; i < vertices.length; i++) {
-        const a = vertices[i]
-        const b = vertices[(i + 1) % vertices.length]
-
-        // Check if edge is mostly vertical (X alignment)
-        if (Math.abs(a.x - b.x) < 0.5) {
-          const edgeX = (a.x + b.x) / 2
-          // Snap right edge to land edge
-          if (Math.abs(draggedBounds.right - edgeX) < SNAP_THRESHOLD) {
-            snappedX = edgeX - dims.width / 2
-            snapLines.push({ type: 'vertical', x: edgeX, z1: Math.min(a.z, b.z), z2: Math.max(a.z, b.z) })
-            foundSnap = true
-            break
-          }
-          // Snap left edge to land edge
-          if (Math.abs(draggedBounds.left - edgeX) < SNAP_THRESHOLD) {
-            snappedX = edgeX + dims.width / 2
-            snapLines.push({ type: 'vertical', x: edgeX, z1: Math.min(a.z, b.z), z2: Math.max(a.z, b.z) })
-            foundSnap = true
-            break
-          }
-        }
-
-        // Check if edge is mostly horizontal (Z alignment)
-        if (Math.abs(a.z - b.z) < 0.5) {
-          const edgeZ = (a.z + b.z) / 2
-          // Snap top edge to land edge
-          if (Math.abs(draggedBounds.top - edgeZ) < SNAP_THRESHOLD) {
-            snappedZ = edgeZ - dims.length / 2
-            snapLines.push({ type: 'horizontal', z: edgeZ, x1: Math.min(a.x, b.x), x2: Math.max(a.x, b.x) })
-            foundSnap = true
-            break
-          }
-          // Snap bottom edge to land edge
-          if (Math.abs(draggedBounds.bottom - edgeZ) < SNAP_THRESHOLD) {
-            snappedZ = edgeZ + dims.length / 2
-            snapLines.push({ type: 'horizontal', z: edgeZ, x1: Math.min(a.x, b.x), x2: Math.max(a.x, b.x) })
-            foundSnap = true
-            break
-          }
-        }
-      }
-    }
-
-    // 3. Grid snap (lowest priority, only if no edge snap and grid enabled)
-    if (!foundSnap && gridSnapEnabled) {
-      snappedX = Math.round(pos.x / gridSize) * gridSize
-      snappedZ = Math.round(pos.z / gridSize) * gridSize
-      foundSnap = true
-      // No snap lines for grid snap - the grid itself is visible
-    }
-
-    return {
-      snappedPos: { x: snappedX, z: snappedZ },
-      snapType: foundSnap ? 'edge' : 'none',
-      snapLines
-    }
-  }, [obj.id, obj.width, obj.length, rotation, allObjects, allPositions, allRotations, polygonPoints, gridSnapEnabled, gridSize])
-
-  // Raycast mouse to ground plane
-  const raycastToGround = useCallback((clientX, clientY) => {
-    const rect = gl.domElement.getBoundingClientRect()
-    const mouse = new THREE.Vector2(
-      ((clientX - rect.left) / rect.width) * 2 - 1,
-      -((clientY - rect.top) / rect.height) * 2 + 1
-    )
-    raycaster.setFromCamera(mouse, camera)
-    const intersectPoint = new THREE.Vector3()
-    raycaster.ray.intersectPlane(groundPlane, intersectPoint)
-    return intersectPoint
-  }, [camera, gl.domElement, groundPlane, raycaster])
-
-  // Pointer down - select on first click, start drag if already selected
-  const handlePointerDown = useCallback((e) => {
-    // Only handle left mouse button (0)
-    if (e.button !== 0) return
-
-    e.stopPropagation()
-
-    // If not selected, just select it
-    if (!isSelected) {
-      onSelect?.()
-      return
-    }
-
-    // If selected, start drag
-    const point = raycastToGround(e.clientX, e.clientY)
-    dragStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      objX: currentPos.x,
-      objZ: currentPos.z,
-      startPoint: point
-    }
-    gl.domElement.style.cursor = 'grabbing'
-  }, [currentPos, gl.domElement, raycastToGround, isSelected, onSelect])
-
-  // Global pointer move - handle drag
-  useEffect(() => {
-    const handlePointerMove = (e) => {
-      if (!dragStartRef.current) return
-
-      const dx = e.clientX - dragStartRef.current.mouseX
-      const dy = e.clientY - dragStartRef.current.mouseY
-      const distance = Math.sqrt(dx * dx + dy * dy)
-
-      if (distance > DRAG_THRESHOLD) {
-        setIsDragging(true)
-        const point = raycastToGround(e.clientX, e.clientY)
-        if (point && onPositionChange) {
-          const { snappedPos, snapType: newSnapType, snapLines } = applySnap({ x: point.x, z: point.z })
-          setSnapType(newSnapType)
-          onPositionChange(obj.id, snappedPos)
-          onSnapLineChange?.(snapLines)
-        }
-      }
-    }
-
-    const handlePointerUp = () => {
-      if (dragStartRef.current) {
-        dragStartRef.current = null
-        setIsDragging(false)
-        setSnapType('none')
-        onSnapLineChange?.([])
-        gl.domElement.style.cursor = 'auto'
-      }
-    }
-
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-    }
-  }, [gl.domElement, obj.id, onPositionChange, raycastToGround, applySnap, onSnapLineChange])
-
-  // Hover handlers for cursor
-  const handlePointerEnter = useCallback(() => {
-    setIsHovered(true)
-    if (!isDragging) {
-      // Show grab cursor only when selected (can drag), pointer when not selected (will select)
-      gl.domElement.style.cursor = isSelected ? 'grab' : 'pointer'
-    }
-  }, [isDragging, gl.domElement, isSelected])
-
-  const handlePointerLeave = useCallback(() => {
-    setIsHovered(false)
-    if (!isDragging) {
-      gl.domElement.style.cursor = 'auto'
-    }
-  }, [isDragging, gl.domElement])
-
-  // Render the appropriate 3D component based on object type
-  const render3DObject = () => {
-    switch (obj.id) {
-      case 'soccerField': return <SoccerField3D obj={obj} />
-      case 'basketballCourt': return <BasketballCourt3D obj={obj} />
-      case 'tennisCourt': return <TennisCourt3D obj={obj} />
-      case 'house': return <House3D obj={obj} />
-      case 'parkingSpace': return <ParkingSpace3D obj={obj} />
-      case 'swimmingPool': return <Pool3D obj={obj} />
-      case 'carSedan': return <CarSedan3D obj={obj} />
-      case 'shippingContainer': return <ShippingContainer3D obj={obj} />
-      case 'schoolBus': return <SchoolBus3D obj={obj} />
-      case 'kingSizeBed': return <KingSizeBed3D obj={obj} />
-      case 'studioApartment': return <StudioApartment3D obj={obj} />
-      default: return null
-    }
-  }
-
-  // Render 2D rectangle for CAD view
-  const render2DObject = () => {
-    return (
-      <group>
-        {/* Colored fill */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[obj.width, obj.length]} />
-          <meshBasicMaterial color={obj.color} transparent opacity={isHovered ? 0.9 : 0.6} />
-        </mesh>
-        {/* White outline */}
-        <line rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              count={5}
-              array={new Float32Array([
-                -obj.width / 2, -obj.length / 2, 0,
-                obj.width / 2, -obj.length / 2, 0,
-                obj.width / 2, obj.length / 2, 0,
-                -obj.width / 2, obj.length / 2, 0,
-                -obj.width / 2, -obj.length / 2, 0,
-              ])}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial color={isHovered ? '#ffff00' : '#ffffff'} />
-        </line>
-      </group>
-    )
-  }
-
-  const is2D = viewMode === '2d'
-
-  // Calculate label height based on object type
-  const labelHeight = ['house', 'shippingContainer', 'schoolBus'].includes(obj.id) ? 5 : 3
-
-  // Convert rotation from degrees to radians
-  const rotationRad = (rotation * Math.PI) / 180
-
-  return (
-    <group
-      ref={groupRef}
-      position={[currentPos.x, 0, currentPos.z]}
-      rotation={[0, rotationRad, 0]}
-      onPointerDown={handlePointerDown}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
-    >
-      {/* Content wrapper */}
-      <group>
-        {is2D ? render2DObject() : render3DObject()}
-      </group>
-
-      {/* Billboard labels - 3D mode */}
-      {!is2D && (
-        <Billboard position={[0, labelHeight, 0]} follow={true}>
-          <Text
-            fontSize={1.2}
-            color="#ffffff"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.12}
-            outlineColor="#000000"
-          >
-            {obj.name}
-          </Text>
-          <Text
-            position={[0, -1, 0]}
-            fontSize={0.7}
-            color="#eeeeee"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.08}
-            outlineColor="#000000"
-          >
-            {formatDimensions(obj.width, obj.length, lengthUnit)}
-          </Text>
-        </Billboard>
-      )}
-
-      {/* 2D mode label (flat, above object) */}
-      {is2D && (
-        <Text
-          position={[0, 0.15, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={0.8}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {obj.name}
-        </Text>
-      )}
-
-      {/* Selection indicator */}
-      {isSelected && (
-        <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[Math.max(obj.width, obj.length) * 0.7, Math.max(obj.width, obj.length) * 0.75, 32]} />
-          <meshBasicMaterial color="#22d3ee" transparent opacity={0.7} />
-        </mesh>
-      )}
-
-      {/* Snap indicator while dragging */}
-      {isDragging && snapType !== 'none' && (
-        <mesh position={[0, 0.15, 0]}>
-          <sphereGeometry args={[0.3, 16, 16]} />
-          <meshBasicMaterial color="#14B8A6" />
-        </mesh>
-      )}
-
-      {/* Overlap warning indicator */}
-      {isOverlapping && (
-        <mesh position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[obj.width + 0.5, obj.length + 0.5]} />
-          <meshBasicMaterial color="#EF4444" transparent opacity={0.3} />
-        </mesh>
-      )}
-    </group>
-  )
-}
-
-// Snap guide line component
-function SnapGuideLine({ line }) {
-  if (line.type === 'vertical') {
-    return (
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={2}
-            array={new Float32Array([line.x, 0.15, line.z1, line.x, 0.15, line.z2])}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineDashedMaterial color="#14B8A6" dashSize={0.5} gapSize={0.3} linewidth={2} />
-      </line>
-    )
-  } else {
-    return (
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={2}
-            array={new Float32Array([line.x1, 0.15, line.z, line.x2, 0.15, line.z])}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineDashedMaterial color="#14B8A6" dashSize={0.5} gapSize={0.3} linewidth={2} />
-      </line>
-    )
-  }
-}
-
-// Wall segment component - renders a single wall between two points, with openings (doors/windows)
-function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelected = false, onSelect, isDeleteMode = false, onDelete, isOpeningMode = false, openingType = 'door', onPlaceOpening, showDimensions = true }) {
-  const [isHovered, setIsHovered] = useState(false)
-  const { start, end, height = 2.7, thickness = 0.15, openings = [] } = wall
-  const is2D = viewMode === '2d'
-
-  // Calculate wall length and angle
-  const dx = end.x - start.x
-  const dz = end.z - start.z
-  const wallLength = Math.sqrt(dx * dx + dz * dz)
-  const angle = Math.atan2(dx, dz)
-
-  // Direction unit vector
-  const dirX = wallLength > 0 ? dx / wallLength : 0
-  const dirZ = wallLength > 0 ? dz / wallLength : 0
-
-  // Format length for label
-  const displayLength = lengthUnit === 'ft' ? wallLength * FEET_PER_METER : wallLength
-  const lengthLabel = displayLength < 10
-    ? `${displayLength.toFixed(1)}${lengthUnit}`
-    : `${Math.round(displayLength)}${lengthUnit}`
-
-  // Midpoint for label positioning
-  const midX = (start.x + end.x) / 2
-  const midZ = (start.z + end.z) / 2
-
-  // Build wall segments around openings
-  // Each segment: { startDist, endDist, bottomY, topY }
-  const segments = useMemo(() => {
-    if (!openings || openings.length === 0) {
-      // No openings: single full segment
-      return [{ startDist: 0, endDist: wallLength, bottomY: 0, topY: height }]
-    }
-
-    // Sort openings by position
-    const sorted = [...openings].sort((a, b) => a.position - b.position)
-    const segs = []
-    let currentDist = 0
-
-    for (const opening of sorted) {
-      const openingStart = opening.position - opening.width / 2
-      const openingEnd = opening.position + opening.width / 2
-
-      // Solid segment before this opening
-      if (openingStart > currentDist) {
-        segs.push({ startDist: currentDist, endDist: openingStart, bottomY: 0, topY: height })
-      }
-
-      // For windows: wall below and above the opening
-      if (opening.type === 'window') {
-        const sillHeight = opening.sillHeight || 0.9
-        const windowTop = sillHeight + opening.height
-
-        // Wall below window (sill)
-        if (sillHeight > 0) {
-          segs.push({ startDist: openingStart, endDist: openingEnd, bottomY: 0, topY: sillHeight })
-        }
-        // Wall above window (header)
-        if (windowTop < height) {
-          segs.push({ startDist: openingStart, endDist: openingEnd, bottomY: windowTop, topY: height })
-        }
-      }
-      // For doors: wall above the door (header)
-      if (opening.type === 'door') {
-        const doorHeight = opening.height || 2.1
-        // Header segment above door (from door top to wall top)
-        if (doorHeight < height) {
-          segs.push({ startDist: openingStart, endDist: openingEnd, bottomY: doorHeight, topY: height })
-        }
-      }
-
-      currentDist = openingEnd
-    }
-
-    // Final segment after last opening
-    if (currentDist < wallLength) {
-      segs.push({ startDist: currentDist, endDist: wallLength, bottomY: 0, topY: height })
-    }
-
-    return segs
-  }, [openings, wallLength, height])
-
-  // Helper: get world position at distance along wall
-  const getWorldPos = (dist) => ({
-    x: start.x + dirX * dist,
-    z: start.z + dirZ * dist
-  })
-
-  // 2D rendering: flat rectangles from above (gaps for openings)
-  if (is2D) {
-    return (
-      <group>
-        {segments.map((seg, i) => {
-          const segLength = seg.endDist - seg.startDist
-          const centerDist = (seg.startDist + seg.endDist) / 2
-          const pos = getWorldPos(centerDist)
-          return (
-            <mesh
-              key={i}
-              position={[pos.x, 0.1, pos.z]}
-              rotation={[-Math.PI / 2, 0, -angle]}
-            >
-              <planeGeometry args={[thickness * 2, segLength]} />
-              <meshBasicMaterial color="#ffffff" />
-            </mesh>
-          )
-        })}
-
-        {/* 2D Door symbols (swing arc) */}
-        {openings.filter(o => o.type === 'door').map(opening => {
-          const pos = getWorldPos(opening.position)
-          const doorWidth = opening.width || 0.9
-          const isDoubleDoor = opening.doorType === 'double'
-          const leafWidth = isDoubleDoor ? doorWidth / 2 : doorWidth
-          const arcSegments = 16
-
-          if (isDoubleDoor) {
-            // Double door: two swing arcs forming butterfly pattern
-            const leftArcPoints = []
-            const rightArcPoints = []
-            for (let i = 0; i <= arcSegments; i++) {
-              const a = (i / arcSegments) * (Math.PI / 2)
-              // Left arc: swings to the left (negative Z)
-              leftArcPoints.push([Math.sin(a) * leafWidth, 0.12, -Math.cos(a) * leafWidth])
-              // Right arc: swings to the right (positive Z)
-              rightArcPoints.push([Math.sin(a) * leafWidth, 0.12, Math.cos(a) * leafWidth])
-            }
-            return (
-              <group key={`door2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
-                {/* Left door swing arc */}
-                <Line points={leftArcPoints} color="#00ffff" lineWidth={1} />
-                {/* Right door swing arc */}
-                <Line points={rightArcPoints} color="#00ffff" lineWidth={1} />
-                {/* Left door leaf (closed position) */}
-                <Line points={[[0, 0.12, 0], [0, 0.12, -leafWidth]]} color="#00ffff" lineWidth={2} />
-                {/* Right door leaf (closed position) */}
-                <Line points={[[0, 0.12, 0], [0, 0.12, leafWidth]]} color="#00ffff" lineWidth={2} />
-              </group>
-            )
-          }
-
-          // Single door: one swing arc
-          const arcPoints = []
-          for (let i = 0; i <= arcSegments; i++) {
-            const a = (i / arcSegments) * (Math.PI / 2)
-            arcPoints.push([Math.sin(a) * doorWidth, 0.12, Math.cos(a) * doorWidth])
-          }
-          return (
-            <group key={`door2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
-              {/* Door swing arc */}
-              <Line points={arcPoints} color="#00ffff" lineWidth={1} />
-              {/* Door leaf (closed position along wall) */}
-              <Line points={[[0, 0.12, 0], [0, 0.12, doorWidth]]} color="#00ffff" lineWidth={2} />
-            </group>
-          )
-        })}
-
-        {/* 2D Window symbols (perpendicular lines) */}
-        {openings.filter(o => o.type === 'window').map(opening => {
-          const pos = getWorldPos(opening.position)
-          const halfWidth = (opening.width || 1.2) / 2
-          return (
-            <group key={`window2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
-              {/* Two short perpendicular lines at window edges */}
-              <Line points={[[-0.15, 0.12, -halfWidth], [0.15, 0.12, -halfWidth]]} color="#00ffff" lineWidth={1} />
-              <Line points={[[-0.15, 0.12, halfWidth], [0.15, 0.12, halfWidth]]} color="#00ffff" lineWidth={1} />
-            </group>
-          )
-        })}
-
-        {/* Dimension label */}
-        {showDimensions && (
-          <Text
-            position={[midX, 0.2, midZ]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.5}
-            color="#00ffff"
-            anchorX="center"
-            anchorY="middle"
-          >
-            {lengthLabel}
-          </Text>
-        )}
-      </group>
-    )
-  }
-
-  // 3D rendering: wall segments with openings
-  return (
-    <group>
-      {segments.map((seg, i) => {
-        const segLength = seg.endDist - seg.startDist
-        const segHeight = seg.topY - seg.bottomY
-        const centerDist = (seg.startDist + seg.endDist) / 2
-        const centerY = (seg.bottomY + seg.topY) / 2
-        const pos = getWorldPos(centerDist)
-
-        // Determine wall color based on state
-        let wallColor = '#E5E5E5'
-        let emissiveColor = '#000000'
-        let emissiveInt = 0
-
-        if (isDeleteMode && isHovered) {
-          wallColor = '#FF4444'
-          emissiveColor = '#FF0000'
-          emissiveInt = 0.4
-        } else if (isSelected) {
-          wallColor = '#FFD700'
-          emissiveColor = '#FFD700'
-          emissiveInt = 0.3
-        }
-
-        return (
-          <mesh
-            key={i}
-            position={[pos.x, centerY, pos.z]}
-            rotation={[0, angle, 0]}
-            castShadow
-            receiveShadow
-            onClick={(e) => {
-              e.stopPropagation()
-              if (isDeleteMode && onDelete) {
-                onDelete()
-              } else if (isOpeningMode && onPlaceOpening) {
-                // Calculate position along wall from click point
-                const clickPoint = e.point
-                const toClickX = clickPoint.x - start.x
-                const toClickZ = clickPoint.z - start.z
-                const posOnWall = (toClickX * dirX + toClickZ * dirZ)
-                onPlaceOpening(wall.id, posOnWall, openingType)
-              } else if (onSelect) {
-                onSelect()
-              }
-            }}
-            onPointerEnter={() => setIsHovered(true)}
-            onPointerLeave={() => setIsHovered(false)}
-          >
-            <boxGeometry args={[thickness, segHeight, segLength]} />
-            <meshStandardMaterial
-              color={wallColor}
-              roughness={0.8}
-              emissive={emissiveColor}
-              emissiveIntensity={emissiveInt}
-            />
-          </mesh>
-        )
-      })}
-
-      {/* Door frames */}
-      {openings.filter(o => o.type === 'door').map(opening => {
-        const pos = getWorldPos(opening.position)
-        const frameThickness = 0.05
-        const frameDepth = thickness + 0.02
-        const doorHeight = opening.height || 2.1
-        const doorWidth = opening.width || 0.9
-        const isDoubleDoor = opening.doorType === 'double'
-
-        return (
-          <group key={`door-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
-            {/* Left frame */}
-            <mesh position={[0, doorHeight / 2, -doorWidth / 2 - frameThickness / 2]} castShadow>
-              <boxGeometry args={[frameDepth, doorHeight, frameThickness]} />
-              <meshStandardMaterial color="#8B4513" />
-            </mesh>
-            {/* Right frame */}
-            <mesh position={[0, doorHeight / 2, doorWidth / 2 + frameThickness / 2]} castShadow>
-              <boxGeometry args={[frameDepth, doorHeight, frameThickness]} />
-              <meshStandardMaterial color="#8B4513" />
-            </mesh>
-            {/* Top frame */}
-            <mesh position={[0, doorHeight + frameThickness / 2, 0]} castShadow>
-              <boxGeometry args={[frameDepth, frameThickness, doorWidth + frameThickness * 2]} />
-              <meshStandardMaterial color="#8B4513" />
-            </mesh>
-            {/* Center mullion for double doors */}
-            {isDoubleDoor && (
-              <mesh position={[0, doorHeight / 2, 0]} castShadow>
-                <boxGeometry args={[frameDepth, doorHeight, frameThickness]} />
-                <meshStandardMaterial color="#8B4513" />
-              </mesh>
-            )}
-          </group>
-        )
-      })}
-
-      {/* Window glass panes */}
-      {openings.filter(o => o.type === 'window').map(opening => {
-        const pos = getWorldPos(opening.position)
-        const winHeight = opening.height || 1.2
-        const winWidth = opening.width || 1.2
-        const sillHt = opening.sillHeight || 0.9
-        const windowCenterY = sillHt + winHeight / 2
-        const frameThick = 0.04
-        const frameDepth = 0.06
-        return (
-          <group key={`window-${opening.id}`} position={[pos.x, windowCenterY, pos.z]} rotation={[0, angle, 0]}>
-            {/* Glass pane - highly transparent */}
-            <mesh rotation={[0, Math.PI / 2, 0]}>
-              <planeGeometry args={[winWidth - frameThick * 2, winHeight - frameThick * 2]} />
-              <meshStandardMaterial color="#88CCEE" transparent opacity={0.2} side={2} roughness={0} metalness={0.1} />
-            </mesh>
-            {/* Frame - top */}
-            <mesh position={[0, winHeight / 2 - frameThick / 2, 0]}>
-              <boxGeometry args={[frameDepth, frameThick, winWidth]} />
-              <meshStandardMaterial color="#FFFFFF" />
-            </mesh>
-            {/* Frame - bottom */}
-            <mesh position={[0, -winHeight / 2 + frameThick / 2, 0]}>
-              <boxGeometry args={[frameDepth, frameThick, winWidth]} />
-              <meshStandardMaterial color="#FFFFFF" />
-            </mesh>
-            {/* Frame - left */}
-            <mesh position={[0, 0, -winWidth / 2 + frameThick / 2]}>
-              <boxGeometry args={[frameDepth, winHeight, frameThick]} />
-              <meshStandardMaterial color="#FFFFFF" />
-            </mesh>
-            {/* Frame - right */}
-            <mesh position={[0, 0, winWidth / 2 - frameThick / 2]}>
-              <boxGeometry args={[frameDepth, winHeight, frameThick]} />
-              <meshStandardMaterial color="#FFFFFF" />
-            </mesh>
-            {/* Center crossbar - horizontal */}
-            <mesh position={[0, 0, 0]}>
-              <boxGeometry args={[frameDepth / 2, frameThick / 2, winWidth - frameThick * 2]} />
-              <meshStandardMaterial color="#FFFFFF" />
-            </mesh>
-            {/* Center crossbar - vertical */}
-            <mesh position={[0, 0, 0]}>
-              <boxGeometry args={[frameDepth / 2, winHeight - frameThick * 2, frameThick / 2]} />
-              <meshStandardMaterial color="#FFFFFF" />
-            </mesh>
-          </group>
-        )
-      })}
-
-      {/* Dimension label at top of wall */}
-      {showDimensions && (
-        <Billboard position={[midX, height + 0.5, midZ]} follow={true}>
-          <Text
-            fontSize={0.4}
-            color="#ffffff"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.05}
-            outlineColor="#000000"
-          >
-            {lengthLabel}
-          </Text>
-        </Billboard>
-      )}
-    </group>
-  )
-}
-
-// Room floor component - renders floor and area label for detected rooms
-function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUnit = 'm', onSelect, isSelectMode = false }) {
-  const [isHovered, setIsHovered] = useState(false)
-  const is2D = viewMode === '2d'
-
-  // Create shape from room points
-  // Note: Shape is in XY plane, then rotated to XZ plane. We negate Z
-  // so that after rotation by -PI/2 around X, the floor aligns with walls.
-  const shape = useMemo(() => {
-    if (!room.points || room.points.length < 3) return null
-
-    const s = new THREE.Shape()
-    s.moveTo(room.points[0].x, -room.points[0].z)
-
-    for (let i = 1; i < room.points.length; i++) {
-      s.lineTo(room.points[i].x, -room.points[i].z)
-    }
-
-    s.closePath()
-    return s
-  }, [room.points])
-
-  if (!shape) return null
-
-  // Calculate area display (using imported constants)
-  const areaDisplay = lengthUnit === 'ft'
-    ? `${(room.area * SQ_FEET_PER_SQ_METER).toFixed(0)} ft²`
-    : `${room.area.toFixed(1)} m²`
-
-  // Determine colors based on state
-  let floorColor = is2D ? '#1E3A3A' : '#3A3A3A'
-  let floorOpacity = is2D ? 0.4 : 0.8
-  if (isSelected) {
-    floorColor = is2D ? '#14B8A6' : '#2A5A4A'
-    floorOpacity = is2D ? 0.5 : 0.9
-  } else if (isHovered && isSelectMode) {
-    floorColor = is2D ? '#1A4A4A' : '#4A4A4A'
-  }
-
-  return (
-    <group>
-      {/* Floor surface */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, is2D ? 0.01 : 0.02, 0]}
-        receiveShadow
-        onClick={(e) => {
-          if (isSelectMode && onSelect) {
-            e.stopPropagation()
-            onSelect()
-          }
-        }}
-        onPointerEnter={() => setIsHovered(true)}
-        onPointerLeave={() => setIsHovered(false)}
-      >
-        <shapeGeometry args={[shape]} />
-        <meshStandardMaterial
-          color={floorColor}
-          transparent
-          opacity={floorOpacity}
-        />
-      </mesh>
-
-      {/* Room area label */}
-      {is2D ? (
-        <Text
-          position={[room.center.x, 0.05, room.center.z]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={1.0}
-          color={isSelected ? '#22D3EE' : '#00FFFF'}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {areaDisplay}
-        </Text>
-      ) : (
-        <Billboard position={[room.center.x, 0.5, room.center.z]} follow={true}>
-          <Text
-            fontSize={0.6}
-            color="#FFFFFF"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.04}
-            outlineColor="#000000"
-          >
-            {areaDisplay}
-          </Text>
-        </Billboard>
-      )}
-    </group>
-  )
-}
-
-function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.MEDIUM, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId }) {
-  const { camera } = useThree()
   const [previewPos, setPreviewPos] = useState(null)
   const qualitySettings = QUALITY_SETTINGS[quality]
 
@@ -3389,6 +318,29 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
   // Building drag state
   const [isDraggingBuilding, setIsDraggingBuilding] = useState(false)
+
+  // Room move drag state - tracks which walls are being dragged and by how much (for visual offset)
+  const [roomMoveDragState, setRoomMoveDragState] = useState({ wallIds: [], offset: { x: 0, z: 0 } })
+
+  // Track which NPC is nearby for E key interaction
+  const [nearbyNPC, setNearbyNPC] = useState(null)
+  const nearbyNPCRef = useRef(null) // Ref for event handler closure
+  const NPC_INTERACT_RANGE = 4 // meters
+
+  // Compute wall colors based on room styles
+  const wallColorMap = useMemo(() => {
+    const colorMap = {} // { wallId: color }
+    for (const room of rooms) {
+      const style = roomStyles[room.id]
+      if (style?.wallColor) {
+        const wallIds = findWallsForRoom(room, walls)
+        for (const wallId of wallIds) {
+          colorMap[wallId] = style.wallColor
+        }
+      }
+    }
+    return colorMap
+  }, [rooms, roomStyles, walls])
 
   // Snap guide lines for comparison objects
   const [comparisonSnapLines, setComparisonSnapLines] = useState([])
@@ -3537,9 +489,113 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     return calculateNPCPositions(polygonPoints, length, width)
   }, [polygonPoints, length, width])
 
+  // Check for nearby NPCs when player moves
+  useEffect(() => {
+    if (!npcPositions?.guide1?.position || !npcPositions?.guide2?.position) {
+      setNearbyNPC(null)
+      nearbyNPCRef.current = null
+      return
+    }
+    if (viewMode === '2d' || wrapperActiveNPC) {
+      setNearbyNPC(null)
+      nearbyNPCRef.current = null
+      return
+    }
+
+    const px = playerState.position.x
+    const pz = playerState.position.z
+
+    // Calculate distances to each NPC
+    const dist1 = Math.sqrt(
+      Math.pow(px - npcPositions.guide1.position.x, 2) +
+      Math.pow(pz - npcPositions.guide1.position.z, 2)
+    )
+    const dist2 = Math.sqrt(
+      Math.pow(px - npcPositions.guide2.position.x, 2) +
+      Math.pow(pz - npcPositions.guide2.position.z, 2)
+    )
+
+    // Find closest NPC within range
+    let nearby = null
+    if (dist1 <= NPC_INTERACT_RANGE && dist1 <= dist2) {
+      nearby = 'guide1'
+    } else if (dist2 <= NPC_INTERACT_RANGE) {
+      nearby = 'guide2'
+    }
+    setNearbyNPC(nearby)
+    nearbyNPCRef.current = nearby
+    onNearbyNPCChange?.(!!nearby)
+  }, [playerState.position.x, playerState.position.z, npcPositions, viewMode, wrapperActiveNPC, NPC_INTERACT_RANGE, onNearbyNPCChange])
+
+  // E key to interact with nearby NPC
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const key = e.key.toLowerCase()
+      if (key === 'e' && nearbyNPCRef.current && !wrapperActiveNPC) {
+        e.preventDefault()
+        e.stopPropagation()
+        onNPCInteract?.(nearbyNPCRef.current)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
+  }, [wrapperActiveNPC, onNPCInteract])
+
+  // Mobile Talk trigger — uses DOM custom event (same pattern as E key handler above).
+  // DOM events work reliably across R3F's Canvas reconciler boundary.
+  useEffect(() => {
+    const handler = () => {
+      if (nearbyNPCRef.current && !wrapperActiveNPC) {
+        onNPCInteract?.(nearbyNPCRef.current)
+      }
+    }
+    window.addEventListener('mobileTalk', handler)
+    return () => window.removeEventListener('mobileTalk', handler)
+  }, [wrapperActiveNPC, onNPCInteract])
+
+  // Track nearby placed building for mobile Use button
+  const nearbyBuildingRef = useRef(null)
+  const BUILDING_INTERACT_RANGE = 5 // meters
+
+  // Building proximity check (runs on player movement — state is inside R3F reconciler)
+  useEffect(() => {
+    if (viewMode === '2d' || !placedBuildings.length) {
+      nearbyBuildingRef.current = null
+      onNearbyBuildingChange?.(false)
+      return
+    }
+    const px = playerState.position.x
+    const pz = playerState.position.z
+    let closest = null
+    let closestDist = BUILDING_INTERACT_RANGE
+    for (const b of placedBuildings) {
+      const dx = px - (b.position?.x ?? b.x ?? 0)
+      const dz = pz - (b.position?.z ?? b.z ?? 0)
+      const dist = Math.sqrt(dx * dx + dz * dz)
+      if (dist < closestDist) {
+        closestDist = dist
+        closest = b
+      }
+    }
+    nearbyBuildingRef.current = closest
+    onNearbyBuildingChange?.(!!closest)
+  }, [playerState.position.x, playerState.position.z, placedBuildings, viewMode, onNearbyBuildingChange])
+
+  // Mobile Use trigger — DOM custom event
+  useEffect(() => {
+    const handler = () => {
+      if (nearbyBuildingRef.current) {
+        setSelectedPlacedBuildingId?.(nearbyBuildingRef.current.id)
+      }
+    }
+    window.addEventListener('mobileUse', handler)
+    return () => window.removeEventListener('mobileUse', handler)
+  }, [setSelectedPlacedBuildingId])
+
   // Wall drawing state
   const [wallPreviewPos, setWallPreviewPos] = useState(null)
   const [shiftHeld, setShiftHeld] = useState(false)
+  const [wallLengthInput, setWallLengthInput] = useState('') // For typing exact wall length
   const CLOSE_THRESHOLD = 1.0 // meters - snap to close loop when within this distance
   const ANGLE_SNAP_THRESHOLD = 0.15 // radians (~8.5°) - snap to 90° angles within this
 
@@ -3550,6 +606,70 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     currentPoint: null
   })
 
+  // Polygon room tool state
+  const [roomPolygonPoints, setRoomPolygonPoints] = useState([]) // Array of {x, z} points
+  const [roomPolygonCurrentPoint, setRoomPolygonCurrentPoint] = useState(null) // Preview point
+
+  // Pool tool preview state (pools array and setPoolPolygonPoints come from props)
+  const [poolPolygonCurrentPoint, setPoolPolygonCurrentPoint] = useState(null) // Preview point for pool drawing
+  const [poolLengthInput, setPoolLengthInput] = useState('') // For typing exact pool segment length
+
+  // Pool drag state for moving selected pools
+  const [poolDragState, setPoolDragState] = useState({
+    isDragging: false,
+    startPoint: null,
+    offset: { x: 0, z: 0 }
+  })
+
+  // Manual double-click tracking for pools (to avoid browser's persistent dblclick timing)
+  const poolClickTracker = useRef({ lastClickTime: 0, lastPoolId: null })
+  const POOL_DOUBLE_CLICK_THRESHOLD = 400 // ms
+
+  // Reset click tracker when pool selection changes (e.g., after Escape closes properties)
+  useEffect(() => {
+    poolClickTracker.current = { lastClickTime: 0, lastPoolId: null }
+  }, [selectedPoolId])
+
+  // Foundation drag state for moving selected foundations
+  const [foundationDragState, setFoundationDragState] = useState({
+    isDragging: false,
+    foundationId: null,
+    startPoint: null,
+    offset: { x: 0, z: 0 }
+  })
+
+  // Manual double-click tracking for foundations
+  const foundationClickTracker = useRef({ lastClickTime: 0, lastFoundationId: null })
+  const FOUNDATION_DOUBLE_CLICK_THRESHOLD = 400 // ms
+
+  // Reset click tracker when foundation selection changes
+  useEffect(() => {
+    foundationClickTracker.current = { lastClickTime: 0, lastFoundationId: null }
+  }, [selectedFoundationId])
+
+  // Foundation tool preview state
+  const [foundationPolygonCurrentPoint, setFoundationPolygonCurrentPoint] = useState(null)
+  const [foundationLengthInput, setFoundationLengthInput] = useState('') // For typing exact segment length
+
+  // Stairs preview state for hover preview
+  const [stairsPreviewPos, setStairsPreviewPos] = useState(null) // { x, z } position
+
+  // Stairs drag state for moving selected stairs
+  const [stairsDragState, setStairsDragState] = useState({
+    isDragging: false,
+    stairsId: null,
+    startPoint: null,
+    offset: { x: 0, z: 0 }
+  })
+
+  // Manual double-click tracking for stairs
+  const stairsClickTracker = useRef({ lastClickTime: 0, lastStairsId: null })
+  const STAIRS_DOUBLE_CLICK_THRESHOLD = 400 // ms
+
+  // Manual double-click tracking for roofs
+  const roofClickTracker = useRef({ lastClickTime: 0, lastRoofId: null })
+  const ROOF_DOUBLE_CLICK_THRESHOLD = 400 // ms
+
   // Opening (door/window) hover preview state
   const [openingHover, setOpeningHover] = useState({
     wall: null,           // The wall being hovered
@@ -3557,8 +677,10 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     isValid: false        // Whether placement is valid
   })
 
-  // Wall tool mode - combines legacy wallDrawingMode and new activeBuildTool
-  const isWallMode = wallDrawingMode || activeBuildTool === BUILD_TOOLS.WALL
+  // Wall tool mode - combines legacy wallDrawingMode and new activeBuildTool (includes half walls and fences)
+  const isWallMode = wallDrawingMode || activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE
+  const isHalfWallMode = activeBuildTool === BUILD_TOOLS.HALF_WALL
+  const isFenceMode = activeBuildTool === BUILD_TOOLS.FENCE
 
   // Effective opening mode - combines legacy openingPlacementMode and new activeBuildTool
   const effectiveOpeningMode = useMemo(() => {
@@ -3583,131 +705,473 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   // This runs during React's commit phase, before any new events can be processed
   useEffect(() => {
     if (orbitControlsRef.current) {
-      const shouldBeEnabled = activeBuildTool === BUILD_TOOLS.NONE && !roomDragState.isDragging && !selectedBuildingId && !floorPlanPlacementMode && !selectedComparisonId
+      const shouldBeEnabled = (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) && !roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && !selectedBuildingId && !floorPlanPlacementMode && !selectedComparisonId && !selectedRoomId && !selectedPlacedBuildingId
       orbitControlsRef.current.enabled = shouldBeEnabled
     }
-  }, [activeBuildTool, roomDragState.isDragging, selectedBuildingId, floorPlanPlacementMode, selectedComparisonId, BUILD_TOOLS])
+  }, [activeBuildTool, roomDragState.isDragging, poolDragState.isDragging, foundationDragState.isDragging, stairsDragState.isDragging, selectedBuildingId, floorPlanPlacementMode, selectedComparisonId, selectedRoomId, selectedPlacedBuildingId, BUILD_TOOLS])
 
-  // Snap point for wall drawing (90° angles, grid, corners)
+  // Unified snap constants
+  const SNAP_THRESHOLD = {
+    corner: 0.8,    // Snap to corners/endpoints
+    edge: 0.5,      // Snap to wall edges
+    grid: 0.3,      // Grid snap threshold
+  }
+
+  // Snap point for wall drawing (corners, edges, buildings, angles, grid)
   const snapWallPoint = useCallback((rawPoint, lastPoint) => {
     let point = { ...rawPoint }
+    let snapInfo = { type: 'none', point: null }
 
     // 1. Snap to existing wall corners (highest priority)
-    const CORNER_SNAP = 0.8
     for (const wall of walls) {
       for (const corner of [wall.start, wall.end]) {
         const dx = point.x - corner.x
         const dz = point.z - corner.z
-        if (Math.sqrt(dx * dx + dz * dz) < CORNER_SNAP) {
-          return { x: corner.x, z: corner.z }
+        const dist = Math.sqrt(dx * dx + dz * dz)
+        if (dist < SNAP_THRESHOLD.corner) {
+          return { x: corner.x, z: corner.z, snapType: 'corner', snapPoint: corner }
         }
       }
     }
-    // Also snap to drawing points
-    for (const dp of wallDrawingPoints) {
-      const dx = point.x - dp.x
-      const dz = point.z - dp.z
-      if (Math.sqrt(dx * dx + dz * dz) < CORNER_SNAP) {
-        return { x: dp.x, z: dp.z }
+
+    // 2. Snap to building wall corners
+    for (const building of buildings) {
+      const cos = Math.cos(building.rotation || 0)
+      const sin = Math.sin(building.rotation || 0)
+      for (const bWall of (building.walls || [])) {
+        for (const corner of [bWall.start, bWall.end]) {
+          // Transform building-local coords to world coords
+          const worldX = building.position.x + corner.x * cos - corner.z * sin
+          const worldZ = building.position.z + corner.x * sin + corner.z * cos
+          const dx = point.x - worldX
+          const dz = point.z - worldZ
+          const dist = Math.sqrt(dx * dx + dz * dz)
+          if (dist < SNAP_THRESHOLD.corner) {
+            return { x: worldX, z: worldZ, snapType: 'corner', snapPoint: { x: worldX, z: worldZ } }
+          }
+        }
       }
     }
 
-    // 2. 90° angle snap (if we have a previous point and shift not held)
-    if (lastPoint && !shiftHeld) {
+    // 3. Snap to drawing points (current wall chain)
+    for (const dp of wallDrawingPoints) {
+      const dx = point.x - dp.x
+      const dz = point.z - dp.z
+      if (Math.sqrt(dx * dx + dz * dz) < SNAP_THRESHOLD.corner) {
+        return { x: dp.x, z: dp.z, snapType: 'corner', snapPoint: dp }
+      }
+    }
+
+    // 4. Snap to wall edges (perpendicular projection)
+    for (const wall of walls) {
+      const wallDx = wall.end.x - wall.start.x
+      const wallDz = wall.end.z - wall.start.z
+      const wallLen = Math.sqrt(wallDx * wallDx + wallDz * wallDz)
+      if (wallLen < 0.01) continue
+
+      // Project point onto wall line
+      const t = Math.max(0, Math.min(1,
+        ((point.x - wall.start.x) * wallDx + (point.z - wall.start.z) * wallDz) / (wallLen * wallLen)
+      ))
+      const projX = wall.start.x + t * wallDx
+      const projZ = wall.start.z + t * wallDz
+
+      const dx = point.x - projX
+      const dz = point.z - projZ
+      const dist = Math.sqrt(dx * dx + dz * dz)
+
+      if (dist < SNAP_THRESHOLD.edge && t > 0.01 && t < 0.99) {
+        return { x: projX, z: projZ, snapType: 'edge', snapPoint: { x: projX, z: projZ } }
+      }
+    }
+
+    // 5. 45° angle snap when Shift is held
+    if (lastPoint && shiftHeld) {
       const dx = point.x - lastPoint.x
       const dz = point.z - lastPoint.z
       const angle = Math.atan2(dx, dz)
       const length = Math.sqrt(dx * dx + dz * dz)
 
-      // Snap to nearest 90° (0, π/2, π, 3π/2)
-      const snapAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2, -Math.PI]
+      // Snap to nearest 45° (0°, 45°, 90°, 135°, 180°, -135°, -90°, -45°)
+      const snapAngles = [
+        0,                    // 0° (North)
+        Math.PI / 4,          // 45° (NE)
+        Math.PI / 2,          // 90° (East)
+        (3 * Math.PI) / 4,    // 135° (SE)
+        Math.PI,              // 180° (South)
+        -(3 * Math.PI) / 4,   // -135° (SW)
+        -Math.PI / 2,         // -90° (West)
+        -Math.PI / 4,         // -45° (NW)
+      ]
+
+      // Find the nearest snap angle
+      let nearestAngle = snapAngles[0]
+      let minDiff = Math.abs(angle - nearestAngle)
       for (const snapAngle of snapAngles) {
-        if (Math.abs(angle - snapAngle) < ANGLE_SNAP_THRESHOLD) {
-          point = {
-            x: lastPoint.x + Math.sin(snapAngle) * length,
-            z: lastPoint.z + Math.cos(snapAngle) * length
-          }
-          break
+        const diff = Math.abs(angle - snapAngle)
+        if (diff < minDiff) {
+          minDiff = diff
+          nearestAngle = snapAngle
+        }
+      }
+
+      // Always snap when shift is held
+      point = {
+        x: lastPoint.x + Math.sin(nearestAngle) * length,
+        z: lastPoint.z + Math.cos(nearestAngle) * length
+      }
+      snapInfo = { type: 'angle', point }
+    }
+
+    // 6. Grid snap (lowest priority)
+    if (gridSnapEnabled) {
+      point = {
+        x: Math.round(point.x / gridSize) * gridSize,
+        z: Math.round(point.z / gridSize) * gridSize
+      }
+      snapInfo = { type: 'grid', point }
+    }
+
+    return { ...point, snapType: snapInfo.type, snapPoint: snapInfo.point }
+  }, [walls, buildings, wallDrawingPoints, shiftHeld, gridSnapEnabled, gridSize])
+
+  // Track snap indicator for wall/fence/room drawing
+  const [wallSnapIndicator, setWallSnapIndicator] = useState(null) // { x, z, type: 'corner' | 'edge' | 'grid' }
+  const [roomSnapIndicator, setRoomSnapIndicator] = useState(null) // { x, z, type: 'corner' | 'edge' | 'grid' }
+
+  // Snap point for room tool - check wall/building endpoints, edges, then grid
+  const snapRoomPoint = useCallback((rawPoint) => {
+    let point = { x: rawPoint.x, z: rawPoint.z }
+
+    // 1. Check wall endpoints (highest priority)
+    for (const wall of walls) {
+      for (const endpoint of [wall.start, wall.end]) {
+        const dist = Math.sqrt(
+          Math.pow(point.x - endpoint.x, 2) + Math.pow(point.z - endpoint.z, 2)
+        )
+        if (dist < SNAP_THRESHOLD.corner) {
+          setRoomSnapIndicator({ x: endpoint.x, z: endpoint.z, type: 'corner' })
+          return { x: endpoint.x, z: endpoint.z }
         }
       }
     }
 
-    // 3. Grid snap (lowest priority)
+    // 2. Check building wall corners
+    for (const building of buildings) {
+      const cos = Math.cos(building.rotation || 0)
+      const sin = Math.sin(building.rotation || 0)
+      for (const bWall of (building.walls || [])) {
+        for (const corner of [bWall.start, bWall.end]) {
+          const worldX = building.position.x + corner.x * cos - corner.z * sin
+          const worldZ = building.position.z + corner.x * sin + corner.z * cos
+          const dist = Math.sqrt(Math.pow(point.x - worldX, 2) + Math.pow(point.z - worldZ, 2))
+          if (dist < SNAP_THRESHOLD.corner) {
+            setRoomSnapIndicator({ x: worldX, z: worldZ, type: 'corner' })
+            return { x: worldX, z: worldZ }
+          }
+        }
+      }
+    }
+
+    // 3. Check wall edges (perpendicular projection)
+    for (const wall of walls) {
+      const wallDx = wall.end.x - wall.start.x
+      const wallDz = wall.end.z - wall.start.z
+      const wallLen = Math.sqrt(wallDx * wallDx + wallDz * wallDz)
+      if (wallLen < 0.01) continue
+
+      const t = Math.max(0, Math.min(1,
+        ((point.x - wall.start.x) * wallDx + (point.z - wall.start.z) * wallDz) / (wallLen * wallLen)
+      ))
+      const projX = wall.start.x + t * wallDx
+      const projZ = wall.start.z + t * wallDz
+      const dist = Math.sqrt(Math.pow(point.x - projX, 2) + Math.pow(point.z - projZ, 2))
+
+      if (dist < SNAP_THRESHOLD.edge && t > 0.01 && t < 0.99) {
+        setRoomSnapIndicator({ x: projX, z: projZ, type: 'edge' })
+        return { x: projX, z: projZ }
+      }
+    }
+
+    // 4. Grid snapping (fallback)
     if (gridSnapEnabled) {
       point = {
         x: Math.round(point.x / gridSize) * gridSize,
         z: Math.round(point.z / gridSize) * gridSize
       }
+      setRoomSnapIndicator({ x: point.x, z: point.z, type: 'grid' })
+    } else {
+      setRoomSnapIndicator(null)
     }
 
     return point
-  }, [walls, wallDrawingPoints, shiftHeld, gridSnapEnabled, gridSize])
+  }, [walls, buildings, gridSnapEnabled, gridSize, SNAP_THRESHOLD])
 
-  // Snap point for room tool (grid only for simplicity)
-  const snapRoomPoint = useCallback((rawPoint) => {
-    let point = { x: rawPoint.x, z: rawPoint.z }
-    if (gridSnapEnabled) {
-      point = {
-        x: Math.round(point.x / gridSize) * gridSize,
-        z: Math.round(point.z / gridSize) * gridSize
-      }
-    }
-    return point
-  }, [gridSnapEnabled, gridSize])
-
-  // Handle room tool pointer down (start dragging)
+  // Handle room tool click (click-move-click pattern)
+  // First click: set start point, Second click: finish room
   const handleRoomPointerDown = (e) => {
     if (activeBuildTool !== BUILD_TOOLS.ROOM) return
     e.stopPropagation()
     const point = snapRoomPoint(e.point)
-    setRoomDragState({
-      isDragging: true,
-      startPoint: point,
-      currentPoint: point
-    })
+
+    if (!roomDragState.isDragging) {
+      // First click - start drawing
+      setRoomDragState({
+        isDragging: true,
+        startPoint: point,
+        currentPoint: point
+      })
+    } else {
+      // Second click - finish room
+      const { startPoint } = roomDragState
+      const currentPoint = point // Use clicked point as final point
+
+      if (startPoint && currentPoint) {
+        const minX = Math.min(startPoint.x, currentPoint.x)
+        const maxX = Math.max(startPoint.x, currentPoint.x)
+        const minZ = Math.min(startPoint.z, currentPoint.z)
+        const maxZ = Math.max(startPoint.z, currentPoint.z)
+
+        const width = maxX - minX
+        const height = maxZ - minZ
+
+        // Only create if big enough (at least 0.5m on each side)
+        if (width >= 0.5 && height >= 0.5) {
+          const corners = [
+            { x: minX, z: minZ },
+            { x: maxX, z: minZ },
+            { x: maxX, z: maxZ },
+            { x: minX, z: maxZ },
+            { x: minX, z: minZ },
+          ]
+          addWallFromPoints?.(corners)
+        }
+      }
+
+      // Reset drag state and snap indicator
+      setRoomDragState({
+        isDragging: false,
+        startPoint: null,
+        currentPoint: null
+      })
+      setRoomSnapIndicator(null)
+    }
   }
 
-  // Handle pointer up (finish room rectangle or building drag)
+  // Handle pointer up (only for building drag, not room drawing)
   const handleRoomPointerUp = (e) => {
     // End building drag
     if (isDraggingBuilding) {
       setIsDraggingBuilding(false)
     }
+    // Room drawing now uses click-move-click, not click-drag
+  }
 
-    if (!roomDragState.isDragging) return
+  // Polygon room tool - click handler
+  const POLYGON_CLOSE_DISTANCE = 0.5 // 50cm to close polygon
+  const handlePolygonClick = (e) => {
+    if (activeBuildTool !== BUILD_TOOLS.POLYGON_ROOM) return
     e.stopPropagation()
 
-    const { startPoint, currentPoint } = roomDragState
-    if (startPoint && currentPoint) {
-      // Calculate rectangle dimensions
-      const minX = Math.min(startPoint.x, currentPoint.x)
-      const maxX = Math.max(startPoint.x, currentPoint.x)
-      const minZ = Math.min(startPoint.z, currentPoint.z)
-      const maxZ = Math.max(startPoint.z, currentPoint.z)
+    const point = snapRoomPoint(e.point)
 
-      const width = maxX - minX
-      const height = maxZ - minZ
-
-      // Only create if big enough (at least 0.5m on each side)
-      if (width >= 0.5 && height >= 0.5) {
-        // Create 4 corners
-        const corners = [
-          { x: minX, z: minZ }, // bottom-left
-          { x: maxX, z: minZ }, // bottom-right
-          { x: maxX, z: maxZ }, // top-right
-          { x: minX, z: maxZ }, // top-left
-          { x: minX, z: minZ }, // back to start (close loop)
-        ]
-        addWallFromPoints?.(corners)
+    // Check if clicking near first point to close polygon
+    if (roomPolygonPoints.length >= 3) {
+      const firstPoint = roomPolygonPoints[0]
+      const dist = Math.sqrt(
+        Math.pow(point.x - firstPoint.x, 2) + Math.pow(point.z - firstPoint.z, 2)
+      )
+      if (dist < POLYGON_CLOSE_DISTANCE) {
+        // Close the polygon - create walls
+        const closedPoints = [...roomPolygonPoints, roomPolygonPoints[0]]
+        addWallFromPoints?.(closedPoints)
+        setRoomPolygonPoints([])
+        setRoomPolygonCurrentPoint(null)
+        setRoomSnapIndicator(null)
+        return
       }
     }
 
-    // Reset drag state
-    setRoomDragState({
-      isDragging: false,
-      startPoint: null,
-      currentPoint: null
-    })
+    // Add point to polygon
+    setRoomPolygonPoints(prev => [...prev, point])
+  }
+
+  // Polygon room tool - pointer move handler (for preview)
+  const handlePolygonMove = (e) => {
+    if (activeBuildTool !== BUILD_TOOLS.POLYGON_ROOM) return
+    if (roomPolygonPoints.length === 0) return
+
+    const point = snapRoomPoint(e.point)
+    setRoomPolygonCurrentPoint(point)
+  }
+
+  // Pool tool - click handler (follows polygon pattern)
+  const POOL_CLOSE_DISTANCE = 0.5 // 50cm to close polygon
+  const handlePoolClick = (e) => {
+    if (activeBuildTool !== BUILD_TOOLS.POOL) return
+    e.stopPropagation()
+
+    let point = snapRoomPoint(e.point) // Use same snap logic
+
+    // If user typed a length, use that exact length in the direction of click
+    if (poolLengthInput && poolPolygonPoints.length > 0) {
+      const typedLength = parseFloat(poolLengthInput)
+      if (typedLength > 0 && typedLength <= 100) {
+        const lastPoint = poolPolygonPoints[poolPolygonPoints.length - 1]
+        const dx = point.x - lastPoint.x
+        const dz = point.z - lastPoint.z
+        const clickDist = Math.sqrt(dx * dx + dz * dz)
+        if (clickDist > 0) {
+          // Normalize direction and apply typed length
+          const dirX = dx / clickDist
+          const dirZ = dz / clickDist
+          point = {
+            x: lastPoint.x + dirX * typedLength,
+            z: lastPoint.z + dirZ * typedLength
+          }
+        }
+        // Clear the typed length after use
+        setPoolLengthInput('')
+      }
+    }
+
+    // Check if clicking near first point to close polygon
+    if (poolPolygonPoints.length >= 3) {
+      const firstPoint = poolPolygonPoints[0]
+      const dist = Math.sqrt(
+        Math.pow(point.x - firstPoint.x, 2) + Math.pow(point.z - firstPoint.z, 2)
+      )
+      if (dist < POOL_CLOSE_DISTANCE) {
+        // Close the polygon - create pool
+        addPool?.(poolPolygonPoints)
+        setPoolPolygonPoints([])
+        setPoolPolygonCurrentPoint(null)
+        setPoolLengthInput('')
+        return
+      }
+    }
+
+    // Add point to polygon
+    setPoolPolygonPoints(prev => [...prev, point])
+  }
+
+  // Pool tool - pointer move handler (for preview)
+  const handlePoolMove = (e) => {
+    if (activeBuildTool !== BUILD_TOOLS.POOL) return
+    if (poolPolygonPoints.length === 0) return
+
+    const point = snapRoomPoint(e.point)
+    setPoolPolygonCurrentPoint(point)
+  }
+
+  // Foundation tool - click handler (follows polygon pattern)
+  const FOUNDATION_CLOSE_DISTANCE = 0.5
+  const handleFoundationClick = (e) => {
+    if (activeBuildTool !== BUILD_TOOLS.FOUNDATION) return
+    e.stopPropagation()
+
+    let point = snapRoomPoint(e.point)
+
+    // If user typed a length, use that exact length in the direction of click
+    if (foundationLengthInput && foundationPolygonPoints.length > 0) {
+      const typedLength = parseFloat(foundationLengthInput)
+      if (typedLength > 0 && typedLength <= 100) {
+        const lastPoint = foundationPolygonPoints[foundationPolygonPoints.length - 1]
+        const dx = point.x - lastPoint.x
+        const dz = point.z - lastPoint.z
+        const clickDist = Math.sqrt(dx * dx + dz * dz)
+        if (clickDist > 0) {
+          // Normalize direction and apply typed length
+          const dirX = dx / clickDist
+          const dirZ = dz / clickDist
+          point = {
+            x: lastPoint.x + dirX * typedLength,
+            z: lastPoint.z + dirZ * typedLength
+          }
+        }
+        // Clear the typed length after use
+        setFoundationLengthInput('')
+      }
+    }
+
+    // Check if clicking near first point to close polygon
+    if (foundationPolygonPoints.length >= 3) {
+      const firstPoint = foundationPolygonPoints[0]
+      const dist = Math.sqrt(
+        Math.pow(point.x - firstPoint.x, 2) + Math.pow(point.z - firstPoint.z, 2)
+      )
+      if (dist < FOUNDATION_CLOSE_DISTANCE) {
+        addFoundation?.(foundationPolygonPoints)
+        setFoundationPolygonPoints([])
+        setFoundationPolygonCurrentPoint(null)
+        setFoundationLengthInput('')
+        return
+      }
+    }
+
+    setFoundationPolygonPoints(prev => [...prev, point])
+  }
+
+  // Foundation tool - pointer move handler
+  const handleFoundationMove = (e) => {
+    if (activeBuildTool !== BUILD_TOOLS.FOUNDATION) return
+    if (foundationPolygonPoints.length === 0) return
+
+    const point = snapRoomPoint(e.point)
+    setFoundationPolygonCurrentPoint(point)
+  }
+
+  // Stairs tool - click handler (single-click preset placement)
+  const handleStairsClick = (e) => {
+    if (activeBuildTool !== BUILD_TOOLS.STAIRS) return
+    e.stopPropagation()
+
+    const point = snapRoomPoint(e.point)
+
+    // Detect nearby foundation height
+    let nearbyFoundationHeight = null
+    const searchRadius = 3 // meters to search for nearby foundations
+
+    for (const foundation of foundations) {
+      if (!foundation.points || foundation.points.length < 3) continue
+      // Check if click is near the foundation
+      for (const fp of foundation.points) {
+        const dist = Math.sqrt((fp.x - point.x) ** 2 + (fp.z - point.z) ** 2)
+        if (dist < searchRadius) {
+          nearbyFoundationHeight = foundation.height || 0.6
+          break
+        }
+      }
+      if (nearbyFoundationHeight) break
+    }
+
+    // Single click places stairs with detected or default height
+    addStairs?.(point, nearbyFoundationHeight)
+  }
+
+  // Stairs tool - move handler for preview
+  const handleStairsMove = (e) => {
+    if (activeBuildTool !== BUILD_TOOLS.STAIRS) return
+    const point = snapRoomPoint(e.point)
+    setStairsPreviewPos({ x: point.x, z: point.z })
+  }
+
+  // Roof tool - click handler (click on room to add roof)
+  const handleRoofClick = (e, roomId) => {
+    if (activeBuildTool !== BUILD_TOOLS.ROOF) return
+    if (!roomId) return
+    e.stopPropagation()
+
+    // Check if room already has a roof
+    const existingRoof = roofs.find(r => r.roomId === roomId)
+    if (existingRoof) {
+      // Select existing roof
+      setSelectedRoofId?.(existingRoof.id)
+      return
+    }
+
+    // Add roof to room
+    addRoof?.(roomId)
   }
 
   const handleLandClick = (e) => {
@@ -3739,7 +1203,13 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       return
     }
 
-    // Deselect building when clicking on empty land
+    // Deselect placed building when clicking on empty land
+    if (selectedPlacedBuildingId) {
+      setSelectedPlacedBuildingId?.(null)
+      return
+    }
+
+    // Deselect floor plan building when clicking on empty land
     if (selectedBuildingId && !isDraggingBuilding) {
       setSelectedBuildingId(null)
       return
@@ -3751,13 +1221,70 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       return
     }
 
+    // Deselect room when clicking on empty land
+    if (selectedRoomId) {
+      setSelectedRoomId?.(null)
+      return
+    }
+
+    // Deselect roof when clicking on empty land
+    if (selectedRoofId) {
+      setSelectedRoofId?.(null)
+      return
+    }
+
     // Room tool uses pointer down/up, not click
     if (activeBuildTool === BUILD_TOOLS.ROOM) return
+
+    // Polygon room tool - handle via handlePolygonClick
+    if (activeBuildTool === BUILD_TOOLS.POLYGON_ROOM) {
+      handlePolygonClick(e)
+      return
+    }
+
+    // Pool tool - handle via handlePoolClick
+    if (activeBuildTool === BUILD_TOOLS.POOL) {
+      handlePoolClick(e)
+      return
+    }
+
+    // Foundation tool - handle via handleFoundationClick
+    if (activeBuildTool === BUILD_TOOLS.FOUNDATION) {
+      handleFoundationClick(e)
+      return
+    }
+
+    // Stairs tool - handle via handleStairsClick
+    if (activeBuildTool === BUILD_TOOLS.STAIRS) {
+      handleStairsClick(e)
+      return
+    }
 
     // Wall drawing mode takes priority (legacy mode or Wall tool)
     if (isWallMode && setWallDrawingPoints) {
       const lastPoint = wallDrawingPoints.length > 0 ? wallDrawingPoints[wallDrawingPoints.length - 1] : null
-      const newPoint = snapWallPoint({ x: point.x, z: point.z }, lastPoint)
+      let newPoint = snapWallPoint({ x: point.x, z: point.z }, lastPoint)
+
+      // If user typed a length, use that exact length in the direction of click
+      if (wallLengthInput && lastPoint) {
+        const typedLength = parseFloat(wallLengthInput)
+        if (typedLength > 0 && typedLength <= 100) {
+          const dx = newPoint.x - lastPoint.x
+          const dz = newPoint.z - lastPoint.z
+          const clickDist = Math.sqrt(dx * dx + dz * dz)
+          if (clickDist > 0) {
+            // Normalize direction and apply typed length
+            const dirX = dx / clickDist
+            const dirZ = dz / clickDist
+            newPoint = {
+              x: lastPoint.x + dirX * typedLength,
+              z: lastPoint.z + dirZ * typedLength
+            }
+          }
+          // Clear the typed length after use
+          setWallLengthInput('')
+        }
+      }
 
       // Check if close to starting point (close loop)
       if (wallDrawingPoints.length >= 3) {
@@ -3768,7 +1295,8 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         if (dist < CLOSE_THRESHOLD) {
           // Close the loop - add starting point again and finish
           const closedPoints = [...wallDrawingPoints, start]
-          addWallFromPoints?.(closedPoints)
+          const wallHeight = isFenceMode ? 1.0 : (isHalfWallMode ? halfWallHeight : 2.7)
+          addWallFromPoints?.(closedPoints, wallHeight, isFenceMode, fenceType)
           setWallDrawingPoints([])
           setWallDrawingMode?.(false)
           return
@@ -3818,11 +1346,11 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           (nearestWall.end.z - nearestWall.start.z) ** 2
         )
 
-        // Opening specs
+        // Opening specs - use props for size
         const isDoor = effectiveOpeningMode === 'door'
-        const openingWidth = isDoor ? 0.9 : 1.2
-        const openingHeight = isDoor ? 2.1 : 1.2
-        const sillHeight = isDoor ? 0 : 0.9
+        const openingWidth = isDoor ? doorWidth : windowWidth
+        const openingHeight = isDoor ? doorHeight : windowHeight
+        const sillHeight = isDoor ? 0 : windowSillHeight
         const MIN_EDGE_DIST = 0.3
 
         // Validate placement
@@ -3857,6 +1385,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           width: openingWidth,
           height: openingHeight,
           sillHeight: sillHeight,
+          ...(isDoor && { doorType }), // Include doorType for doors
         }
 
         addOpeningToWall(nearestWall.id, opening)
@@ -3900,11 +1429,46 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       return
     }
 
+    // Polygon room tool preview
+    if (activeBuildTool === BUILD_TOOLS.POLYGON_ROOM && roomPolygonPoints.length > 0) {
+      const snappedPoint = snapRoomPoint(point)
+      setRoomPolygonCurrentPoint(snappedPoint)
+      return
+    }
+
+    // Pool tool preview
+    if (activeBuildTool === BUILD_TOOLS.POOL && poolPolygonPoints.length > 0) {
+      const snappedPoint = snapRoomPoint(point)
+      setPoolPolygonCurrentPoint(snappedPoint)
+      return
+    }
+
+    // Foundation tool preview
+    if (activeBuildTool === BUILD_TOOLS.FOUNDATION && foundationPolygonPoints.length > 0) {
+      const snappedPoint = snapRoomPoint(point)
+      setFoundationPolygonCurrentPoint(snappedPoint)
+      return
+    }
+
+    // Stairs preview
+    if (activeBuildTool === BUILD_TOOLS.STAIRS) {
+      const snappedPoint = snapRoomPoint(point)
+      setStairsPreviewPos({ x: snappedPoint.x, z: snappedPoint.z })
+    }
+
     // Wall drawing preview (with snapping)
     if (isWallMode) {
       const lastPoint = wallDrawingPoints.length > 0 ? wallDrawingPoints[wallDrawingPoints.length - 1] : null
       const snappedPoint = snapWallPoint({ x: point.x, z: point.z }, lastPoint)
       setWallPreviewPos(snappedPoint)
+      // Update snap indicator
+      if (snappedPoint.snapType && snappedPoint.snapType !== 'none') {
+        setWallSnapIndicator({ x: snappedPoint.x, z: snappedPoint.z, type: snappedPoint.snapType })
+      } else {
+        setWallSnapIndicator(null)
+      }
+    } else {
+      setWallSnapIndicator(null)
     }
 
     // Opening (door/window) hover preview
@@ -3978,28 +1542,81 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     setIsDraggingBuilding(false)
   }
 
-  // Escape key to finish wall drawing
+  // Keyboard handler for wall drawing (Escape, number input for length)
   useEffect(() => {
     if (!isWallMode) return
 
     const handleKeyDown = (e) => {
+      // Escape to finish/cancel
       if (e.key === 'Escape') {
         // Finish drawing - create walls from current points
         if (wallDrawingPoints.length >= 2) {
-          addWallFromPoints?.(wallDrawingPoints)
+          const wallHeight = isFenceMode ? 1.0 : (isHalfWallMode ? halfWallHeight : 2.7)
+          addWallFromPoints?.(wallDrawingPoints, wallHeight, isFenceMode, fenceType)
         }
         setWallDrawingPoints?.([])
         setWallDrawingMode?.(false)
+        setWallLengthInput('')
         // Also reset wall tool
-        if (activeBuildTool === BUILD_TOOLS.WALL) {
+        if (activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE) {
           setActiveBuildTool?.(BUILD_TOOLS.NONE)
         }
+        return
+      }
+
+      // Only handle number input when we have at least one point placed
+      if (wallDrawingPoints.length === 0) return
+
+      // Number keys (0-9) and decimal point
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault()
+        setWallLengthInput(prev => prev + e.key)
+        return
+      }
+      if (e.key === '.' && !wallLengthInput.includes('.')) {
+        e.preventDefault()
+        setWallLengthInput(prev => prev + '.')
+        return
+      }
+
+      // Backspace to delete last character
+      if (e.key === 'Backspace' && wallLengthInput.length > 0) {
+        e.preventDefault()
+        setWallLengthInput(prev => prev.slice(0, -1))
+        return
+      }
+
+      // Enter to confirm length and place point
+      if (e.key === 'Enter' && wallLengthInput.length > 0 && wallPreviewPos) {
+        e.preventDefault()
+        const length = parseFloat(wallLengthInput)
+        if (length > 0 && length <= 100) { // Max 100m wall segment
+          const lastPoint = wallDrawingPoints[wallDrawingPoints.length - 1]
+          const dx = wallPreviewPos.x - lastPoint.x
+          const dz = wallPreviewPos.z - lastPoint.z
+          const currentLength = Math.sqrt(dx * dx + dz * dz)
+
+          if (currentLength > 0.1) {
+            // Calculate the angle from last point to preview position
+            const angle = Math.atan2(dx, dz)
+
+            // Create new point at exact length in that direction
+            const newPoint = {
+              x: lastPoint.x + Math.sin(angle) * length,
+              z: lastPoint.z + Math.cos(angle) * length
+            }
+
+            setWallDrawingPoints([...wallDrawingPoints, newPoint])
+            setWallLengthInput('')
+          }
+        }
+        return
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isWallMode, wallDrawingPoints, addWallFromPoints, setWallDrawingPoints, setWallDrawingMode, activeBuildTool, setActiveBuildTool, BUILD_TOOLS])
+  }, [isWallMode, isHalfWallMode, isFenceMode, halfWallHeight, fenceType, wallDrawingPoints, wallPreviewPos, wallLengthInput, addWallFromPoints, setWallDrawingPoints, setWallDrawingMode, activeBuildTool, setActiveBuildTool, BUILD_TOOLS])
 
   // Escape key to cancel opening placement
   useEffect(() => {
@@ -4032,9 +1649,11 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
             startPoint: null,
             currentPoint: null
           })
+          setRoomSnapIndicator(null)
         } else {
           // Cancel room tool
           setActiveBuildTool?.(BUILD_TOOLS.NONE)
+          setRoomSnapIndicator(null)
         }
       }
     }
@@ -4042,6 +1661,179 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [activeBuildTool, roomDragState.isDragging, setActiveBuildTool, BUILD_TOOLS])
+
+  // Escape key to cancel polygon room tool
+  useEffect(() => {
+    if (activeBuildTool !== BUILD_TOOLS.POLYGON_ROOM) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (roomPolygonPoints.length > 0) {
+          // Cancel current polygon
+          setRoomPolygonPoints([])
+          setRoomPolygonCurrentPoint(null)
+          setRoomSnapIndicator(null)
+        } else {
+          // Cancel polygon tool
+          setActiveBuildTool?.(BUILD_TOOLS.NONE)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeBuildTool, roomPolygonPoints.length, setActiveBuildTool, BUILD_TOOLS])
+
+  // Pool tool keyboard handler (Escape, number input for dimensions)
+  useEffect(() => {
+    if (activeBuildTool !== BUILD_TOOLS.POOL) return
+
+    const handleKeyDown = (e) => {
+      // Escape to cancel
+      if (e.key === 'Escape') {
+        if (poolPolygonPoints.length > 0) {
+          setPoolPolygonPoints([])
+          setPoolPolygonCurrentPoint(null)
+          setPoolLengthInput('')
+        } else {
+          setActiveBuildTool?.(BUILD_TOOLS.NONE)
+        }
+        return
+      }
+
+      // Only allow typing when we have at least one point
+      if (poolPolygonPoints.length === 0) return
+
+      // Number keys (0-9) - append to length input
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault()
+        setPoolLengthInput(prev => prev + e.key)
+        return
+      }
+
+      // Decimal point (only one allowed)
+      if (e.key === '.' && !poolLengthInput.includes('.')) {
+        e.preventDefault()
+        setPoolLengthInput(prev => prev + '.')
+        return
+      }
+
+      // Backspace to delete last character
+      if (e.key === 'Backspace' && poolLengthInput.length > 0) {
+        e.preventDefault()
+        setPoolLengthInput(prev => prev.slice(0, -1))
+        return
+      }
+
+      // Enter to confirm length and place point
+      if (e.key === 'Enter' && poolLengthInput.length > 0 && poolPolygonCurrentPoint) {
+        e.preventDefault()
+        const length = parseFloat(poolLengthInput)
+        if (length > 0 && length <= 100) {
+          const lastPoint = poolPolygonPoints[poolPolygonPoints.length - 1]
+          const dx = poolPolygonCurrentPoint.x - lastPoint.x
+          const dz = poolPolygonCurrentPoint.z - lastPoint.z
+          const currentLength = Math.sqrt(dx * dx + dz * dz)
+          if (currentLength > 0) {
+            const dirX = dx / currentLength
+            const dirZ = dz / currentLength
+            const newPoint = {
+              x: lastPoint.x + dirX * length,
+              z: lastPoint.z + dirZ * length
+            }
+            setPoolPolygonPoints(prev => [...prev, newPoint])
+            setPoolLengthInput('')
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeBuildTool, poolPolygonPoints, poolPolygonCurrentPoint, poolLengthInput, setActiveBuildTool, BUILD_TOOLS])
+
+  // Foundation tool keyboard handler (Escape, number input for dimensions)
+  useEffect(() => {
+    if (activeBuildTool !== BUILD_TOOLS.FOUNDATION) return
+
+    const handleKeyDown = (e) => {
+      // Escape to cancel
+      if (e.key === 'Escape') {
+        if (foundationPolygonPoints.length > 0) {
+          setFoundationPolygonPoints([])
+          setFoundationPolygonCurrentPoint(null)
+          setFoundationLengthInput('')
+        } else {
+          setActiveBuildTool?.(BUILD_TOOLS.NONE)
+        }
+        return
+      }
+
+      // Only allow typing when we have at least one point
+      if (foundationPolygonPoints.length === 0) return
+
+      // Number keys (0-9) - append to length input
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault()
+        setFoundationLengthInput(prev => prev + e.key)
+        return
+      }
+
+      // Decimal point (only one allowed)
+      if (e.key === '.' && !foundationLengthInput.includes('.')) {
+        e.preventDefault()
+        setFoundationLengthInput(prev => prev + '.')
+        return
+      }
+
+      // Backspace to delete last character
+      if (e.key === 'Backspace' && foundationLengthInput.length > 0) {
+        e.preventDefault()
+        setFoundationLengthInput(prev => prev.slice(0, -1))
+        return
+      }
+
+      // Enter to confirm length and place point
+      if (e.key === 'Enter' && foundationLengthInput.length > 0 && foundationPolygonCurrentPoint) {
+        e.preventDefault()
+        const length = parseFloat(foundationLengthInput)
+        if (length > 0 && length <= 100) {
+          const lastPoint = foundationPolygonPoints[foundationPolygonPoints.length - 1]
+          const dx = foundationPolygonCurrentPoint.x - lastPoint.x
+          const dz = foundationPolygonCurrentPoint.z - lastPoint.z
+          const currentLength = Math.sqrt(dx * dx + dz * dz)
+          if (currentLength > 0) {
+            const dirX = dx / currentLength
+            const dirZ = dz / currentLength
+            const newPoint = {
+              x: lastPoint.x + dirX * length,
+              z: lastPoint.z + dirZ * length
+            }
+            setFoundationPolygonPoints(prev => [...prev, newPoint])
+            setFoundationLengthInput('')
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeBuildTool, foundationPolygonPoints, foundationPolygonCurrentPoint, foundationLengthInput, setActiveBuildTool, BUILD_TOOLS])
+
+  // Escape key to cancel stairs tool
+  useEffect(() => {
+    if (activeBuildTool !== BUILD_TOOLS.STAIRS) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setStairsPreviewPos(null)
+        setActiveBuildTool?.(BUILD_TOOLS.NONE)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeBuildTool, setActiveBuildTool, BUILD_TOOLS])
 
   // Escape key to deselect or cancel select tool
   useEffect(() => {
@@ -4077,6 +1869,147 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [activeBuildTool, setActiveBuildTool, BUILD_TOOLS])
 
+  // Escape key to cancel roof tool
+  useEffect(() => {
+    if (activeBuildTool !== BUILD_TOOLS.ROOF) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setActiveBuildTool?.(BUILD_TOOLS.NONE)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeBuildTool, setActiveBuildTool, BUILD_TOOLS])
+
+  // Escape key to cancel add floors tool
+  useEffect(() => {
+    if (activeBuildTool !== BUILD_TOOLS.ADD_FLOORS) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setActiveBuildTool?.(BUILD_TOOLS.NONE)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeBuildTool, setActiveBuildTool, BUILD_TOOLS])
+
+  // Delete/Backspace/Escape for selected placed building
+  useEffect(() => {
+    if (!selectedPlacedBuildingId) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        onDeleteBuilding?.(selectedPlacedBuildingId)
+        setSelectedPlacedBuildingId?.(null)
+      } else if (e.key === 'Escape') {
+        setSelectedPlacedBuildingId?.(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedPlacedBuildingId, onDeleteBuilding, setSelectedPlacedBuildingId])
+
+  // Delete/Backspace key to delete selected pool
+  useEffect(() => {
+    if (!selectedPoolId) return
+
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deletePool?.(selectedPoolId)
+        setSelectedPoolId?.(null)
+      }
+
+      if (e.key === 'Escape') {
+        setPoolPropertiesOpen?.(false)  // Close properties panel first
+        setSelectedPoolId?.(null)
+        setPoolDragState({ isDragging: false, startPoint: null, offset: { x: 0, z: 0 } })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedPoolId, deletePool, setSelectedPoolId, setPoolPropertiesOpen])
+
+  // Delete/Backspace/Escape key to delete or deselect selected foundation
+  useEffect(() => {
+    if (!selectedFoundationId) return
+
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteFoundation?.(selectedFoundationId)
+        setSelectedFoundationId?.(null)
+      }
+
+      if (e.key === 'Escape') {
+        setFoundationPropertiesOpen?.(false)  // Close properties panel first
+        setSelectedFoundationId?.(null)
+        setFoundationDragState({ isDragging: false, foundationId: null, startPoint: null, offset: { x: 0, z: 0 } })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedFoundationId, deleteFoundation, setSelectedFoundationId, setFoundationPropertiesOpen])
+
+  // Delete/Backspace/Escape key to delete or deselect selected stairs
+  useEffect(() => {
+    if (!selectedStairsId) return
+
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteStairs?.(selectedStairsId)
+        setSelectedStairsId?.(null)
+      }
+
+      if (e.key === 'Escape') {
+        setStairsPropertiesOpen?.(false)
+        setSelectedStairsId?.(null)
+        setStairsDragState({ isDragging: false, stairsId: null, startPoint: null, offset: { x: 0, z: 0 } })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedStairsId, deleteStairs, setSelectedStairsId, setStairsPropertiesOpen])
+
+  // Delete/Backspace/Escape key to delete or deselect selected roof
+  useEffect(() => {
+    if (!selectedRoofId) return
+
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteRoof?.(selectedRoofId)
+        setSelectedRoofId?.(null)
+      }
+
+      if (e.key === 'Escape') {
+        setRoofPropertiesOpen?.(false)
+        setSelectedRoofId?.(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedRoofId, deleteRoof, setSelectedRoofId, setRoofPropertiesOpen])
+
   // Build tool keyboard shortcuts: R=Room, W=Wall, D=Door, N=Window, S=Select, X=Delete
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -4099,7 +2032,10 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
       switch (key) {
         case 'r':
-          toggleTool(BUILD_TOOLS.ROOM)
+          // Don't toggle room tool if something is selected (R is used to rotate)
+          if (!selectedRoomId && !selectedBuildingId && !selectedComparisonId) {
+            toggleTool(BUILD_TOOLS.ROOM)
+          }
           break
         case 'w':
           // Only if not moving (WASD) - check if in exploring mode
@@ -4108,7 +2044,10 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           }
           break
         case 'd':
-          toggleTool(BUILD_TOOLS.DOOR)
+          // Only if not moving (WASD)
+          if (!isExploring) {
+            toggleTool(BUILD_TOOLS.DOOR)
+          }
           break
         case 'n':
           toggleTool(BUILD_TOOLS.WINDOW)
@@ -4135,7 +2074,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeBuildTool, setActiveBuildTool, BUILD_TOOLS, setWallDrawingPoints, setSelectedElement, isExploring, selectedElement, deleteWall])
+  }, [activeBuildTool, setActiveBuildTool, BUILD_TOOLS, setWallDrawingPoints, setSelectedElement, isExploring, selectedElement, deleteWall, selectedRoomId, selectedBuildingId, selectedComparisonId])
 
   useEffect(() => {
     // Only initialize camera position once on mount
@@ -4278,17 +2217,25 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
       {/* NPC guide characters - positioned outside land boundary, facing inward */}
       {/* Hidden in 2D mode - they're for first-person immersion */}
-      {viewMode !== '2d' && (
+      {viewMode !== '2d' && npcPositions?.guide1?.position && npcPositions?.guide2?.position && (
         <>
           <NPCCharacter
             id="guide1"
             position={npcPositions.guide1.position}
             rotation={npcPositions.guide1.rotation}
+            onClick={onNPCInteract}
+            isActive={wrapperActiveNPC === 'guide1'}
+            isNearby={nearbyNPC === 'guide1'}
+            onClose={() => onNPCInteract?.(null)}
           />
           <NPCCharacter
             id="guide2"
             position={npcPositions.guide2.position}
             rotation={npcPositions.guide2.rotation}
+            onClick={onNPCInteract}
+            isActive={wrapperActiveNPC === 'guide2'}
+            isNearby={nearbyNPC === 'guide2'}
+            onClose={() => onNPCInteract?.(null)}
           />
         </>
       )}
@@ -4299,9 +2246,14 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           key={building.id}
           building={building}
           onDelete={onDeleteBuilding}
+          onMove={onMoveBuilding}
+          onSelect={setSelectedPlacedBuildingId}
+          isSelected={selectedPlacedBuildingId === building.id}
+          isDeleteMode={activeBuildTool === BUILD_TOOLS.DELETE}
           lengthUnit={lengthUnit}
           isOverlapping={overlappingBuildingIds.has(building.id)}
           showLabels={labels.buildings}
+          showBuildingDimensions={labels.buildingDimensions}
           canEdit={canEdit}
           viewMode={viewMode}
         />
@@ -4421,28 +2373,543 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         })()
       )}
 
-      {/* Room floors */}
-      {rooms.map((room) => (
-        <RoomFloor
-          key={room.id}
-          room={room}
-          isSelected={selectedElement?.type === 'room' && selectedElement?.id === room.id}
-          viewMode={viewMode}
-          lengthUnit={lengthUnit}
-          isSelectMode={activeBuildTool === BUILD_TOOLS.SELECT}
-          onSelect={() => setSelectedElement?.({ type: 'room', id: room.id })}
+      {/* Room tool snap indicator */}
+      {roomSnapIndicator && roomDragState.isDragging && activeBuildTool === BUILD_TOOLS.ROOM && (
+        <mesh
+          position={[roomSnapIndicator.x, 0.08, roomSnapIndicator.z]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <ringGeometry args={[0.15, 0.25, 16]} />
+          <meshBasicMaterial
+            color={roomSnapIndicator.type === 'corner' ? '#00ff00' : roomSnapIndicator.type === 'edge' ? '#ffff00' : '#00ffff'}
+            transparent
+            opacity={0.9}
+          />
+        </mesh>
+      )}
+
+      {/* Polygon room preview */}
+      {roomPolygonPoints.length > 0 && activeBuildTool === BUILD_TOOLS.POLYGON_ROOM && (
+        <group>
+          {/* Existing points as markers */}
+          {roomPolygonPoints.map((pt, i) => (
+            <mesh key={i} position={[pt.x, 0.1, pt.z]} rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[0.2, 16]} />
+              <meshBasicMaterial color={i === 0 ? '#FF6B6B' : PREVIEW_COLOR_VALID} />
+            </mesh>
+          ))}
+
+          {/* Lines connecting points */}
+          {roomPolygonPoints.length >= 1 && (
+            <line>
+              <bufferGeometry>
+                <bufferAttribute
+                  attach="attributes-position"
+                  count={roomPolygonPoints.length + (roomPolygonCurrentPoint ? 1 : 0)}
+                  array={new Float32Array([
+                    ...roomPolygonPoints.flatMap(pt => [pt.x, 0.08, pt.z]),
+                    ...(roomPolygonCurrentPoint ? [roomPolygonCurrentPoint.x, 0.08, roomPolygonCurrentPoint.z] : [])
+                  ])}
+                  itemSize={3}
+                />
+              </bufferGeometry>
+              <lineBasicMaterial color={PREVIEW_COLOR_VALID} linewidth={2} />
+            </line>
+          )}
+
+          {/* Closing line preview (to first point) */}
+          {roomPolygonPoints.length >= 3 && roomPolygonCurrentPoint && (
+            (() => {
+              const firstPoint = roomPolygonPoints[0]
+              const dist = Math.sqrt(
+                Math.pow(roomPolygonCurrentPoint.x - firstPoint.x, 2) +
+                Math.pow(roomPolygonCurrentPoint.z - firstPoint.z, 2)
+              )
+              const canClose = dist < 0.5
+              return canClose ? (
+                <line>
+                  <bufferGeometry>
+                    <bufferAttribute
+                      attach="attributes-position"
+                      count={2}
+                      array={new Float32Array([
+                        roomPolygonCurrentPoint.x, 0.08, roomPolygonCurrentPoint.z,
+                        firstPoint.x, 0.08, firstPoint.z
+                      ])}
+                      itemSize={3}
+                    />
+                  </bufferGeometry>
+                  <lineBasicMaterial color="#FF6B6B" linewidth={2} />
+                </line>
+              ) : null
+            })()
+          )}
+
+          {/* Snap indicator for polygon */}
+          {roomSnapIndicator && (
+            <mesh
+              position={[roomSnapIndicator.x, 0.12, roomSnapIndicator.z]}
+              rotation={[-Math.PI / 2, 0, 0]}
+            >
+              <ringGeometry args={[0.15, 0.25, 16]} />
+              <meshBasicMaterial
+                color={roomSnapIndicator.type === 'corner' ? '#00ff00' : roomSnapIndicator.type === 'edge' ? '#ffff00' : '#00ffff'}
+                transparent
+                opacity={0.9}
+              />
+            </mesh>
+          )}
+        </group>
+      )}
+
+      {/* Pool polygon preview */}
+      {poolPolygonPoints.length > 0 && activeBuildTool === BUILD_TOOLS.POOL && (
+        <group>
+          {/* Existing points as markers */}
+          {poolPolygonPoints.map((pt, i) => (
+            <mesh key={i} position={[pt.x, 0.1, pt.z]} rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[0.2, 16]} />
+              <meshBasicMaterial color={i === 0 ? '#FF6B6B' : '#00CED1'} />
+            </mesh>
+          ))}
+
+          {/* Drawn segments with dimension labels */}
+          {poolPolygonPoints.length >= 2 && poolPolygonPoints.slice(0, -1).map((pt, i) => {
+            const nextPt = poolPolygonPoints[i + 1]
+            const dx = nextPt.x - pt.x
+            const dz = nextPt.z - pt.z
+            const length = Math.sqrt(dx * dx + dz * dz)
+            const midX = (pt.x + nextPt.x) / 2
+            const midZ = (pt.z + nextPt.z) / 2
+            const segAngle = Math.atan2(dx, dz)
+            const is2D = viewMode === '2d'
+
+            return (
+              <group key={`segment-${i}`}>
+                {/* Segment line - using mesh for visibility */}
+                <mesh
+                  position={[midX, 0.15, midZ]}
+                  rotation={[0, segAngle, 0]}
+                >
+                  <boxGeometry args={[0.08, 0.05, length]} />
+                  <meshBasicMaterial color="#00CED1" transparent opacity={0.9} />
+                </mesh>
+                {/* Dimension label */}
+                <PreviewDimensionLabel
+                  position={[midX, is2D ? 0.5 : 0.5, midZ]}
+                  text={`${length.toFixed(1)}m`}
+                  color="#00CED1"
+                  fontSize={0.3}
+                />
+              </group>
+            )
+          })}
+
+          {/* Preview line from last point to cursor with dimension */}
+          {poolPolygonCurrentPoint && (() => {
+            const lastPoint = poolPolygonPoints[poolPolygonPoints.length - 1]
+            const dx = poolPolygonCurrentPoint.x - lastPoint.x
+            const dz = poolPolygonCurrentPoint.z - lastPoint.z
+            const cursorLen = Math.sqrt(dx * dx + dz * dz)
+            if (cursorLen < 0.1) return null
+
+            const is2D = viewMode === '2d'
+            const typedLength = poolLengthInput ? parseFloat(poolLengthInput) : null
+            const displayLen = (typedLength && typedLength > 0) ? typedLength : cursorLen
+
+            // Calculate display end point
+            const angle = Math.atan2(dx, dz)
+            const displayEndX = lastPoint.x + Math.sin(angle) * displayLen
+            const displayEndZ = lastPoint.z + Math.cos(angle) * displayLen
+            const midX = (lastPoint.x + displayEndX) / 2
+            const midZ = (lastPoint.z + displayEndZ) / 2
+
+            return (
+              <group>
+                {/* Preview line - using mesh for visibility */}
+                <mesh
+                  position={[midX, 0.15, midZ]}
+                  rotation={[0, angle, 0]}
+                >
+                  <boxGeometry args={[0.08, 0.05, displayLen]} />
+                  <meshBasicMaterial color="#00CED1" transparent opacity={0.8} />
+                </mesh>
+                {/* Dimension label - show typed input or current length */}
+                <PreviewDimensionLabel
+                  position={[midX, is2D ? 0.5 : 0.5, midZ]}
+                  text={poolLengthInput ? `${poolLengthInput}m ⏎` : `${cursorLen.toFixed(1)}m`}
+                  color="#00CED1"
+                  fontSize={0.3}
+                />
+                {/* Preview end point marker */}
+                <mesh position={[displayEndX, 0.15, displayEndZ]} rotation={[-Math.PI / 2, 0, 0]}>
+                  <circleGeometry args={[0.15, 16]} />
+                  <meshBasicMaterial color="#00CED1" transparent opacity={0.8} />
+                </mesh>
+              </group>
+            )
+          })()}
+
+          {/* Closing line preview */}
+          {poolPolygonPoints.length >= 3 && poolPolygonCurrentPoint && (
+            (() => {
+              const firstPoint = poolPolygonPoints[0]
+              const dist = Math.sqrt(
+                Math.pow(poolPolygonCurrentPoint.x - firstPoint.x, 2) +
+                Math.pow(poolPolygonCurrentPoint.z - firstPoint.z, 2)
+              )
+              const canClose = dist < 0.5
+              if (!canClose) return null
+
+              // Calculate line geometry
+              const dx = firstPoint.x - poolPolygonCurrentPoint.x
+              const dz = firstPoint.z - poolPolygonCurrentPoint.z
+              const closeLen = Math.sqrt(dx * dx + dz * dz)
+              const closeAngle = Math.atan2(dx, dz)
+              const closeMidX = (poolPolygonCurrentPoint.x + firstPoint.x) / 2
+              const closeMidZ = (poolPolygonCurrentPoint.z + firstPoint.z) / 2
+
+              return (
+                <group>
+                  {/* Closing line - using mesh for visibility */}
+                  <mesh
+                    position={[closeMidX, 0.15, closeMidZ]}
+                    rotation={[0, closeAngle, 0]}
+                  >
+                    <boxGeometry args={[0.08, 0.05, closeLen]} />
+                    <meshBasicMaterial color="#FF6B6B" transparent opacity={0.8} />
+                  </mesh>
+                  {/* Close indicator ring */}
+                  <mesh position={[firstPoint.x, 0.2, firstPoint.z]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <ringGeometry args={[0.25, 0.35, 32]} />
+                    <meshBasicMaterial color="#FF6B6B" transparent opacity={0.8} side={THREE.DoubleSide} />
+                  </mesh>
+                  <PreviewDimensionLabel
+                    position={[firstPoint.x, 0.8, firstPoint.z]}
+                    text="Click to close"
+                    color="#FF6B6B"
+                    fontSize={0.25}
+                  />
+                </group>
+              )
+            })()
+          )}
+        </group>
+      )}
+
+      {/* Foundation polygon preview */}
+      {foundationPolygonPoints.length > 0 && activeBuildTool === BUILD_TOOLS.FOUNDATION && (
+        <group>
+          {/* Existing points as markers */}
+          {foundationPolygonPoints.map((pt, i) => (
+            <mesh key={i} position={[pt.x, 0.1, pt.z]} rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[0.2, 16]} />
+              <meshBasicMaterial color={i === 0 ? '#FF6B6B' : '#8B7355'} />
+            </mesh>
+          ))}
+
+          {/* Drawn segments with dimension labels */}
+          {foundationPolygonPoints.length >= 2 && foundationPolygonPoints.slice(0, -1).map((pt, i) => {
+            const nextPt = foundationPolygonPoints[i + 1]
+            const dx = nextPt.x - pt.x
+            const dz = nextPt.z - pt.z
+            const length = Math.sqrt(dx * dx + dz * dz)
+            const midX = (pt.x + nextPt.x) / 2
+            const midZ = (pt.z + nextPt.z) / 2
+            const segAngle = Math.atan2(dx, dz)
+            const is2D = viewMode === '2d'
+
+            return (
+              <group key={`foundation-segment-${i}`}>
+                {/* Segment line - using mesh for visibility */}
+                <mesh
+                  position={[midX, 0.15, midZ]}
+                  rotation={[0, segAngle, 0]}
+                >
+                  <boxGeometry args={[0.08, 0.05, length]} />
+                  <meshBasicMaterial color="#8B7355" transparent opacity={0.9} />
+                </mesh>
+                {/* Dimension label */}
+                <PreviewDimensionLabel
+                  position={[midX, is2D ? 0.5 : 0.5, midZ]}
+                  text={`${length.toFixed(1)}m`}
+                  color="#8B7355"
+                  fontSize={0.3}
+                />
+              </group>
+            )
+          })}
+
+          {/* Preview line from last point to cursor with dimension */}
+          {foundationPolygonCurrentPoint && (() => {
+            const lastPoint = foundationPolygonPoints[foundationPolygonPoints.length - 1]
+            const dx = foundationPolygonCurrentPoint.x - lastPoint.x
+            const dz = foundationPolygonCurrentPoint.z - lastPoint.z
+            const cursorLen = Math.sqrt(dx * dx + dz * dz)
+            if (cursorLen < 0.1) return null
+
+            const is2D = viewMode === '2d'
+            const typedLength = foundationLengthInput ? parseFloat(foundationLengthInput) : null
+            const displayLen = (typedLength && typedLength > 0) ? typedLength : cursorLen
+
+            // Calculate display end point
+            const angle = Math.atan2(dx, dz)
+            const displayEndX = lastPoint.x + Math.sin(angle) * displayLen
+            const displayEndZ = lastPoint.z + Math.cos(angle) * displayLen
+            const midX = (lastPoint.x + displayEndX) / 2
+            const midZ = (lastPoint.z + displayEndZ) / 2
+
+            return (
+              <group>
+                {/* Preview line - using mesh for visibility */}
+                <mesh
+                  position={[midX, 0.15, midZ]}
+                  rotation={[0, angle, 0]}
+                >
+                  <boxGeometry args={[0.08, 0.05, displayLen]} />
+                  <meshBasicMaterial color="#8B7355" transparent opacity={0.8} />
+                </mesh>
+                {/* Dimension label - show typed input or current length */}
+                <PreviewDimensionLabel
+                  position={[midX, is2D ? 0.5 : 0.5, midZ]}
+                  text={foundationLengthInput ? `${foundationLengthInput}m ⏎` : `${cursorLen.toFixed(1)}m`}
+                  color="#8B7355"
+                  fontSize={0.3}
+                />
+                {/* Preview end point marker */}
+                <mesh position={[displayEndX, 0.15, displayEndZ]} rotation={[-Math.PI / 2, 0, 0]}>
+                  <circleGeometry args={[0.15, 16]} />
+                  <meshBasicMaterial color="#8B7355" transparent opacity={0.8} />
+                </mesh>
+              </group>
+            )
+          })()}
+
+          {/* Closing line preview */}
+          {foundationPolygonPoints.length >= 3 && foundationPolygonCurrentPoint && (
+            (() => {
+              const firstPoint = foundationPolygonPoints[0]
+              const dist = Math.sqrt(
+                Math.pow(foundationPolygonCurrentPoint.x - firstPoint.x, 2) +
+                Math.pow(foundationPolygonCurrentPoint.z - firstPoint.z, 2)
+              )
+              const canClose = dist < FOUNDATION_CLOSE_DISTANCE
+              if (!canClose) return null
+
+              // Calculate line geometry
+              const dx = firstPoint.x - foundationPolygonCurrentPoint.x
+              const dz = firstPoint.z - foundationPolygonCurrentPoint.z
+              const closeLen = Math.sqrt(dx * dx + dz * dz)
+              const closeAngle = Math.atan2(dx, dz)
+              const closeMidX = (foundationPolygonCurrentPoint.x + firstPoint.x) / 2
+              const closeMidZ = (foundationPolygonCurrentPoint.z + firstPoint.z) / 2
+
+              return (
+                <group>
+                  {/* Closing line - using mesh for visibility */}
+                  <mesh
+                    position={[closeMidX, 0.15, closeMidZ]}
+                    rotation={[0, closeAngle, 0]}
+                  >
+                    <boxGeometry args={[0.08, 0.05, closeLen]} />
+                    <meshBasicMaterial color="#FF6B6B" transparent opacity={0.8} />
+                  </mesh>
+                  {/* Close indicator ring */}
+                  <mesh position={[firstPoint.x, 0.2, firstPoint.z]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <ringGeometry args={[0.25, 0.35, 32]} />
+                    <meshBasicMaterial color="#FF6B6B" transparent opacity={0.8} side={THREE.DoubleSide} />
+                  </mesh>
+                  <PreviewDimensionLabel
+                    position={[firstPoint.x, 0.8, firstPoint.z]}
+                    text="Click to close"
+                    color="#FF6B6B"
+                    fontSize={0.25}
+                  />
+                </group>
+              )
+            })()
+          )}
+        </group>
+      )}
+
+      {/* Stairs 3D preview */}
+      {stairsPreviewPos && activeBuildTool === BUILD_TOOLS.STAIRS && (() => {
+        const previewTopY = stairsTopY || 2.7
+        const previewWidth = stairsStyle === 'wide' ? 1.5 : (stairsWidth || 1)
+        const segmentLength = 1.5
+        const isLShape = stairsStyle === 'l-left' || stairsStyle === 'l-right'
+        const turnDir = stairsStyle === 'l-left' ? -1 : 1
+
+        // Helper to render preview segment
+        const renderPreviewSegment = (startX, startZ, endX, endZ, startY, endY) => {
+          const dx = endX - startX
+          const dz = endZ - startZ
+          const length = Math.sqrt(dx * dx + dz * dz)
+          const angle = Math.atan2(dx, dz)
+          const heightDiff = endY - startY
+          const stepCount = Math.max(1, Math.floor(heightDiff / 0.18))
+          const stepHeight = heightDiff / stepCount
+          const stepDepth = length / stepCount
+
+          return (
+            <group position={[startX, startY, startZ]} rotation={[0, angle, 0]}>
+              {Array.from({ length: stepCount }, (_, i) => (
+                <mesh key={i} position={[0, stepHeight * (i + 0.5), stepDepth * (i + 0.5)]}>
+                  <boxGeometry args={[previewWidth, stepHeight, stepDepth]} />
+                  <meshBasicMaterial color="#8B4513" transparent opacity={0.5} />
+                </mesh>
+              ))}
+            </group>
+          )
+        }
+
+        if (isLShape) {
+          const midY = previewTopY / 2
+          const mid2X = stairsPreviewPos.x + (previewWidth / 2 * turnDir)
+          return (
+            <group>
+              {/* First segment */}
+              {renderPreviewSegment(stairsPreviewPos.x, stairsPreviewPos.z, stairsPreviewPos.x, stairsPreviewPos.z - segmentLength, 0, midY)}
+              {/* Landing */}
+              <mesh position={[stairsPreviewPos.x, midY, stairsPreviewPos.z - segmentLength]}>
+                <boxGeometry args={[previewWidth, 0.1, previewWidth]} />
+                <meshBasicMaterial color="#8B4513" transparent opacity={0.5} />
+              </mesh>
+              {/* Second segment */}
+              {renderPreviewSegment(mid2X, stairsPreviewPos.z - segmentLength, mid2X + (segmentLength * turnDir), stairsPreviewPos.z - segmentLength, midY, previewTopY)}
+            </group>
+          )
+        }
+
+        // Straight stairs preview
+        return renderPreviewSegment(stairsPreviewPos.x, stairsPreviewPos.z, stairsPreviewPos.x, stairsPreviewPos.z - 2, 0, previewTopY)
+      })()}
+
+      {/* Pools */}
+      {pools.map((pool) => (
+        <PoolItem
+          key={pool.id}
+          pool={pool}
+          isSelected={selectedPoolId === pool.id}
+          isDeleteMode={activeBuildTool === BUILD_TOOLS.DELETE}
+          onDelete={deletePool}
+          onUpdate={updatePool}
+          onSelect={setSelectedPoolId}
+          onOpenProperties={() => setPoolPropertiesOpen?.(true)}
         />
       ))}
 
+      {/* Foundations */}
+      {foundations.map((foundation) => (
+        <FoundationItem
+          key={foundation.id}
+          foundation={foundation}
+          isSelected={selectedFoundationId === foundation.id}
+          isDeleteMode={activeBuildTool === BUILD_TOOLS.DELETE}
+          onDelete={deleteFoundation}
+          onUpdate={updateFoundation}
+          onSelect={setSelectedFoundationId}
+          onOpenProperties={() => setFoundationPropertiesOpen?.(true)}
+        />
+      ))}
+
+      {/* Stairs */}
+      {stairs.map((stair) => (
+        <StairsItem
+          key={stair.id}
+          stair={stair}
+          isSelected={selectedStairsId === stair.id}
+          isDeleteMode={activeBuildTool === BUILD_TOOLS.DELETE}
+          onDelete={deleteStairs}
+          onUpdate={updateStairs}
+          onSelect={setSelectedStairsId}
+          onOpenProperties={() => setStairsPropertiesOpen?.(true)}
+        />
+      ))}
+
+      {/* Roofs */}
+      {roofs.map((roof) => (
+        <RoofItem
+          key={`${roof.id}-${roof.roomId}`}
+          roof={roof}
+          room={rooms.find(r => r.id === roof.roomId)}
+          isSelected={selectedRoofId === roof.id}
+          isDeleteMode={activeBuildTool === BUILD_TOOLS.DELETE}
+          onDelete={deleteRoof}
+          onSelect={setSelectedRoofId}
+          onOpenProperties={() => setRoofPropertiesOpen?.(true)}
+        />
+      ))}
+
+      {/* Room floors */}
+      {rooms.map((room) => {
+        const roomFloorLevel = room.floorLevel ?? 0
+        const roomFloorYOffset = roomFloorLevel * floorHeight
+        const isInactiveRoomFloor = roomFloorLevel !== currentFloor
+        return (
+          <RoomFloor
+            key={room.id}
+            room={room}
+            isSelected={selectedRoomId === room.id}
+            viewMode={viewMode}
+            lengthUnit={lengthUnit}
+            onSelect={() => {
+              // If roof tool is active, add roof to this room
+              if (activeBuildTool === BUILD_TOOLS.ROOF) {
+                const existingRoof = roofs.find(r => r.roomId === room.id)
+                if (existingRoof) {
+                  setSelectedRoofId?.(existingRoof.id)
+                } else {
+                  addRoof?.(room.id)
+                }
+                return
+              }
+              // If add floors tool is active, add floors to this room
+              if (activeBuildTool === BUILD_TOOLS.ADD_FLOORS) {
+                addFloorsToRoom?.(room.id)
+                return
+              }
+              setSelectedRoomId?.(room.id)
+            }}
+            label={roomLabels[room.id] || ''}
+            onLabelChange={(newLabel) => setRoomLabel?.(room.id, newLabel)}
+            style={roomStyles[room.id] || {}}
+            walls={walls}
+            moveWallsByIds={moveWallsByIds}
+            commitWallsToHistory={commitWallsToHistory}
+            setRoomMoveDragState={setRoomMoveDragState}
+            onOpenProperties={() => setRoomPropertiesOpen?.(true)}
+            floorYOffset={roomFloorYOffset}
+            isInactiveFloor={isInactiveRoomFloor}
+          />
+        )
+      })}
+
       {/* Walls */}
-      {walls.map((wall) => (
+      {walls.map((wall) => {
+        const wallFloorLevel = wall.floorLevel ?? 0
+        const floorYOffset = wallFloorLevel * floorHeight
+        const isInactiveFloor = wallFloorLevel !== currentFloor
+        return (
         <WallSegment
           key={wall.id}
           wall={wall}
           lengthUnit={lengthUnit}
           viewMode={viewMode}
-          showDimensions={labels.land}
-          isSelected={selectedElement?.type === 'wall' && selectedElement?.id === wall.id}
+          showDimensions={labels.buildingDimensions}
+          isSelected={(selectedElement?.type === 'wall' || selectedElement?.type === 'fence') && selectedElement?.id === wall.id}
+          wallColor={wallColorMap[wall.id]}
+          floorYOffset={floorYOffset}
+          isInactiveFloor={isInactiveFloor}
+          onOpenProperties={() => {
+            if (wall.isFence) {
+              setSelectedElement?.({ type: 'fence', id: wall.id })
+              setFencePropertiesOpen?.(true)
+            } else {
+              setSelectedElement?.({ type: 'wall', id: wall.id })
+              setWallPropertiesOpen?.(true)
+            }
+          }}
           onSelect={activeBuildTool === BUILD_TOOLS.SELECT ? () => {
             setSelectedElement?.({ type: 'wall', id: wall.id })
           } : undefined}
@@ -4452,6 +2919,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           } : undefined}
           isOpeningMode={effectiveOpeningMode !== 'none'}
           openingType={effectiveOpeningMode}
+          roomMoveDragState={roomMoveDragState}
           onPlaceOpening={(wallId, posOnWall, type) => {
             // Validate and place opening
             const targetWall = walls.find(w => w.id === wallId)
@@ -4496,7 +2964,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
             addOpeningToWall?.(wallId, opening)
           }}
         />
-      ))}
+      )})}
 
       {/* Buildings (placed floor plans) */}
       {buildings.map((building) => (
@@ -4518,7 +2986,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
               wall={wall}
               lengthUnit={lengthUnit}
               viewMode={viewMode}
-              showDimensions={labels.land}
+              showDimensions={labels.buildingDimensions}
               isSelected={selectedBuildingId === building.id}
             />
           ))}
@@ -4677,6 +3145,28 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       {/* Wall drawing mode visuals */}
       {isWallMode && (
         <>
+          {/* Snap indicator */}
+          {wallSnapIndicator && (
+            <group position={[wallSnapIndicator.x, 0.15, wallSnapIndicator.z]}>
+              {/* Outer ring */}
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.25, 0.35, 32]} />
+                <meshBasicMaterial
+                  color={wallSnapIndicator.type === 'corner' ? '#00ff00' : wallSnapIndicator.type === 'edge' ? '#ffff00' : '#00ffff'}
+                  transparent
+                  opacity={0.8}
+                />
+              </mesh>
+              {/* Center dot */}
+              <mesh>
+                <sphereGeometry args={[0.1, 16, 16]} />
+                <meshBasicMaterial
+                  color={wallSnapIndicator.type === 'corner' ? '#00ff00' : wallSnapIndicator.type === 'edge' ? '#ffff00' : '#00ffff'}
+                />
+              </mesh>
+            </group>
+          )}
+
           {/* Corner markers for placed points */}
           {wallDrawingPoints.map((point, i) => (
             <mesh key={i} position={[point.x, 0.1, point.z]}>
@@ -4711,34 +3201,42 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
             const lastPoint = wallDrawingPoints[wallDrawingPoints.length - 1]
             const dx = wallPreviewPos.x - lastPoint.x
             const dz = wallPreviewPos.z - lastPoint.z
-            const len = Math.sqrt(dx * dx + dz * dz)
-            if (len < 0.1) return null
+            const cursorLen = Math.sqrt(dx * dx + dz * dz)
+            if (cursorLen < 0.1) return null
 
             const angle = Math.atan2(dx, dz)
-            const midX = (lastPoint.x + wallPreviewPos.x) / 2
-            const midZ = (lastPoint.z + wallPreviewPos.z) / 2
             const is2D = viewMode === '2d'
-            const wallHeight = 2.7
+            const previewWallHeight = isHalfWallMode ? halfWallHeight : 2.7
+
+            // Use typed length if available, otherwise cursor length
+            const typedLength = wallLengthInput ? parseFloat(wallLengthInput) : null
+            const displayLen = (typedLength && typedLength > 0) ? typedLength : cursorLen
+
+            // Calculate end point based on display length
+            const endX = lastPoint.x + Math.sin(angle) * displayLen
+            const endZ = lastPoint.z + Math.cos(angle) * displayLen
+            const midX = (lastPoint.x + endX) / 2
+            const midZ = (lastPoint.z + endZ) / 2
 
             return (
               <group>
                 {/* 3D wall box preview (1P/3D only) */}
                 {!is2D && (
-                  <mesh position={[midX, wallHeight / 2, midZ]} rotation={[0, angle, 0]}>
-                    <boxGeometry args={[0.15, wallHeight, len]} />
+                  <mesh position={[midX, previewWallHeight / 2, midZ]} rotation={[0, angle, 0]}>
+                    <boxGeometry args={[0.15, previewWallHeight, displayLen]} />
                     <meshBasicMaterial color={PREVIEW_COLOR_VALID} transparent opacity={PREVIEW_OPACITY} />
                   </mesh>
                 )}
 
-                {/* Base line (visible in all modes) */}
-                <line>
+                {/* Base line (visible in all modes) - key forces re-render when coordinates change */}
+                <line key={`wall-preview-line-${lastPoint.x.toFixed(2)}-${lastPoint.z.toFixed(2)}-${endX.toFixed(2)}-${endZ.toFixed(2)}`}>
                   <bufferGeometry>
                     <bufferAttribute
                       attach="attributes-position"
                       count={2}
                       array={new Float32Array([
                         lastPoint.x, is2D ? 0.06 : 0.15, lastPoint.z,
-                        wallPreviewPos.x, is2D ? 0.06 : 0.15, wallPreviewPos.z
+                        endX, is2D ? 0.06 : 0.15, endZ
                       ])}
                       itemSize={3}
                     />
@@ -4747,15 +3245,15 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
                 </line>
 
                 {/* End point marker */}
-                <mesh position={[wallPreviewPos.x, 0.1, wallPreviewPos.z]}>
+                <mesh position={[endX, 0.1, endZ]}>
                   <sphereGeometry args={[0.12]} />
-                  <meshBasicMaterial color={PREVIEW_COLOR_VALID} />
+                  <meshBasicMaterial color={typedLength ? '#FFD700' : PREVIEW_COLOR_VALID} />
                 </mesh>
 
-                {/* Length dimension label */}
+                {/* Length dimension label - show typed input or current length */}
                 <PreviewDimensionLabel
-                  position={[midX, is2D ? 0.5 : wallHeight + 0.3, midZ]}
-                  text={`${len.toFixed(1)}m`}
+                  position={[midX, is2D ? 0.5 : previewWallHeight + 0.3, midZ]}
+                  text={wallLengthInput ? `${wallLengthInput}m ⏎` : `${cursorLen.toFixed(1)}m`}
                 />
               </group>
             )
@@ -4796,6 +3294,8 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           if (onCameraUpdate) onCameraUpdate(state)
         }}
         walls={walls}
+        mobileRunning={mobileRunning}
+        mobileJumpTrigger={mobileJumpTrigger}
       />
 
       {/* Orbit controls (when orbit mode enabled) */}
@@ -4803,16 +3303,16 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         <OrbitControls
           ref={orbitControlsRef}
           target={orbitTarget}
-          enabled={!selectedBuildingId && !floorPlanPlacementMode && !selectedComparisonId && !roomDragState.isDragging && activeBuildTool === BUILD_TOOLS.NONE}
-          enablePan={activeBuildTool === BUILD_TOOLS.NONE}
-          enableRotate={activeBuildTool === BUILD_TOOLS.NONE}
-          enableZoom={activeBuildTool === BUILD_TOOLS.NONE}
+          enabled={!selectedBuildingId && !floorPlanPlacementMode && !selectedComparisonId && !roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && !selectedPlacedBuildingId && (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS)}
+          enablePan={activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS}
+          enableRotate={activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS}
+          enableZoom={activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS}
           minDistance={3}
           maxDistance={MAX_DISTANCE}
           maxPolarAngle={Math.PI / 2 - 0.1}
           mouseButtons={{
-            LEFT: activeBuildTool === BUILD_TOOLS.NONE ? THREE.MOUSE.ROTATE : null,
-            MIDDLE: activeBuildTool === BUILD_TOOLS.NONE ? THREE.MOUSE.PAN : null,
+            LEFT: (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) ? THREE.MOUSE.ROTATE : null,
+            MIDDLE: (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) ? THREE.MOUSE.PAN : null,
             RIGHT: null // Disable right-click drag
           }}
           screenSpacePanning={true}
@@ -4842,11 +3342,11 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           <MapControls
             ref={orbitControlsRef}
             target={[orbitTarget.x, 0, orbitTarget.z]}
-            enabled={!roomDragState.isDragging && activeBuildTool === BUILD_TOOLS.NONE}
+            enabled={!roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS)}
             enableRotate={false}
             enableDamping={false}
-            enablePan={activeBuildTool === BUILD_TOOLS.NONE}
-            enableZoom={activeBuildTool === BUILD_TOOLS.NONE}
+            enablePan={activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS}
+            enableZoom={activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS}
             minZoom={1}
             maxZoom={100}
             maxPolarAngle={0}
@@ -4855,13 +3355,13 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
             maxAzimuthAngle={0}
             screenSpacePanning={true}
             mouseButtons={{
-              LEFT: activeBuildTool === BUILD_TOOLS.NONE ? THREE.MOUSE.PAN : null,
-              MIDDLE: activeBuildTool === BUILD_TOOLS.NONE ? THREE.MOUSE.PAN : null,
+              LEFT: (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) ? THREE.MOUSE.PAN : null,
+              MIDDLE: (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) ? THREE.MOUSE.PAN : null,
               RIGHT: null
             }}
             touches={{
-              ONE: activeBuildTool === BUILD_TOOLS.NONE ? THREE.TOUCH.PAN : null,
-              TWO: activeBuildTool === BUILD_TOOLS.NONE ? THREE.TOUCH.DOLLY_PAN : null
+              ONE: (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) ? THREE.TOUCH.PAN : null,
+              TWO: (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) ? THREE.TOUCH.DOLLY_PAN : null
             }}
           />
         </>
@@ -4911,8 +3411,11 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   )
 }
 
-export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.MEDIUM, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId }) {
+export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.MEDIUM, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, roofs = [], addRoof, deleteRoof, roofType = 'gable', roofPitch = 30, selectedRoofId = null, setSelectedRoofId, setRoofPropertiesOpen, canvasRef, sceneRef, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange }) {
   const qualitySettings = QUALITY_SETTINGS[quality]
+
+  // NPC dialog state - lifted to wrapper so dialog renders outside Canvas
+  const [wrapperActiveNPC, setWrapperActiveNPC] = useState(null)
 
   // Compute DPR capped by device capability
   const dpr = useMemo(() => {
@@ -4931,6 +3434,7 @@ export default function LandScene({ length, width, isExploring, comparisonObject
   const bgColor = viewMode === '2d' ? '#1a1a1a' : '#87ceeb'
 
   return (
+    <>
     <Canvas3DErrorBoundary>
       <Canvas
         dpr={dpr}
@@ -4939,6 +3443,14 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         style={{ background: bgColor, cursor: viewMode === '2d' ? 'crosshair' : 'default' }}
         gl={{
           preserveDrawingBuffer: true
+        }}
+        onCreated={({ gl, scene }) => {
+          if (canvasRef) {
+            canvasRef.current = gl.domElement
+          }
+          if (sceneRef) {
+            sceneRef.current = scene
+          }
         }}
       >
       <Scene
@@ -4952,6 +3464,9 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         selectedBuildingType={selectedBuildingType}
         onPlaceBuilding={onPlaceBuilding}
         onDeleteBuilding={onDeleteBuilding}
+        onMoveBuilding={onMoveBuilding}
+        selectedPlacedBuildingId={selectedPlacedBuildingId}
+        setSelectedPlacedBuildingId={setSelectedPlacedBuildingId}
         joystickInput={joystickInput}
         lengthUnit={lengthUnit}
         onCameraUpdate={onCameraUpdate}
@@ -4997,9 +3512,12 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         deleteWall={deleteWall}
         doorWidth={doorWidth}
         doorHeight={doorHeight}
+        doorType={doorType}
         windowWidth={windowWidth}
         windowHeight={windowHeight}
         windowSillHeight={windowSillHeight}
+        halfWallHeight={halfWallHeight}
+        fenceType={fenceType}
         rooms={rooms}
         floorPlanImage={floorPlanImage}
         floorPlanSettings={floorPlanSettings}
@@ -5015,9 +3533,74 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         moveSelectedBuilding={moveSelectedBuilding}
         selectedComparisonId={selectedComparisonId}
         setSelectedComparisonId={setSelectedComparisonId}
+        selectedRoomId={selectedRoomId}
+        setSelectedRoomId={setSelectedRoomId}
+        roomLabels={roomLabels}
+        roomStyles={roomStyles}
+        setRoomLabel={setRoomLabel}
+        moveRoom={moveRoom}
+        moveWallsByIds={moveWallsByIds}
+        commitWallsToHistory={commitWallsToHistory}
+        setRoomPropertiesOpen={setRoomPropertiesOpen}
+        setWallPropertiesOpen={setWallPropertiesOpen}
+        setFencePropertiesOpen={setFencePropertiesOpen}
+        // Sims 4-style features
+        pools={pools}
+        addPool={addPool}
+        deletePool={deletePool}
+        updatePool={updatePool}
+        poolPolygonPoints={poolPolygonPoints}
+        setPoolPolygonPoints={setPoolPolygonPoints}
+        poolDepth={poolDepth}
+        selectedPoolId={selectedPoolId}
+        setSelectedPoolId={setSelectedPoolId}
+        setPoolPropertiesOpen={setPoolPropertiesOpen}
+        foundations={foundations}
+        addFoundation={addFoundation}
+        deleteFoundation={deleteFoundation}
+        updateFoundation={updateFoundation}
+        foundationPolygonPoints={foundationPolygonPoints}
+        setFoundationPolygonPoints={setFoundationPolygonPoints}
+        foundationHeight={foundationHeight}
+        selectedFoundationId={selectedFoundationId}
+        setSelectedFoundationId={setSelectedFoundationId}
+        setFoundationPropertiesOpen={setFoundationPropertiesOpen}
+        stairs={stairs}
+        addStairs={addStairs}
+        deleteStairs={deleteStairs}
+        updateStairs={updateStairs}
+        stairsStartPoint={stairsStartPoint}
+        setStairsStartPoint={setStairsStartPoint}
+        stairsWidth={stairsWidth}
+        stairsTopY={stairsTopY}
+        stairsStyle={stairsStyle}
+        selectedStairsId={selectedStairsId}
+        setSelectedStairsId={setSelectedStairsId}
+        setStairsPropertiesOpen={setStairsPropertiesOpen}
+        roofs={roofs}
+        addRoof={addRoof}
+        deleteRoof={deleteRoof}
+        roofType={roofType}
+        roofPitch={roofPitch}
+        selectedRoofId={selectedRoofId}
+        setSelectedRoofId={setSelectedRoofId}
+        setRoofPropertiesOpen={setRoofPropertiesOpen}
+        onNPCInteract={setWrapperActiveNPC}
+        wrapperActiveNPC={wrapperActiveNPC}
+        // Multi-story floor props
+        currentFloor={currentFloor}
+        floorHeight={floorHeight}
+        totalFloors={totalFloors}
+        addFloorsToRoom={addFloorsToRoom}
+        mobileRunning={mobileRunning}
+        mobileJumpTrigger={mobileJumpTrigger}
+        onNearbyNPCChange={onNearbyNPCChange}
+        onNearbyBuildingChange={onNearbyBuildingChange}
         />
       </Canvas>
     </Canvas3DErrorBoundary>
+
+  </>
   )
 }
 

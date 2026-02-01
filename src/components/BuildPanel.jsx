@@ -21,6 +21,7 @@ const getCoverageColorClass = (percent) => {
 const SECTIONS = [
   { id: 'tools', label: 'Tools', icon: 'hammer' },
   { id: 'structures', label: 'Structures', icon: 'home' },
+  { id: 'floors', label: 'Floors', icon: 'floors' },
   { id: 'presets', label: 'Quick Presets', icon: 'zap' },
   { id: 'coverage', label: 'Coverage', icon: 'chart' },
   { id: 'setbacks', label: 'Setbacks', icon: 'ruler' },
@@ -95,6 +96,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 12h13.5M12 3.75v16.5" />
     </svg>
   ),
+  fence: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 21V10l2-3 2 3v11M10 21V10l2-3 2 3v11M16 21V10l2-3 2 3v11M3 14h18M3 18h18" />
+    </svg>
+  ),
   select: (
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" />
@@ -103,6 +109,98 @@ const Icons = {
   trash: (
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+  ),
+  // Sims 4-style feature icons
+  pool: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M3 15v-3a2 2 0 012-2h14a2 2 0 012 2v3M3 15l3-3m15 3l-3-3M7 8c.5-1 1.5-2 3-2s2.5 1 3 2c.5-1 1.5-2 3-2s2.5 1 3 2" />
+    </svg>
+  ),
+  foundation: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21H5a2 2 0 01-2-2v-3h18v3a2 2 0 01-2 2zM3 16V8l9-5 9 5v8M7 16v-4h4v4M13 16v-4h4v4" />
+    </svg>
+  ),
+  stairs: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 21h4v-4h4v-4h4v-4h4V5M4 21V17M8 17V13M12 13V9M16 9V5" />
+    </svg>
+  ),
+  roof: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l9-9 9 9M4.5 10.5v9.75a.75.75 0 00.75.75h4.5v-6h4.5v6h4.5a.75.75 0 00.75-.75V10.5" />
+    </svg>
+  ),
+  floors: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M3 17h18M3 13h18M6 21v-4M6 17v-4M6 13V9l6-4 6 4v4M18 13v4M18 17v4M12 5v4" />
+    </svg>
+  ),
+  paint: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+    </svg>
+  ),
+  // Structure icons
+  smallHouse: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+    </svg>
+  ),
+  mediumHouse: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
+    </svg>
+  ),
+  largeHouse: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+    </svg>
+  ),
+  shed: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5M9 13h.01M15 13h.01" />
+    </svg>
+  ),
+  garage: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V8l7-4 7 4v13M8 21v-6h8v6M8 12h8M8 9h8" />
+    </svg>
+  ),
+  barn: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M4 21V9l8-6 8 6v12M12 3v4M8 21v-6h8v6M7 12h10M4 9h16" />
+    </svg>
+  ),
+  greenhouse: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V8a2 2 0 012-2h10a2 2 0 012 2v13M5 12h14M5 16h14M9 6v15M12 6v15M15 6v15" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 8l7-4 7 4" />
+    </svg>
+  ),
+  gazebo: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l9 6v1H3V9l9-6zM5 10v11M19 10v11M3 21h18M9 21v-5M15 21v-5" />
+    </svg>
+  ),
+  carport: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10l9-6 9 6M5 10v11M19 10v11M3 21h18" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 17h8M8 17a2 2 0 01-2-2v-1h12v1a2 2 0 01-2 2M8 17v2M16 17v2" />
+    </svg>
+  ),
+  workshop: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-4h6v4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 8.17L13.25 10 11.42 11.83M14.58 8.17L12.75 10l1.83 1.83" />
+    </svg>
+  ),
+  poolStructure: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 19h16a2 2 0 002-2v-6a2 2 0 00-2-2H4a2 2 0 00-2 2v6a2 2 0 002 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 13c1-1 2.5-1 3.5 0s2.5 1 3.5 0 2.5-1 3.5 0" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 16c1-1 2.5-1 3.5 0s2.5 1 3.5 0 2.5-1 3.5 0" />
     </svg>
   ),
 }
@@ -151,12 +249,16 @@ export default function BuildPanel({
   setDoorWidth,
   doorHeight = 2.1,
   setDoorHeight,
+  doorType = 'single',
+  setDoorType,
   windowWidth = 1.2,
   setWindowWidth,
   windowHeight = 1.2,
   setWindowHeight,
   windowSillHeight = 0.9,
   setWindowSillHeight,
+  fenceType = 'picket',
+  setFenceType,
   rooms = [],
   onUndo,
   onRedo,
@@ -169,8 +271,48 @@ export default function BuildPanel({
   onRemoveFloorPlan,
   onDetectedSitePlan, // Called when site plan is detected
   onOpenFloorPlanGenerator, // Called to open AI floor plan generator
+  // Sims 4-style features
+  pools = [],
+  foundations = [],
+  stairs = [],
+  roofs = [],
+  poolDepth = 1.5,
+  setPoolDepth,
+  poolDeckMaterial = 'concrete',
+  setPoolDeckMaterial,
+  foundationHeight = 0.6,
+  setFoundationHeight,
+  foundationMaterial = 'concrete',
+  setFoundationMaterial,
+  stairsWidth = 1.0,
+  setStairsWidth,
+  stairsStyle = 'straight',
+  setStairsStyle,
+  stairsTopY = 2.7,
+  setStairsTopY,
+  roofType = 'gable',
+  setRoofType,
+  roofPitch = 30,
+  setRoofPitch,
+  roofOverhang = 0.5,
+  setRoofOverhang,
+  roofThickness = 0.15,
+  setRoofThickness,
+  selectedRoofId,
+  updateRoof,
+  // Multi-story floor props
+  currentFloor = 0,
+  setCurrentFloor,
+  totalFloors = 1,
+  floorHeight = 2.7,
+  setFloorHeight,
+  addFloor,
+  removeCurrentFloor,
+  switchFloor,
+  floorCountToAdd = 2,
+  setFloorCountToAdd,
 }) {
-  const { isPaidUser } = useUser()
+  const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed } = useUser()
   const [activeSection, setActiveSection] = useState('tools')
   const [presetToast, setPresetToast] = useState(null)
 
@@ -227,6 +369,11 @@ export default function BuildPanel({
   const handleFileUpload = async (file) => {
     if (!file) return
 
+    // Check if user can upload (first time free, then Pro required)
+    if (!canUseUpload()) {
+      return
+    }
+
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(file.type)) {
       alert('Please upload a PNG, JPG, or PDF file')
@@ -250,6 +397,7 @@ export default function BuildPanel({
 
         if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
           // High confidence - auto-route
+          markUploadUsed() // Consume free trial
           if (result.type === 'floor-plan') {
             // Open AI generator modal for floor plans
             onOpenFloorPlanGenerator?.(imageData)
@@ -276,6 +424,7 @@ export default function BuildPanel({
 
   // Confirm detected type (for low confidence)
   const confirmType = (type) => {
+    markUploadUsed() // Consume free trial
     if (type === 'floor-plan') {
       // Open AI generator modal for floor plans
       onOpenFloorPlanGenerator?.(pendingImage)
@@ -427,9 +576,12 @@ export default function BuildPanel({
                       </button>
                       <button
                         onClick={() => confirmType('floor-plan')}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${detectedType === 'floor-plan' ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)]' : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-white/10'}`}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1 ${detectedType === 'floor-plan' ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)]' : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-white/10'}`}
                       >
                         Floor Plan
+                        {!isPaidUser && hasUsedUpload && (
+                          <span className="px-1 py-0.5 text-[8px] font-bold bg-amber-500 text-black rounded">PRO</span>
+                        )}
                       </button>
                     </div>
                     <button
@@ -573,6 +725,16 @@ export default function BuildPanel({
                     <span className="text-[10px]">Wall</span>
                   </button>
 
+                  {/* Fence Tool */}
+                  <button
+                    onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.FENCE ? BUILD_TOOLS.NONE : BUILD_TOOLS.FENCE)}
+                    disabled={!canEdit}
+                    className={`tool-btn ${activeBuildTool === BUILD_TOOLS.FENCE ? 'active' : ''}`}
+                  >
+                    <span className="w-5 h-5">{Icons.fence}</span>
+                    <span className="text-[10px]">Fence</span>
+                  </button>
+
                   {/* Door Tool */}
                   <button
                     onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.DOOR ? BUILD_TOOLS.NONE : BUILD_TOOLS.DOOR)}
@@ -593,14 +755,44 @@ export default function BuildPanel({
                     <span className="text-[10px]">Window</span>
                   </button>
 
-                  {/* Select Tool */}
+                  {/* Pool Tool */}
                   <button
-                    onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.SELECT ? BUILD_TOOLS.NONE : BUILD_TOOLS.SELECT)}
+                    onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.POOL ? BUILD_TOOLS.NONE : BUILD_TOOLS.POOL)}
                     disabled={!canEdit}
-                    className={`tool-btn ${activeBuildTool === BUILD_TOOLS.SELECT ? 'active' : ''}`}
+                    className={`tool-btn ${activeBuildTool === BUILD_TOOLS.POOL ? 'active' : ''}`}
                   >
-                    <span className="w-5 h-5">{Icons.select}</span>
-                    <span className="text-[10px]">Select</span>
+                    <span className="w-5 h-5">{Icons.pool}</span>
+                    <span className="text-[10px]">Pool</span>
+                  </button>
+
+                  {/* Foundation Tool */}
+                  <button
+                    onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.FOUNDATION ? BUILD_TOOLS.NONE : BUILD_TOOLS.FOUNDATION)}
+                    disabled={!canEdit}
+                    className={`tool-btn ${activeBuildTool === BUILD_TOOLS.FOUNDATION ? 'active' : ''}`}
+                  >
+                    <span className="w-5 h-5">{Icons.foundation}</span>
+                    <span className="text-[10px]">Platform</span>
+                  </button>
+
+                  {/* Stairs Tool */}
+                  <button
+                    onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.STAIRS ? BUILD_TOOLS.NONE : BUILD_TOOLS.STAIRS)}
+                    disabled={!canEdit}
+                    className={`tool-btn ${activeBuildTool === BUILD_TOOLS.STAIRS ? 'active' : ''}`}
+                  >
+                    <span className="w-5 h-5">{Icons.stairs}</span>
+                    <span className="text-[10px]">Stairs</span>
+                  </button>
+
+                  {/* Roof Tool */}
+                  <button
+                    onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.ROOF ? BUILD_TOOLS.NONE : BUILD_TOOLS.ROOF)}
+                    disabled={!canEdit}
+                    className={`tool-btn ${activeBuildTool === BUILD_TOOLS.ROOF ? 'active' : ''}`}
+                  >
+                    <span className="w-5 h-5">{Icons.roof}</span>
+                    <span className="text-[10px]">Roof</span>
                   </button>
 
                   {/* Delete Tool */}
@@ -651,63 +843,84 @@ export default function BuildPanel({
                 {/* Tool hint text */}
                 <div className="text-xs text-[var(--color-text-muted)] text-center py-2">
                   {activeBuildTool === BUILD_TOOLS.NONE && 'Select a tool to start building'}
-                  {activeBuildTool === BUILD_TOOLS.ROOM && 'Click and drag to draw a room'}
-                  {activeBuildTool === BUILD_TOOLS.WALL && 'Click and drag to draw a wall'}
+                  {activeBuildTool === BUILD_TOOLS.ROOM && 'Click to set corner, click again to finish'}
+                  {activeBuildTool === BUILD_TOOLS.WALL && 'Click to place · Shift: 45° snap · Type length + Enter'}
+                  {activeBuildTool === BUILD_TOOLS.FENCE && 'Click to place fence posts · Shift: 45° snap'}
                   {activeBuildTool === BUILD_TOOLS.DOOR && 'Click on a wall to place a door'}
                   {activeBuildTool === BUILD_TOOLS.WINDOW && 'Click on a wall to place a window'}
-                  {activeBuildTool === BUILD_TOOLS.SELECT && 'Click on an element to select it'}
                   {activeBuildTool === BUILD_TOOLS.DELETE && 'Click on an element to delete it'}
+                  {activeBuildTool === BUILD_TOOLS.POOL && 'Click to place pool corners · Click first point to close'}
+                  {activeBuildTool === BUILD_TOOLS.FOUNDATION && 'Click to place platform corners · Click first point to close'}
+                  {activeBuildTool === BUILD_TOOLS.STAIRS && 'Select preset, then click to place'}
+                  {activeBuildTool === BUILD_TOOLS.ROOF && 'Click on a room to add a roof'}
                 </div>
 
-                {/* Door Size Options */}
+                {/* Door Options */}
                 {activeBuildTool === BUILD_TOOLS.DOOR && (
                   <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
-                    <div className="text-xs text-[var(--color-text-muted)] font-medium">Door Size</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-[var(--color-text-muted)]">Width</label>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={doorWidth}
-                            onChange={(e) => setDoorWidth?.(Math.max(0.6, Math.min(2.5, parseFloat(e.target.value) || 0.9)))}
-                            step={0.1}
-                            min={0.6}
-                            max={2.5}
-                            className="w-full px-2 py-1 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:border-[var(--color-accent)]"
-                          />
-                          <span className="text-[10px] text-[var(--color-text-muted)]">m</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-[var(--color-text-muted)]">Height</label>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={doorHeight}
-                            onChange={(e) => setDoorHeight?.(Math.max(1.8, Math.min(2.6, parseFloat(e.target.value) || 2.1)))}
-                            step={0.1}
-                            min={1.8}
-                            max={2.6}
-                            className="w-full px-2 py-1 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:border-[var(--color-accent)]"
-                          />
-                          <span className="text-[10px] text-[var(--color-text-muted)]">m</span>
-                        </div>
+                    {/* Door Type Selector */}
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Door Type</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { type: 'single', label: 'Single', width: 0.9, height: 2.1 },
+                          { type: 'double', label: 'Double', width: 1.8, height: 2.1 },
+                          { type: 'sliding', label: 'Sliding', width: 1.8, height: 2.1 },
+                          { type: 'garage', label: 'Garage', width: 2.4, height: 2.4 },
+                        ].map((option) => (
+                          <button
+                            key={option.type}
+                            onClick={() => {
+                              setDoorType?.(option.type)
+                              setDoorWidth?.(option.width)
+                              setDoorHeight?.(option.height)
+                            }}
+                            className={`px-2 py-1.5 text-[10px] rounded transition-colors ${
+                              doorType === option.type
+                                ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium'
+                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:bg-white/10'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => { setDoorWidth?.(0.9); setDoorHeight?.(2.1); }}
-                        className="flex-1 px-2 py-1 text-[10px] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded hover:bg-white/10"
-                      >
-                        Standard
-                      </button>
-                      <button
-                        onClick={() => { setDoorWidth?.(1.5); setDoorHeight?.(2.1); }}
-                        className="flex-1 px-2 py-1 text-[10px] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded hover:bg-white/10"
-                      >
-                        Double
-                      </button>
+                    {/* Door Size */}
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Size</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-[var(--color-text-muted)]">Width</label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={doorWidth}
+                              onChange={(e) => setDoorWidth?.(Math.max(0.6, Math.min(3.0, parseFloat(e.target.value) || 0.9)))}
+                              step={0.1}
+                              min={0.6}
+                              max={3.0}
+                              className="w-full px-2 py-1 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:border-[var(--color-accent)]"
+                            />
+                            <span className="text-[10px] text-[var(--color-text-muted)]">m</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-[var(--color-text-muted)]">Height</label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={doorHeight}
+                              onChange={(e) => setDoorHeight?.(Math.max(1.8, Math.min(3.0, parseFloat(e.target.value) || 2.1)))}
+                              step={0.1}
+                              min={1.8}
+                              max={3.0}
+                              className="w-full px-2 py-1 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:border-[var(--color-accent)]"
+                            />
+                            <span className="text-[10px] text-[var(--color-text-muted)]">m</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -786,6 +999,237 @@ export default function BuildPanel({
                   </div>
                 )}
 
+                {/* Fence Type Options */}
+                {activeBuildTool === BUILD_TOOLS.FENCE && (
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Fence Style</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { type: 'picket', label: 'Picket' },
+                          { type: 'privacy', label: 'Privacy' },
+                          { type: 'chainLink', label: 'Chain Link' },
+                          { type: 'iron', label: 'Iron' },
+                          { type: 'ranch', label: 'Ranch' },
+                        ].map((option) => (
+                          <button
+                            key={option.type}
+                            onClick={() => setFenceType?.(option.type)}
+                            className={`px-2 py-1.5 text-[10px] rounded transition-colors ${
+                              fenceType === option.type
+                                ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium'
+                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:bg-white/10'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pool Options */}
+                {activeBuildTool === BUILD_TOOLS.POOL && (
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3">
+                    <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Deck Material</div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {['concrete', 'stone', 'wood', 'tile'].map((mat) => (
+                        <button
+                          key={mat}
+                          onClick={() => setPoolDeckMaterial?.(mat)}
+                          className={`px-2 py-1.5 text-[10px] rounded capitalize transition-colors ${
+                            poolDeckMaterial === mat
+                              ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium'
+                              : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:bg-white/10'
+                          }`}
+                        >
+                          {mat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Foundation Options */}
+                {activeBuildTool === BUILD_TOOLS.FOUNDATION && (
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Platform Height</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0.2"
+                          max="2"
+                          step="0.1"
+                          value={foundationHeight}
+                          onChange={(e) => setFoundationHeight?.(parseFloat(e.target.value))}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-[var(--color-text-primary)] w-12">{foundationHeight.toFixed(1)}m</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Material</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {['concrete', 'wood', 'brick', 'stone'].map((mat) => (
+                          <button
+                            key={mat}
+                            onClick={() => setFoundationMaterial?.(mat)}
+                            className={`px-2 py-1.5 text-[10px] rounded capitalize transition-colors ${
+                              foundationMaterial === mat
+                                ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium'
+                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:bg-white/10'
+                            }`}
+                          >
+                            {mat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Stairs Options - Preset Based */}
+                {activeBuildTool === BUILD_TOOLS.STAIRS && (
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Select Preset</div>
+                      <div className="grid grid-cols-1 gap-2">
+                        {[
+                          { id: 'straight', name: 'Straight', icon: '┃', desc: '1m × 2m' },
+                          { id: 'wide', name: 'Wide Straight', icon: '┃', desc: '1.5m × 2m' },
+                          { id: 'l-left', name: 'L-Shape (Left)', icon: '┗', desc: 'Turns left' },
+                          { id: 'l-right', name: 'L-Shape (Right)', icon: '┛', desc: 'Turns right' },
+                        ].map((preset) => (
+                          <button
+                            key={preset.id}
+                            onClick={() => setStairsStyle?.(preset.id)}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                              stairsStyle === preset.id
+                                ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)]'
+                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:bg-white/10'
+                            }`}
+                          >
+                            <span className="text-lg font-mono">{preset.icon}</span>
+                            <div className="text-left">
+                              <div className="text-xs font-medium">{preset.name}</div>
+                              <div className={`text-[10px] ${stairsStyle === preset.id ? 'opacity-70' : 'text-[var(--color-text-muted)]'}`}>{preset.desc}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Width</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0.6"
+                          max="2"
+                          step="0.1"
+                          value={stairsWidth}
+                          onChange={(e) => setStairsWidth?.(parseFloat(e.target.value))}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-[var(--color-text-primary)] w-12">{stairsWidth.toFixed(1)}m</span>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-[var(--color-text-muted)] text-center pt-1 border-t border-[var(--color-border)]">
+                      Click near a platform to place stairs
+                    </div>
+                  </div>
+                )}
+
+                {/* Roof Options */}
+                {activeBuildTool === BUILD_TOOLS.ROOF && (
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Roof Type</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {['flat', 'gable', 'hip', 'shed'].map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => setRoofType?.(type)}
+                            className={`px-2 py-1.5 text-[10px] rounded capitalize transition-colors ${
+                              roofType === type
+                                ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium'
+                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:bg-white/10'
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {roofType !== 'flat' && (
+                      <div>
+                        <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Roof Pitch</div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min="15"
+                            max="60"
+                            step="5"
+                            value={roofPitch}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value)
+                              setRoofPitch?.(value)
+                              if (selectedRoofId) {
+                                updateRoof?.(selectedRoofId, { pitch: value })
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                          <span className="text-xs text-[var(--color-text-primary)] w-12">{roofPitch}°</span>
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Overhang (sides)</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="0.1"
+                          value={roofOverhang}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value)
+                            setRoofOverhang?.(value)
+                            if (selectedRoofId) {
+                              updateRoof?.(selectedRoofId, { overhang: value })
+                            }
+                          }}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-[var(--color-text-primary)] w-12">{roofOverhang.toFixed(1)}m</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Thickness</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0.05"
+                          max="1"
+                          step="0.05"
+                          value={roofThickness}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value)
+                            setRoofThickness?.(value)
+                            if (selectedRoofId) {
+                              updateRoof?.(selectedRoofId, { thickness: value })
+                            }
+                          }}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-[var(--color-text-primary)] w-12">{roofThickness.toFixed(2)}m</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Stats */}
                 <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
@@ -846,13 +1290,17 @@ export default function BuildPanel({
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className="w-8 h-8 rounded-lg flex-shrink-0"
-                        style={{ backgroundColor: building.color }}
-                      />
-                      <div className="text-left">
+                        className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: building.color + '30', border: `2px solid ${building.color}` }}
+                      >
+                        <span className="w-6 h-6" style={{ color: building.color }}>
+                          {building.icon && Icons[building.icon] ? Icons[building.icon] : Icons.home}
+                        </span>
+                      </div>
+                      <div className="text-left flex-1">
                         <div className="text-sm font-medium text-[var(--color-text-primary)]">{building.name}</div>
                         <div className="text-[11px] text-[var(--color-text-muted)]">
-                          {formatDimension(building.width)} × {formatDimension(building.length)}
+                          {formatDimension(building.width)} × {formatDimension(building.length)} • {building.height > 0 ? `${building.height}m tall` : `${Math.abs(building.height)}m deep`}
                         </div>
                       </div>
                     </div>
@@ -911,6 +1359,132 @@ export default function BuildPanel({
                     {presetToast === 'success' ? 'Preset placed!' : "Doesn't fit — try larger plot or disable setbacks"}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* FLOORS Section */}
+            {activeSection === 'floors' && (
+              <div className="space-y-4">
+                {/* Current floor display */}
+                <div className="text-center py-2">
+                  <div className="text-3xl font-display font-bold text-teal-400">
+                    {currentFloor === 0 ? 'Ground' : `Floor ${currentFloor}`}
+                  </div>
+                  <div className="text-xs text-[var(--color-text-muted)] mt-1">
+                    {totalFloors} {totalFloors === 1 ? 'floor' : 'floors'} total
+                  </div>
+                </div>
+
+                {/* Floor tabs */}
+                <div className="flex flex-wrap gap-1">
+                  {Array.from({ length: totalFloors }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => switchFloor?.(i)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                        currentFloor === i
+                          ? 'bg-teal-500 text-white'
+                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white'
+                      }`}
+                    >
+                      {i === 0 ? 'G' : i}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => addFloor?.()}
+                    disabled={!canEdit}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-bg-elevated)] text-teal-400 hover:bg-teal-500/20 transition-colors disabled:opacity-50"
+                    title="Add floor above"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Floor actions */}
+                <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => addFloor?.()}
+                      disabled={!canEdit}
+                      className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-teal-500/20 text-teal-400 hover:bg-teal-500/30 transition-colors disabled:opacity-50"
+                    >
+                      Add Floor Above
+                    </button>
+                    <button
+                      onClick={() => removeCurrentFloor?.()}
+                      disabled={!canEdit || currentFloor === 0}
+                      className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                      title={currentFloor === 0 ? "Can't remove ground floor" : 'Remove current floor'}
+                    >
+                      Remove Floor
+                    </button>
+                  </div>
+
+                  {/* Floor height */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-[var(--color-text-muted)]">Floor Height</span>
+                      <span className="text-xs text-[var(--color-text-primary)] font-medium">{floorHeight.toFixed(1)}m</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="2.4"
+                      max="4"
+                      step="0.1"
+                      value={floorHeight}
+                      onChange={(e) => setFloorHeight?.(parseFloat(e.target.value))}
+                      disabled={!canEdit}
+                      className="w-full h-1 bg-[var(--color-border)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-teal-500 [&::-webkit-slider-thumb]:rounded-full"
+                    />
+                  </div>
+                </div>
+
+                {/* Add Floors to Room */}
+                <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                  <div className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
+                    Add Floors to Room
+                  </div>
+
+                  {/* Floor count selector */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--color-text-muted)]">Floors to add:</span>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setFloorCountToAdd?.(n)}
+                          className={`w-7 h-7 text-xs font-medium rounded-lg transition-colors ${
+                            floorCountToAdd === n
+                              ? 'bg-teal-500 text-white'
+                              : 'bg-[var(--color-bg-surface)] text-[var(--color-text-muted)] hover:bg-white/10'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Activate tool button */}
+                  <button
+                    onClick={() => setActiveBuildTool?.(BUILD_TOOLS.ADD_FLOORS)}
+                    disabled={!canEdit}
+                    className={`w-full px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                      activeBuildTool === BUILD_TOOLS.ADD_FLOORS
+                        ? 'bg-teal-500 text-white'
+                        : 'bg-teal-500/20 text-teal-400 hover:bg-teal-500/30'
+                    } disabled:opacity-50`}
+                  >
+                    {activeBuildTool === BUILD_TOOLS.ADD_FLOORS
+                      ? `Click a room to add ${floorCountToAdd} floor${floorCountToAdd > 1 ? 's' : ''}`
+                      : `Add ${floorCountToAdd} Floor${floorCountToAdd > 1 ? 's' : ''} to Room`}
+                  </button>
+                </div>
+
+                {/* Info */}
+                <div className="text-xs text-[var(--color-text-muted)] text-center">
+                  Walls drawn will be placed on the current floor
+                </div>
               </div>
             )}
 
@@ -1049,6 +1623,28 @@ export default function BuildPanel({
                     labels.buildings ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : 'border-[var(--color-text-muted)]'
                   }`}>
                     {labels.buildings && (
+                      <svg className="w-3 h-3 text-[var(--color-bg-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setLabels(prev => ({ ...prev, buildingDimensions: !prev.buildingDimensions }))}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
+                    labels.buildingDimensions
+                      ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30'
+                      : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)]'
+                  }`}
+                >
+                  <span className={`text-sm font-medium ${labels.buildingDimensions ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
+                    Building dimensions
+                  </span>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    labels.buildingDimensions ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : 'border-[var(--color-text-muted)]'
+                  }`}>
+                    {labels.buildingDimensions && (
                       <svg className="w-3 h-3 text-[var(--color-bg-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>

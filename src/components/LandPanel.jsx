@@ -85,7 +85,7 @@ export default function LandPanel({
   isActive,
   onDetectedFloorPlan, // Called when floor plan is detected
 }) {
-  const { isPaidUser } = useUser()
+  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload } = useUser()
   const [activeSection, setActiveSection] = useState('rectangle')
   const [localDimensions, setLocalDimensions] = useState({
     length: dimensions.length,
@@ -155,6 +155,11 @@ export default function LandPanel({
   const handleFileUpload = async (file) => {
     if (!file) return
 
+    // Check if user can upload (first time free, then Pro required)
+    if (!canUseUpload()) {
+      return
+    }
+
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(file.type)) {
       alert('Please upload a PNG, JPG, or PDF file')
@@ -178,6 +183,7 @@ export default function LandPanel({
 
         if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
           // High confidence - auto-route
+          markUploadUsed() // Consume free trial
           if (result.type === 'site-plan') {
             setUploadedImage(imageData)
           } else {
@@ -192,6 +198,7 @@ export default function LandPanel({
       } catch (err) {
         console.error('Analysis failed:', err)
         // Fallback: assume site plan (we're in Land panel)
+        markUploadUsed() // Consume free trial
         setUploadedImage(imageData)
         setPendingImage(null)
       }
@@ -203,6 +210,7 @@ export default function LandPanel({
 
   // Confirm detected type (for low confidence)
   const confirmType = (type) => {
+    markUploadUsed() // Consume free trial
     if (type === 'site-plan') {
       setUploadedImage(pendingImage)
     } else {
@@ -282,6 +290,7 @@ export default function LandPanel({
   // Convert length for display
   const convertLength = (meters) => {
     if (lengthUnit === 'ft') return meters * 3.28084
+    if (lengthUnit === 'mm') return meters * 1000
     return meters
   }
 
@@ -340,6 +349,7 @@ export default function LandPanel({
                   >
                     <option value="m">Meters (m)</option>
                     <option value="ft">Feet (ft)</option>
+                    <option value="mm">Millimeters (mm)</option>
                   </select>
                 </div>
 
@@ -349,15 +359,15 @@ export default function LandPanel({
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
-                        value={convertLength(localDimensions.length).toFixed(1)}
+                        value={convertLength(localDimensions.length).toFixed(lengthUnit === 'mm' ? 0 : 1)}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value) || 0
-                          const meters = lengthUnit === 'ft' ? val / 3.28084 : val
+                          const meters = lengthUnit === 'ft' ? val / 3.28084 : lengthUnit === 'mm' ? val / 1000 : val
                           setLocalDimensions(prev => ({ ...prev, length: meters }))
                         }}
                         className="flex-1 px-3 py-2 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:border-[var(--color-accent)]"
                         min="1"
-                        step="0.5"
+                        step={lengthUnit === 'mm' ? '100' : '0.5'}
                       />
                       <span className="text-sm text-[var(--color-text-muted)] w-8">{lengthUnit}</span>
                     </div>
@@ -367,15 +377,15 @@ export default function LandPanel({
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
-                        value={convertLength(localDimensions.width).toFixed(1)}
+                        value={convertLength(localDimensions.width).toFixed(lengthUnit === 'mm' ? 0 : 1)}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value) || 0
-                          const meters = lengthUnit === 'ft' ? val / 3.28084 : val
+                          const meters = lengthUnit === 'ft' ? val / 3.28084 : lengthUnit === 'mm' ? val / 1000 : val
                           setLocalDimensions(prev => ({ ...prev, width: meters }))
                         }}
                         className="flex-1 px-3 py-2 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:border-[var(--color-accent)]"
                         min="1"
-                        step="0.5"
+                        step={lengthUnit === 'mm' ? '100' : '0.5'}
                       />
                       <span className="text-sm text-[var(--color-text-muted)] w-8">{lengthUnit}</span>
                     </div>

@@ -6,7 +6,7 @@ import { useUser } from '../hooks/useUser.jsx'
 const AUTO_ROUTE_THRESHOLD = 0.7
 
 export default function UploadImageModal({ onClose, onUploadForLand, onUploadForFloorPlan }) {
-  const { isPaidUser } = useUser()
+  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload } = useUser()
   const [isDragging, setIsDragging] = useState(false)
   const [preview, setPreview] = useState(null)
   const [step, setStep] = useState('upload') // 'upload' | 'analyzing' | 'confirm'
@@ -16,6 +16,9 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
 
   // Route to the appropriate mode
   const routeToMode = (type, imageData) => {
+    // Mark upload as used (consumes free trial)
+    markUploadUsed()
+
     if (type === 'site-plan') {
       onUploadForLand(imageData)
     } else {
@@ -26,6 +29,12 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
 
   const handleFile = async (f) => {
     if (!f) return
+
+    // Check if user can upload (first time free, then Pro required)
+    if (!canUseUpload()) {
+      onClose() // Close modal, pricing modal will open
+      return
+    }
 
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
     if (!validTypes.includes(f.type)) {
@@ -116,6 +125,18 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
               <div className="text-center mb-6">
                 <h1 className="text-xl font-display font-semibold text-white mb-2">Upload Plan</h1>
                 <p className="text-[var(--color-text-muted)] text-sm">Upload your site plan or floor plan</p>
+                {!isPaidUser && (
+                  <p className="mt-2 text-xs">
+                    {hasUsedUpload ? (
+                      <span className="text-amber-400">
+                        <span className="px-1.5 py-0.5 bg-amber-500 text-black font-bold rounded mr-1">PRO</span>
+                        Upgrade to upload more plans
+                      </span>
+                    ) : (
+                      <span className="text-green-400">First upload free!</span>
+                    )}
+                  </p>
+                )}
               </div>
 
               {/* Upload Zone */}
@@ -264,6 +285,9 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                   Floor Plan
+                  {!isPaidUser && hasUsedUpload && (
+                    <span className="ml-1 px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-black rounded">PRO</span>
+                  )}
                 </button>
               </div>
 

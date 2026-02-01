@@ -654,7 +654,8 @@ export default function Onboarding({
                     ) : (
                       <div className="bg-white/5 rounded-xl p-4">
                         <ImageTracer
-                          image={uploadedImage}
+                          uploadedImage={uploadedImage}
+                          setUploadedImage={setUploadedImage}
                           lengthUnit={lengthUnit}
                           onComplete={handleUploadComplete}
                           onClear={() => setUploadedImage(null)}

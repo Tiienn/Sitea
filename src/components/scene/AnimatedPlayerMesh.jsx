@@ -13,7 +13,8 @@ import {
   RUN_ARM_SWING,
   RUN_BOB_AMPLITUDE,
   RUN_CYCLE_SPEED,
-  RUN_LEAN
+  RUN_LEAN,
+  PLAYER_HEIGHT
 } from '../../constants/landSceneConstants'
 
 // Animated player mesh for third-person view
@@ -95,7 +96,7 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0 }
   if (!visible) return null
 
   return (
-    <group ref={groupRef} position={[position.x, 0, position.z]} rotation={[0, rotation, 0]}>
+    <group ref={groupRef} position={[position.x, position.y - PLAYER_HEIGHT, position.z]} rotation={[0, rotation, 0]}>
       {/* Body */}
       <mesh ref={bodyRef} position={[0, 0.75, 0]} castShadow>
         <capsuleGeometry args={[0.25, 0.7, 4, 8]} />

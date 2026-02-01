@@ -1,27 +1,32 @@
 # Sitea - Land Visualizer: Complete Status Report
 
-**Last Updated:** January 2, 2026
+**Last Updated:** February 1, 2026
+**Live URL:** https://sitea-one.vercel.app
+**Deployment:** Vercel (auto-builds from local push)
 
 ---
 
 ## Vision & Purpose
 
-**Sitea** is a **3D land and building visualization tool** that empowers users to:
-
-1. **Visualize land** - Draw or trace land boundaries, see real dimensions
-2. **Understand scale** - Compare land to familiar objects (soccer fields, houses, cars)
-3. **Design buildings** - Sims 4-style building tools with walls, doors, windows, rooms
-4. **AI floor plan import** - Upload a floor plan image, AI generates the 3D layout
-5. **Experience spaces** - Walk through designs in first-person, third-person, or orbit view
-6. **Share & export** - Generate shareable links or PNG exports
+**Sitea** is a **web-based 3D land and building visualization tool** that transforms abstract property measurements and floor plans into immersive, explorable 3D experiences.
 
 **Core value proposition:** *Turn abstract land measurements into tangible, explorable 3D experiences.*
+
+**Target Users:**
+- Real estate professionals (agents, developers)
+- Architects and designers
+- Homeowners planning renovations/builds
+- Urban planners
+- Property investors
+- Anyone needing to visualize land and building scale
+
+**What makes it unique:** Users can draw their land boundaries, design buildings with Sims 4-style tools, import AI-analyzed floor plans, and then walk through their designs in first-person — all in a browser with no install.
 
 ---
 
 ## Current State: Production Ready
 
-The app is **fully functional** with all core features stable. Development server runs at `localhost:3001`.
+All core features are **stable and deployed**. The only blocker for revenue is PayPal backend setup (frontend is complete).
 
 ### Tech Stack
 | Layer | Technology |
@@ -31,250 +36,144 @@ The app is **fully functional** with all core features stable. Development serve
 | Backend | Vercel Serverless Functions |
 | AI | Claude Vision (claude-sonnet-4-20250514) |
 | Database | Supabase (PostgreSQL) |
+| Payments | PayPal (react-paypal-js) — frontend only |
+| PDF | jsPDF |
 | Mobile | nipplejs virtual joystick |
+| TypeScript | Partial migration (types/ + labels.ts) |
 
-### Codebase Size
-- **~18,000+ lines** of source code
-- **13 components**, **2 hooks**, **3 services**, **6 utilities**
-- Well-organized with clear separation of concerns
+### Codebase Metrics
+| Metric | Value |
+|--------|-------|
+| Total source code | ~20,000+ lines |
+| Components | 33 (13 panels/modals, 12 scene, 8 property panels) |
+| Utilities | 10 |
+| Custom hooks | 3 |
+| Services | 3 |
+| Bundle (initial) | 348KB gzipped (down from 2MB) |
+| Build time | ~9 seconds |
+| Build errors | 0 |
 
 ---
 
-## Features Implemented
+## Features: What's Working
 
 ### 1. Land Definition & Visualization
-| Feature | Status |
-|---------|--------|
-| Rectangle land drawing | Working |
-| Custom polygon boundaries (click to draw) | Working |
-| Image upload for tracing | Working |
-| Area calculation (m², ft², acres, hectares) | Working |
-| Unit switching (meters/feet) | Working |
-| Setback boundary visualization | Working |
-| Polygon vertex editing with snap-to-grid | Working |
-| Land templates (preset lot sizes) | Working |
+- Rectangle land (input length x width)
+- Custom polygon boundaries (click to draw)
+- Image upload for AI-assisted tracing
+- Area calculation (m², ft², acres, hectares)
+- Unit switching (meters / feet)
+- Setback boundary visualization
+- Polygon vertex editing with snapping
+- Land templates (preset lot sizes)
 
-### 2. Comparison Objects
-| Feature | Status |
-|---------|--------|
-| Soccer field overlay | Working |
-| Basketball court overlay | Working |
-| House comparison | Working |
-| Vehicle comparisons (car, bus, container) | Working |
-| Swimming pool | Working |
-| Tennis court | Working |
-| Parking space | Working |
-| King size bed | Working |
+### 2. Building Design System (Sims 4-Style)
+- Wall tool (click-drag with snapping)
+- Room auto-detection from enclosed walls
+- Door placement on walls (single/double)
+- Window placement (customizable size/sill height)
+- Half walls
+- Fences (5 styles: picket, privacy, chain-link, iron, ranch)
+- Pools (custom polygon drawing, adjustable depth)
+- Foundations (adjustable height)
+- Stairs (straight + L-shaped)
+- Roofs (gable, flat, hip, shed, adjustable pitch)
+- Preset buildings (houses, garage, shed, barn)
+- Building rotation (15-degree snapping)
+- Overlap detection (yellow highlight)
+- Undo/redo history (full state)
+- Grid snapping (adjustable size)
+- Select, move, and delete tools
 
-### 3. Building Design System (Sims 4-Style)
-| Feature | Status |
-|---------|--------|
-| Wall building (click-drag) | Working |
-| Door placement on walls | Working |
-| Window placement on walls | Working |
-| Room auto-detection | Working |
-| Preset buildings (small/medium/large house, shed, garage, pool) | Working |
-| Building rotation (15° snapping) | Working |
-| Setback enforcement | Working |
-| Overlap detection (yellow highlight) | Working |
-| Undo/redo history (full state) | Working |
-| Door/window size customization | Working |
-| Quick presets (auto-place buildings) | Working |
+### 3. Multi-Story Buildings
+- Floor state management (ground, 1st, 2nd, etc.)
+- Floor switching UI in Build panel
+- Floor height customization (2.4m-4m, default 2.7m)
+- Walls render at correct Y offset per floor
+- Inactive floors shown with transparency
+- Click-to-add-floors (select room, choose floor count, click)
+- Room detection runs per floor independently
 
-### 4. AI Floor Plan Generator (Paid Feature) - **MAJOR FEATURE**
-| Feature | Status |
-|---------|--------|
-| Image upload with preview | Working |
-| Claude Vision analysis (16k tokens max) | Working |
-| **Full 2D Interactive Editor** | Working |
-| Zoom (0.5x-4x, mouse wheel) | Working |
-| Pan (middle mouse drag) | Working |
-| Wall extraction (exterior + interior) | Working |
-| Door detection with arc swing icons | Working |
-| Window detection with parallel lines | Working |
-| Room labeling with areas | Working |
-| Shape detection (L-shaped, U-shaped, rectangular, irregular) | Working |
-| **Edit Mode** - select/drag/delete elements | Working |
-| Wall endpoint snapping (angle constraints 0°/45°/90°) | Working |
-| Draw new walls (click-click-Enter) | Working |
-| Draw new doors/windows | Working |
-| Element type filtering | Working |
-| Scale calibration (click-to-calibrate 2-point system) | Working |
-| Unit switching in calibration (meters/feet/mm) | Working |
-| Scale validation (expandable) | Working |
-| AI Detection Details (expandable - dimensions, rooms, shape) | Working |
-| Detection Summary (wall/door/window/room counts) | Working |
-| AI Confidence indicator (color-coded) | Working |
-| 3D preview before commit | Working |
-| Generate 3D model from floor plan | Working |
+### 4. Comparison Objects (24+)
+Soccer fields, basketball courts, tennis courts, swimming pools, parking spaces, vehicles (car, bus, container), buildings (house, apartment), landmarks, commercial establishments — all draggable and rotatable on the land.
 
-### 5. Smart Image Detection (Freemium)
-| Feature | Status |
-|---------|--------|
-| Client-side heuristics (free users, ~70-80% accuracy) | Working |
-| Sobel edge detection | Working |
-| Line density & perpendicular ratio analysis | Working |
-| Room-like region detection (flood fill) | Working |
-| AI detection (paid users, ~95%+ accuracy) | Working |
-| Auto-routing on high confidence (≥70%) | Working |
-| Low confidence confirmation UI | Working |
+### 5. AI Floor Plan Generator (Paid Feature)
+- Image upload with preview
+- Claude Vision analysis via Vercel serverless function
+- Full 2D interactive editor with zoom (0.5x-4x) and pan
+- Wall extraction (exterior + interior)
+- Door/window detection with symbols
+- Room labeling with areas
+- Shape detection (L/U-shaped, rectangular)
+- Edit mode (select, drag, delete, draw new walls)
+- Wall endpoint snapping (0°/45°/90°)
+- Scale calibration (click-to-calibrate)
+- 3D preview before committing to scene
 
 ### 6. Camera & Navigation
-| Feature | Status |
-|---------|--------|
-| First-person walkthrough (WASD + mouse) | Working |
-| Third-person follow camera | Working |
-| Orbit camera (full 3D rotation) | Working |
-| Orthogonal 2D top-down view | Working |
-| Smooth camera transitions | Working |
-| Mobile virtual joystick | Working |
-| Keyboard shortcuts | Working |
+- First-person mode (WASD + mouse look)
+- Jumping with physics (Space key, gravity, acceleration)
+- Movement momentum (slide to stop)
+- Head bob with lateral sway
+- Third-person follow camera (V key toggle)
+- Orbit camera (full 3D rotation, scroll zoom)
+- Orthogonal 2D top-down view (CAD-style with dot grid)
+- Smooth transitions between camera modes
+- Mobile virtual joystick (nipplejs)
+- Mobile action buttons: Jump, Talk, Use, Run
 
-### 7. Rendering & Performance
-| Feature | Status |
-|---------|--------|
-| Three quality presets (Low/Medium/High) | Working |
-| PCF soft shadows | Working |
-| SSAO (high quality only) | Working |
-| Bloom effects (high quality only) | Working |
-| Grass texture (repeating) | Working |
-| Fog atmosphere | Working |
-| Grid helper | Working |
-| NPC Characters | Working |
+### 7. NPC System
+- 2 NPC guide characters positioned outside land boundary
+- Proximity detection (green indicator + "Press E to talk")
+- Chat bubble dialog (non-blocking, renders in 3D scene)
+- Multiple dialog options per NPC (land advice + design tips)
+- E key interaction on desktop
+- Talk button interaction on mobile (DOM custom events)
 
-### 8. Data & Sharing
-| Feature | Status |
-|---------|--------|
-| Supabase scene sharing | Working |
-| Shareable link generation | Working |
-| PNG floor plan export | Working |
-| localStorage persistence | Working |
-| Read-only shared scenes | Working |
+### 8. Export System (4 Types)
+- **PNG Floor Plan** — customizable resolution
+- **PDF Report** — A4 layout with floor plan image, project stats, timestamp
+- **3D Screenshot** — PNG/JPEG with 1x/2x/4x resolution
+- **3D Model Export** — GLB (recommended), GLTF, OBJ for Blender/SketchUp/Unity
 
-### 9. UI/UX
-| Feature | Status |
-|---------|--------|
-| Bottom ribbon navigation (4 tabs) | Working |
-| Icon rail + expandable panels | Working |
-| Collapsible sections with smooth animations | Working |
-| Mobile responsive design | Working |
-| Onboarding walkthrough | Working |
-| Contextual help text | Working |
-| Cardinal direction indicators (compass) | Working |
-| Tooltips on hover | Working |
-| Dark theme design system | Working |
+### 9. Data & Sharing
+- Supabase scene sharing with shareable URLs
+- localStorage persistence for local sessions
+- Read-only mode for shared scenes
 
----
+### 10. Payment System (Frontend Complete, Backend Pending)
+- PricingModal with PayPal subscription buttons
+- Monthly plan: $9.99/month
+- Lifetime plan: $149 one-time
+- Feature gating (1 free upload, then Pro required)
+- UpgradePrompt component for gated actions
+- useUser hook with subscription context
+- localStorage fallback for subscription status
+- **NOT YET CONNECTED** — needs PayPal app + Supabase table
 
-## Active Development: Floor Plan Generator Modal
+### 11. Mobile Support
+- `useIsMobile` + `useIsLandscape` hooks
+- **Portrait mode:**
+  - Bottom ribbon navigation (4 visible items + "More" overflow)
+  - Collapsible side panels
+  - Safe area CSS (notches, home indicator)
+- **Landscape mode:**
+  - Bottom ribbon becomes left vertical icon sidebar (48px)
+  - All panels repositioned (top:0, left:48px)
+  - Action buttons and joystick repositioned
+  - Minimap moves to bottom-right
+- Virtual joystick with movement + 4 action buttons
+- Touch controls: touch-action:none, onTouchStart handlers
+- Desktop completely unaffected (hooks only activate on touch devices)
 
-The **FloorPlanGeneratorModal** is the most feature-rich component, recently enhanced with:
-
-### Latest UI Improvements (Just Completed)
-1. **Undo/Redo** moved to bottom of image preview (was overlapping zoom buttons)
-2. **Unit Switcher** relocated to Calibrate Scale header
-3. **Consistent expandable sections** - Scale Validation, Edit Elements, AI Detection Details all use same arrow button pattern
-4. **Click-to-Calibrate** redesigned as full-width toggle card (matches Edit Elements)
-5. **Layout restructure** - Detection Summary & AI Confidence above Edit Elements
-6. **Detected Rooms** consolidated (removed duplicate display)
-7. **Edit Elements & Scale Validation** moved to right side panel
-8. **AI Detection Details** now expandable/collapsible
-
-### Generator Modal Flow
-```
-Upload Image → Analyzing... → Calibrating (2D Editor) → Generate 3D → Done
-                                    │
-                                    ├── Zoom/Pan image
-                                    ├── Edit walls (drag endpoints)
-                                    ├── Add/delete doors & windows
-                                    ├── Click-to-calibrate scale
-                                    ├── View AI detection details
-                                    └── Preview 3D before committing
-```
-
----
-
-## Known Issues & Technical Debt
-
-### Code-Level TODOs
-1. **`src/hooks/useUser.jsx:28`** - Need real subscription check via Supabase
-2. **`src/components/LandScene.jsx:1391`** - Placeholder for interactive scene elements
-3. **`nul` file** in git status (Windows artifact, should be in .gitignore)
-
-### Technical Debt
-| Issue | Impact | Priority |
-|-------|--------|----------|
-| `App.jsx` is ~2000+ lines | Maintainability | Medium |
-| `LandScene.jsx` is ~5000+ lines | Performance, maintainability | Medium |
-| `FloorPlanGeneratorModal.jsx` is ~2000+ lines | Maintainability | Medium |
-| No TypeScript | Type safety, IDE support | Low |
-| No error boundaries | Crash recovery | Medium |
-| No unit tests | Code reliability | Medium |
-
----
-
-## Roadmap: What's Next
-
-### Immediate Priorities (Current Sprint)
-
-#### 1. Payment Integration
-- Integrate Stripe or LemonSqueezy
-- Replace localStorage `isPaidUser` with real subscription
-- Subscription tiers (Basic, Pro, Enterprise)
-- 7-day free trial for AI features
-
-#### 2. Floor Plan AI Improvements
-- Better handling of multi-room floor plans
-- Support for multi-story buildings
-- Furniture detection and placement
-- Material/finish detection
-
-#### 3. Error Handling
-- Add error boundaries for graceful failure
-- Retry logic for API failures
-- Better loading states
-
-### Medium-Term Features
-
-#### 4. Enhanced Building Tools
-- Multi-story buildings (add floors)
-- Roof types (flat, gable, hip)
-- Stairs and ramps
-- Interior fixtures (kitchen, bathroom modules)
-- Furniture library
-
-#### 5. Terrain & Environment
-- Terrain elevation (hills, slopes)
-- Water features (ponds, streams)
-- Vegetation placement (trees, bushes)
-- Driveway and pathway tools
-- Fencing tools
-
-#### 6. Code Quality
-- Split large components into smaller modules
-- Extract state management to contexts/reducers
-- Add TypeScript incrementally
-- Add comprehensive unit tests with Vitest
-
-### Long-Term Vision
-
-#### 7. Collaboration
-- Real-time multi-user editing
-- Comments and annotations
-- Version history
-- Team workspaces
-
-#### 8. AR/VR Integration
-- WebXR support for VR walkthrough
-- AR placement on real land via mobile camera
-- Mobile AR preview
-
-#### 9. Professional Features
-- CAD file import (DXF, DWG)
-- BIM integration
-- Cost estimation
-- Material lists and specifications
-- Contractor sharing portal
+### 12. UI/UX
+- Dark theme design system with CSS custom properties
+- Bottom ribbon navigation (icon + label)
+- Icon rail + expandable side panels
+- 7 property panels (Room, Wall, Fence, Pool, Foundation, Stairs, Roof)
+- Collapsible sections within panels
+- Onboarding walkthrough (movement → scale → ownership)
+- Keyboard shortcuts (1/2/3 for view modes, R/W/D/N/S/X for tools)
 
 ---
 
@@ -283,91 +182,170 @@ Upload Image → Analyzing... → Calibrating (2D Editor) → Generate 3D → Do
 ```
 Sitea1/
 ├── api/
-│   └── analyze-floor-plan.js      # Claude Vision API endpoint (Vercel serverless)
+│   └── analyze-floor-plan.js        # Claude Vision serverless endpoint
 │
 ├── src/
-│   ├── main.jsx                   # React entry point
-│   ├── App.jsx                    # Main app state & routing (~2000 lines)
-│   ├── index.css                  # Global styles & design tokens
+│   ├── main.jsx                     # Entry point (providers, router)
+│   ├── App.jsx                      # Main app state + UI (~2600 lines)
+│   ├── index.css                    # Global styles + design tokens
 │   │
 │   ├── components/
-│   │   ├── LandScene.jsx          # 3D rendering engine (~5000 lines)
-│   │   ├── scene/
-│   │   │   ├── SceneEnvironment.jsx  # Lighting, fog, sky
-│   │   │   ├── AnimatedPlayerMesh.jsx # Player character
-│   │   │   ├── NPCCharacter.jsx      # NPC figures
-│   │   │   └── GridComponents.jsx    # Grid overlay
-│   │   ├── LandPanel.jsx          # Land definition UI
-│   │   ├── BuildPanel.jsx         # Building tools UI
-│   │   ├── ComparePanel.jsx       # Comparison objects UI
-│   │   ├── ExportPanel.jsx        # Export options
-│   │   ├── FloorPlanGeneratorModal.jsx  # AI floor plan full editor (~2000 lines)
-│   │   ├── FloorPlanPreview3D.jsx # 3D preview canvas
-│   │   ├── ImageTracer.jsx        # Polygon tracing from image
-│   │   ├── PolygonEditor.jsx      # Vertex editing canvas
-│   │   ├── ShapeEditor.jsx        # Shape manipulation
-│   │   ├── UploadImageModal.jsx   # Unified upload with detection
-│   │   ├── Minimap.jsx            # Mini 2D map overview
-│   │   └── Onboarding.jsx         # Welcome/tutorial flow
+│   │   ├── LandScene.jsx            # 3D scene engine (~3400 lines)
+│   │   ├── LandPanel.jsx            # Land definition UI
+│   │   ├── BuildPanel.jsx           # Building tools + floor controls
+│   │   ├── ComparePanel.jsx         # Comparison objects
+│   │   ├── ExportPanel.jsx          # 4 export types
+│   │   ├── FloorPlanGeneratorModal.jsx  # AI floor plan editor
+│   │   ├── UploadImageModal.jsx     # Image upload + detection
+│   │   ├── PricingModal.jsx         # PayPal subscription UI
+│   │   ├── UpgradePrompt.jsx        # Pro upgrade prompts
+│   │   ├── NPCDialog.jsx            # NPC chat overlay
+│   │   ├── ImageTracer.jsx          # Polygon tracing from image
+│   │   ├── Minimap.jsx              # Mini 2D map (landscape-aware)
+│   │   ├── Onboarding.jsx           # Welcome walkthrough
+│   │   ├── *PropertiesPanel.jsx     # 7 property panels
+│   │   │
+│   │   └── scene/                   # 3D scene components (inside Canvas)
+│   │       ├── CameraController.jsx     # FP/TP camera + physics
+│   │       ├── AnimatedPlayerMesh.jsx   # Player character model
+│   │       ├── NPCCharacter.jsx         # NPC figures + chat bubble
+│   │       ├── ComparisonObjects.jsx    # Draggable comparisons
+│   │       ├── WallSegment.jsx          # Wall rendering (multi-floor)
+│   │       ├── RoomFloor.jsx            # Room floor planes (multi-floor)
+│   │       ├── BuildingComponents.jsx   # Building meshes + preview
+│   │       ├── PolygonRenderers.jsx     # Pools, foundations, stairs
+│   │       ├── SceneEnvironment.jsx     # Lighting, sky, fog
+│   │       └── GridComponents.jsx       # Grid overlay + CAD dots
 │   │
 │   ├── hooks/
-│   │   ├── useBuildHistory.js     # Undo/redo state machine
-│   │   ├── useUser.jsx            # User tier context (free/paid)
-│   │   └── useGrassTextures.js    # Texture loading hook
+│   │   ├── useBuildHistory.js       # Undo/redo state management
+│   │   ├── useUser.jsx              # Subscription/payment context
+│   │   └── useIsMobile.js           # Mobile + landscape detection
 │   │
 │   ├── services/
-│   │   ├── imageAnalysis.js       # Image type detection (heuristics + AI)
-│   │   ├── analytics.js           # Event tracking
-│   │   └── shareScene.js          # Supabase sharing
+│   │   ├── imageAnalysis.js         # Image boundary detection
+│   │   ├── shareScene.js            # Supabase scene sharing
+│   │   └── analytics.js             # Event tracking
 │   │
 │   ├── utils/
-│   │   ├── floorPlanConverter.js  # Pixel→3D coordinate conversion
-│   │   ├── exportFloorPlan.js     # PNG export utility
-│   │   ├── collision2d.js         # 2D overlap detection
-│   │   ├── roomDetection.js       # Room auto-detection from walls
-│   │   ├── labels.js              # Edge label computation
-│   │   ├── npcHelpers.js          # NPC path finding
-│   │   └── presetPlacer.js        # Quick building placement
+│   │   ├── pdfExport.js             # PDF report generation
+│   │   ├── screenshotCapture.js     # 3D screenshot capture
+│   │   ├── modelExport.js           # GLB/GLTF/OBJ export
+│   │   ├── exportFloorPlan.js       # PNG floor plan export
+│   │   ├── floorPlanConverter.js    # Pixel-to-3D coordinate conversion
+│   │   ├── collision2d.js           # Overlap detection
+│   │   ├── roomDetection.js         # Room auto-detection from walls
+│   │   ├── textureGenerators.js     # Procedural material textures
+│   │   ├── presetPlacer.js          # Building placement logic
+│   │   ├── npcHelpers.js            # NPC position calculation
+│   │   └── labels.ts                # Edge labels (TypeScript)
 │   │
-│   ├── data/
-│   │   ├── landTemplates.js       # Predefined lot sizes
-│   │   └── presets.js             # Building presets config
-│   │
-│   ├── constants/
-│   │   └── landSceneConstants.js  # Camera, quality, render settings
-│   │
-│   └── lib/
-│       └── supabaseClient.js      # Supabase connection
+│   ├── types/index.ts               # TypeScript type definitions
+│   ├── data/presets.js              # Building presets (with floor support)
+│   ├── data/landTemplates.js        # Preset lot sizes
+│   └── constants/landSceneConstants.js  # Camera, quality, physics constants
 │
-├── tasks/
-│   └── todo.md                    # Development task history
-│
-├── APP_STATUS.md                  # This file
-├── CLAUDE.md                      # Claude Code instructions
-├── index.html                     # Entry HTML
-├── package.json                   # Dependencies
-├── vite.config.js                 # Vite config
-├── eslint.config.js               # ESLint config
-├── .env                           # Public env vars
-└── .env.local                     # Secrets (gitignored)
+├── PRD.md                           # Product requirements document
+├── APP_STATUS.md                    # This file
+├── CLAUDE.md                        # Claude Code instructions
+├── tasks/todo.md                    # Session notes & review log
+├── package.json                     # Dependencies
+├── vite.config.js                   # Build config (code splitting)
+├── tsconfig.json                    # TypeScript config
+└── vercel.json                      # Vercel deployment config
 ```
 
 ---
 
-## Environment Variables
+## What's Not Done Yet
 
-**Required for production:**
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-ANTHROPIC_API_KEY=sk-ant-...  # Server-side only (Vercel)
-```
+### Revenue Blocker (HIGH PRIORITY)
 
-**Optional:**
-```env
-VITE_ANALYTICS_ENABLED=true
-VITE_ANALYTICS_DEBUG=false
-```
+**PayPal backend is not connected.** The frontend is 100% complete — PricingModal, subscription buttons, feature gating, useUser hook all work. But no actual payments can be processed.
+
+**To unblock revenue:**
+1. Create PayPal developer app at https://developer.paypal.com/dashboard/applications
+2. Copy Client ID to `.env` as `VITE_PAYPAL_CLIENT_ID`
+3. Create subscription plan in PayPal for $9.99/month
+4. Copy Plan ID to `.env` as `VITE_PAYPAL_MONTHLY_PLAN_ID`
+5. Create Supabase `subscriptions` table (SQL in PRD.md)
+6. Test end-to-end: checkout modal → PayPal → save to Supabase → feature unlock
+
+### Medium Priority
+| Item | Notes |
+|------|-------|
+| Unit tests | Vitest not yet configured |
+| TypeScript migration | Only 2 files migrated (types/index.ts, labels.ts) |
+| App.jsx size | ~2600 lines — could extract more state into hooks |
+
+### Nice-to-Have (Future)
+| Item | Notes |
+|------|-------|
+| Terrain elevation | Hills, slopes |
+| Vegetation | Trees, bushes, landscaping |
+| Driveways/pathways | Hardscape tools |
+| CAD import (DXF/DWG) | Professional use case |
+| Real-time collaboration | Multi-user editing |
+| Cost estimation | Material lists + pricing |
+| WebXR/AR | VR walkthrough, mobile AR placement |
+| Furniture library | Interior design |
+
+---
+
+## Technical Debt
+
+### Resolved
+- Bundle: 2MB → 348KB initial load (83% reduction via code splitting)
+- LandScene.jsx: 9109 → 3432 lines (62% reduction via component extraction)
+- Error boundary for 3D canvas crashes
+- TypeScript setup complete (gradual migration)
+
+### Remaining
+| Issue | Impact | Priority |
+|-------|--------|----------|
+| App.jsx ~2600 lines | Maintainability | Medium |
+| LandScene.jsx ~3400 lines | Maintainability | Low (acceptable) |
+| No unit tests | Reliability | Medium |
+| Large chunks (Three.js 378KB gz) | Load time | Low (inherent to 3D) |
+
+---
+
+## Key Technical Patterns
+
+**R3F Canvas boundary:** React Three Fiber uses a separate React reconciler. Props and state updates from React DOM (App.jsx) don't reliably cross into the Canvas. Solutions used:
+- `joystickInput` ref: shared mutable ref for joystick → CameraController
+- `mobileJumpTrigger` prop + `useFrame` ref comparison: for jump trigger
+- DOM custom events (`window.dispatchEvent`/`addEventListener`): for Talk/Use triggers — same pattern as the E key handler
+
+**Multi-story architecture:** Walls have a `floorLevel` property. Room detection groups walls by floor before finding enclosed spaces. Rendering offsets walls/rooms by `floorLevel * floorHeight` on the Y axis.
+
+**Feature gating:** `useUser` hook provides `isPaidUser` boolean. Components call `requirePaid()` which returns true for paid users or shows UpgradePrompt for free users. localStorage caches subscription status.
+
+---
+
+## Controls Quick Reference
+
+### Desktop
+| Key | Action |
+|-----|--------|
+| W/A/S/D | Move |
+| Shift | Run |
+| Space | Jump |
+| V | Toggle first-person / third-person |
+| E | Talk to nearby NPC |
+| 1/2/3 | Switch view mode (1P / Orbit / 2D) |
+| R/W/D/N/S/X | Room / Wall / Door / Window / Select / Delete tools |
+| Ctrl+Z / Ctrl+Y | Undo / Redo |
+| Escape | Cancel current tool |
+
+### Mobile
+| Control | Action |
+|---------|--------|
+| Left joystick | Move |
+| Run button | Toggle run |
+| Jump button | Jump |
+| Talk button | Talk to nearby NPC (highlights when near) |
+| Use button | Select nearby building (highlights when near) |
 
 ---
 
@@ -375,46 +353,54 @@ VITE_ANALYTICS_DEBUG=false
 
 ```bash
 npm install          # Install dependencies
-npm run dev          # Start dev server (Vite) - runs on :3001
-npm run build        # Build for production
+npm run dev          # Start dev server
+npm run build        # Production build
 npm run preview      # Preview production build
-npm run lint         # Run ESLint
+vercel --prod        # Deploy to Vercel production
 ```
 
 ---
 
-## Recent Development History
+## Recent Development Timeline
 
-| Commit | Description |
-|--------|-------------|
-| `cb365f5` | Improve floor plan analysis and code splitting |
-| `c75d579` | Improve AI floor plan analysis for better 3D generation |
-| `ffd0c54` | Add AI floor plan generator and major feature updates |
-| `ec9a7e6` | Add unit switching (meters/feet) |
-| `b6fc186` | Replace side panel with bottom ribbon navigation |
-| `9e69ede` | Add mobile touch controls |
-| `594ae22` | Initial commit: Land Visualizer app |
-
-### Uncommitted Changes (Current Session)
-- Floor Plan Generator Modal UI restructuring
-- Undo/Redo positioning fix
-- Unit switcher relocation
-- Expandable sections consistency
-- AI Detection Details collapsible
+| Date | Focus | Status |
+|------|-------|--------|
+| Feb 1, 2026 | Mobile Talk/Use buttons (DOM event pattern) | Done |
+| Feb 1, 2026 | Mobile landscape mode (left sidebar nav) | Done |
+| Feb 1, 2026 | Mobile responsive layout (overflow nav, collapsible panels) | Done |
+| Jan 24, 2026 | Removed fixtures/furniture feature (user requested) | Done |
+| Jan 23, 2026 | Multi-story buildings (floor system) | Done |
+| Jan 23, 2026 | Click-to-add-floors feature | Done |
+| Jan 23, 2026 | Export panel overhaul (4 export types) | Done |
+| Jan 22, 2026 | NPC dialog system (chat bubbles) | Done |
+| Jan 22, 2026 | Payment frontend (PricingModal + PayPal) | Done |
+| Earlier | First-person camera, bundle optimization, LandScene refactor | Done |
 
 ---
 
 ## Summary
 
-**Sitea is a mature, feature-rich 3D land visualization app** combining:
+**Sitea is a mature, feature-complete 3D land visualization app** deployed at https://sitea-one.vercel.app.
 
-- **Land Visualization:** Multiple ways to define land (rectangle, polygon, trace image)
-- **Building Design:** Full Sims 4-style building system with walls, doors, windows
-- **AI Floor Plans:** Upload an image, AI extracts the layout, interactive 2D editor for corrections
-- **Exploration:** First-person, third-person, orbit, and 2D top-down camera modes
-- **Mobile Ready:** Touch controls with virtual joystick
-- **Sharing:** Supabase-powered scene sharing and PNG export
+**What's ready:**
+- Land visualization (rectangle, polygon, image trace)
+- Building design (walls, doors, windows, pools, roofs, stairs, fences)
+- Multi-story support
+- AI floor plan import
+- 4 export types (PNG, PDF, screenshot, 3D model)
+- 4 camera modes (first-person, third-person, orbit, 2D)
+- Mobile UI (portrait + landscape, virtual joystick, action buttons)
+- Scene sharing via Supabase
+- NPC system
+- Feature gating + payment UI
 
-**Current focus:** Polishing the Floor Plan Generator UI, then payment integration.
+**What's blocking revenue:**
+- PayPal developer app not created
+- Supabase subscriptions table not created
+- ~2-4 hours of manual setup to unlock payments
 
-The app is **production-ready** and actively being enhanced.
+**Next big feature opportunities:**
+- Terrain elevation
+- Furniture/interior design library
+- Real-time collaboration
+- CAD import/export
