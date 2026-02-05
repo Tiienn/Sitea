@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { QUALITY, QUALITY_SETTINGS } from '../constants/landSceneConstants'
 
 // Create realistic grass texture with macro variation
-export function useGrassTextures(quality = QUALITY.MEDIUM) {
+export function useGrassTextures(quality = QUALITY.BEST) {
   return useMemo(() => {
     const settings = QUALITY_SETTINGS[quality]
 
@@ -70,7 +70,7 @@ export function useGrassTextures(quality = QUALITY.MEDIUM) {
     const detailTexture = new THREE.CanvasTexture(detailCanvas)
     detailTexture.wrapS = THREE.RepeatWrapping
     detailTexture.wrapT = THREE.RepeatWrapping
-    detailTexture.repeat.set(15, 15)
+    detailTexture.repeat.set(60, 60)
 
     // Macro variation texture (large-scale color variation to break tiling)
     const macroCanvas = document.createElement('canvas')
@@ -100,7 +100,7 @@ export function useGrassTextures(quality = QUALITY.MEDIUM) {
     const macroTexture = new THREE.CanvasTexture(macroCanvas)
     macroTexture.wrapS = THREE.RepeatWrapping
     macroTexture.wrapT = THREE.RepeatWrapping
-    macroTexture.repeat.set(2, 2)
+    macroTexture.repeat.set(8, 8)
 
     // Roughness map (subtle variation)
     const roughCanvas = document.createElement('canvas')
@@ -119,10 +119,66 @@ export function useGrassTextures(quality = QUALITY.MEDIUM) {
     const roughnessTexture = new THREE.CanvasTexture(roughCanvas)
     roughnessTexture.wrapS = THREE.RepeatWrapping
     roughnessTexture.wrapT = THREE.RepeatWrapping
-    roughnessTexture.repeat.set(15, 15)
+    roughnessTexture.repeat.set(60, 60)
 
     return { detailTexture, macroTexture, roughnessTexture }
   }, [quality])
+}
+
+// Dirt/earth texture for land plot (construction site feel)
+export function useLandTexture() {
+  return useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')
+
+    // Base green color matching original #4a7c59 with variation
+    for (let y = 0; y < 512; y++) {
+      for (let x = 0; x < 512; x++) {
+        const noise = (Math.random() - 0.5) * 25
+        const r = Math.min(255, Math.max(0, 74 + noise * 0.4))
+        const g = Math.min(255, Math.max(0, 124 + noise))
+        const b = Math.min(255, Math.max(0, 89 + noise * 0.5))
+        ctx.fillStyle = `rgb(${r},${g},${b})`
+        ctx.fillRect(x, y, 1, 1)
+      }
+    }
+
+    // Darker patches
+    for (let i = 0; i < 60; i++) {
+      const x = Math.random() * 512
+      const y = Math.random() * 512
+      const radius = Math.random() * 40 + 15
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
+      gradient.addColorStop(0, 'rgba(40, 80, 45, 0.3)')
+      gradient.addColorStop(1, 'rgba(40, 80, 45, 0)')
+      ctx.fillStyle = gradient
+      ctx.beginPath()
+      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // Lighter patches
+    for (let i = 0; i < 30; i++) {
+      const x = Math.random() * 512
+      const y = Math.random() * 512
+      const radius = Math.random() * 35 + 10
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
+      gradient.addColorStop(0, 'rgba(100, 160, 100, 0.25)')
+      gradient.addColorStop(1, 'rgba(100, 160, 100, 0)')
+      ctx.fillStyle = gradient
+      ctx.beginPath()
+      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.RepeatWrapping
+    texture.repeat.set(8, 8)
+    return texture
+  }, [])
 }
 
 // Simple grass texture for low quality
@@ -148,7 +204,7 @@ export function useSimpleGrassTexture() {
     const texture = new THREE.CanvasTexture(canvas)
     texture.wrapS = THREE.RepeatWrapping
     texture.wrapT = THREE.RepeatWrapping
-    texture.repeat.set(20, 20)
+    texture.repeat.set(80, 80)
     return texture
   }, [])
 }

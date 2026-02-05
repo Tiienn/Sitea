@@ -162,7 +162,7 @@ export interface ComparisonPosition {
 
 export type CameraMode = 'firstPerson' | 'thirdPerson' | 'orbit'
 export type ViewMode = '3d' | '2d' | 'firstPerson'
-export type QualityLevel = 'low' | 'medium' | 'high'
+export type QualityLevel = 'fast' | 'best'
 
 export interface CameraState {
   position: Point3D

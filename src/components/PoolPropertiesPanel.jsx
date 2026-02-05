@@ -41,7 +41,7 @@ export default function PoolPropertiesPanel({
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-md bg-[var(--color-bg-secondary)] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <div className="flex items-center justify-between border-b border-white/10" style={{ padding: '20px 28px' }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
               <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -61,7 +61,7 @@ export default function PoolPropertiesPanel({
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-5">
+        <div className="space-y-5" style={{ padding: '20px 28px' }}>
           {/* Deck Material */}
           <div>
             <label className="block text-sm text-[var(--color-text-muted)] mb-2">Deck Material</label>
@@ -115,7 +115,7 @@ export default function PoolPropertiesPanel({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/10">
+        <div className="border-t border-white/10" style={{ padding: '20px 28px' }}>
           <button
             onClick={onClose}
             className="w-full py-2 bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium rounded-lg hover:opacity-90 transition-opacity"

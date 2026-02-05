@@ -1,6 +1,15 @@
-import { useState } from 'react'
-import { PayPalButtons } from '@paypal/react-paypal-js'
+import { useState, useEffect } from 'react'
+import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
+import { useUser } from '../hooks/useUser'
+
+const paypalOptions = {
+  'client-id': (import.meta.env.VITE_PAYPAL_CLIENT_ID || 'test').trim(),
+  currency: 'USD',
+  intent: 'capture',
+  components: 'buttons',
+  vault: true
+}
 
 /**
  * PricingModal - Premium pricing display with PayPal payment integration
@@ -10,10 +19,20 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
  * - Lifetime: $149 one-time payment
  */
 export default function PricingModal({ onClose, onSuccess }) {
+  const { user, setShowAuthModal } = useUser()
   const [selectedPlan, setSelectedPlan] = useState(null) // 'monthly' | 'lifetime'
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(user?.email || '')
   const [error, setError] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose?.()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const MONTHLY_PRICE = '9.99'
   const LIFETIME_PRICE = '149.00'
@@ -171,6 +190,7 @@ export default function PricingModal({ onClose, onSuccess }) {
   }
 
   return (
+    <PayPalScriptProvider options={paypalOptions}>
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Animated gradient backdrop */}
       <div
@@ -208,9 +228,9 @@ export default function PricingModal({ onClose, onSuccess }) {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-emerald-500/10 blur-3xl pointer-events-none" />
 
           {/* Header */}
-          <div className="relative px-8 pt-10 pb-6 text-center">
+          <div className="relative px-8 pb-8 text-center" style={{ paddingTop: '24px' }}>
             {/* Pro badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 mb-5">
+            <div className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 mb-5" style={{ gap: '8px', padding: '8px 20px' }}>
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm font-semibold bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">
                 Upgrade to Pro
@@ -226,13 +246,14 @@ export default function PricingModal({ onClose, onSuccess }) {
           </div>
 
           {/* Email input */}
-          <div className="px-8 pb-12">
+          <div className="px-8 pb-6">
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => !user && setEmail(e.target.value)}
+              readOnly={!!user}
               placeholder="Enter your email for license delivery"
-              className="w-full px-4 py-4 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white text-center placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:bg-slate-800/80 transition-all text-sm"
+              className={`w-full px-4 py-4 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white text-center placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:bg-slate-800/80 transition-all text-sm ${user ? 'opacity-70 cursor-not-allowed' : ''}`}
             />
             {error && (
               <div className="flex items-center justify-center gap-2 mt-3">
@@ -245,7 +266,7 @@ export default function PricingModal({ onClose, onSuccess }) {
           </div>
 
           {/* Pricing cards */}
-          <div className="px-8 pb-12 pt-4 grid md:grid-cols-2 gap-5">
+          <div className="px-8 pb-8 pt-2 grid md:grid-cols-2 gap-6">
             {/* Monthly Plan */}
             <div
               className={`relative group cursor-pointer transition-all duration-300 ${
@@ -263,17 +284,17 @@ export default function PricingModal({ onClose, onSuccess }) {
               }} />
 
               {/* Card content */}
-              <div className={`relative p-6 rounded-2xl transition-all duration-300 ${
+              <div className={`relative rounded-2xl transition-all duration-300 ${
                 selectedPlan === 'monthly'
                   ? 'bg-slate-800/90'
                   : 'bg-slate-800/40 group-hover:bg-slate-800/60'
-              }`}>
+              }`} style={{ padding: '32px' }}>
                 {/* Selection indicator */}
-                <div className={`absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                <div className={`absolute w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                   selectedPlan === 'monthly'
                     ? 'border-emerald-400 bg-emerald-400'
                     : 'border-slate-600'
-                }`}>
+                }`} style={{ top: '24px', right: '24px' }}>
                   {selectedPlan === 'monthly' && (
                     <svg className="w-3 h-3 text-slate-900" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -333,7 +354,7 @@ export default function PricingModal({ onClose, onSuccess }) {
             >
               {/* Best value badge */}
               <div className="absolute -top-2 right-4 z-10">
-                <div className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-slate-900 text-[10px] font-bold tracking-wide shadow-lg shadow-amber-500/25">
+                <div className="rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-slate-900 font-bold shadow-lg shadow-amber-500/25" style={{ padding: '4px 14px', fontSize: '10px', letterSpacing: '0.1em' }}>
                   BEST VALUE
                 </div>
               </div>
@@ -348,17 +369,17 @@ export default function PricingModal({ onClose, onSuccess }) {
               }} />
 
               {/* Card content */}
-              <div className={`relative p-6 rounded-2xl transition-all duration-300 ${
+              <div className={`relative rounded-2xl transition-all duration-300 ${
                 selectedPlan === 'lifetime'
                   ? 'bg-slate-800/90'
                   : 'bg-slate-800/40 group-hover:bg-slate-800/60'
-              }`}>
+              }`} style={{ padding: '32px' }}>
                 {/* Selection indicator */}
-                <div className={`absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                <div className={`absolute w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                   selectedPlan === 'lifetime'
                     ? 'border-amber-400 bg-amber-400'
                     : 'border-slate-600'
-                }`}>
+                }`} style={{ top: '24px', right: '24px' }}>
                   {selectedPlan === 'lifetime' && (
                     <svg className="w-3 h-3 text-slate-900" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -411,8 +432,8 @@ export default function PricingModal({ onClose, onSuccess }) {
           </div>
 
           {/* Trust indicators */}
-          <div className="px-8 pb-8 pt-4">
-            <div className="flex items-center justify-center gap-6 py-6 border-t border-slate-700/50">
+          <div className="px-8 pt-2" style={{ paddingBottom: '18px' }}>
+            <div className="flex items-center justify-center gap-6 border-t border-slate-700/50" style={{ paddingTop: '14px', paddingBottom: '2px' }}>
               <div className="flex items-center gap-2 text-slate-400 text-xs">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -432,6 +453,18 @@ export default function PricingModal({ onClose, onSuccess }) {
                 PayPal Protected
               </div>
             </div>
+
+            {/* Sign in to restore */}
+            {!user && (
+              <div className="text-center pt-4 pb-2">
+                <button
+                  onClick={() => { onClose?.(); setShowAuthModal(true) }}
+                  className="text-xs text-slate-500 hover:text-emerald-400 transition-colors underline underline-offset-2"
+                >
+                  Already purchased? Sign in to restore
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -474,5 +507,6 @@ export default function PricingModal({ onClose, onSuccess }) {
         }
       `}</style>
     </div>
+    </PayPalScriptProvider>
   )
 }

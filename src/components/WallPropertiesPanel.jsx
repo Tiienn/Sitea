@@ -87,7 +87,7 @@ export default function WallPropertiesPanel({
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-md bg-[var(--color-bg-secondary)] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <div className="flex items-center justify-between border-b border-white/10" style={{ padding: '20px 28px' }}>
           <h2 className="text-lg font-semibold text-white">Wall Properties</h2>
           <button
             onClick={onClose}
@@ -117,7 +117,7 @@ export default function WallPropertiesPanel({
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto" style={{ padding: '20px 28px' }}>
           {/* General Tab */}
           {activeTab === 'general' && (
             <div className="space-y-4">
@@ -138,6 +138,7 @@ export default function WallPropertiesPanel({
                       step="0.1"
                       min="0.1"
                       className="flex-1 px-3 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-accent)] rounded-lg text-white focus:outline-none"
+                      style={{ padding: '8px 14px' }}
                     />
                     <span className="text-[var(--color-text-muted)]">{lengthUnit}</span>
                     <button
@@ -164,6 +165,7 @@ export default function WallPropertiesPanel({
                       setEditingLength(true)
                     }}
                     className="w-full px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white text-left hover:border-white/30 transition-colors"
+                    style={{ padding: '8px 14px' }}
                   >
                     {formatLength(wallLengthM)}
                   </button>
@@ -187,6 +189,7 @@ export default function WallPropertiesPanel({
                       step="0.1"
                       min="0.1"
                       className="flex-1 px-3 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-accent)] rounded-lg text-white focus:outline-none"
+                      style={{ padding: '8px 14px' }}
                     />
                     <span className="text-[var(--color-text-muted)]">{lengthUnit}</span>
                     <button
@@ -213,6 +216,7 @@ export default function WallPropertiesPanel({
                       setEditingHeight(true)
                     }}
                     className="w-full px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white text-left hover:border-white/30 transition-colors"
+                    style={{ padding: '8px 14px' }}
                   >
                     {formatLength(wallHeight)}
                   </button>
@@ -248,7 +252,7 @@ export default function WallPropertiesPanel({
               {/* Thickness (read-only for now) */}
               <div>
                 <label className="block text-sm text-[var(--color-text-muted)] mb-1">Thickness</label>
-                <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white">
+                <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white" style={{ padding: '8px 14px' }}>
                   {formatLength(wallThickness)}
                 </div>
               </div>
@@ -383,6 +387,7 @@ export default function WallPropertiesPanel({
                   onChangePattern?.(wall.id, null)
                 }}
                 className="w-full py-2 bg-white/5 hover:bg-white/10 text-[var(--color-text-muted)] rounded-lg transition-colors text-sm"
+                style={{ marginTop: 8 }}
               >
                 Reset to Default
               </button>
@@ -391,7 +396,7 @@ export default function WallPropertiesPanel({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/10">
+        <div className="border-t border-white/10" style={{ padding: '20px 28px' }}>
           <button
             onClick={onClose}
             className="w-full py-2 bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium rounded-lg hover:opacity-90 transition-opacity"

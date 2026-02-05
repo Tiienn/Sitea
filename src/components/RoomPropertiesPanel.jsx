@@ -86,7 +86,7 @@ export default function RoomPropertiesPanel({
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-md bg-[var(--color-bg-secondary)] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <div className="flex items-center justify-between border-b border-white/10" style={{ padding: '20px 28px' }}>
           <h2 className="text-lg font-semibold text-white">Room Properties</h2>
           <button
             onClick={onClose}
@@ -116,7 +116,7 @@ export default function RoomPropertiesPanel({
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto" style={{ padding: '20px 28px' }}>
           {/* General Tab */}
           {activeTab === 'general' && (
             <div className="space-y-4">
@@ -131,6 +131,7 @@ export default function RoomPropertiesPanel({
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
                   placeholder="e.g., Living Room, Bedroom"
                   className="w-full px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[var(--color-accent)]"
+                  style={{ padding: '8px 14px' }}
                 />
               </div>
 
@@ -138,13 +139,13 @@ export default function RoomPropertiesPanel({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-[var(--color-text-muted)] mb-1">Width</label>
-                  <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white">
+                  <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white" style={{ padding: '8px 14px' }}>
                     {formatLength(dimensions.width)}
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm text-[var(--color-text-muted)] mb-1">Length</label>
-                  <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white">
+                  <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white" style={{ padding: '8px 14px' }}>
                     {formatLength(dimensions.length)}
                   </div>
                 </div>
@@ -153,7 +154,7 @@ export default function RoomPropertiesPanel({
               {/* Area */}
               <div>
                 <label className="block text-sm text-[var(--color-text-muted)] mb-1">Area</label>
-                <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white text-lg font-semibold">
+                <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white text-lg font-semibold" style={{ padding: '8px 14px' }}>
                   {formatArea(room.area)}
                 </div>
               </div>
@@ -375,6 +376,7 @@ export default function RoomPropertiesPanel({
               <button
                 onClick={() => onStyleChange?.({ wallColor: null, floorPattern: null })}
                 className="w-full py-2 bg-white/5 hover:bg-white/10 text-[var(--color-text-muted)] rounded-lg transition-colors text-sm"
+                style={{ marginTop: 8 }}
               >
                 Reset to Default
               </button>
@@ -383,7 +385,7 @@ export default function RoomPropertiesPanel({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/10">
+        <div className="border-t border-white/10" style={{ padding: '20px 28px' }}>
           <button
             onClick={onClose}
             className="w-full py-2 bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium rounded-lg hover:opacity-90 transition-opacity"

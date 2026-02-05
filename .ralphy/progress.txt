@@ -1,2 +1,27 @@
 # Ralphy Progress Log
 
+- [✓] 2026-02-05 15:14 - Arms hang naturally at sides when idle (not T-pose, not behind body, not crossed in front)
+- [✓] 2026-02-05 15:16 - Arms swing naturally forward/back when walking
+- [✓] 2026-02-05 15:21 - No mesh distortion or visual artifacts
+- [✓] 2026-02-05 15:23 - Fix Z-fighting in PoolItem coping meshes
+- [✓] 2026-02-05 15:24 - Fix Z-fighting in FoundationItem selection highlights
+- [✓] 2026-02-05 15:25 - Fix Z-fighting in WallSegment selection overlays
+- [✓] 2026-02-05 15:30 - Fix transparent material rendering order (pool water, glass panes)
+- [✓] 2026-02-05 15:31 - Fix UV coordinate scaling in RoomFloor texture mapping
+- [✗] 2026-02-05 15:32 - Add proper Y-offset separation for all overlapping meshes
+- [✗] 2026-02-05 15:32 - Test fixes in all view modes (2D, first-person, third-person, orbit)
+- [✗] 2026-02-05 15:32 - Room floor textures don't stretch or distort
+- [✗] 2026-02-05 18:32 - All fixes work in 2D and 3D modes
+- [✗] 2026-02-05 18:32 - No new visual artifacts introduced
+- [✗] 2026-02-05 18:32 - No mesh distortion or visual artifacts
+- [✗] 2026-02-05 18:32 - Remove all debug console.log statements when done
+- [✗] 2026-02-05 18:32 - 1. Create `src/hooks/useIsMobile.js` - mobile detection hook
+- [✗] 2026-02-05 18:32 - 2. Add safe area CSS + slide animations to `src/index.css`
+- [✗] 2026-02-05 18:33 - 3. Bottom nav: show 4 items + "More" overflow menu on mobile (currently 7 items overflow)
+- [✗] 2026-02-05 18:33 - 4. Left panel (CTA card): make compact/collapsible on mobile
+- [✗] 2026-02-05 18:33 - 5. Right panel (View Controls): hide behind settings icon, slide-up sheet on mobile
+- [✗] 2026-02-05 18:33 - 6. Minimap: smaller on mobile, positioned above nav
+- [✗] 2026-02-05 18:33 - 7. "Upgrade to Pro" button: move into overflow menu on mobile
+- [✗] 2026-02-05 18:33 - Create PayPal developer app at https://developer.paypal.com/dashboard/applications
+- [✗] 2026-02-05 18:33 - Copy Client ID to `.env` as `VITE_PAYPAL_CLIENT_ID`
+- [✗] 2026-02-05 18:33 - Create subscription plan in PayPal for $9.99/month

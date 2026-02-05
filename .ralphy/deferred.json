@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "markdown:tasks/todo.md:178": {
+      "count": 1,
+      "last": "2026-02-05T18:34:01.082Z",
+      "title": "Copy Plan ID to `.env` as `VITE_PAYPAL_MONTHLY_PLAN_ID`"
+    }
+  }
+}

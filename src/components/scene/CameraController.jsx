@@ -604,10 +604,33 @@ export function CameraController({
 
     // Report player position and velocity for minimap and animation
     if (onPlayerPositionUpdate) {
+      // Determine movement type from raw input (before yaw rotation)
+      const ms = moveState.current
+      const jx = joystickInput?.current?.x || 0
+      const jy = joystickInput?.current?.y || 0
+      const hasForward = ms.forward || jy > 0.1
+      const hasBackward = ms.backward || jy < -0.1
+      const hasStrafeLeft = ms.left || jx < -0.1
+      const hasStrafeRight = ms.right || jx > 0.1
+
+      const isRunning = shiftHeld.current || mobileRunning
+
+      let moveType = 'idle'
+      if (currentSpeed.current > 0.1) {
+        if (!isGrounded.current) moveType = 'jump'
+        else if (hasBackward && !hasForward) moveType = 'walkback'
+        else if (hasStrafeLeft && !hasForward && !hasBackward) moveType = isRunning ? 'straferunleft' : 'strafe'
+        else if (hasStrafeRight && !hasForward && !hasBackward) moveType = isRunning ? 'straferunright' : 'straferight'
+        else if (isRunning) moveType = 'run'
+        else moveType = 'walk'
+      }
+      if (isGrounded.current === false && verticalVelocity.current !== 0) moveType = 'jump'
+
       onPlayerPositionUpdate({
         position: { x: playerPosition.current.x, y: playerPosition.current.y, z: playerPosition.current.z },
         rotation: playerYaw.current,
-        velocity: currentSpeed.current
+        velocity: currentSpeed.current,
+        moveType
       })
     }
   })

@@ -238,6 +238,7 @@ export default function BuildPanel({
   wallDrawingMode = false,
   setWallDrawingMode,
   clearAllWalls,
+  onClearByType,
   openingPlacementMode = 'none',
   setOpeningPlacementMode,
   BUILD_TOOLS = {},
@@ -516,7 +517,7 @@ export default function BuildPanel({
 
                     {/* Plan type descriptions */}
                     <div className="space-y-2 mt-2">
-                      <div className="flex items-start gap-2 p-2 rounded-lg bg-[var(--color-bg-elevated)]">
+                      <div className="flex items-start gap-2 rounded-lg bg-[var(--color-bg-elevated)]" style={{ padding: '8px 12px' }}>
                         <svg className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
@@ -525,7 +526,7 @@ export default function BuildPanel({
                           <p className="text-xs text-[var(--color-text-muted)]">Outdoor land boundaries, property lines, lot surveys</p>
                         </div>
                       </div>
-                      <div className="flex items-start gap-2 p-2 rounded-lg bg-[var(--color-bg-elevated)]">
+                      <div className="flex items-start gap-2 rounded-lg bg-[var(--color-bg-elevated)]" style={{ padding: '8px 12px' }}>
                         <svg className="w-4 h-4 mt-0.5 text-[var(--color-accent)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
@@ -712,7 +713,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.ROOM ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.room}</span>
-                    <span className="text-[10px]">Room</span>
+                    <span className="text-[10px]">Room <kbd className="opacity-40 text-[8px]">Q</kbd></span>
                   </button>
 
                   {/* Wall Tool */}
@@ -722,7 +723,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.WALL ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.wall}</span>
-                    <span className="text-[10px]">Wall</span>
+                    <span className="text-[10px]">Wall <kbd className="opacity-40 text-[8px]">T</kbd></span>
                   </button>
 
                   {/* Fence Tool */}
@@ -732,7 +733,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.FENCE ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.fence}</span>
-                    <span className="text-[10px]">Fence</span>
+                    <span className="text-[10px]">Fence <kbd className="opacity-40 text-[8px]">G</kbd></span>
                   </button>
 
                   {/* Door Tool */}
@@ -742,7 +743,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.DOOR ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.door}</span>
-                    <span className="text-[10px]">Door</span>
+                    <span className="text-[10px]">Door <kbd className="opacity-40 text-[8px]">C</kbd></span>
                   </button>
 
                   {/* Window Tool */}
@@ -752,7 +753,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.WINDOW ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.window}</span>
-                    <span className="text-[10px]">Window</span>
+                    <span className="text-[10px]">Window <kbd className="opacity-40 text-[8px]">V</kbd></span>
                   </button>
 
                   {/* Pool Tool */}
@@ -762,7 +763,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.POOL ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.pool}</span>
-                    <span className="text-[10px]">Pool</span>
+                    <span className="text-[10px]">Pool <kbd className="opacity-40 text-[8px]">B</kbd></span>
                   </button>
 
                   {/* Foundation Tool */}
@@ -772,7 +773,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.FOUNDATION ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.foundation}</span>
-                    <span className="text-[10px]">Platform</span>
+                    <span className="text-[10px]">Platform <kbd className="opacity-40 text-[8px]">N</kbd></span>
                   </button>
 
                   {/* Stairs Tool */}
@@ -782,7 +783,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.STAIRS ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.stairs}</span>
-                    <span className="text-[10px]">Stairs</span>
+                    <span className="text-[10px]">Stairs <kbd className="opacity-40 text-[8px]">H</kbd></span>
                   </button>
 
                   {/* Roof Tool */}
@@ -792,7 +793,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.ROOF ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.roof}</span>
-                    <span className="text-[10px]">Roof</span>
+                    <span className="text-[10px]">Roof <kbd className="opacity-40 text-[8px]">J</kbd></span>
                   </button>
 
                   {/* Delete Tool */}
@@ -802,12 +803,12 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.DELETE ? 'active' : ''} ${activeBuildTool === BUILD_TOOLS.DELETE ? '!bg-red-500/20 !border-red-500/50' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.trash}</span>
-                    <span className="text-[10px]">Delete</span>
+                    <span className="text-[10px]">Delete <kbd className="opacity-40 text-[8px]">X</kbd></span>
                   </button>
                 </div>
 
                 {/* Undo/Redo Buttons */}
-                <div className="flex gap-2 pt-2 border-t border-[var(--color-border)]">
+                <div className="flex gap-2 border-t border-[var(--color-border)]" style={{ paddingTop: 10 }}>
                   <button
                     onClick={onUndo}
                     disabled={!canUndo}
@@ -857,7 +858,7 @@ export default function BuildPanel({
 
                 {/* Door Options */}
                 {activeBuildTool === BUILD_TOOLS.DOOR && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
                     {/* Door Type Selector */}
                     <div>
                       <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Door Type</div>
@@ -927,7 +928,7 @@ export default function BuildPanel({
 
                 {/* Window Size Options */}
                 {activeBuildTool === BUILD_TOOLS.WINDOW && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
                     <div className="text-xs text-[var(--color-text-muted)] font-medium">Window Size</div>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
@@ -1001,7 +1002,7 @@ export default function BuildPanel({
 
                 {/* Fence Type Options */}
                 {activeBuildTool === BUILD_TOOLS.FENCE && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
                     <div>
                       <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Fence Style</div>
                       <div className="grid grid-cols-2 gap-1.5">
@@ -1031,7 +1032,7 @@ export default function BuildPanel({
 
                 {/* Pool Options */}
                 {activeBuildTool === BUILD_TOOLS.POOL && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3">
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl" style={{ padding: '12px 16px' }}>
                     <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Deck Material</div>
                     <div className="grid grid-cols-2 gap-1.5">
                       {['concrete', 'stone', 'wood', 'tile'].map((mat) => (
@@ -1053,7 +1054,7 @@ export default function BuildPanel({
 
                 {/* Foundation Options */}
                 {activeBuildTool === BUILD_TOOLS.FOUNDATION && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
                     <div>
                       <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Platform Height</div>
                       <div className="flex items-center gap-2">
@@ -1092,7 +1093,7 @@ export default function BuildPanel({
 
                 {/* Stairs Options - Preset Based */}
                 {activeBuildTool === BUILD_TOOLS.STAIRS && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
                     <div>
                       <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Select Preset</div>
                       <div className="grid grid-cols-1 gap-2">
@@ -1143,7 +1144,7 @@ export default function BuildPanel({
 
                 {/* Roof Options */}
                 {activeBuildTool === BUILD_TOOLS.ROOF && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
                     <div>
                       <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Roof Type</div>
                       <div className="grid grid-cols-2 gap-1.5">
@@ -1231,7 +1232,7 @@ export default function BuildPanel({
                 )}
 
                 {/* Stats */}
-                <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-2">
+                <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-2" style={{ padding: '12px 16px', marginTop: '12px' }}>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[var(--color-text-muted)]">Walls</span>
                     <span className="text-[var(--color-text-primary)] font-medium">{walls.length}</span>
@@ -1262,15 +1263,47 @@ export default function BuildPanel({
                   )}
                 </div>
 
-                {/* Clear all */}
-                {walls.length > 0 && canEdit && (
-                  <button
-                    onClick={clearAllWalls}
-                    className="w-full py-2 text-xs text-red-400 hover:text-red-300 transition-colors"
-                  >
-                    Clear all walls
-                  </button>
-                )}
+                {/* Context-sensitive clear button */}
+                {canEdit && onClearByType && (() => {
+                  const doorCount = walls.reduce((sum, w) => sum + (w.openings?.filter(o => o.type === 'door').length || 0), 0)
+                  const windowCount = walls.reduce((sum, w) => sum + (w.openings?.filter(o => o.type === 'window').length || 0), 0)
+                  const fenceCount = walls.filter(w => w.isFence).length
+                  const clearMap = {
+                    [BUILD_TOOLS.ROOM]: { label: 'Clear all rooms', show: rooms.length > 0 },
+                    [BUILD_TOOLS.WALL]: { label: 'Clear all walls', show: walls.filter(w => !w.isFence).length > 0 },
+                    [BUILD_TOOLS.HALF_WALL]: { label: 'Clear all walls', show: walls.filter(w => !w.isFence).length > 0 },
+                    [BUILD_TOOLS.FENCE]: { label: 'Clear all fences', show: fenceCount > 0 },
+                    [BUILD_TOOLS.DOOR]: { label: 'Clear all doors', show: doorCount > 0 },
+                    [BUILD_TOOLS.WINDOW]: { label: 'Clear all windows', show: windowCount > 0 },
+                    [BUILD_TOOLS.POOL]: { label: 'Clear all pools', show: pools.length > 0 },
+                    [BUILD_TOOLS.FOUNDATION]: { label: 'Clear all platforms', show: foundations.length > 0 },
+                    [BUILD_TOOLS.STAIRS]: { label: 'Clear all stairs', show: stairs.length > 0 },
+                    [BUILD_TOOLS.ROOF]: { label: 'Clear all roofs', show: roofs.length > 0 },
+                  }
+                  const entry = clearMap[activeBuildTool]
+                  if (!entry) {
+                    // Default: show "Clear all" when no specific tool / delete tool
+                    const hasAnything = walls.length > 0 || pools.length > 0 || foundations.length > 0 || stairs.length > 0 || roofs.length > 0
+                    if (!hasAnything) return null
+                    return (
+                      <button
+                        onClick={() => onClearByType(activeBuildTool)}
+                        className="w-full py-2 text-xs text-red-400 hover:text-red-300 transition-colors"
+                      >
+                        Clear all
+                      </button>
+                    )
+                  }
+                  if (!entry.show) return null
+                  return (
+                    <button
+                      onClick={() => onClearByType(activeBuildTool)}
+                      className="w-full py-2 text-xs text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      {entry.label}
+                    </button>
+                  )
+                })()}
               </div>
             )}
 
@@ -1345,11 +1378,12 @@ export default function BuildPanel({
                     key={preset.id}
                     onClick={() => handlePresetClick(preset.id)}
                     disabled={!canEdit}
-                    className={`w-full px-4 py-3 text-sm font-medium rounded-xl transition-colors text-left ${
+                    className={`w-full text-sm font-medium rounded-xl transition-colors text-left ${
                       !canEdit
                         ? 'bg-white/5 text-white/30 cursor-not-allowed'
                         : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] hover:bg-white/15 border border-[var(--color-border)]'
                     }`}
+                    style={{ padding: '10px 16px' }}
                   >
                     {preset.name}
                   </button>
@@ -1376,7 +1410,7 @@ export default function BuildPanel({
                 </div>
 
                 {/* Floor tabs */}
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1" style={{ paddingLeft: 4 }}>
                   {Array.from({ length: totalFloors }, (_, i) => (
                     <button
                       key={i}
@@ -1401,7 +1435,7 @@ export default function BuildPanel({
                 </div>
 
                 {/* Floor actions */}
-                <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
                   <div className="flex gap-2">
                     <button
                       onClick={() => addFloor?.()}
@@ -1440,7 +1474,7 @@ export default function BuildPanel({
                 </div>
 
                 {/* Add Floors to Room */}
-                <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-3">
+                <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
                   <div className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
                     Add Floors to Room
                   </div>
@@ -1510,7 +1544,7 @@ export default function BuildPanel({
                 </div>
 
                 {/* Stats */}
-                <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3 space-y-2">
+                <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-2" style={{ padding: '12px 16px' }}>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[var(--color-text-muted)]">Used</span>
                     <span className="text-[var(--color-text-primary)] font-medium">{formatArea(coverageAreaM2, areaUnit)}</span>
@@ -1560,7 +1594,7 @@ export default function BuildPanel({
                 </div>
 
                 {setbacksEnabled && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl p-4">
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl" style={{ padding: '16px' }}>
                     <div className="text-xs text-[var(--color-text-muted)] mb-2">Buffer distance</div>
                     <div className="flex items-center gap-3">
                       <input
@@ -1588,11 +1622,12 @@ export default function BuildPanel({
               <div className="space-y-3">
                 <button
                   onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
+                  className={`w-full flex items-center justify-between rounded-xl transition-colors ${
                     labels.land
                       ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30'
                       : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)]'
                   }`}
+                  style={{ padding: '12px 16px' }}
                 >
                   <span className={`text-sm font-medium ${labels.land ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
                     Land dimensions
@@ -1610,11 +1645,12 @@ export default function BuildPanel({
 
                 <button
                   onClick={() => setLabels(prev => ({ ...prev, buildings: !prev.buildings }))}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
+                  className={`w-full flex items-center justify-between rounded-xl transition-colors ${
                     labels.buildings
                       ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30'
                       : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)]'
                   }`}
+                  style={{ padding: '12px 16px' }}
                 >
                   <span className={`text-sm font-medium ${labels.buildings ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
                     Building labels
@@ -1632,11 +1668,12 @@ export default function BuildPanel({
 
                 <button
                   onClick={() => setLabels(prev => ({ ...prev, buildingDimensions: !prev.buildingDimensions }))}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
+                  className={`w-full flex items-center justify-between rounded-xl transition-colors ${
                     labels.buildingDimensions
                       ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30'
                       : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)]'
                   }`}
+                  style={{ padding: '12px 16px' }}
                 >
                   <span className={`text-sm font-medium ${labels.buildingDimensions ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
                     Building dimensions
@@ -1654,11 +1691,12 @@ export default function BuildPanel({
 
                 <button
                   onClick={() => setLabels(prev => ({ ...prev, orientation: !prev.orientation }))}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
+                  className={`w-full flex items-center justify-between rounded-xl transition-colors ${
                     labels.orientation
                       ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30'
                       : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)]'
                   }`}
+                  style={{ padding: '12px 16px' }}
                 >
                   <span className={`text-sm font-medium ${labels.orientation ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
                     Compass

@@ -1035,7 +1035,7 @@ export default function ShapeEditor({
       <div className="border-t border-white/10" />
 
       {/* Status */}
-      <div className="bg-white/5 rounded-lg p-3">
+      <div className="bg-white/5 rounded-lg" style={{ padding: '12px 16px' }}>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="text-[10px] text-white/50 uppercase tracking-wide mb-0.5">Perimeter</div>
@@ -1056,7 +1056,7 @@ export default function ShapeEditor({
       <div className="border-t border-white/10" />
 
       {/* Undo/Redo */}
-      <div className="flex gap-2">
+      <div className="flex gap-2" style={{ marginTop: 6 }}>
         <button
           onClick={handleUndo}
           disabled={!canUndo}
@@ -1082,7 +1082,7 @@ export default function ShapeEditor({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2">
+      <div className="flex gap-2" style={{ marginTop: 6 }}>
         {onReset && originalPoints && (
           <button
             onClick={onReset}

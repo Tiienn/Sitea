@@ -78,7 +78,7 @@ export default function FencePropertiesPanel({
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-md bg-[var(--color-bg-secondary)] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <div className="flex items-center justify-between border-b border-white/10" style={{ padding: '20px 28px' }}>
           <h2 className="text-lg font-semibold text-white">Fence Properties</h2>
           <button
             onClick={onClose}
@@ -108,14 +108,14 @@ export default function FencePropertiesPanel({
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-5">
+        <div className="space-y-5" style={{ padding: '20px 28px' }}>
           {/* General Tab */}
           {activeTab === 'general' && (
             <>
               {/* Length (read-only) */}
               <div>
                 <label className="block text-sm text-[var(--color-text-muted)] mb-1">Length</label>
-                <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white flex items-center justify-between">
+                <div className="px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white flex items-center justify-between" style={{ padding: '8px 14px' }}>
                   <span>{formatLength(fenceLengthM)}</span>
                   <span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -144,6 +144,7 @@ export default function FencePropertiesPanel({
                       min="0.3"
                       max="2.5"
                       className="flex-1 px-3 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-accent)] rounded-lg text-white focus:outline-none"
+                      style={{ padding: '8px 14px' }}
                     />
                     <span className="text-[var(--color-text-muted)]">{lengthUnit}</span>
                     <button
@@ -170,6 +171,7 @@ export default function FencePropertiesPanel({
                       setEditingHeight(true)
                     }}
                     className="w-full px-3 py-2 bg-[var(--color-bg-primary)] border border-white/10 rounded-lg text-white text-left hover:border-white/30 transition-colors"
+                    style={{ padding: '8px 14px' }}
                   >
                     {formatLength(fenceHeight)}
                   </button>
@@ -235,7 +237,7 @@ export default function FencePropertiesPanel({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/10">
+        <div className="border-t border-white/10" style={{ padding: '20px 28px' }}>
           <button
             onClick={onClose}
             className="w-full py-2 bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium rounded-lg hover:opacity-90 transition-opacity"

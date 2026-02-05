@@ -2,47 +2,31 @@ import * as THREE from 'three'
 
 // Quality preset constants
 export const QUALITY = {
-  LOW: 'low',
-  MEDIUM: 'medium',
-  HIGH: 'high'
+  FAST: 'fast',
+  BEST: 'best'
 }
 
 // Quality-dependent settings
 export const QUALITY_SETTINGS = {
-  [QUALITY.LOW]: {
+  [QUALITY.FAST]: {
     dpr: 1,
     shadowsEnabled: false,
     shadowMapSize: 512,
     shadowType: false,
     bloom: false,
-    ssao: false,
     envMapIntensity: 0,
     grassDetail: false,
     fogDensity: 0.008
   },
-  [QUALITY.MEDIUM]: {
+  [QUALITY.BEST]: {
     dpr: 1.5,
     shadowsEnabled: true,
     shadowMapSize: 1024,
     shadowType: THREE.PCFSoftShadowMap,
     bloom: false,
-    ssao: false,
     envMapIntensity: 0.3,
     grassDetail: true,
     fogDensity: 0.006
-  },
-  [QUALITY.HIGH]: {
-    dpr: 2,
-    shadowsEnabled: true,
-    shadowMapSize: 2048,
-    shadowType: THREE.PCFSoftShadowMap,
-    bloom: true,
-    bloomIntensity: 0.2,
-    ssao: true,
-    ssaoIntensity: 0.5,
-    envMapIntensity: 0.5,
-    grassDetail: true,
-    fogDensity: 0.005
   }
 }
 

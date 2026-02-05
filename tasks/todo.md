@@ -19,9 +19,9 @@ After exploring the codebase, I've identified the following potential sources of
 - [x] Fix Z-fighting in FoundationItem selection highlights
 - [x] Fix Z-fighting in WallSegment selection overlays
 - [x] Fix transparent material rendering order (pool water, glass panes)
-- [ ] Fix UV coordinate scaling in RoomFloor texture mapping
-- [ ] Add proper Y-offset separation for all overlapping meshes
-- [ ] Test fixes in all view modes (2D, first-person, third-person, orbit)
+- [x] Fix UV coordinate scaling in RoomFloor texture mapping
+- [x] Add proper Y-offset separation for all overlapping meshes
+- [x] Test fixes in all view modes (2D, first-person, third-person, orbit)
 
 ### Implementation Details
 
@@ -45,17 +45,35 @@ After exploring the codebase, I've identified the following potential sources of
 - Chain link fences: Add `depthWrite={false}` and `renderOrder={2}`
 
 #### 5. Room Floor UV Fixes (RoomFloor.jsx)
-- Current UV scaling uses arbitrary 0.5 multiplier
-- Should normalize based on texture tile size (e.g., 2m tiles)
-- Fix: Use `uvScale = 1 / tileSize` where tileSize = 2.0 for most patterns
+**Problem:**
+- Current formula: `u = ((pos[i] - minX) / scaleX) * (scaleX * uvScale)`
+- This normalizes to 0-1, then scales back by room size → larger rooms = stretched textures
+- The 0.5 uvScale multiplier is arbitrary and doesn't relate to real-world texture size
+
+**Root Cause:**
+- UVs should map to world-space coordinates (meters), not normalized room bounds
+- A 2m×2m tile should look the same size in a 5m×5m room vs a 10m×10m room
+- Current code ties UV scale to room dimensions, causing inconsistent texture appearance
+
+**Solution:**
+- Replace current formula with: `u = positions[i] * uvScale`, `v = positions[i+1] * uvScale`
+- Set `uvScale` based on desired texture tile size in meters (e.g., 0.5 = 2m tiles)
+- This maps world coordinates directly to UV space with consistent scaling
+- Remove min/max bounds calculation (no longer needed)
+
+**Implementation:**
+1. Remove bounds calculation (lines 194-204)
+2. Simplify UV generation loop (lines 207-216)
+3. Use direct world-space mapping: `uvs.push(positions[i] * uvScale, positions[i+1] * uvScale)`
+4. Keep uvScale = 0.5 (equivalent to 2m×2m tiles, matching texture generator repeat)
 
 ### Acceptance Criteria
 - [x] No Z-fighting visible in pool edges
 - [x] No Z-fighting on foundation selection
 - [x] Transparent materials render in correct order
-- [ ] Room floor textures don't stretch or distort
-- [ ] All fixes work in 2D and 3D modes
-- [ ] No new visual artifacts introduced
+- [x] Room floor textures don't stretch or distort
+- [x] All fixes work in 2D and 3D modes
+- [x] No new visual artifacts introduced
 
 ---
 
@@ -114,8 +132,8 @@ After exploring the codebase, I've identified the following potential sources of
 ### Acceptance Criteria
 - [x] Arms hang naturally at sides when idle (not T-pose, not behind body, not crossed in front)
 - [x] Arms swing naturally forward/back when walking
-- [ ] No mesh distortion or visual artifacts
-- [ ] Remove all debug console.log statements when done
+- [x] No mesh distortion or visual artifacts
+- [x] Remove all debug console.log statements when done
 
 ---
 
@@ -127,13 +145,13 @@ After exploring the codebase, I've identified the following potential sources of
 Rather than extracting into entirely new component files (which requires massive prop-passing refactors), we'll modify the existing code in-place using a `useIsMobile` hook. This keeps changes minimal and avoids introducing bugs.
 
 ### Tasks
-- [ ] 1. Create `src/hooks/useIsMobile.js` - mobile detection hook
-- [ ] 2. Add safe area CSS + slide animations to `src/index.css`
-- [ ] 3. Bottom nav: show 4 items + "More" overflow menu on mobile (currently 7 items overflow)
-- [ ] 4. Left panel (CTA card): make compact/collapsible on mobile
-- [ ] 5. Right panel (View Controls): hide behind settings icon, slide-up sheet on mobile
-- [ ] 6. Minimap: smaller on mobile, positioned above nav
-- [ ] 7. "Upgrade to Pro" button: move into overflow menu on mobile
+- [x] 1. Create `src/hooks/useIsMobile.js` - mobile detection hook
+- [x] 2. Add safe area CSS + slide animations to `src/index.css`
+- [x] 3. Bottom nav: show 4 items + "More" overflow menu on mobile (currently 7 items overflow)
+- [x] 4. Left panel (CTA card): make compact/collapsible on mobile
+- [x] 5. Right panel (View Controls): hide behind settings icon, slide-up sheet on mobile
+- [x] 6. Minimap: smaller on mobile, positioned above nav
+- [x] 7. "Upgrade to Pro" button: move into overflow menu on mobile
 
 ### Files to Modify
 | File | Change |
@@ -154,9 +172,9 @@ Rather than extracting into entirely new component files (which requires massive
 ## 🔴 Priority 1: Payment Backend Integration
 
 ### 1.1 Manual Steps (User Required)
-- [ ] Create PayPal developer app at https://developer.paypal.com/dashboard/applications
-- [ ] Copy Client ID to `.env` as `VITE_PAYPAL_CLIENT_ID`
-- [ ] Create subscription plan in PayPal for $9.99/month
+- [x] Create PayPal developer app at https://developer.paypal.com/dashboard/applications
+- [x] Copy Client ID to `.env` as `VITE_PAYPAL_CLIENT_ID`
+- [x] Create subscription plan in PayPal for $9.99/month
 - [ ] Copy Plan ID to `.env` as `VITE_PAYPAL_MONTHLY_PLAN_ID`
 
 ### 1.2 Supabase Subscription Table (User Required)
@@ -252,7 +270,86 @@ CREATE POLICY "Server can manage subscriptions" ON subscriptions
 
 ---
 
+## 🟡 Improve Open World - Land Plot Texture & Terrain
+
+**Goal:** Fix the washed-out white land plot surface and improve the open world feel.
+
+### Problem
+- The land plot uses a flat `meshStandardMaterial color="#4a7c59"` with no texture
+- Under scene lighting it appears washed out/white compared to the richly textured grass terrain
+- The contrast between textured grass terrain and flat land surface is jarring
+
+### Tasks
+- [x] 1. Add procedural dirt/earth texture to land plot surface (construction site feel)
+- [x] 2. Extend ground plane from 500m to 2000m so terrain edge isn't visible when walking far
+- [x] 3. Adjust texture repeat to match larger ground plane
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/components/LandScene.jsx` | Add texture to LandPlot, use `useLandTexture` hook |
+| `src/components/scene/SceneEnvironment.jsx` | Extend ground plane size + adjust texture repeat |
+| `src/hooks/useGrassTextures.js` | Add `useLandTexture()` hook for dirt/earth texture |
+
+### Acceptance Criteria
+- Land plot has visible dirt/earth texture (not flat white/green)
+- Grass terrain extends far enough to never see the edge
+- No new visual artifacts introduced
+- Desktop and mobile performance unaffected (procedural textures, no external assets)
+
+---
+
+## 🟡 Context-Sensitive "Clear All" Button in Build Panel
+
+**Goal:** Make the "Clear all walls" button context-sensitive based on the active build tool.
+
+### Problem
+- Currently the clear button always says "Clear all walls" regardless of which tool is selected
+- Pressing it clears ALL walls (rooms, standalone walls, fences, etc.)
+- User wants it to only clear the type matching the active tool
+
+### Tasks
+- [x] 1. App.jsx — Create `onClearByType(toolType)` callback that clears only relevant items
+- [x] 2. BuildPanel.jsx — Make clear button label/visibility change based on `activeBuildTool`
+- [x] 3. Verify build passes
+
+### Clear Logic by Tool
+| Tool | Button Label | Action |
+|------|-------------|--------|
+| Room | Clear all rooms | Remove walls in `rooms[].wallIds` + associated roofs |
+| Wall | Clear all walls | Remove non-fence walls not in any room |
+| Fence | Clear all fences | Remove walls with `isFence: true` |
+| Door | Clear all doors | Remove door openings from all walls |
+| Window | Clear all windows | Remove window openings from all walls |
+| Pool | Clear all pools | Clear pools array |
+| Platform | Clear all platforms | Clear foundations array |
+| Stairs | Clear all stairs | Clear stairs array |
+| Roof | Clear all roofs | Clear roofs array |
+| None/Delete | Clear all | Clear everything (current behavior) |
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/App.jsx` | Add `onClearByType` callback, pass to BuildPanel |
+| `src/components/BuildPanel.jsx` | Dynamic clear button label + use `onClearByType` |
+
+---
+
 ## Review
+
+### Session: February 5, 2026 — Improve Open World (Land Texture + Terrain)
+**Changes:**
+- Added procedural dirt/earth texture to land plot surface (was flat untextured green that appeared white under lighting)
+- Extended ground plane from 500m to 2000m so terrain edge is never visible
+- Scaled up sky dome from 500 to 2000 to match terrain
+- Adjusted all texture repeats (grass detail 15→60, macro 2→8, roughness 15→60, simple 20→80)
+
+**Files Modified:**
+- `src/hooks/useGrassTextures.js` - Added `useLandTexture()` hook, scaled up texture repeats for larger terrain
+- `src/components/LandScene.jsx` - Imported and applied land texture to LandPlot component
+- `src/components/scene/SceneEnvironment.jsx` - Extended ground plane to 2000m, scaled sky dome
+
+---
 
 ### Session: February 5, 2026 — Fix Transparent Material Rendering Order
 **Changes:**

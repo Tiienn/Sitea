@@ -1290,7 +1290,7 @@ export default function PolygonEditor({ points, onChange, onComplete, onClear, o
         {activeTab === 'draw' && (
           <div className="space-y-3">
             {/* Dimension Input - Type and Click */}
-            <div className="bg-white/5 rounded-lg p-3">
+            <div className="bg-white/5 rounded-lg" style={{ padding: '12px 14px' }}>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-white/40">Length:</span>
                 <input
@@ -1328,7 +1328,7 @@ export default function PolygonEditor({ points, onChange, onComplete, onClear, o
             </div>
 
             {/* Quick Shapes */}
-            <div>
+            <div style={{ marginTop: 8 }}>
               <SectionHeader>Quick Shapes</SectionHeader>
               <div className="grid grid-cols-4 gap-1.5">
                 {[
@@ -1615,7 +1615,7 @@ export default function PolygonEditor({ points, onChange, onComplete, onClear, o
       </div>
 
       {/* Sticky Action Buttons */}
-      <div className="flex gap-2 pt-3 mt-auto border-t border-white/10">
+      <div className="flex gap-2 mt-auto border-t border-white/10" style={{ paddingTop: 10 }}>
         <button
           onClick={handleClear}
           disabled={points.length === 0}

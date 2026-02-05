@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
-import { EffectComposer, SSAO } from '@react-three/postprocessing'
 import { QUALITY, QUALITY_SETTINGS } from '../../constants/landSceneConstants'
 import { useGrassTextures, useSimpleGrassTexture } from '../../hooks/useGrassTextures'
 
@@ -93,19 +92,19 @@ export function EnhancedGround({ quality }) {
   const simpleTexture = useSimpleGrassTexture()
   const { detailTexture, macroTexture, roughnessTexture } = useGrassTextures(quality)
 
-  if (quality === QUALITY.LOW) {
+  if (quality === QUALITY.FAST) {
     return (
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[500, 500]} />
+        <planeGeometry args={[2000, 2000]} />
         <meshStandardMaterial map={simpleTexture} />
       </mesh>
     )
   }
 
-  // Medium/High quality: use enhanced material
+  // Best quality: use enhanced material
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[500, 500, 64, 64]} />
+      <planeGeometry args={[2000, 2000, 64, 64]} />
       <meshStandardMaterial
         map={detailTexture}
         roughnessMap={roughnessTexture}
@@ -114,23 +113,6 @@ export function EnhancedGround({ quality }) {
         envMapIntensity={settings.envMapIntensity}
       />
     </mesh>
-  )
-}
-
-// Postprocessing effects based on quality (SSAO only)
-export function PostProcessing({ quality }) {
-  const settings = QUALITY_SETTINGS[quality]
-
-  if (!settings.ssao) return null
-
-  return (
-    <EffectComposer>
-      <SSAO
-        intensity={settings.ssaoIntensity || 0.5}
-        radius={0.1}
-        luminanceInfluence={0.5}
-      />
-    </EffectComposer>
   )
 }
 

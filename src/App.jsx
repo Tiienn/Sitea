@@ -9,6 +9,7 @@ const LandScene = lazy(() => import('./components/LandScene'))
 const FloorPlanGeneratorModal = lazy(() => import('./components/FloorPlanGeneratorModal'))
 const UploadImageModal = lazy(() => import('./components/UploadImageModal'))
 const PricingModal = lazy(() => import('./components/PricingModal'))
+const AuthModal = lazy(() => import('./components/AuthModal'))
 
 // Named export from PolygonEditor (used for area calculation)
 import { calculatePolygonArea } from './components/PolygonEditor'
@@ -504,10 +505,15 @@ function VirtualJoystick({ joystickInput, isRunning, setIsRunning, onJump, onTal
 
 function App() {
   // User context for paid features
-  const { isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid } = useUser()
+  const { user, isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid, signOut, showAuthModal, setShowAuthModal, planType, theme, setTheme } = useUser()
   const isMobile = useIsMobile()
   const isLandscape = useIsLandscape()
   const [showOverflow, setShowOverflow] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  const [helpTab, setHelpTab] = useState('guide') // 'guide' or 'shortcuts'
+  const [helpShortcutSection, setHelpShortcutSection] = useState('movement') // sub-tab within shortcuts
+  const [helpGuideSection, setHelpGuideSection] = useState('start') // sub-tab within guide
   const [showMobileViewControls, setShowMobileViewControls] = useState(false)
   const [mobileCtaExpanded, setMobileCtaExpanded] = useState(false)
 
@@ -805,9 +811,9 @@ function App() {
   const [graphicsQuality, setGraphicsQuality] = useState(() => {
     const saved = localStorage.getItem('landVisualizerQuality')
     if (saved && Object.values(QUALITY).includes(saved)) return saved
-    // Default: LOW on mobile, MEDIUM on desktop
+    // Default: FAST on mobile, BEST on desktop
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-    return isMobile ? QUALITY.LOW : QUALITY.MEDIUM
+    return isMobile ? QUALITY.FAST : QUALITY.BEST
   })
 
   // Camera update callback (memoized to prevent re-renders)
@@ -955,10 +961,43 @@ function App() {
       if (e.key === '1') setViewMode('firstPerson')
       else if (e.key === '2') setViewMode('orbit')
       else if (e.key === '3') setViewMode('2d')
+      else if (e.key === 'f' || e.key === 'F') {
+        if (viewMode === 'orbit' || viewMode === '2d') {
+          setFitToLandTrigger(t => t + 1)
+        }
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activePanel, activeBuildTool])
+  }, [activePanel, activeBuildTool, viewMode])
+
+  // Build tool keyboard shortcuts (only when Build panel is open)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (activePanel !== 'build') return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const key = e.key.toLowerCase()
+      const toolMap = {
+        q: BUILD_TOOLS.ROOM,
+        t: BUILD_TOOLS.WALL,
+        g: BUILD_TOOLS.FENCE,
+        c: BUILD_TOOLS.DOOR,
+        v: BUILD_TOOLS.WINDOW,
+        b: BUILD_TOOLS.POOL,
+        n: BUILD_TOOLS.FOUNDATION,
+        h: BUILD_TOOLS.STAIRS,
+        j: BUILD_TOOLS.ROOF,
+        x: BUILD_TOOLS.DELETE,
+      }
+      if (toolMap[key]) {
+        e.preventDefault()
+        setActiveBuildTool(prev => prev === toolMap[key] ? BUILD_TOOLS.NONE : toolMap[key])
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activePanel])
 
   // Undo/Redo keyboard shortcuts (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y)
   useEffect(() => {
@@ -1004,13 +1043,9 @@ function App() {
     localStorage.setItem('landVisualizerQuality', graphicsQuality)
   }, [graphicsQuality])
 
-  // Cycle through quality presets
+  // Toggle between quality presets
   const cycleQuality = useCallback(() => {
-    setGraphicsQuality(prev => {
-      if (prev === QUALITY.LOW) return QUALITY.MEDIUM
-      if (prev === QUALITY.MEDIUM) return QUALITY.HIGH
-      return QUALITY.LOW
-    })
+    setGraphicsQuality(prev => prev === QUALITY.FAST ? QUALITY.BEST : QUALITY.FAST)
   }, [])
 
   // Load shared scene from URL if present
@@ -1146,7 +1181,11 @@ function App() {
 
   // Toggle panel - close if same, open if different
   const togglePanel = (panel) => {
-    setActivePanel(prev => prev === panel ? null : panel)
+    setActivePanel(prev => {
+      const next = prev === panel ? null : panel
+      if (next !== 'build') setActiveBuildTool(BUILD_TOOLS.NONE)
+      return next
+    })
   }
 
   const handlePolygonComplete = () => {
@@ -1260,6 +1299,86 @@ function App() {
     pushWallsState([])
     setWallDrawingPoints([])
   }, [pushWallsState])
+
+  // Context-sensitive clear by tool type
+  const onClearByType = useCallback((toolType) => {
+    switch (toolType) {
+      case BUILD_TOOLS.ROOM:
+      case BUILD_TOOLS.POLYGON_ROOM: {
+        // Find wall IDs that form rooms using geometry matching
+        const roomWallIds = new Set()
+        for (const room of rooms) {
+          const ids = findWallsForRoom(room, walls)
+          ids.forEach(id => roomWallIds.add(id))
+        }
+        if (roomWallIds.size === 0) return
+        pushWallsState(walls.filter(w => !roomWallIds.has(w.id)))
+        // Remove roofs tied to those rooms
+        const roomIds = new Set(rooms.map(r => r.id))
+        setRoofs(prev => prev.filter(r => !roomIds.has(r.roomId)))
+        break
+      }
+      case BUILD_TOOLS.WALL:
+      case BUILD_TOOLS.HALF_WALL: {
+        // Remove non-fence walls that are NOT part of any room
+        const roomWallIds = new Set()
+        for (const room of rooms) {
+          const ids = findWallsForRoom(room, walls)
+          ids.forEach(id => roomWallIds.add(id))
+        }
+        const filtered = walls.filter(w => w.isFence || roomWallIds.has(w.id))
+        if (filtered.length === walls.length) return
+        pushWallsState(filtered)
+        break
+      }
+      case BUILD_TOOLS.FENCE: {
+        const filtered = walls.filter(w => !w.isFence)
+        if (filtered.length === walls.length) return
+        pushWallsState(filtered)
+        break
+      }
+      case BUILD_TOOLS.DOOR: {
+        // Remove all door openings from walls
+        const newWalls = walls.map(w => ({
+          ...w,
+          openings: (w.openings || []).filter(o => o.type !== 'door')
+        }))
+        pushWallsState(newWalls)
+        break
+      }
+      case BUILD_TOOLS.WINDOW: {
+        // Remove all window openings from walls
+        const newWalls = walls.map(w => ({
+          ...w,
+          openings: (w.openings || []).filter(o => o.type !== 'window')
+        }))
+        pushWallsState(newWalls)
+        break
+      }
+      case BUILD_TOOLS.POOL:
+        setPools([])
+        break
+      case BUILD_TOOLS.FOUNDATION:
+        setFoundations([])
+        break
+      case BUILD_TOOLS.STAIRS:
+        setStairs([])
+        break
+      case BUILD_TOOLS.ROOF:
+        setRoofs([])
+        break
+      default:
+        // Clear everything
+        pushWallsState([])
+        setWallDrawingPoints([])
+        setPools([])
+        setFoundations([])
+        setStairs([])
+        setRoofs([])
+        break
+    }
+    setSelectedElement(null)
+  }, [walls, rooms, pushWallsState])
 
   // Delete a single wall by ID
   const deleteWall = useCallback((wallId) => {
@@ -1859,6 +1978,10 @@ function App() {
           e.preventDefault()
           setRoomPropertiesOpen(false)  // Close properties panel first
           setSelectedRoomId(null)
+        } else if (activePanel) {
+          e.preventDefault()
+          if (activePanel === 'build') setActiveBuildTool(BUILD_TOOLS.NONE)
+          setActivePanel(null)
         }
       }
 
@@ -1879,7 +2002,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom])
+  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom, activePanel])
 
   // Show toast when building, comparison, or room is selected
   useEffect(() => {
@@ -2291,6 +2414,44 @@ function App() {
     setActiveComparisons({}) // No default comparison objects
   }
 
+  // Panel keyboard shortcuts (L=Land, C=Compare, B=Build, Alt+S=Save, P=Export, O=Reset)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      const key = e.key.toLowerCase()
+      // Alt+S = Save
+      if (e.altKey && key === 's') {
+        e.preventDefault()
+        if (canEdit) handleSave()
+        return
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      // When build panel is open, only allow B (to close it) — other keys are build tool shortcuts
+      if (activePanel === 'build' && key !== 'b') return
+      const panelMap = {
+        l: 'land',
+        c: 'compare',
+        b: 'build',
+        p: 'export',
+      }
+      if (panelMap[key]) {
+        e.preventDefault()
+        if (panelMap[key] === 'land' && !canEdit) return
+        togglePanel(panelMap[key])
+      }
+      if (key === 'o') {
+        e.preventDefault()
+        resetToExample()
+      }
+      if (key === 'u') {
+        e.preventDefault()
+        setShowHelp(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activePanel, canEdit, togglePanel])
+
   // Loading state for shared scene
   if (shareLoading) {
     return (
@@ -2640,6 +2801,7 @@ function App() {
           wallDrawingMode={wallDrawingMode}
           setWallDrawingMode={setWallDrawingMode}
           clearAllWalls={clearAllWalls}
+          onClearByType={onClearByType}
           openingPlacementMode={openingPlacementMode}
           setOpeningPlacementMode={setOpeningPlacementMode}
           BUILD_TOOLS={BUILD_TOOLS}
@@ -2860,15 +3022,131 @@ function App() {
 
               <button
                 onClick={resetToExample}
-                className="ribbon-btn w-12 flex-none"
+                className="ribbon-btn"
                 title="Reset to example"
+              >
+                <span className="icon">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                  </svg>
+                </span>
+                <span className="label">Reset</span>
+              </button>
+
+              {/* Help button */}
+              <button
+                onClick={() => setShowHelp(true)}
+                className="ribbon-btn"
+                title="Help & Shortcuts"
               >
                 <span className="icon">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
                   </svg>
                 </span>
+                <span className="label">Help</span>
               </button>
+
+              {/* Upgrade to Pro - ribbon style */}
+              {!isPaidUser && (
+                <button
+                  onClick={() => setShowPricingModal(true)}
+                  className="flex flex-col items-center justify-center w-16 h-full text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/5 transition-all flex-none"
+                  title="Upgrade to Pro"
+                >
+                  <svg className="w-5 h-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="#facc15" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                  </svg>
+                  <span className="text-[11px] font-medium text-yellow-400 leading-none">Pro</span>
+                </button>
+              )}
+
+              {/* Account button */}
+              <div className="relative flex-none w-16 flex items-center justify-center">
+                {user ? (
+                  <>
+                    <button
+                      onClick={() => setShowUserMenu(!showUserMenu)}
+                      className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold text-sm hover:scale-110 transition-transform"
+                      title={user.email}
+                    >
+                      {(user.email?.[0] || '?').toUpperCase()}
+                    </button>
+                    {showUserMenu && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                        <div className="absolute bottom-full right-0 mb-2 z-50 w-64 bg-[var(--color-panel)] backdrop-blur-xl rounded-xl shadow-2xl border border-[var(--color-border)] py-2 animate-slide-in-bottom-2">
+                          {/* Profile header */}
+                          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)]">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                              {(user.email?.[0] || '?').toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-white text-sm truncate">{user.email}</div>
+                              <div className="text-xs text-gray-400">
+                                {isPaidUser ? (planType === 'lifetime' ? 'Pro Lifetime' : 'Pro Monthly') : 'Free'}
+                              </div>
+                            </div>
+                          </div>
+                          {/* Plans & Pricing */}
+                          <button
+                            onClick={() => { setShowPricingModal(true); setShowUserMenu(false) }}
+                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+                          >
+                            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                            </svg>
+                            <span>Plans & Pricing</span>
+                          </button>
+                          {/* Theme */}
+                          <button
+                            onClick={() => {
+                              const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
+                              setTheme(next)
+                            }}
+                            className="flex items-center justify-between w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+                          >
+                            <div className="flex items-center gap-3">
+                              <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                {theme === 'dark' ? (
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                                ) : theme === 'light' ? (
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                                ) : (
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+                                )}
+                              </svg>
+                              <span>Theme</span>
+                            </div>
+                            <span className="text-xs text-gray-400 capitalize">{theme}</span>
+                          </button>
+                          {/* Divider + Log Out */}
+                          <div className="border-t border-[var(--color-border)] my-1" />
+                          <button
+                            onClick={() => { signOut(); setShowUserMenu(false) }}
+                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-red-400"
+                          >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                            </svg>
+                            <span>Log Out</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-gray-400 hover:bg-white/20 hover:text-white transition-all"
+                    title="Sign In"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </>
           )}
 
@@ -2914,19 +3192,85 @@ function App() {
               </svg>
               <span>Share</span>
             </button>
-            {!isPaidUser && (
+            <button
+              onClick={() => { setShowHelp(true); setShowOverflow(false) }}
+              className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+              </svg>
+              <span>Help</span>
+            </button>
+            <div className="border-t border-[var(--color-border)] my-2" />
+            {user ? (
               <>
-                <div className="border-t border-[var(--color-border)] my-2" />
+                {/* Profile header */}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold text-xs flex-shrink-0">
+                    {(user.email?.[0] || '?').toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-white text-sm truncate">{user.email}</div>
+                    <div className="text-xs text-gray-400">
+                      {isPaidUser ? (planType === 'lifetime' ? 'Pro Lifetime' : 'Pro Monthly') : 'Free'}
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t border-[var(--color-border)] my-1" />
+                {/* Plans & Pricing */}
                 <button
                   onClick={() => { setShowPricingModal(true); setShowOverflow(false) }}
-                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors"
+                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
                 >
-                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
                   </svg>
-                  <span className="text-amber-400 font-medium">Upgrade to Pro</span>
+                  <span>Plans & Pricing</span>
+                </button>
+                {/* Theme */}
+                <button
+                  onClick={() => {
+                    const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
+                    setTheme(next)
+                  }}
+                  className="flex items-center justify-between w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+                >
+                  <div className="flex items-center gap-3">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      {theme === 'dark' ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                      ) : theme === 'light' ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+                      )}
+                    </svg>
+                    <span>Theme</span>
+                  </div>
+                  <span className="text-xs text-gray-400 capitalize">{theme}</span>
+                </button>
+                <div className="border-t border-[var(--color-border)] my-1" />
+                {/* Log Out */}
+                <button
+                  onClick={() => { signOut(); setShowOverflow(false) }}
+                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-red-400"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                  </svg>
+                  <span>Log Out</span>
                 </button>
               </>
+            ) : (
+              <button
+                onClick={() => { setShowAuthModal(true); setShowOverflow(false) }}
+                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                </svg>
+                <span>Sign In</span>
+              </button>
             )}
           </div>
         </>
@@ -2939,7 +3283,7 @@ function App() {
           <div className={`absolute top-4 z-50 ${isLandscape ? 'left-16' : 'left-4'}`}>
             <button
               onClick={() => setMobileCtaExpanded(!mobileCtaExpanded)}
-              className="panel-premium p-3 text-white animate-fade-in"
+              className="panel-premium p-4 text-white animate-fade-in"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/20 flex items-center justify-center">
@@ -2957,7 +3301,7 @@ function App() {
               </div>
             </button>
             {mobileCtaExpanded && (
-              <div className="mt-2 panel-premium p-3 animate-slide-in-bottom-2">
+              <div className="mt-2 panel-premium p-4 animate-slide-in-bottom-2">
                 <button
                   onClick={startDefiningLand}
                   className="btn-primary w-full flex items-center justify-center gap-2"
@@ -2991,7 +3335,7 @@ function App() {
                 <p className="text-[var(--color-text-secondary)] text-xs mt-0.5">Ready to plan</p>
               </div>
             </div>
-            <div className="mb-4 py-3 px-4 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)]">
+            <div className="mb-4 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)]" style={{ padding: '10px 18px' }}>
               <div className="text-[var(--color-text-muted)] text-[10px] uppercase tracking-wider mb-1">Total Area</div>
               <div className="font-display font-bold text-2xl text-white tracking-tight">{formatArea(area, areaUnit)}</div>
             </div>
@@ -3010,7 +3354,7 @@ function App() {
 
       {/* Non-blocking walkthrough hint (first visit only) */}
       {!hasSeenIntro && isExampleMode && !isDefiningLand && walkthroughStep === 0 && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 panel-premium px-5 py-3 z-40 animate-gentle-pulse">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 panel-premium py-3 z-40 animate-gentle-pulse" style={{ padding: '12px 32px' }}>
           <p className="text-[var(--color-text-primary)] text-sm font-medium">
             {isTouchDevice ? 'Use joystick to explore' : 'Use WASD to explore'}
           </p>
@@ -3021,11 +3365,12 @@ function App() {
       {/* Help text - top-center pill with auto-fade */}
       {!isDefiningLand && !isReadOnly && helpTextVisible && (
         <div
-          className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-full pointer-events-none animate-fade-in"
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-30 rounded-full pointer-events-none animate-fade-in"
           style={{
             background: 'rgba(15, 23, 42, 0.75)',
             backdropFilter: 'blur(8px)',
             animation: 'fadeIn 0.3s ease-out forwards',
+            padding: '8px 32px',
           }}
         >
           <span className="text-[var(--color-text-secondary)] text-xs font-medium tracking-wide">
@@ -3043,13 +3388,13 @@ function App() {
 
       {/* Building placement indicator */}
       {selectedBuilding && (
-        <div className={`absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg transition-all ${
+        <div className={`absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg transition-all ${
           !placementValid
             ? 'bg-red-500/90 text-white'
             : dragOverlapping
               ? 'bg-amber-500/90 text-white'
               : 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse'
-        }`}>
+        }`} style={{ padding: '10px 32px' }}>
           {!placementValid
             ? 'Too close to boundary'
             : dragOverlapping
@@ -3061,7 +3406,7 @@ function App() {
 
       {/* Wall drawing mode indicator */}
       {wallDrawingMode && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
           {wallDrawingPoints.length === 0
             ? 'Click to place first corner'
             : `${wallDrawingPoints.length} points placed · Click to continue · Escape to finish`
@@ -3071,14 +3416,14 @@ function App() {
 
       {/* Room tool indicator */}
       {activeBuildTool === BUILD_TOOLS.ROOM && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
           Click to set corner · Click again to finish · Escape to cancel
         </div>
       )}
 
       {/* Wall tool indicator */}
       {activeBuildTool === BUILD_TOOLS.WALL && !wallDrawingMode && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
           {wallDrawingPoints.length === 0
             ? 'Click to place first corner'
             : `${wallDrawingPoints.length} points placed · Click to continue · Escape to finish`
@@ -3088,30 +3433,86 @@ function App() {
 
       {/* Door tool indicator */}
       {activeBuildTool === BUILD_TOOLS.DOOR && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
           {walls.length === 0 ? 'Draw walls first to place doors' : 'Click on a wall to place a door · Escape to cancel'}
         </div>
       )}
 
       {/* Window tool indicator */}
       {activeBuildTool === BUILD_TOOLS.WINDOW && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
           {walls.length === 0 ? 'Draw walls first to place windows' : 'Click on a wall to place a window · Escape to cancel'}
         </div>
       )}
 
       {/* Select tool indicator */}
       {activeBuildTool === BUILD_TOOLS.SELECT && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
           {selectedElement
             ? `Selected: ${selectedElement.type} · Escape to deselect`
             : 'Click on a wall to select it · Escape to cancel'}
         </div>
       )}
 
+      {/* Fence tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.FENCE && !wallDrawingMode && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          Click to place first post · Click to continue · Escape to finish
+        </div>
+      )}
+
+      {/* Pool tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.POOL && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          Click to place corners · Escape to finish · Enter pool depth in panel
+        </div>
+      )}
+
+      {/* Foundation/Platform tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.FOUNDATION && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          Click to place corners · Escape to finish · Set height in panel
+        </div>
+      )}
+
+      {/* Stairs tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.STAIRS && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          Click to place start point · Click again to set direction · Escape to cancel
+        </div>
+      )}
+
+      {/* Roof tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.ROOF && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          {rooms.length === 0 ? 'Draw a room first to add a roof' : 'Click on a room to add a roof · Escape to cancel'}
+        </div>
+      )}
+
+      {/* Add Floors tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.ADD_FLOORS && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          {rooms.length === 0 ? 'Draw a room first to add floors' : 'Click on a room to add floors · Escape to cancel'}
+        </div>
+      )}
+
+      {/* Polygon room tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.POLYGON_ROOM && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          Click to place points · Close shape to finish · Escape to cancel
+        </div>
+      )}
+
+      {/* Half wall tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.HALF_WALL && !wallDrawingMode && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          Click to place first point · Click to continue · Escape to finish
+        </div>
+      )}
+
       {/* Delete tool indicator */}
       {activeBuildTool === BUILD_TOOLS.DELETE && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg bg-red-500 text-white animate-gentle-pulse">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-red-500 text-white animate-gentle-pulse" style={{ padding: '10px 32px' }}>
           {walls.length === 0 ? 'No walls to delete' : 'Click on a wall to delete it · Escape to cancel'}
         </div>
       )}
@@ -3144,7 +3545,7 @@ function App() {
         <>
           <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileViewControls(false)} />
           <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pb-20 animate-slide-in-bottom">
-            <div className="panel-premium p-4 text-white">
+            <div className="panel-premium p-5 text-white">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-display font-semibold text-white">View Settings</h3>
                 <button onClick={() => setShowMobileViewControls(false)} className="p-1 hover:bg-white/10 rounded-lg">
@@ -3155,19 +3556,18 @@ function App() {
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm">Dimensions</span>
+                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Dimensions</span>
                   <button onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))} className={`toggle-switch ${labels.land ? 'active' : ''}`}><span className="toggle-knob" /></button>
                 </div>
                 <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm">Grid</span>
+                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Grid</span>
                   <button onClick={() => setGridSnapEnabled(!gridSnapEnabled)} className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}><span className="toggle-knob" /></button>
                 </div>
                 <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm">Quality</span>
+                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Quality</span>
                   <select value={graphicsQuality} onChange={(e) => setGraphicsQuality(e.target.value)} className="select-premium" style={{ fontSize: '11px', padding: '4px 22px 4px 8px', borderRadius: '6px' }}>
-                    <option value={QUALITY.LOW}>Low</option>
-                    <option value={QUALITY.MEDIUM}>Medium</option>
-                    <option value={QUALITY.HIGH}>High</option>
+                    <option value={QUALITY.FAST}>Fast</option>
+                    <option value={QUALITY.BEST}>Best</option>
                   </select>
                 </div>
               </div>
@@ -3229,7 +3629,7 @@ function App() {
           )}
 
           <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm">Dimensions</span>
+            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Dimensions</span>
             <button
               onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))}
               className={`toggle-switch ${labels.land ? 'active' : ''}`}
@@ -3240,7 +3640,7 @@ function App() {
           </div>
 
           <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm">Grid</span>
+            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Grid</span>
             <button
               onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
               className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}
@@ -3251,16 +3651,15 @@ function App() {
           </div>
 
           <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm">Quality</span>
+            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Quality</span>
             <select
               value={graphicsQuality}
               onChange={(e) => setGraphicsQuality(e.target.value)}
               className="select-premium"
               style={{ fontSize: '11px', padding: '4px 22px 4px 8px', borderRadius: '6px' }}
             >
-              <option value={QUALITY.LOW}>Low</option>
-              <option value={QUALITY.MEDIUM}>Medium</option>
-              <option value={QUALITY.HIGH}>High</option>
+              <option value={QUALITY.FAST}>Fast</option>
+              <option value={QUALITY.BEST}>Best</option>
             </select>
           </div>
         </div>
@@ -3285,7 +3684,7 @@ function App() {
 
       {/* Undo/Redo toast notification */}
       {undoRedoToast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm font-medium shadow-lg border border-[var(--color-border)] animate-fade-in">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm font-medium shadow-lg border border-[var(--color-border)] animate-fade-in" style={{ padding: '8px 32px' }}>
           {undoRedoToast}
         </div>
       )}
@@ -3434,15 +3833,7 @@ function App() {
         />
       )}
 
-      {/* Upgrade button - hidden on mobile (in overflow menu instead) */}
-      {!isMobile && (
-        <button
-          onClick={() => setShowPricingModal(true)}
-          className="fixed bottom-4 right-4 z-50 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold rounded-lg shadow-lg hover:from-amber-400 hover:to-orange-400"
-        >
-          Upgrade to Pro
-        </button>
-      )}
+      {/* Account buttons now integrated into toolbar ribbon above */}
 
       {/* Pricing Modal for upgrades */}
       {showPricingModal && (
@@ -3452,6 +3843,219 @@ function App() {
             onSuccess={onPaymentSuccess}
           />
         </Suspense>
+      )}
+
+      {/* Auth Modal for sign in/sign up */}
+      {showAuthModal && (
+        <Suspense fallback={<LoadingFallback />}>
+          <AuthModal
+            onClose={() => setShowAuthModal(false)}
+            onSuccess={() => setShowAuthModal(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Help Modal */}
+      {showHelp && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setShowHelp(false)} onKeyDown={e => { if (e.key === 'Escape') setShowHelp(false) }} tabIndex={-1} ref={el => el?.focus()}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative bg-[var(--color-panel)] backdrop-blur-xl rounded-2xl shadow-2xl border border-[var(--color-border)] max-w-xl max-h-[80vh] overflow-y-auto animate-fade-in"
+            style={{ width: '90vw' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header + Tabs */}
+            <div className="border-b border-[var(--color-border)]" style={{ padding: '20px 32px 16px' }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: '16px' }}>
+                <h2 className="text-lg font-bold text-white">Help</h2>
+                <button onClick={() => setShowHelp(false)} className="text-gray-400 hover:text-white transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex bg-[var(--color-bg-elevated)] rounded-xl p-1 gap-1">
+                <button
+                  onClick={() => setHelpTab('guide')}
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all ${helpTab === 'guide' ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)] hover:text-white'}`}
+                >
+                  Guide
+                </button>
+                <button
+                  onClick={() => setHelpTab('shortcuts')}
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all ${helpTab === 'shortcuts' ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)] hover:text-white'}`}
+                >
+                  Shortcuts
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="space-y-5 text-sm" style={{ padding: '24px 32px' }}>
+              {helpTab === 'guide' ? (
+                <>
+                  {/* Guide sub-tabs */}
+                  <div className="flex border-b border-white/10" style={{ marginBottom: '16px' }}>
+                    {[
+                      { id: 'start', label: 'Getting Started' },
+                      { id: 'land', label: 'Land' },
+                      { id: 'build', label: 'Build' },
+                      { id: 'explore', label: 'Explore' },
+                      { id: 'views', label: 'Views' },
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setHelpGuideSection(tab.id)}
+                        className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
+                          helpGuideSection === tab.id
+                            ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]'
+                            : 'text-[var(--color-text-muted)] hover:text-white'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {helpGuideSection === 'start' && (
+                    <p className="text-gray-300 leading-relaxed">
+                      Sitea is a 3D land visualizer that lets you design buildings on your land plot. Walk around in first-person, draw walls, place rooms, and see your design come to life.
+                    </p>
+                  )}
+
+                  {helpGuideSection === 'land' && (
+                    <p className="text-gray-300 leading-relaxed">
+                      Open the <span className="text-white font-medium">Land</span> panel to trace your land boundary. Click points to outline your plot shape, or upload a site plan image to trace over.
+                    </p>
+                  )}
+
+                  {helpGuideSection === 'build' && (
+                    <div className="space-y-4 text-gray-300 leading-relaxed">
+                      <p>Open the <span className="text-white font-medium">Build</span> panel to access tools. Draw rooms, walls, and fences. Add doors, windows, pools, platforms, stairs, and roofs. Use the Structures tab to place pre-made buildings.</p>
+                      <p>In the Floors section, select a number of floors and click a room to stack floors on top. Use the floor selector to switch between levels.</p>
+                    </div>
+                  )}
+
+                  {helpGuideSection === 'explore' && (
+                    <div className="space-y-4 text-gray-300 leading-relaxed">
+                      <p>Open the <span className="text-white font-medium">Compare</span> panel to drop reference objects (tennis court, basketball court, etc.) onto your land to understand the scale.</p>
+                      <p>Walk around in first-person (1P) to feel the scale. Switch to 3D orbit view for an overview. Use 2D view for precise placement. Save your design, export it, or share a link with others.</p>
+                    </div>
+                  )}
+
+                  {helpGuideSection === 'views' && (
+                    <div className="space-y-1.5 text-gray-300">
+                      <div className="flex gap-3"><span className="text-white font-medium w-8 shrink-0">1P</span><span>First-person walkthrough — feel the real scale</span></div>
+                      <div className="flex gap-3"><span className="text-white font-medium w-8 shrink-0">3D</span><span>Orbit view — rotate and zoom freely</span></div>
+                      <div className="flex gap-3"><span className="text-white font-medium w-8 shrink-0">2D</span><span>Top-down view — precise placement and measurements</span></div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Sub-tabs for shortcut categories */}
+                  <div className="flex border-b border-white/10" style={{ marginBottom: '16px' }}>
+                    {(isMobile ? [
+                      { id: 'movement', label: 'Getting Around' },
+                      { id: 'editing', label: 'Building' },
+                    ] : [
+                      { id: 'movement', label: 'Getting Around' },
+                      { id: 'editing', label: 'Building' },
+                      { id: 'drawing', label: 'Drawing' },
+                      { id: 'panels', label: 'Panels' },
+                      { id: 'tools', label: 'Build Tools' },
+                    ]).map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setHelpShortcutSection(tab.id)}
+                        className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
+                          helpShortcutSection === tab.id
+                            ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]'
+                            : 'text-[var(--color-text-muted)] hover:text-white'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Sub-tab content */}
+                  {helpShortcutSection === 'movement' && (
+                    <div className="space-y-1 text-gray-300">
+                      {isMobile ? (<>
+                        <div className="flex justify-between gap-4"><span>Move</span><span className="text-gray-400 shrink-0">Joystick</span></div>
+                        <div className="flex justify-between gap-4"><span>Look around</span><span className="text-gray-400 shrink-0">Drag</span></div>
+                        <div className="flex justify-between gap-4"><span>Zoom</span><span className="text-gray-400 shrink-0">Pinch</span></div>
+                        <div className="flex justify-between gap-4"><span>Jump</span><span className="text-gray-400 shrink-0">Jump button</span></div>
+                      </>) : (<>
+                        <div className="flex justify-between gap-4"><span>Move</span><span className="text-gray-400 shrink-0">WASD</span></div>
+                        <div className="flex justify-between gap-4"><span>Run</span><span className="text-gray-400 shrink-0">Shift</span></div>
+                        <div className="flex justify-between gap-4"><span>Jump</span><span className="text-gray-400 shrink-0">Space</span></div>
+                        <div className="flex justify-between gap-4"><span>Look around</span><span className="text-gray-400 shrink-0">Mouse</span></div>
+                        <div className="flex justify-between gap-4"><span>Zoom</span><span className="text-gray-400 shrink-0">Scroll</span></div>
+                        <div className="flex justify-between gap-4"><span>Cycle camera</span><span className="text-gray-400 shrink-0">V</span></div>
+                        <div className="flex justify-between gap-4"><span>First-Person / Orbit / 2D</span><span className="text-gray-400 shrink-0">1 / 2 / 3</span></div>
+                        <div className="flex justify-between gap-4"><span>Fit to Land</span><span className="text-gray-400 shrink-0">F</span></div>
+                      </>)}
+                    </div>
+                  )}
+
+                  {helpShortcutSection === 'editing' && (
+                    <div className="space-y-1 text-gray-300">
+                      {isMobile ? (<>
+                        <div className="flex justify-between gap-4"><span>Select</span><span className="text-gray-400 shrink-0">Tap object</span></div>
+                        <div className="flex justify-between gap-4"><span>Rotate</span><span className="text-gray-400 shrink-0">Rotate button</span></div>
+                        <div className="flex justify-between gap-4"><span>Delete</span><span className="text-gray-400 shrink-0">Long press</span></div>
+                      </>) : (<>
+                        <div className="flex justify-between gap-4"><span>Rotate selected</span><span className="text-gray-400 shrink-0">R</span></div>
+                        <div className="flex justify-between gap-4"><span>Remove selected</span><span className="text-gray-400 shrink-0">Delete</span></div>
+                        <div className="flex justify-between gap-4"><span>Undo</span><span className="text-gray-400 shrink-0">Ctrl+Z</span></div>
+                        <div className="flex justify-between gap-4"><span>Redo</span><span className="text-gray-400 shrink-0">Ctrl+Shift+Z</span></div>
+                        <div className="flex justify-between gap-4"><span>Cancel / Deselect</span><span className="text-gray-400 shrink-0">Escape</span></div>
+                      </>)}
+                    </div>
+                  )}
+
+                  {helpShortcutSection === 'drawing' && !isMobile && (
+                    <div className="space-y-1 text-gray-300">
+                      <div className="flex justify-between gap-4"><span>Snap to 45°</span><span className="text-gray-400 shrink-0">Shift (hold)</span></div>
+                      <div className="flex justify-between gap-4"><span>Confirm dimension</span><span className="text-gray-400 shrink-0">Space</span></div>
+                      <div className="flex justify-between gap-4"><span>Pause preview</span><span className="text-gray-400 shrink-0">Right-click</span></div>
+                    </div>
+                  )}
+
+                  {helpShortcutSection === 'panels' && !isMobile && (
+                    <div className="space-y-1 text-gray-300">
+                      <div className="flex justify-between gap-4"><span>Land</span><span className="text-gray-400 shrink-0">L</span></div>
+                      <div className="flex justify-between gap-4"><span>Compare</span><span className="text-gray-400 shrink-0">C</span></div>
+                      <div className="flex justify-between gap-4"><span>Build</span><span className="text-gray-400 shrink-0">B</span></div>
+                      <div className="flex justify-between gap-4"><span>Save</span><span className="text-gray-400 shrink-0">Alt+S</span></div>
+                      <div className="flex justify-between gap-4"><span>Export</span><span className="text-gray-400 shrink-0">P</span></div>
+                      <div className="flex justify-between gap-4"><span>Reset</span><span className="text-gray-400 shrink-0">O</span></div>
+                      <div className="flex justify-between gap-4"><span>Help</span><span className="text-gray-400 shrink-0">U</span></div>
+                      <div className="flex justify-between gap-4"><span>Close panel</span><span className="text-gray-400 shrink-0">Escape</span></div>
+                    </div>
+                  )}
+
+                  {helpShortcutSection === 'tools' && !isMobile && (
+                    <div className="space-y-1 text-gray-300">
+                      <div className="flex justify-between gap-4"><span>Room</span><span className="text-gray-400 shrink-0">Q</span></div>
+                      <div className="flex justify-between gap-4"><span>Wall</span><span className="text-gray-400 shrink-0">T</span></div>
+                      <div className="flex justify-between gap-4"><span>Fence</span><span className="text-gray-400 shrink-0">G</span></div>
+                      <div className="flex justify-between gap-4"><span>Door</span><span className="text-gray-400 shrink-0">C</span></div>
+                      <div className="flex justify-between gap-4"><span>Window</span><span className="text-gray-400 shrink-0">V</span></div>
+                      <div className="flex justify-between gap-4"><span>Pool</span><span className="text-gray-400 shrink-0">B</span></div>
+                      <div className="flex justify-between gap-4"><span>Platform</span><span className="text-gray-400 shrink-0">N</span></div>
+                      <div className="flex justify-between gap-4"><span>Stairs</span><span className="text-gray-400 shrink-0">H</span></div>
+                      <div className="flex justify-between gap-4"><span>Roof</span><span className="text-gray-400 shrink-0">J</span></div>
+                      <div className="flex justify-between gap-4"><span>Delete</span><span className="text-gray-400 shrink-0">X</span></div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
