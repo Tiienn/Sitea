@@ -392,7 +392,7 @@ export function FoundationItem({
 
       {/* Selection highlight */}
       {(isSelected || isDeleteMode) && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, height + 0.01, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, height + 0.02, 0]}>
           <shapeGeometry args={[shape]} />
           <meshBasicMaterial
             color={isDeleteMode ? '#FF4444' : '#22d3ee'}

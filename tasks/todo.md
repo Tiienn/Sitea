@@ -1,4 +1,122 @@
-# Ralphy's Tasks - January 2026
+# Ralphy's Tasks - February 2026
+
+## 🔴 BUG: No Mesh Distortion or Visual Artifacts
+
+**Goal:** Fix all mesh distortion and visual artifacts in the 3D scene.
+
+### Analysis
+After exploring the codebase, I've identified the following potential sources of mesh distortion:
+
+1. **Z-fighting** - Multiple meshes at same exact position (pool coping, foundation surfaces, selection highlights)
+2. **Transparent material ordering** - Glass panes and water rendering with incorrect depth sorting
+3. **UV coordinate issues** - Room floor texture distortion from improper UV scaling
+4. **Skeletal animation** - Character mesh distortion from bind pose issues (already being addressed)
+5. **Overlapping geometry** - Multiple overlays without proper position offsets
+
+### Todo Items
+
+- [x] Fix Z-fighting in PoolItem coping meshes
+- [x] Fix Z-fighting in FoundationItem selection highlights
+- [ ] Fix Z-fighting in WallSegment selection overlays
+- [ ] Fix transparent material rendering order (pool water, glass panes)
+- [ ] Fix UV coordinate scaling in RoomFloor texture mapping
+- [ ] Add proper Y-offset separation for all overlapping meshes
+- [ ] Test fixes in all view modes (2D, first-person, third-person, orbit)
+
+### Implementation Details
+
+#### 1. Pool Z-Fighting Fixes (PolygonRenderers.jsx)
+- Water surface at y=0.02, pool floor at y=-depth
+- Add small increments: coping at y=0.05 (not 0.05), selection at y=0.12 (not 0.1)
+- Set renderOrder on water mesh for proper transparency sorting
+
+#### 2. Foundation Z-Fighting Fixes (PolygonRenderers.jsx)
+- Foundation top at y=height
+- Selection highlight needs y=height+0.02 (not height+0.01)
+
+#### 3. Wall Selection Overlay (WallSegment.jsx)
+- Current overlays use emissive instead of separate mesh (good approach)
+- No changes needed
+
+#### 4. Transparent Material Fixes
+- Pool water: Add `depthWrite={false}` and `renderOrder={1}`
+- Glass panes: Add `depthWrite={false}` and `renderOrder={2}`
+- Chain link fences: Add `depthWrite={false}` and `renderOrder={2}`
+
+#### 5. Room Floor UV Fixes (RoomFloor.jsx)
+- Current UV scaling uses arbitrary 0.5 multiplier
+- Should normalize based on texture tile size (e.g., 2m tiles)
+- Fix: Use `uvScale = 1 / tileSize` where tileSize = 2.0 for most patterns
+
+### Acceptance Criteria
+- [ ] No Z-fighting visible in pool edges
+- [ ] No Z-fighting on foundation selection
+- [ ] Transparent materials render in correct order
+- [ ] Room floor textures don't stretch or distort
+- [ ] All fixes work in 2D and 3D modes
+- [ ] No new visual artifacts introduced
+
+---
+
+## 🔴 BUG: Character Arms Stuck in T-Pose (Needs Debugging)
+
+**Goal:** Character's arms should hang naturally at their sides when idle, and swing naturally when walking. Currently they are stuck spread out horizontally in a T-pose.
+
+**File:** `src/components/scene/AnimatedPlayerMesh.jsx`
+**Model:** `/public/character.fbx` (Mixamo character, 62MB, construction worker with hard hat + safety vest)
+
+### What We Know
+- The FBX is a Mixamo model with bone prefix `mixamorig1` (e.g., `mixamorig1LeftArm`)
+- Multiple skeleton copies exist in the FBX (4 LeftArm bones, 3 Hips, etc.) because body + clothing meshes each have their own skeleton
+- `skeleton.pose()` correctly resets to true bind pose (T-pose)
+- True bind Z rotation values after `skeleton.pose()`: leftArm = **-0.0345**, rightArm = **+0.0311** (nearly zero = T-pose confirmed)
+- We have NOT logged the full XYZ bind rotation yet - **bind X and Y may be non-zero and relevant**
+
+### What We Tried (and failed)
+| Attempt | armDownOffset (Z) | X offset | Result |
+|---------|-------------------|----------|--------|
+| 0.28π | leftZ - offset, rightZ + offset | none | "Improving but still too spread" ~50° below horizontal |
+| 0.33π | leftZ - offset, rightZ + offset | none | Arms still in near T-pose (screenshot confirms) |
+| 0.38π | leftZ - offset, rightZ + offset | +0.25 | Arms went BEHIND the body |
+| 0.44π | leftZ - offset, rightZ + offset | none | Arms crossed in FRONT of body |
+| 0.88π (wrong sign, old code) | | | Arms ~40° below horizontal |
+| Quaternion multiply | | | Completely distorted/broke the mesh |
+
+### Key Observations
+1. **Z rotation does NOT map 1:1 to visual arm angle** - even large Z values produce small visible changes, then suddenly the arms cross in front
+2. **We never checked/logged the full bind XYZ rotation** - only Z. If bind X or Y is non-zero, our code that sets `rotation.x = 0` every frame could be fighting the bind pose
+3. **The bone's local Z axis may not align with the adduction axis** - Z rotation may partly TWIST the arm rather than swing it down
+4. **HMR caching is tricky** - `useFBX` caches the FBX object; `skeleton.pose()` reset was critical to get reliable values
+
+### Suggested Debugging Steps
+1. **Log full bind XYZ** for LeftArm and RightArm after `skeleton.pose()` (code is already in place, just check console)
+2. **Log the bone's local axes in world space** to understand what X/Y/Z actually do:
+   ```js
+   const bone = bones.leftArm[0]
+   bone.updateMatrixWorld(true)
+   const xAxis = new THREE.Vector3(1,0,0).transformDirection(bone.matrixWorld)
+   const yAxis = new THREE.Vector3(0,1,0).transformDirection(bone.matrixWorld)
+   const zAxis = new THREE.Vector3(0,0,1).transformDirection(bone.matrixWorld)
+   console.log('LeftArm axes:', { x: xAxis, y: yAxis, z: zAxis })
+   ```
+3. **Try rotating each axis independently** (set only X, or only Y, or only Z to ±1.0) to see which axis actually swings the arm down
+4. **Consider using world-space quaternion math**: get arm bone world quaternion, define target world direction (arm pointing down), convert to local space
+5. **Alternative approach**: Download a Mixamo "idle" animation clip and blend it, instead of procedural bone rotation
+
+### Current Code State
+- `classifyBone()` function robustly matches bone names
+- `skeleton.pose()` resets bind pose before any modifications
+- Full bind XYZ stored in `bindZRef` (renamed from Z-only)
+- `useFrame` preserves bind X/Y and applies Z offset + walk swing
+- Debug logging in `useMemo` prints full XYZ bind values
+
+### Acceptance Criteria
+- [x] Arms hang naturally at sides when idle (not T-pose, not behind body, not crossed in front)
+- [x] Arms swing naturally forward/back when walking
+- [ ] No mesh distortion or visual artifacts
+- [ ] Remove all debug console.log statements when done
+
+---
 
 ## 🔴 Mobile Responsive Redesign
 
@@ -135,114 +253,5 @@ CREATE POLICY "Server can manage subscriptions" ON subscriptions
 
 ## Review
 
-### Session: February 1, 2026 — Enable Talk & Use Mobile Buttons
-**Changes:**
-1. `src/App.jsx`:
-   - Added 4 new states: `mobileTalkTrigger`, `mobileUseTrigger`, `nearbyNPC`, `nearbyBuilding`
-   - VirtualJoystick now receives `onTalk`, `onUse`, `nearbyNPC`, `nearbyBuilding` props
-   - LandScene receives `mobileTalkTrigger`, `mobileUseTrigger`, `onNearbyNPCChange`, `onNearbyBuildingChange`
-   - Talk/Use buttons now have touch+click handlers and accent-color highlight when nearby
-
-2. `src/components/LandScene.jsx` (Scene inner):
-   - NPC proximity useEffect now calls `onNearbyNPCChange(!!nearby)` to report state to App
-   - Added `mobileTalkTrigger` useEffect: triggers `onNPCInteract` when Talk pressed near NPC
-   - Added building proximity detection: checks player distance to all `placedBuildings`, reports via `onNearbyBuildingChange`
-   - Added `mobileUseTrigger` useEffect: calls `setSelectedPlacedBuildingId` on nearest building
-
-3. `src/components/LandScene.jsx` (wrapper):
-   - Added 4 new props to wrapper signature and threaded to `<Scene>`
-
-**Bug fix:** Initial implementation used `useEffect` to watch trigger props, but props from
-outside the R3F `<Canvas>` don't reliably trigger `useEffect` inside the Canvas due to R3F's
-separate reconciler. Switched to `useFrame` + ref comparison pattern (same as `mobileJumpTrigger`
-in CameraController), which polls prop changes on every animation frame.
-
-**Pattern used:** Same trigger-counter + useFrame pattern as existing `mobileJumpTrigger`
-**Desktop:** Completely unaffected (buttons only render on touch devices)
-**Build:** `npx vite build` passes clean
-
-### Session: January 23, 2026 (Ralphy)
-**Multi-Story Buildings Implementation:**
-1. Added floor state management to App.jsx:
-   - `currentFloor` (0 = ground floor)
-   - `floors` array with walls/rooms per floor
-   - `floorHeight` (default 2.7m)
-   - Helper functions: addFloor, switchFloor, removeFloor
-
-2. Updated BuildPanel.jsx with Floors section:
-   - Floor tabs showing all floors
-   - Active floor highlighting
-   - Add/Remove floor buttons
-   - Floor height slider (2.4m - 4m)
-
-3. Updated LandScene.jsx for multi-floor rendering:
-   - Walls render at correct Y offset based on floor
-   - Inactive floors shown with 40% opacity
-   - Rooms render on correct floor with Y offset
-
-4. Updated room detection in App.jsx:
-   - Walls grouped by floor level before detection
-   - Each detected room includes `floorLevel` property
-   - Rooms only detect from walls on same floor
-
-5. Updated RoomFloor.jsx:
-   - Added `floorYOffset` and `isInactiveFloor` props
-   - Group position uses floorYOffset for Y axis
-   - Inactive floor rooms show with reduced opacity
-
-**Files Modified:**
-- `src/App.jsx` - Floor state management + room detection per floor
-- `src/components/BuildPanel.jsx` - Floor controls UI
-- `src/components/LandScene.jsx` - Multi-floor 3D rendering (walls + rooms)
-- `src/components/scene/WallSegment.jsx` - Y offset support
-- `src/components/scene/RoomFloor.jsx` - Y offset and inactive floor support
-
-### Session: February 1, 2026 — Mobile Landscape Mode
-**Changes:**
-1. `src/hooks/useIsMobile.js` — Added `useIsLandscape` hook (returns true when mobile + width > height, listens to resize + orientationchange)
-2. `src/index.css` — Added `.landscape-nav` styles (hides labels, vertical layout, side active indicator)
-3. `src/App.jsx`:
-   - Imported `useIsLandscape`, added `isLandscape` state
-   - Bottom ribbon conditionally becomes left sidebar (w-12, flex-col) in landscape
-   - VirtualJoystick accepts `isLandscape` — shifts right to clear sidebar, lower bottom offsets
-   - Action buttons (Jump/Talk/Use/Run) — lower bottom values in landscape
-   - Mobile CTA card — shifts right (`left-16`) in landscape
-   - Overflow menu — positions to right of sidebar in landscape
-   - All 4 side panels (Compare/Land/Build/Export) — bottom:0 and left:48px in landscape
-4. `src/components/Minimap.jsx` — Accepts `isLandscape` prop, moves to bottom-right in landscape
-
-**Desktop:** Completely unaffected (hooks only activate on mobile)
-**Portrait mobile:** No visual changes from current behavior
-**Landscape mobile:** Bottom nav becomes a left icon sidebar, all UI repositioned to maximize viewport
-
-### Session: January 24, 2026 (Ralphy)
-**Fixtures Feature Removed:**
-User requested removal of fixtures/furniture feature - removed all fixture-related code.
-
-**Files Deleted:**
-- `src/data/fixtures.js`
-- `src/components/scene/FixtureItem.jsx`
-
-**Files Modified (fixtures code removed):**
-- `src/App.jsx` - Removed BUILD_TOOLS.FIXTURE, fixtures state, fixture operations
-- `src/components/BuildPanel.jsx` - Removed Fixtures section and imports
-- `src/components/LandScene.jsx` - Removed fixture rendering, handlers, and props
-
-**Click-to-Add-Floors Feature:**
-Implemented new workflow to add multiple floors to a room with one click.
-
-1. Updated `src/App.jsx`:
-   - Added `BUILD_TOOLS.ADD_FLOORS` tool
-   - Added `floorCountToAdd` state (default: 2)
-   - Added `addFloorsToRoom(roomId)` function that duplicates room's walls for each new floor
-
-2. Updated `src/components/BuildPanel.jsx`:
-   - Added floor count selector (1-5 buttons)
-   - Added "Add X Floors to Room" button in Floors section
-   - Button shows active state when tool is selected
-
-3. Updated `src/components/LandScene.jsx`:
-   - Added `addFloorsToRoom` prop
-   - Added room click handler for ADD_FLOORS tool
-   - Added Escape key handler to cancel tool
-   - Updated OrbitControls to allow camera movement when tool is active
+### Session: February 5, 2026 — Fix Mesh Distortion and Visual Artifacts
+**Changes:** (To be filled after implementation)
