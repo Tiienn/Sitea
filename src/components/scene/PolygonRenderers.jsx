@@ -204,7 +204,7 @@ export function PoolItem({
 
         return (
           <mesh key={`coping-${i}`} position={[midX, 0.05, midZ]} rotation={[0, angle, 0]}>
-            <boxGeometry args={[0.4, 0.1, length + 0.2]} />
+            <boxGeometry args={[0.4, 0.1, length]} />
             <meshStandardMaterial map={segmentTexture} />
           </mesh>
         )
@@ -212,7 +212,7 @@ export function PoolItem({
 
       {/* Selection highlight */}
       {(isSelected || isDeleteMode) && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]}>
           <shapeGeometry args={[shape]} />
           <meshBasicMaterial
             color={isDeleteMode ? '#FF4444' : '#22d3ee'}
