@@ -1180,13 +1180,13 @@ function App() {
   }
 
   // Toggle panel - close if same, open if different
-  const togglePanel = (panel) => {
+  const togglePanel = useCallback((panel) => {
     setActivePanel(prev => {
       const next = prev === panel ? null : panel
       if (next !== 'build') setActiveBuildTool(BUILD_TOOLS.NONE)
       return next
     })
-  }
+  }, [])
 
   const handlePolygonComplete = () => {
     if (polygonPoints.length >= 3) {
@@ -2415,6 +2415,11 @@ function App() {
   }
 
   // Panel keyboard shortcuts (L=Land, C=Compare, B=Build, Alt+S=Save, P=Export, O=Reset)
+  // Use refs so the handler closure always has current values without re-registering
+  const activePanelRef = useRef(activePanel)
+  activePanelRef.current = activePanel
+  const canEditRef = useRef(canEdit)
+  canEditRef.current = canEdit
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
@@ -2422,12 +2427,12 @@ function App() {
       // Alt+S = Save
       if (e.altKey && key === 's') {
         e.preventDefault()
-        if (canEdit) handleSave()
+        if (canEditRef.current) handleSave()
         return
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return
       // When build panel is open, only allow B (to close it) — other keys are build tool shortcuts
-      if (activePanel === 'build' && key !== 'b') return
+      if (activePanelRef.current === 'build' && key !== 'b') return
       const panelMap = {
         l: 'land',
         c: 'compare',
@@ -2436,7 +2441,7 @@ function App() {
       }
       if (panelMap[key]) {
         e.preventDefault()
-        if (panelMap[key] === 'land' && !canEdit) return
+        if (panelMap[key] === 'land' && !canEditRef.current) return
         togglePanel(panelMap[key])
       }
       if (key === 'o') {
@@ -2450,7 +2455,7 @@ function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activePanel, canEdit, togglePanel])
+  }, [togglePanel])
 
   // Loading state for shared scene
   if (shareLoading) {
