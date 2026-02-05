@@ -154,6 +154,7 @@ export function PoolItem({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
+        renderOrder={1}
       >
         <shapeGeometry args={[shape]} />
         <meshStandardMaterial
@@ -161,6 +162,7 @@ export function PoolItem({
           transparent
           opacity={isSelected ? 0.85 : 0.7}
           side={THREE.DoubleSide}
+          depthWrite={false}
         />
       </mesh>
 

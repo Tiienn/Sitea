@@ -442,9 +442,9 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
             <meshStandardMaterial color={getColor(metalColor)} metalness={0.6} roughness={0.3} />
           </mesh>
           {/* Chain link mesh (simplified as semi-transparent panel) */}
-          <mesh position={[midX, fenceHeight / 2, midZ]} rotation={[0, angle, 0]} onClick={handleClick} onDoubleClick={handleDoubleClick} onPointerEnter={() => setIsHovered(true)} onPointerLeave={() => setIsHovered(false)}>
+          <mesh position={[midX, fenceHeight / 2, midZ]} rotation={[0, angle, 0]} onClick={handleClick} onDoubleClick={handleDoubleClick} onPointerEnter={() => setIsHovered(true)} onPointerLeave={() => setIsHovered(false)} renderOrder={2}>
             <boxGeometry args={[0.01, fenceHeight - 0.2, wallLength]} />
-            <meshStandardMaterial color={getColor('#A9A9A9')} transparent opacity={0.3} side={2} />
+            <meshStandardMaterial color={getColor('#A9A9A9')} transparent opacity={0.3} side={2} depthWrite={false} />
           </mesh>
         </group>
       )
@@ -664,9 +664,9 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
               {/* Left panel - fixed (with frame around glass) */}
               <group position={[0.02, doorHeight / 2, -panelWidth / 2]}>
                 {/* Glass */}
-                <mesh rotation={[0, Math.PI / 2, 0]}>
+                <mesh rotation={[0, Math.PI / 2, 0]} renderOrder={2}>
                   <planeGeometry args={[panelWidth - 0.08, doorHeight - 0.12]} />
-                  <meshStandardMaterial color="#A8D8EA" transparent opacity={0.4} side={2} roughness={0} metalness={0.2} />
+                  <meshStandardMaterial color="#A8D8EA" transparent opacity={0.4} side={2} roughness={0} metalness={0.2} depthWrite={false} />
                 </mesh>
                 {/* Panel frame - top */}
                 <mesh position={[0, doorHeight / 2 - glassFrameThick, 0]}>
@@ -682,9 +682,9 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
               {/* Right panel - sliding (overlaps, with handle) */}
               <group position={[-0.02, doorHeight / 2, panelWidth / 2]}>
                 {/* Glass */}
-                <mesh rotation={[0, Math.PI / 2, 0]}>
+                <mesh rotation={[0, Math.PI / 2, 0]} renderOrder={2}>
                   <planeGeometry args={[panelWidth - 0.08, doorHeight - 0.12]} />
-                  <meshStandardMaterial color="#A8D8EA" transparent opacity={0.4} side={2} roughness={0} metalness={0.2} />
+                  <meshStandardMaterial color="#A8D8EA" transparent opacity={0.4} side={2} roughness={0} metalness={0.2} depthWrite={false} />
                 </mesh>
                 {/* Panel frame - top */}
                 <mesh position={[0, doorHeight / 2 - glassFrameThick, 0]}>
@@ -788,9 +788,9 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
         return (
           <group key={`window-${opening.id}`} position={[pos.x, windowCenterY, pos.z]} rotation={[0, angle, 0]}>
             {/* Glass pane - highly transparent */}
-            <mesh rotation={[0, Math.PI / 2, 0]}>
+            <mesh rotation={[0, Math.PI / 2, 0]} renderOrder={2}>
               <planeGeometry args={[winWidth - frameThick * 2, winHeight - frameThick * 2]} />
-              <meshStandardMaterial color="#88CCEE" transparent opacity={0.2} side={2} roughness={0} metalness={0.1} />
+              <meshStandardMaterial color="#88CCEE" transparent opacity={0.2} side={2} roughness={0} metalness={0.1} depthWrite={false} />
             </mesh>
             {/* Frame - top */}
             <mesh position={[0, winHeight / 2 - frameThick / 2, 0]}>

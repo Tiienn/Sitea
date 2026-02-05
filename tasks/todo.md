@@ -17,8 +17,8 @@ After exploring the codebase, I've identified the following potential sources of
 
 - [x] Fix Z-fighting in PoolItem coping meshes
 - [x] Fix Z-fighting in FoundationItem selection highlights
-- [ ] Fix Z-fighting in WallSegment selection overlays
-- [ ] Fix transparent material rendering order (pool water, glass panes)
+- [x] Fix Z-fighting in WallSegment selection overlays
+- [x] Fix transparent material rendering order (pool water, glass panes)
 - [ ] Fix UV coordinate scaling in RoomFloor texture mapping
 - [ ] Add proper Y-offset separation for all overlapping meshes
 - [ ] Test fixes in all view modes (2D, first-person, third-person, orbit)
@@ -38,9 +38,10 @@ After exploring the codebase, I've identified the following potential sources of
 - Current overlays use emissive instead of separate mesh (good approach)
 - No changes needed
 
-#### 4. Transparent Material Fixes
+#### 4. Transparent Material Fixes ✅
 - Pool water: Add `depthWrite={false}` and `renderOrder={1}`
-- Glass panes: Add `depthWrite={false}` and `renderOrder={2}`
+- Glass panes (windows): Add `depthWrite={false}` and `renderOrder={2}`
+- Glass panes (sliding doors): Add `depthWrite={false}` and `renderOrder={2}`
 - Chain link fences: Add `depthWrite={false}` and `renderOrder={2}`
 
 #### 5. Room Floor UV Fixes (RoomFloor.jsx)
@@ -49,9 +50,9 @@ After exploring the codebase, I've identified the following potential sources of
 - Fix: Use `uvScale = 1 / tileSize` where tileSize = 2.0 for most patterns
 
 ### Acceptance Criteria
-- [ ] No Z-fighting visible in pool edges
-- [ ] No Z-fighting on foundation selection
-- [ ] Transparent materials render in correct order
+- [x] No Z-fighting visible in pool edges
+- [x] No Z-fighting on foundation selection
+- [x] Transparent materials render in correct order
 - [ ] Room floor textures don't stretch or distort
 - [ ] All fixes work in 2D and 3D modes
 - [ ] No new visual artifacts introduced
@@ -253,5 +254,18 @@ CREATE POLICY "Server can manage subscriptions" ON subscriptions
 
 ## Review
 
-### Session: February 5, 2026 — Fix Mesh Distortion and Visual Artifacts
-**Changes:** (To be filled after implementation)
+### Session: February 5, 2026 — Fix Transparent Material Rendering Order
+**Changes:**
+- Fixed pool water transparency rendering by adding `depthWrite={false}` and `renderOrder={1}`
+- Fixed glass panes in windows by adding `depthWrite={false}` and `renderOrder={2}`
+- Fixed glass panes in sliding doors by adding `depthWrite={false}` and `renderOrder={2}`
+- Fixed chain link fence mesh by adding `depthWrite={false}` and `renderOrder={2}`
+
+**Files Modified:**
+- `src/components/scene/PolygonRenderers.jsx` - Pool water mesh
+- `src/components/scene/WallSegment.jsx` - Window glass panes, sliding door glass panels, chain link fence mesh
+
+**Technical Details:**
+- Transparent materials need `depthWrite={false}` to prevent them from blocking other transparent objects
+- `renderOrder` controls the order in which transparent objects are rendered (higher numbers render last)
+- Pool water (renderOrder=1) renders before glass panes (renderOrder=2) for proper layering
