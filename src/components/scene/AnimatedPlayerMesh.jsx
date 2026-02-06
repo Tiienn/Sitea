@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useFBX } from '@react-three/drei'
+import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import {
   WALK_SPEED,
@@ -18,26 +18,26 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
   const hipsRef = useRef(null)
   const hipsBindPos = useRef(new THREE.Vector3())
 
-  // Load character model
-  const fbx = useFBX('/character.fbx')
+  // Load character model (GLB)
+  const { scene: characterScene } = useGLTF('/character.glb')
 
-  // Load all animations from locomotion pack
-  const idleFbx = useFBX('/idle.fbx')
-  const walkFbx = useFBX('/walk.fbx')
-  const runFbx = useFBX('/run.fbx')
-  const jumpFbx = useFBX('/jump.fbx')
-  const walkbackFbx = useFBX('/walkback.fbx')
-  const strafeFbx = useFBX('/strafe.fbx')
-  const straferightFbx = useFBX('/straferight.fbx')
-  const straferunleftFbx = useFBX('/straferunleft.fbx')
-  const straferunrightFbx = useFBX('/straferunright.fbx')
-  const turnleftFbx = useFBX('/turnleft.fbx')
-  const turnrightFbx = useFBX('/turnright.fbx')
-  const turnleft90Fbx = useFBX('/turnleft90.fbx')
-  const turnright90Fbx = useFBX('/turnright90.fbx')
+  // Load all animations from locomotion pack (GLB)
+  const { animations: idleAnims } = useGLTF('/idle.glb')
+  const { animations: walkAnims } = useGLTF('/walk.glb')
+  const { animations: runAnims } = useGLTF('/run.glb')
+  const { animations: jumpAnims } = useGLTF('/jump.glb')
+  const { animations: walkbackAnims } = useGLTF('/walkback.glb')
+  const { animations: strafeAnims } = useGLTF('/strafe.glb')
+  const { animations: straferightAnims } = useGLTF('/straferight.glb')
+  const { animations: straferunleftAnims } = useGLTF('/straferunleft.glb')
+  const { animations: straferunrightAnims } = useGLTF('/straferunright.glb')
+  const { animations: turnleftAnims } = useGLTF('/turnleft.glb')
+  const { animations: turnrightAnims } = useGLTF('/turnright.glb')
+  const { animations: turnleft90Anims } = useGLTF('/turnleft90.glb')
+  const { animations: turnright90Anims } = useGLTF('/turnright90.glb')
 
   useMemo(() => {
-    fbx.traverse((child) => {
+    characterScene.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true
         child.receiveShadow = false
@@ -50,27 +50,27 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
         }
       }
     })
-  }, [fbx])
+  }, [characterScene])
 
   // Set up AnimationMixer and all actions
   useEffect(() => {
-    const mixer = new THREE.AnimationMixer(fbx)
+    const mixer = new THREE.AnimationMixer(characterScene)
     mixerRef.current = mixer
 
     const clips = {
-      idle: idleFbx.animations[0],
-      walk: walkFbx.animations[0],
-      run: runFbx.animations[0],
-      jump: jumpFbx.animations[0],
-      walkback: walkbackFbx.animations[0],
-      strafe: strafeFbx.animations[0],
-      straferight: straferightFbx.animations[0],
-      straferunleft: straferunleftFbx.animations[0],
-      straferunright: straferunrightFbx.animations[0],
-      turnleft: turnleftFbx.animations[0],
-      turnright: turnrightFbx.animations[0],
-      turnleft90: turnleft90Fbx.animations[0],
-      turnright90: turnright90Fbx.animations[0]
+      idle: idleAnims[0],
+      walk: walkAnims[0],
+      run: runAnims[0],
+      jump: jumpAnims[0],
+      walkback: walkbackAnims[0],
+      strafe: strafeAnims[0],
+      straferight: straferightAnims[0],
+      straferunleft: straferunleftAnims[0],
+      straferunright: straferunrightAnims[0],
+      turnleft: turnleftAnims[0],
+      turnright: turnrightAnims[0],
+      turnleft90: turnleft90Anims[0],
+      turnright90: turnright90Anims[0]
     }
 
     const actions = {}
@@ -94,7 +94,7 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       mixer.stopAllAction()
       mixerRef.current = null
     }
-  }, [fbx, idleFbx, walkFbx, runFbx, jumpFbx, walkbackFbx, strafeFbx, straferightFbx, straferunleftFbx, straferunrightFbx, turnleftFbx, turnrightFbx, turnleft90Fbx, turnright90Fbx])
+  }, [characterScene, idleAnims, walkAnims, runAnims, jumpAnims, walkbackAnims, strafeAnims, straferightAnims, straferunleftAnims, straferunrightAnims, turnleftAnims, turnrightAnims, turnleft90Anims, turnright90Anims])
 
   useFrame((_, delta) => {
     if (!visible) return
@@ -146,7 +146,7 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       rotation={[0, rotation + Math.PI, 0]}
       scale={MODEL_SCALE}
     >
-      <primitive object={fbx} />
+      <primitive object={characterScene} />
     </group>
   )
 }
