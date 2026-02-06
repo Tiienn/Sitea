@@ -1946,8 +1946,8 @@ function App() {
   // Building/Comparison keyboard shortcuts (R to rotate, ESC to cancel, Delete to remove)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ignore if typing in an input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      // Ignore if typing in an input (except Escape which should blur first)
+      if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.key !== 'Escape') return
 
       // R to rotate (90 degrees)
       if (e.key === 'r' || e.key === 'R') {
@@ -1965,6 +1965,11 @@ function App() {
 
       // ESC to cancel placement or deselect
       if (e.key === 'Escape') {
+        // If an input is focused, first Escape just blurs it
+        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'SELECT') {
+          document.activeElement.blur()
+          return
+        }
         if (floorPlanPlacementMode) {
           e.preventDefault()
           cancelFloorPlanPlacement()

@@ -322,6 +322,7 @@ export default function ExportPanel({
 
                 {/* Export Button */}
                 <button
+                  style={{ marginTop: '12px' }}
                   onClick={handleExport}
                   disabled={!canExport || isExporting}
                   className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
@@ -453,6 +454,7 @@ export default function ExportPanel({
 
                 {/* Export Button */}
                 <button
+                  style={{ marginTop: '12px' }}
                   onClick={handlePdfExport}
                   disabled={!canExport || isExportingPdf}
                   className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
@@ -602,6 +604,7 @@ export default function ExportPanel({
 
                 {/* Capture Button */}
                 <button
+                  style={{ marginTop: '12px' }}
                   onClick={handleScreenshot}
                   disabled={isCapturing || viewMode === '2d'}
                   className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
@@ -751,6 +754,7 @@ export default function ExportPanel({
 
                 {/* Export Button */}
                 <button
+                  style={{ marginTop: '12px' }}
                   onClick={handleModelExport}
                   disabled={isExportingModel || !canExport}
                   className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${

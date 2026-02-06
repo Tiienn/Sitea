@@ -335,6 +335,27 @@ CREATE POLICY "Server can manage subscriptions" ON subscriptions
 
 ---
 
+## 🔴 BUG: Escape in Draw Mode Closes Land Panel Instead of Canceling Preview
+
+**Goal:** When drawing polygon points in Draw mode (Land panel), pressing Escape should cancel the drawing preview — not close the entire Land panel.
+
+### Root Cause
+Both `PolygonEditor.jsx` and `App.jsx` have `window.addEventListener('keydown', ...)` handlers for Escape. Both fire on the same keypress:
+1. PolygonEditor pauses preview + clears dimension (correct)
+2. App.jsx sees `activePanel === 'land'` and closes the panel (unwanted)
+
+PolygonEditor doesn't call `e.preventDefault()`, so App.jsx doesn't know the event was already handled.
+
+### Fix (2 small changes)
+- [x] 1. **PolygonEditor.jsx** — In the Escape handler, call `e.preventDefault()` when there's active drawing state to cancel (dimension entered or preview active)
+- [x] 2. **App.jsx** — In the Escape block, add `if (e.defaultPrevented) return` to skip if a child already handled it
+
+### UX Flow After Fix
+- First Escape: pauses preview, clears dimension (PolygonEditor handles it)
+- Second Escape: nothing to cancel in PolygonEditor, so App.jsx closes the panel
+
+---
+
 ## Review
 
 ### Session: February 5, 2026 — Improve Open World (Land Texture + Terrain)

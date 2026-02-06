@@ -647,6 +647,28 @@ export default function PolygonEditor({ points, onChange, onComplete, onClear, o
     }
   }, [historyIndex, history, onChange])
 
+  // Escape handler in capture phase — always fires before bubble-phase handlers (App.jsx, Onboarding)
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key !== 'Escape') return
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return
+      if (isFullscreen) {
+        setIsFullscreen(false)
+        e.stopImmediatePropagation()
+        return
+      }
+      // Only consume the event if there's active drawing state to cancel
+      if (drawDimension || !previewPaused) {
+        setDrawDimension('')
+        setPreviewPaused(true)
+        setMousePos(null)
+        e.stopImmediatePropagation()
+      }
+    }
+    document.addEventListener('keydown', handleEscape, true) // capture phase
+    return () => document.removeEventListener('keydown', handleEscape, true)
+  }, [isFullscreen, drawDimension, previewPaused])
+
   // Keyboard shortcuts and shift tracking
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -698,18 +720,6 @@ export default function PolygonEditor({ points, onChange, onComplete, onClear, o
             setDrawDimension('')
           }
         }
-        return
-      }
-
-      // Escape: exit fullscreen first, otherwise clear dimension and pause preview
-      if (e.key === 'Escape') {
-        if (isFullscreen) {
-          setIsFullscreen(false)
-          return
-        }
-        setDrawDimension('')
-        setPreviewPaused(true)
-        setMousePos(null)
         return
       }
 

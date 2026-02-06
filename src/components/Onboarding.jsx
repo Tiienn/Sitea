@@ -123,15 +123,19 @@ export default function Onboarding({
   // Close on Escape key (but not when drawing - let PolygonEditor handle it)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't close if in draw mode with points - let PolygonEditor handle Escape
-      if (method === 'draw' && polygonPoints.length > 0) return
-      if (e.key === 'Escape' && onCancel && step === 1) {
+      if (e.key !== 'Escape') return
+      // If Escape originated from an input, just blur it (don't close)
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        e.target.blur()
+        return
+      }
+      if (onCancel) {
         onCancel()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onCancel, method, polygonPoints.length, step])
+  }, [onCancel])
   const [uploadedImage, setUploadedImage] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef(null)
@@ -274,7 +278,7 @@ export default function Onboarding({
     }, 3000)
   }
 
-  // Fade the Aha overlay
+  // Fade the Aha overlay and auto-complete
   const fadeAha = () => {
     if (ahaTimerRef.current) {
       clearTimeout(ahaTimerRef.current)
@@ -283,7 +287,7 @@ export default function Onboarding({
     setTimeout(() => {
       setShowAha(false)
       setAhaFading(false)
-      setShowReinforce(true)
+      completeOnboarding('explore')
     }, 500)
   }
 
@@ -412,10 +416,11 @@ export default function Onboarding({
                   <div style={{ paddingTop: '15px' }}>
                     {/* Unit toggle */}
                     <div className="flex justify-center" style={{ marginBottom: '15px' }}>
-                      <div className="flex bg-white/10 rounded-lg p-1 gap-1">
+                      <div className="flex bg-white/10 rounded-lg" style={{ padding: '3px', gap: '3px' }}>
                         <button
                           onClick={() => setLengthUnit('m')}
-                          className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${
+                          style={{ padding: '4px 16px' }}
+                          className={`rounded-md text-sm font-medium transition-all ${
                             lengthUnit === 'm' ? 'bg-teal-500 text-white shadow-md' : 'text-white/50 hover:text-white/70'
                           }`}
                         >
@@ -423,7 +428,8 @@ export default function Onboarding({
                         </button>
                         <button
                           onClick={() => setLengthUnit('ft')}
-                          className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${
+                          style={{ padding: '4px 16px' }}
+                          className={`rounded-md text-sm font-medium transition-all ${
                             lengthUnit === 'ft' ? 'bg-teal-500 text-white shadow-md' : 'text-white/50 hover:text-white/70'
                           }`}
                         >
@@ -439,7 +445,8 @@ export default function Onboarding({
                           <button
                             key={template.id}
                             onClick={() => handleTemplateSelect(template)}
-                            className="p-4 bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all text-left"
+                            style={{ padding: '16px 16px 16px 24px' }}
+                            className="bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all text-left"
                           >
                             <div className="text-white font-semibold text-lg">
                               {formatTemplateArea(template.areaM2, lengthUnit)}
@@ -462,10 +469,11 @@ export default function Onboarding({
                   <div className="text-center" style={{ paddingTop: '15px' }}>
                     {/* Unit toggle */}
                     <div className="flex justify-center" style={{ marginBottom: '25px' }}>
-                      <div className="flex bg-white/10 rounded-lg p-1 gap-1">
+                      <div className="flex bg-white/10 rounded-lg" style={{ padding: '3px', gap: '3px' }}>
                         <button
                           onClick={() => setLengthUnit('m')}
-                          className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${
+                          style={{ padding: '4px 16px' }}
+                          className={`rounded-md text-sm font-medium transition-all ${
                             lengthUnit === 'm' ? 'bg-teal-500 text-white shadow-md' : 'text-white/50 hover:text-white/70'
                           }`}
                         >
@@ -473,7 +481,8 @@ export default function Onboarding({
                         </button>
                         <button
                           onClick={() => setLengthUnit('ft')}
-                          className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${
+                          style={{ padding: '4px 16px' }}
+                          className={`rounded-md text-sm font-medium transition-all ${
                             lengthUnit === 'ft' ? 'bg-teal-500 text-white shadow-md' : 'text-white/50 hover:text-white/70'
                           }`}
                         >
@@ -521,10 +530,11 @@ export default function Onboarding({
                   <div style={{ paddingTop: '15px' }}>
                     {/* Unit toggle */}
                     <div className="flex justify-center" style={{ marginBottom: '15px' }}>
-                      <div className="flex bg-white/10 rounded-lg p-1 gap-1">
+                      <div className="flex bg-white/10 rounded-lg" style={{ padding: '3px', gap: '3px' }}>
                         <button
                           onClick={() => setLengthUnit('m')}
-                          className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${
+                          style={{ padding: '4px 16px' }}
+                          className={`rounded-md text-sm font-medium transition-all ${
                             lengthUnit === 'm' ? 'bg-teal-500 text-white shadow-md' : 'text-white/50 hover:text-white/70'
                           }`}
                         >
@@ -532,7 +542,8 @@ export default function Onboarding({
                         </button>
                         <button
                           onClick={() => setLengthUnit('ft')}
-                          className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${
+                          style={{ padding: '4px 16px' }}
+                          className={`rounded-md text-sm font-medium transition-all ${
                             lengthUnit === 'ft' ? 'bg-teal-500 text-white shadow-md' : 'text-white/50 hover:text-white/70'
                           }`}
                         >
@@ -702,51 +713,13 @@ export default function Onboarding({
             }
           }}
         >
-          <div className="text-center bg-black/70 backdrop-blur-md rounded-2xl p-8 max-w-sm mx-4">
-            <div className="text-white/60 text-sm mb-2">Your land</div>
-            <div className="text-4xl font-bold text-white mb-2">{formatArea(finalArea)}</div>
-            <div className="text-xl text-green-400 mb-6">{soccerFieldComparison(finalArea)}</div>
-
-            <div className="text-white/50 text-sm">
-              {isTouchDevice
-                ? 'Tap to continue'
-                : 'Click or press WASD to continue'
-              }
-            </div>
+          <div className="text-center bg-black/70 backdrop-blur-md rounded-2xl max-w-sm mx-4" style={{ padding: '20px 36px' }}>
+            <div className="text-white/60 text-sm mb-3">Your land</div>
+            <div className="text-4xl font-bold text-white">{formatArea(finalArea)}</div>
           </div>
         </div>
       )}
 
-      {/* Step 4: Reinforce Value */}
-      {showReinforce && (
-        <div className="fixed bottom-20 left-0 right-0 z-[90] flex justify-center px-4">
-          <div className="bg-black/70 backdrop-blur-md rounded-xl p-4 max-w-md w-full">
-            <div className="text-white/80 text-center mb-4">
-              Now you actually know how big it is.
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => completeOnboarding('explore')}
-                className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg transition-colors"
-              >
-                Explore in 3D
-              </button>
-              <button
-                onClick={() => completeOnboarding('build')}
-                className="flex-1 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
-              >
-                Add buildings
-              </button>
-              <button
-                onClick={() => completeOnboarding('save')}
-                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
-              >
-                💾
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Fullscreen Done Modal */}
       {showFullscreenModal && (

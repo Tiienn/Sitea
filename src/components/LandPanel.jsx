@@ -91,6 +91,10 @@ export default function LandPanel({
     length: dimensions.length,
     width: dimensions.width
   })
+  // Raw input strings to avoid .toFixed() cursor-jump bug
+  const [lengthInput, setLengthInput] = useState('')
+  const [widthInput, setWidthInput] = useState('')
+  const [inputFocused, setInputFocused] = useState(null) // 'length' | 'width' | null
   const [originalPolygon, setOriginalPolygon] = useState(null) // For edit reset
   const [editingPoints, setEditingPoints] = useState([]) // Points being edited
 
@@ -359,8 +363,14 @@ export default function LandPanel({
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
-                        value={convertLength(localDimensions.length).toFixed(lengthUnit === 'mm' ? 0 : 1)}
+                        value={inputFocused === 'length' ? lengthInput : convertLength(localDimensions.length).toFixed(lengthUnit === 'mm' ? 0 : 1)}
+                        onFocus={(e) => {
+                          setInputFocused('length')
+                          setLengthInput(e.target.value)
+                        }}
+                        onBlur={() => setInputFocused(null)}
                         onChange={(e) => {
+                          setLengthInput(e.target.value)
                           const val = parseFloat(e.target.value) || 0
                           const meters = lengthUnit === 'ft' ? val / 3.28084 : lengthUnit === 'mm' ? val / 1000 : val
                           setLocalDimensions(prev => ({ ...prev, length: meters }))
@@ -377,8 +387,14 @@ export default function LandPanel({
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
-                        value={convertLength(localDimensions.width).toFixed(lengthUnit === 'mm' ? 0 : 1)}
+                        value={inputFocused === 'width' ? widthInput : convertLength(localDimensions.width).toFixed(lengthUnit === 'mm' ? 0 : 1)}
+                        onFocus={(e) => {
+                          setInputFocused('width')
+                          setWidthInput(e.target.value)
+                        }}
+                        onBlur={() => setInputFocused(null)}
                         onChange={(e) => {
+                          setWidthInput(e.target.value)
                           const val = parseFloat(e.target.value) || 0
                           const meters = lengthUnit === 'ft' ? val / 3.28084 : lengthUnit === 'mm' ? val / 1000 : val
                           setLocalDimensions(prev => ({ ...prev, width: meters }))
