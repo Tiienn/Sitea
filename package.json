@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0",
+    "@anthropic-ai/sdk": "^0.74.0",
     "@paypal/react-paypal-js": "^8.9.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",

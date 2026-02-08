@@ -18,6 +18,8 @@ const paypalOptions = {
  * - Monthly: $9.99/month subscription
  * - Lifetime: $149 one-time payment
  */
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
 export default function PricingModal({ onClose, onSuccess }) {
   const { user, setShowAuthModal } = useUser()
   const [selectedPlan, setSelectedPlan] = useState(null) // 'monthly' | 'lifetime'
@@ -39,7 +41,7 @@ export default function PricingModal({ onClose, onSuccess }) {
 
   // Validate email before payment
   const validateEmail = () => {
-    if (!email || !email.includes('@')) {
+    if (!email || !isValidEmail(email)) {
       setError('Please enter a valid email address')
       return false
     }

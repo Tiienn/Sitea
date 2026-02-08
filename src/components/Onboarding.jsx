@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import PolygonEditor, { calculatePolygonArea } from './PolygonEditor'
 import ImageTracer from './ImageTracer'
+import { useUser } from '../hooks/useUser.jsx'
 import {
   LAND_TEMPLATES,
   areaToRectDims,
@@ -78,6 +79,12 @@ const UploadPreview = () => (
 // Method card data
 const METHODS = [
   {
+    id: 'upload',
+    name: 'Upload',
+    description: 'Site or floor plan',
+    Preview: UploadPreview,
+  },
+  {
     id: 'rectangle',
     name: 'Rectangle',
     description: 'Enter length & width',
@@ -95,12 +102,6 @@ const METHODS = [
     description: 'Custom polygon shape',
     Preview: DrawPreview,
   },
-  {
-    id: 'upload',
-    name: 'Upload',
-    description: 'Site or floor plan',
-    Preview: UploadPreview,
-  },
 ]
 
 export default function Onboarding({
@@ -110,6 +111,7 @@ export default function Onboarding({
   setLengthUnit,
   isTouchDevice
 }) {
+  const { isPaidUser } = useUser()
   const [step, setStep] = useState(1)
   const [method, setMethod] = useState(null) // 'rectangle', 'draw', 'upload', 'template'
 
@@ -670,6 +672,7 @@ export default function Onboarding({
                           lengthUnit={lengthUnit}
                           onComplete={handleUploadComplete}
                           onClear={() => setUploadedImage(null)}
+                          isPaidUser={isPaidUser}
                         />
                       </div>
                     )}

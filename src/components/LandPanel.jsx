@@ -596,6 +596,7 @@ export default function LandPanel({
                       setUploadedImage={setUploadedImage}
                       onComplete={handleUploadComplete}
                       lengthUnit={lengthUnit}
+                      isPaidUser={isPaidUser}
                     />
                     {confirmedPolygon && shapeMode === 'upload' && (
                       <div className="bg-[var(--color-bg-elevated)] rounded-xl p-3">

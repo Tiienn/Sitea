@@ -7,8 +7,11 @@ import {
   PLAYER_HEIGHT
 } from '../../constants/landSceneConstants'
 
-const MODEL_SCALE = 1.9 / 178.82
+const TARGET_HEIGHT = 1.9 // desired character height in meters
 const FADE_DURATION = 0.25
+
+// GLB models hosted on Supabase Storage
+const ASSET_BASE = 'https://utudexexqnmaoohmnsmk.supabase.co/storage/v1/object/public/assets/models'
 
 export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, moveType = 'idle' }) {
   const groupRef = useRef()
@@ -18,25 +21,26 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
   const hipsRef = useRef(null)
   const hipsBindPos = useRef(new THREE.Vector3())
 
-  // Load character model (GLB)
-  const { scene: characterScene } = useGLTF('/character.glb')
+  // Load character model (GLB from Supabase)
+  const { scene: characterScene } = useGLTF(`${ASSET_BASE}/character.glb`)
 
-  // Load all animations from locomotion pack (GLB)
-  const { animations: idleAnims } = useGLTF('/idle.glb')
-  const { animations: walkAnims } = useGLTF('/walk.glb')
-  const { animations: runAnims } = useGLTF('/run.glb')
-  const { animations: jumpAnims } = useGLTF('/jump.glb')
-  const { animations: walkbackAnims } = useGLTF('/walkback.glb')
-  const { animations: strafeAnims } = useGLTF('/strafe.glb')
-  const { animations: straferightAnims } = useGLTF('/straferight.glb')
-  const { animations: straferunleftAnims } = useGLTF('/straferunleft.glb')
-  const { animations: straferunrightAnims } = useGLTF('/straferunright.glb')
-  const { animations: turnleftAnims } = useGLTF('/turnleft.glb')
-  const { animations: turnrightAnims } = useGLTF('/turnright.glb')
-  const { animations: turnleft90Anims } = useGLTF('/turnleft90.glb')
-  const { animations: turnright90Anims } = useGLTF('/turnright90.glb')
+  // Load all animations from locomotion pack
+  const { animations: idleAnims } = useGLTF(`${ASSET_BASE}/idle.glb`)
+  const { animations: walkAnims } = useGLTF(`${ASSET_BASE}/walk.glb`)
+  const { animations: runAnims } = useGLTF(`${ASSET_BASE}/run.glb`)
+  const { animations: jumpAnims } = useGLTF(`${ASSET_BASE}/jump.glb`)
+  const { animations: walkbackAnims } = useGLTF(`${ASSET_BASE}/walkback.glb`)
+  const { animations: strafeAnims } = useGLTF(`${ASSET_BASE}/strafe.glb`)
+  const { animations: straferightAnims } = useGLTF(`${ASSET_BASE}/straferight.glb`)
+  const { animations: straferunleftAnims } = useGLTF(`${ASSET_BASE}/straferunleft.glb`)
+  const { animations: straferunrightAnims } = useGLTF(`${ASSET_BASE}/straferunright.glb`)
+  const { animations: turnleftAnims } = useGLTF(`${ASSET_BASE}/turnleft.glb`)
+  const { animations: turnrightAnims } = useGLTF(`${ASSET_BASE}/turnright.glb`)
+  const { animations: turnleft90Anims } = useGLTF(`${ASSET_BASE}/turnleft90.glb`)
+  const { animations: turnright90Anims } = useGLTF(`${ASSET_BASE}/turnright90.glb`)
 
-  useMemo(() => {
+  // Auto-detect model height and compute correct scale
+  const modelScale = useMemo(() => {
     characterScene.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true
@@ -50,6 +54,10 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
         }
       }
     })
+    const box = new THREE.Box3().setFromObject(characterScene)
+    const height = box.max.y - box.min.y
+    console.log('[PlayerMesh] Model height:', height, '-> scale:', height > 0 ? TARGET_HEIGHT / height : 1)
+    return height > 0 ? TARGET_HEIGHT / height : 1
   }, [characterScene])
 
   // Set up AnimationMixer and all actions
@@ -144,7 +152,7 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       ref={groupRef}
       position={[position.x, position.y - PLAYER_HEIGHT, position.z]}
       rotation={[0, rotation + Math.PI, 0]}
-      scale={MODEL_SCALE}
+      scale={modelScale}
     >
       <primitive object={characterScene} />
     </group>

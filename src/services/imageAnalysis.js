@@ -6,6 +6,94 @@
  * Paid users: AI-powered detection (~95%+ accuracy)
  */
 
+import { supabase } from '../lib/supabaseClient'
+
+/**
+ * Resize image to fit within maxDim while preserving aspect ratio.
+ * Returns { base64, originalWidth, originalHeight, resizedWidth, resizedHeight }
+ */
+function resizeImage(imageSrc, maxDim = 2048) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const { width, height } = img
+      // Skip resize if already small enough
+      if (width <= maxDim && height <= maxDim) {
+        const base64 = imageSrc.replace(/^data:image\/\w+;base64,/, '')
+        resolve({ base64, originalWidth: width, originalHeight: height, resizedWidth: width, resizedHeight: height })
+        return
+      }
+      const scale = maxDim / Math.max(width, height)
+      const newW = Math.round(width * scale)
+      const newH = Math.round(height * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = newW
+      canvas.height = newH
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, newW, newH)
+      const base64 = canvas.toDataURL('image/jpeg', 0.85).replace(/^data:image\/\w+;base64,/, '')
+      resolve({ base64, originalWidth: width, originalHeight: height, resizedWidth: newW, resizedHeight: newH })
+    }
+    img.onerror = () => reject(new Error('Failed to load image'))
+    img.src = imageSrc
+  })
+}
+
+/**
+ * Detect land boundary from a site plan image using Claude Vision
+ * @param {string} imageBase64 - Base64 encoded image (with or without data URI prefix)
+ * @returns {Promise<{ boundary: [{x,y}], scale: object, imageSize: object } | null>}
+ */
+export async function detectSitePlanBoundary(imageBase64) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) {
+    throw new Error('Not authenticated. Please sign in.')
+  }
+
+  // Resize to keep payload under Vercel's 4.5MB limit
+  const { base64, originalWidth, originalHeight, resizedWidth, resizedHeight } = await resizeImage(imageBase64)
+
+  const response = await fetch('/api/analyze-site-plan', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ image: base64, width: resizedWidth, height: resizedHeight }),
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error || `API error ${response.status}`)
+  }
+
+  const result = await response.json()
+  if (!result.success || !result.boundary?.length) {
+    throw new Error('No boundary detected in image')
+  }
+
+  // Scale boundary coordinates from resized image back to original image dimensions
+  const scaleX = originalWidth / resizedWidth
+  const scaleY = originalHeight / resizedHeight
+  const boundary = result.boundary.map(p => ({
+    x: p.x * scaleX,
+    y: p.y * scaleY,
+  }))
+
+  // Also scale pixelsPerMeter back to original image coords
+  let scale = result.scale
+  if (scale?.pixelsPerMeter) {
+    const avgScale = (scaleX + scaleY) / 2
+    scale = { ...scale, pixelsPerMeter: scale.pixelsPerMeter * avgScale }
+  }
+
+  return {
+    boundary,
+    scale,
+    imageSize: { width: originalWidth, height: originalHeight },
+  }
+}
+
 /**
  * Analyze uploaded image to detect if it's a site plan or floor plan
  * @param {string} imageBase64 - Base64 encoded image

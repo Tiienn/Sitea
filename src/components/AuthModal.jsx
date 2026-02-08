@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
 export default function AuthModal({ onClose, onSuccess }) {
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
   const [email, setEmail] = useState('')
@@ -24,7 +26,7 @@ export default function AuthModal({ onClose, onSuccess }) {
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault()
-    if (!email || !email.includes('@')) {
+    if (!email || !isValidEmail(email)) {
       setError('Please enter a valid email address')
       return
     }
@@ -69,7 +71,7 @@ export default function AuthModal({ onClose, onSuccess }) {
   }
 
   const handleForgotPassword = async () => {
-    if (!email || !email.includes('@')) {
+    if (!email || !isValidEmail(email)) {
       setError('Enter your email above, then click Forgot Password')
       return
     }
@@ -128,7 +130,7 @@ export default function AuthModal({ onClose, onSuccess }) {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-emerald-500/10 blur-3xl pointer-events-none" />
 
           {/* Header */}
-          <div className="relative px-8 pt-10 pb-4 text-center">
+          <div className="relative text-center" style={{ padding: '20px 20px 16px 20px' }}>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 mb-5">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm font-semibold bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">
@@ -147,7 +149,7 @@ export default function AuthModal({ onClose, onSuccess }) {
           </div>
 
           {/* Tabs */}
-          <div className="px-8 pb-4">
+          <div style={{ padding: '0 20px 10px 20px' }}>
             <div className="flex bg-slate-800/50 rounded-xl p-1 border border-slate-700/50">
               <button
                 onClick={() => { setMode('signin'); setError(null); setMessage(null) }}
@@ -173,7 +175,7 @@ export default function AuthModal({ onClose, onSuccess }) {
           </div>
 
           {/* Content */}
-          <div className="px-8 pb-8">
+          <div style={{ padding: '0 20px 20px 20px' }}>
             {/* Google OAuth */}
             <button
               onClick={handleGoogleSignIn}
@@ -189,43 +191,51 @@ export default function AuthModal({ onClose, onSuccess }) {
             </button>
 
             {/* Divider */}
-            <div className="flex items-center gap-4 my-5">
+            <div className="flex items-center gap-4 my-6">
               <div className="flex-1 h-px bg-slate-700/50" />
               <span className="text-xs text-slate-500">or</span>
               <div className="flex-1 h-px bg-slate-700/50" />
             </div>
 
             {/* Email / Password form */}
-            <form onSubmit={handleEmailSubmit} className="space-y-3">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className="w-full px-4 py-3.5 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:bg-slate-800/80 transition-all text-sm"
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="w-full px-4 py-3.5 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:bg-slate-800/80 transition-all text-sm"
-              />
+            <form onSubmit={handleEmailSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full px-4 py-3.5 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:bg-slate-800/80 transition-all text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min. 6 characters"
+                  className="w-full px-4 py-3.5 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:bg-slate-800/80 transition-all text-sm"
+                />
+              </div>
 
               {mode === 'signin' && (
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-xs text-slate-500 hover:text-emerald-400 transition-colors"
-                >
-                  Forgot password?
-                </button>
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-xs text-slate-500 hover:text-emerald-400 transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
               )}
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-semibold rounded-2xl hover:from-emerald-400 hover:to-cyan-400 transition-all disabled:opacity-50 text-sm"
+                className="w-full py-3.5 mt-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-semibold rounded-2xl hover:from-emerald-400 hover:to-cyan-400 transition-all disabled:opacity-50 text-sm"
               >
                 {isLoading ? 'Please wait...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
               </button>

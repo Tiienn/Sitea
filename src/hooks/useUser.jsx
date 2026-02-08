@@ -62,8 +62,34 @@ export function UserProvider({ children }) {
           }
         }
       } else {
-        setIsPaidUser(false)
-        setPlanType(null)
+        // localStorage doesn't say paid — check Supabase in case subscription exists
+        if (isSupabaseConfigured()) {
+          const email = localStorage.getItem('landVisualizerEmail')
+          if (email) {
+            const { data } = await supabase
+              .from('subscriptions')
+              .select('status, plan_type, expires_at')
+              .eq('email', email.toLowerCase())
+              .eq('status', 'active')
+              .maybeSingle()
+
+            if (data && (!data.expires_at || new Date(data.expires_at) >= new Date())) {
+              setIsPaidUser(true)
+              setPlanType(data.plan_type)
+              localStorage.setItem('landVisualizerPaidUser', 'true')
+              localStorage.setItem('landVisualizerPlanType', data.plan_type)
+            } else {
+              setIsPaidUser(false)
+              setPlanType(null)
+            }
+          } else {
+            setIsPaidUser(false)
+            setPlanType(null)
+          }
+        } else {
+          setIsPaidUser(false)
+          setPlanType(null)
+        }
       }
     } catch (error) {
       console.error('Error checking subscription:', error)

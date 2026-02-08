@@ -17,9 +17,9 @@ export function useGrassTextures(quality = QUALITY.BEST) {
     for (let y = 0; y < 512; y++) {
       for (let x = 0; x < 512; x++) {
         const noise = (Math.random() - 0.5) * 25
-        const r = Math.min(255, Math.max(0, 58 + noise * 0.4))
-        const g = Math.min(255, Math.max(0, 110 + noise))
-        const b = Math.min(255, Math.max(0, 40 + noise * 0.3))
+        const r = Math.min(255, Math.max(0, 55 + noise * 0.4))
+        const g = Math.min(255, Math.max(0, 135 + noise))
+        const b = Math.min(255, Math.max(0, 45 + noise * 0.3))
         detailCtx.fillStyle = `rgb(${r},${g},${b})`
         detailCtx.fillRect(x, y, 1, 1)
       }
@@ -31,8 +31,8 @@ export function useGrassTextures(quality = QUALITY.BEST) {
       const y = Math.random() * 512
       const radius = Math.random() * 35 + 15
       const gradient = detailCtx.createRadialGradient(x, y, 0, x, y, radius)
-      gradient.addColorStop(0, 'rgba(35, 75, 30, 0.35)')
-      gradient.addColorStop(1, 'rgba(35, 75, 30, 0)')
+      gradient.addColorStop(0, 'rgba(40, 95, 35, 0.3)')
+      gradient.addColorStop(1, 'rgba(40, 95, 35, 0)')
       detailCtx.fillStyle = gradient
       detailCtx.beginPath()
       detailCtx.arc(x, y, radius, 0, Math.PI * 2)
@@ -45,8 +45,8 @@ export function useGrassTextures(quality = QUALITY.BEST) {
       const y = Math.random() * 512
       const radius = Math.random() * 45 + 20
       const gradient = detailCtx.createRadialGradient(x, y, 0, x, y, radius)
-      gradient.addColorStop(0, 'rgba(95, 150, 65, 0.3)')
-      gradient.addColorStop(1, 'rgba(95, 150, 65, 0)')
+      gradient.addColorStop(0, 'rgba(120, 175, 60, 0.35)')
+      gradient.addColorStop(1, 'rgba(120, 175, 60, 0)')
       detailCtx.fillStyle = gradient
       detailCtx.beginPath()
       detailCtx.arc(x, y, radius, 0, Math.PI * 2)
@@ -59,7 +59,7 @@ export function useGrassTextures(quality = QUALITY.BEST) {
       const y = Math.random() * 512
       const length = Math.random() * 10 + 4
       const shade = Math.random() * 35 - 15
-      detailCtx.strokeStyle = `rgba(${50 + shade}, ${95 + shade}, ${35 + shade}, 0.5)`
+      detailCtx.strokeStyle = `rgba(${55 + shade}, ${120 + shade}, ${38 + shade}, 0.5)`
       detailCtx.lineWidth = Math.random() * 1.5 + 0.5
       detailCtx.beginPath()
       detailCtx.moveTo(x, y)
@@ -193,9 +193,9 @@ export function useSimpleGrassTexture() {
     for (let y = 0; y < 256; y++) {
       for (let x = 0; x < 256; x++) {
         const noise = (Math.random() - 0.5) * 20
-        const r = Math.min(255, Math.max(0, 60 + noise * 0.4))
-        const g = Math.min(255, Math.max(0, 105 + noise))
-        const b = Math.min(255, Math.max(0, 42 + noise * 0.3))
+        const r = Math.min(255, Math.max(0, 55 + noise * 0.4))
+        const g = Math.min(255, Math.max(0, 130 + noise))
+        const b = Math.min(255, Math.max(0, 45 + noise * 0.3))
         ctx.fillStyle = `rgb(${r},${g},${b})`
         ctx.fillRect(x, y, 1, 1)
       }

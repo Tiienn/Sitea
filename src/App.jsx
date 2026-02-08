@@ -517,6 +517,9 @@ function App() {
   const [showMobileViewControls, setShowMobileViewControls] = useState(false)
   const [mobileCtaExpanded, setMobileCtaExpanded] = useState(false)
 
+  // Day/night cycle state (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset)
+  const [timeOfDay, setTimeOfDay] = useState(0.35)
+
   // Floor plan generator modal state
   const [showFloorPlanGenerator, setShowFloorPlanGenerator] = useState(false)
   const [floorPlanImageForGenerator, setFloorPlanImageForGenerator] = useState(null)
@@ -643,6 +646,7 @@ function App() {
   // Tool-specific drawing state
   const [poolPolygonPoints, setPoolPolygonPoints] = useState([])
   const [foundationPolygonPoints, setFoundationPolygonPoints] = useState([])
+  const [roomPolygonPoints, setRoomPolygonPoints] = useState([])
   const [stairsStartPoint, setStairsStartPoint] = useState(null)
 
   // Selection state for new features
@@ -1008,7 +1012,24 @@ function App() {
       // Undo: Ctrl+Z (or Cmd+Z on Mac)
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
-        if (canUndo) {
+        // If actively drawing points, undo the last point instead of undoing walls
+        if (activeBuildTool === BUILD_TOOLS.POOL && poolPolygonPoints.length > 0) {
+          setPoolPolygonPoints(prev => prev.slice(0, -1))
+          setUndoRedoToast('Point undone')
+          setTimeout(() => setUndoRedoToast(null), 1500)
+        } else if (activeBuildTool === BUILD_TOOLS.FOUNDATION && foundationPolygonPoints.length > 0) {
+          setFoundationPolygonPoints(prev => prev.slice(0, -1))
+          setUndoRedoToast('Point undone')
+          setTimeout(() => setUndoRedoToast(null), 1500)
+        } else if (activeBuildTool === BUILD_TOOLS.POLYGON_ROOM && roomPolygonPoints.length > 0) {
+          setRoomPolygonPoints(prev => prev.slice(0, -1))
+          setUndoRedoToast('Point undone')
+          setTimeout(() => setUndoRedoToast(null), 1500)
+        } else if ((activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE) && wallDrawingPoints.length > 0) {
+          setWallDrawingPoints(prev => prev.slice(0, -1))
+          setUndoRedoToast('Point undone')
+          setTimeout(() => setUndoRedoToast(null), 1500)
+        } else if (canUndo) {
           undoWalls()
           setUndoRedoToast('Undone')
           setTimeout(() => setUndoRedoToast(null), 1500)
@@ -1036,7 +1057,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [canUndo, canRedo, undoWalls, redoWalls])
+  }, [canUndo, canRedo, undoWalls, redoWalls, activeBuildTool, poolPolygonPoints.length, foundationPolygonPoints.length, roomPolygonPoints.length, wallDrawingPoints.length])
 
   // Save quality preference
   useEffect(() => {
@@ -2009,7 +2030,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom, activePanel])
 
-  // Show toast when building, comparison, or room is selected
+  // Show toast when building, comparison, room, pool, foundation, stairs, or roof is selected
   useEffect(() => {
     if (selectedBuildingId) {
       setUndoRedoToast('Building selected • Drag to move • R to rotate • ESC to deselect • Del to delete')
@@ -2017,10 +2038,18 @@ function App() {
       setUndoRedoToast('Object selected • Drag to move • R to rotate • ESC to deselect • Del to remove')
     } else if (selectedRoomId) {
       setUndoRedoToast('Room selected • Drag to move • R to rotate • Double-click to name • ESC to deselect • Del to delete')
+    } else if (selectedPoolId) {
+      setUndoRedoToast('Pool selected • Drag to move • Double-click for properties • ESC to deselect • Del to delete')
+    } else if (selectedFoundationId) {
+      setUndoRedoToast('Platform selected • Drag to move • Double-click for properties • ESC to deselect • Del to delete')
+    } else if (selectedStairsId) {
+      setUndoRedoToast('Stairs selected • Drag to move • Double-click for properties • ESC to deselect • Del to delete')
+    } else if (selectedRoofId) {
+      setUndoRedoToast('Roof selected • Double-click for properties • ESC to deselect • Del to delete')
     } else if (!floorPlanPlacementMode) {
       setUndoRedoToast(null)
     }
-  }, [selectedBuildingId, selectedComparisonId, selectedRoomId, floorPlanPlacementMode])
+  }, [selectedBuildingId, selectedComparisonId, selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, selectedRoofId, floorPlanPlacementMode])
 
   // Get current polygon for snapping (memoized)
   const currentPolygon = useMemo(() => {
@@ -2638,6 +2667,8 @@ function App() {
         updateFoundation={updateFoundation}
         foundationPolygonPoints={foundationPolygonPoints}
         setFoundationPolygonPoints={setFoundationPolygonPoints}
+        roomPolygonPoints={roomPolygonPoints}
+        setRoomPolygonPoints={setRoomPolygonPoints}
         foundationHeight={foundationHeight}
         foundationMaterial={foundationMaterial}
         selectedFoundationId={selectedFoundationId}
@@ -2675,6 +2706,9 @@ function App() {
         mobileJumpTrigger={mobileJumpTrigger}
         onNearbyNPCChange={setNearbyNPC}
         onNearbyBuildingChange={setNearbyBuilding}
+        timeOfDay={timeOfDay}
+        setTimeOfDay={setTimeOfDay}
+        isPaidUser={isPaidUser}
         />
       </Suspense>
 

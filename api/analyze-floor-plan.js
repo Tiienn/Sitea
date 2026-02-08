@@ -2,10 +2,7 @@
 // v3: Strict furniture exclusion, focus on structural elements only
 
 import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { createClient } from '@supabase/supabase-js';
 
 export const config = {
   maxDuration: 60,
@@ -31,6 +28,34 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // --- Auth: verify JWT and check subscription ---
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const token = authHeader.replace('Bearer ', '');
+
+  const supabase = createClient(
+    process.env.VITE_SUPABASE_URL,
+    process.env.VITE_SUPABASE_ANON_KEY
+  );
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !user) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('status')
+    .eq('email', user.email.toLowerCase())
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (!subscription) {
+    return res.status(403).json({ error: 'Active subscription required' });
+  }
+
   const { image } = req.body;
 
   if (!image) {
@@ -47,6 +72,10 @@ export default async function handler(req, res) {
   };
 
   const mediaType = detectMediaType(image);
+
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
 
   try {
     const response = await anthropic.messages.create({
@@ -285,8 +314,7 @@ Return ONLY the JSON object, nothing else.`
     console.error('[FloorPlan API] Error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to analyze floor plan',
-      details: error.message
+      error: 'Failed to analyze floor plan'
     });
   }
 }

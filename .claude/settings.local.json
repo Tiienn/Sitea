@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(npm create:*)",
@@ -56,7 +59,33 @@
       "Bash(npm ls:*)",
       "Bash(vercel whoami:*)",
       "Bash(vercel:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "mcp__plugin_supabase_supabase__search_docs",
+      "mcp__plugin_supabase_supabase__get_logs",
+      "Bash(copy:*)",
+      "Bash(tasklist:*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "WebFetch(domain:github.com)",
+      "Bash(ralphy:*)",
+      "Bash(powershell:*)",
+      "Bash(forfiles /P \"C:\\\\Users\\\\Admin\\\\Desktop\\\\Sitea1\\\\public\" /M *.fbx /C \"cmd /c echo @fname @fsize\")",
+      "Bash(while read pid)",
+      "Bash(do taskkill /F /PID $pid)",
+      "Bash(done)",
+      "Bash(npx kill-port:*)",
+      "Skill(commit-commands:commit)",
+      "Bash(forfiles:*)",
+      "Bash(git lfs:*)",
+      "Bash(git rm:*)",
+      "Bash(npx fbx2gltf:*)",
+      "Bash(where:*)",
+      "Bash(node:*)",
+      "Bash(npx gltf-transform:*)",
+      "Bash(du:*)",
+      "mcp__plugin_supabase_supabase__get_project_url",
+      "mcp__plugin_supabase_supabase__get_publishable_keys",
+      "Bash(npm show:*)"
     ],
     "deny": [],
     "ask": []

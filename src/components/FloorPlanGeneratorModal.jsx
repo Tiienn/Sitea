@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { convertFloorPlanToWorld, calculateScaleFromReference } from '../utils/floorPlanConverter';
 import FloorPlanPreview3D from './FloorPlanPreview3D';
+import { supabase } from '../lib/supabaseClient';
 
 // Interactive 2D overlay component with zoom, pan, and element editing
 function DetectionOverlay({
@@ -1583,9 +1584,13 @@ export default function FloorPlanGeneratorModal({
         // Real API call
         const base64 = image.replace(/^data:image\/\w+;base64,/, '');
 
+        const { data: { session } } = await supabase.auth.getSession();
         const response = await fetch('/api/analyze-floor-plan', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` }),
+          },
           body: JSON.stringify({ image: base64 }),
         });
 

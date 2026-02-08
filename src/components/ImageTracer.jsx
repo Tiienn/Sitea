@@ -1,12 +1,14 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useUser } from '../hooks/useUser.jsx'
+import { detectSitePlanBoundary } from '../services/imageAnalysis'
 
 export default function ImageTracer({
   uploadedImage,
   setUploadedImage,
   onComplete,
   onClear,
-  lengthUnit = 'm'
+  lengthUnit = 'm',
+  isPaidUser = false,
 }) {
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -18,6 +20,15 @@ export default function ImageTracer({
   const [scaleUnit, setScaleUnit] = useState(lengthUnit) // Unit for scale input (m, ft, mm)
   const [isDragging, setIsDragging] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
+  const [autoDetecting, setAutoDetecting] = useState(false)
+  const [autoDetectError, setAutoDetectError] = useState(null)
+
+  // Drag editing state
+  const [draggingIndex, setDraggingIndex] = useState(-1)
+  const [pointsHistory, setPointsHistory] = useState([])
+  const wasDragging = useRef(false)
+  const dragStartRef = useRef(null)
+  const [snapInfo, setSnapInfo] = useState(null) // { anchorX, anchorY, angle } for shift-drag visual
 
   // Zoom and pan state
   const [zoom, setZoom] = useState(1)
@@ -64,6 +75,7 @@ export default function ImageTracer({
       setScaleDistance('')
       setZoom(1)
       setPan({ x: 0, y: 0 })
+      setPointsHistory([])
     }
     reader.readAsDataURL(file)
   }, [setUploadedImage, markUploadUsed])
@@ -101,6 +113,36 @@ export default function ImageTracer({
     }
     img.src = image
   }, [image])
+
+  // Keyboard shortcuts: Ctrl+Z to undo, ESC to cancel
+  useEffect(() => {
+    if (!image) return
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault()
+        handleUndo()
+      }
+      if (e.key === 'Escape') {
+        if (draggingIndex >= 0 && dragStartRef.current) {
+          // Cancel drag — restore original position, remove history entry
+          setPoints(prev => {
+            const next = [...prev]
+            next[draggingIndex] = dragStartRef.current
+            return next
+          })
+          setPointsHistory(prev => prev.slice(0, -1))
+          setDraggingIndex(-1)
+          dragStartRef.current = null
+          setSnapInfo(null)
+        } else if (scaleMode) {
+          setScaleMode(false)
+          setScalePoints([])
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [image, draggingIndex, scaleMode, pointsHistory.length])
 
   // Draw canvas
   useEffect(() => {
@@ -206,6 +248,74 @@ export default function ImageTracer({
           ctx.lineWidth = 2 / zoom
           ctx.stroke()
         })
+
+        // Draw snap guide line when shift-dragging
+        if (snapInfo && draggingIndex >= 0) {
+          const anchor = toView({ x: snapInfo.anchorX, y: snapInfo.anchorY })
+          const dragged = toView(points[draggingIndex])
+          ctx.strokeStyle = '#14b8a6'
+          ctx.lineWidth = 1 / zoom
+          ctx.setLineDash([4 / zoom, 4 / zoom])
+          ctx.beginPath()
+          ctx.moveTo(anchor.x, anchor.y)
+          ctx.lineTo(dragged.x, dragged.y)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // Angle label at midpoint
+          const midX = (anchor.x + dragged.x) / 2
+          const midY = (anchor.y + dragged.y) / 2
+          const fontSize = Math.max(9, 11 / zoom)
+          ctx.font = `bold ${fontSize}px sans-serif`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          const angleText = `${snapInfo.angle}°`
+          const tw = ctx.measureText(angleText).width
+          const pad = 3 / zoom
+          ctx.fillStyle = 'rgba(20, 184, 166, 0.7)'
+          ctx.fillRect(midX - tw / 2 - pad, midY - fontSize / 2 - pad - 12 / zoom, tw + pad * 2, fontSize + pad * 2)
+          ctx.fillStyle = '#fff'
+          ctx.fillText(angleText, midX, midY - 12 / zoom)
+        }
+
+        // Draw edge dimension labels
+        if (scale && points.length >= 2) {
+          const edgeCount = points.length >= 3 ? points.length : points.length - 1
+          for (let i = 0; i < edgeCount; i++) {
+            const j = (i + 1) % points.length
+            const vp1 = toView(points[i])
+            const vp2 = toView(points[j])
+            const dx = points[j].x - points[i].x
+            const dy = points[j].y - points[i].y
+            const pixelDist = Math.sqrt(dx * dx + dy * dy)
+            const meters = pixelDist / scale
+            const label = meters < 1 ? `${(meters * 100).toFixed(0)}cm` : `${meters.toFixed(1)}m`
+
+            const midX = (vp1.x + vp2.x) / 2
+            const midY = (vp1.y + vp2.y) / 2
+
+            // Offset label perpendicular to edge
+            const edgeDx = vp2.x - vp1.x
+            const edgeDy = vp2.y - vp1.y
+            const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy)
+            const nx = edgeLen > 0 ? -edgeDy / edgeLen : 0
+            const ny = edgeLen > 0 ? edgeDx / edgeLen : 0
+            const offsetDist = 10 / zoom
+            const lx = midX + nx * offsetDist
+            const ly = midY + ny * offsetDist
+
+            const fontSize = Math.max(8, 10 / zoom)
+            ctx.font = `${fontSize}px sans-serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            const textWidth = ctx.measureText(label).width
+            const pad = 3 / zoom
+            ctx.fillStyle = 'rgba(0,0,0,0.6)'
+            ctx.fillRect(lx - textWidth / 2 - pad, ly - fontSize / 2 - pad, textWidth + pad * 2, fontSize + pad * 2)
+            ctx.fillStyle = '#fff'
+            ctx.fillText(label, lx, ly)
+          }
+        }
       }
 
       ctx.restore()
@@ -221,7 +331,7 @@ export default function ImageTracer({
       }
     }
     img.src = image
-  }, [image, points, scaleMode, scalePoints, zoom, pan])
+  }, [image, points, scaleMode, scalePoints, zoom, pan, scale, snapInfo, draggingIndex])
 
   // Convert canvas click to image-space coordinates
   const canvasToImageSpace = (canvasX, canvasY) => {
@@ -254,8 +364,113 @@ export default function ImageTracer({
     return { x: imageX, y: imageY }
   }
 
+  // Convert image-space point to canvas-space (reverse of canvasToImageSpace)
+  const imageToCanvasSpace = (imgX, imgY) => {
+    if (!image || imgDimensions.width === 0) return { x: 0, y: 0 }
+    const aspectRatio = imgDimensions.width / imgDimensions.height
+    let baseWidth, baseHeight, baseOffsetX, baseOffsetY
+    if (aspectRatio > 1) {
+      baseWidth = canvasSize
+      baseHeight = canvasSize / aspectRatio
+      baseOffsetX = 0
+      baseOffsetY = (canvasSize - baseHeight) / 2
+    } else {
+      baseHeight = canvasSize
+      baseWidth = canvasSize * aspectRatio
+      baseOffsetX = (canvasSize - baseWidth) / 2
+      baseOffsetY = 0
+    }
+    const baseScale = baseWidth / imgDimensions.width
+    const viewX = baseOffsetX + imgX * baseScale
+    const viewY = baseOffsetY + imgY * baseScale
+    // Apply zoom and pan
+    const canvasX = (viewX - canvasSize / 2 + pan.x) * zoom + canvasSize / 2
+    const canvasY = (viewY - canvasSize / 2 + pan.y) * zoom + canvasSize / 2
+    return { x: canvasX, y: canvasY }
+  }
+
+  // Find point index within radius of canvas position, or -1
+  const findNearPoint = (canvasX, canvasY, radius = 12) => {
+    for (let i = 0; i < points.length; i++) {
+      const cp = imageToCanvasSpace(points[i].x, points[i].y)
+      const dx = cp.x - canvasX
+      const dy = cp.y - canvasY
+      if (dx * dx + dy * dy <= radius * radius) return i
+    }
+    return -1
+  }
+
+  // Distance from point (px,py) to line segment (x1,y1)-(x2,y2)
+  const pointToSegmentDistance = (px, py, x1, y1, x2, y2) => {
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const lenSq = dx * dx + dy * dy
+    if (lenSq === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2)
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq
+    t = Math.max(0, Math.min(1, t))
+    const projX = x1 + t * dx
+    const projY = y1 + t * dy
+    return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2)
+  }
+
+  // Find edge index within radius of canvas position, or -1
+  const findNearEdge = (canvasX, canvasY, radius = 8) => {
+    if (points.length < 3) return -1
+    for (let i = 0; i < points.length; i++) {
+      const j = (i + 1) % points.length
+      const cp1 = imageToCanvasSpace(points[i].x, points[i].y)
+      const cp2 = imageToCanvasSpace(points[j].x, points[j].y)
+      const dist = pointToSegmentDistance(canvasX, canvasY, cp1.x, cp1.y, cp2.x, cp2.y)
+      if (dist <= radius) return i
+    }
+    return -1
+  }
+
+  // Save current points to undo history (max 50)
+  const pushPointsHistory = () => {
+    setPointsHistory(prev => [...prev.slice(-49), points.map(p => ({ ...p }))])
+  }
+
+  // Snap a point to nearest angle increment from an anchor point (in image space)
+  const snapPointToAngle = (anchorX, anchorY, targetX, targetY, snapDegrees = 15) => {
+    const dx = targetX - anchorX
+    const dy = targetY - anchorY
+    const distance = Math.hypot(dx, dy)
+    if (distance === 0) return { x: targetX, y: targetY, angle: 0 }
+    const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI)
+    const snappedAngle = Math.round(currentAngle / snapDegrees) * snapDegrees
+    const snappedRadians = snappedAngle * (Math.PI / 180)
+    return {
+      x: anchorX + distance * Math.cos(snappedRadians),
+      y: anchorY + distance * Math.sin(snappedRadians),
+      angle: snappedAngle,
+    }
+  }
+
+  // Snap dragged point to best angle relative to adjacent points
+  const snapToAngle = (pointIndex, imgX, imgY) => {
+    if (points.length < 2) return { x: imgX, y: imgY, angle: 0, anchorX: imgX, anchorY: imgY }
+    const prevIndex = (pointIndex - 1 + points.length) % points.length
+    const nextIndex = (pointIndex + 1) % points.length
+    const prevPt = points[prevIndex]
+    const nextPt = points[nextIndex]
+    const snappedPrev = snapPointToAngle(prevPt.x, prevPt.y, imgX, imgY)
+    const snappedNext = snapPointToAngle(nextPt.x, nextPt.y, imgX, imgY)
+    const distPrev = Math.hypot(snappedPrev.x - imgX, snappedPrev.y - imgY)
+    const distNext = Math.hypot(snappedNext.x - imgX, snappedNext.y - imgY)
+    if (distPrev <= distNext) {
+      return { ...snappedPrev, anchorX: prevPt.x, anchorY: prevPt.y }
+    }
+    return { ...snappedNext, anchorX: nextPt.x, anchorY: nextPt.y }
+  }
+
   const handleCanvasClick = (e) => {
     if (isPanning) return
+    // Skip adding a point if we just finished dragging
+    if (wasDragging.current) {
+      wasDragging.current = false
+      return
+    }
 
     const rect = canvasRef.current.getBoundingClientRect()
     const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
@@ -263,20 +478,27 @@ export default function ImageTracer({
 
     const imagePoint = canvasToImageSpace(canvasX, canvasY)
 
-    console.log('Canvas click:', { scaleMode, imagePoint, currentScalePoints: scalePoints.length })
-
     if (scaleMode) {
       setScalePoints(prev => {
-        console.log('Adding scale point, prev length:', prev.length)
-        if (prev.length < 2) {
-          const newPoints = [...prev, imagePoint]
-          console.log('New scale points:', newPoints)
-          return newPoints
-        }
+        if (prev.length < 2) return [...prev, imagePoint]
         return prev
       })
     } else if (scale) {
-      // Only allow tracing after scale is set
+      // Check if clicking near an edge to insert a point there
+      if (points.length >= 3) {
+        const edgeIdx = findNearEdge(canvasX, canvasY)
+        if (edgeIdx >= 0) {
+          pushPointsHistory()
+          setPoints(prev => {
+            const next = [...prev]
+            next.splice(edgeIdx + 1, 0, imagePoint)
+            return next
+          })
+          return
+        }
+      }
+      // Otherwise append point
+      pushPointsHistory()
       setPoints(prev => [...prev, imagePoint])
     }
   }
@@ -287,6 +509,19 @@ export default function ImageTracer({
       e.preventDefault()
       setIsPanning(true)
       setLastPanPos({ x: e.clientX, y: e.clientY })
+      return
+    }
+    // Left-click: check if near a point to start dragging
+    if (e.button === 0 && scale && !scaleMode && points.length > 0) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
+      const canvasY = (e.clientY - rect.top) * (canvasSize / rect.height)
+      const idx = findNearPoint(canvasX, canvasY)
+      if (idx >= 0) {
+        pushPointsHistory()
+        dragStartRef.current = { ...points[idx] }
+        setDraggingIndex(idx)
+      }
     }
   }
 
@@ -296,6 +531,29 @@ export default function ImageTracer({
       const dy = (e.clientY - lastPanPos.y) / zoom
       setPan({ x: pan.x + dx, y: pan.y + dy })
       setLastPanPos({ x: e.clientX, y: e.clientY })
+      return
+    }
+    // Drag a point
+    if (draggingIndex >= 0) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
+      const canvasY = (e.clientY - rect.top) * (canvasSize / rect.height)
+      let imgPt = canvasToImageSpace(canvasX, canvasY)
+
+      // Shift+drag: snap to 15° angle increments
+      if (e.shiftKey && points.length > 1) {
+        const snapped = snapToAngle(draggingIndex, imgPt.x, imgPt.y)
+        imgPt = { x: snapped.x, y: snapped.y }
+        setSnapInfo({ anchorX: snapped.anchorX, anchorY: snapped.anchorY, angle: snapped.angle })
+      } else {
+        setSnapInfo(null)
+      }
+
+      setPoints(prev => {
+        const next = [...prev]
+        next[draggingIndex] = imgPt
+        return next
+      })
     }
   }
 
@@ -303,6 +561,85 @@ export default function ImageTracer({
     if (e.button === 1) {
       setIsPanning(false)
     }
+    if (draggingIndex >= 0) {
+      wasDragging.current = true
+      setDraggingIndex(-1)
+      dragStartRef.current = null
+      setSnapInfo(null)
+    }
+  }
+
+  const handleContextMenu = (e) => {
+    e.preventDefault()
+    if (!scale || scaleMode || points.length === 0) return
+    const rect = canvasRef.current.getBoundingClientRect()
+    const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
+    const canvasY = (e.clientY - rect.top) * (canvasSize / rect.height)
+    const idx = findNearPoint(canvasX, canvasY, 15)
+    if (idx >= 0) {
+      pushPointsHistory()
+      setPoints(prev => prev.filter((_, i) => i !== idx))
+    }
+  }
+
+  // Double-click edge to straighten it to nearest H/V/45°
+  const handleDoubleClick = (e) => {
+    if (!scale || scaleMode || points.length < 3) return
+    const rect = canvasRef.current.getBoundingClientRect()
+    const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
+    const canvasY = (e.clientY - rect.top) * (canvasSize / rect.height)
+    const edgeIdx = findNearEdge(canvasX, canvasY, 12)
+    if (edgeIdx < 0) return
+
+    pushPointsHistory()
+    setPoints(prev => {
+      const next = prev.map(p => ({ ...p }))
+      const p1 = next[edgeIdx]
+      const p2Idx = (edgeIdx + 1) % next.length
+      const p2 = next[p2Idx]
+      const dx = p2.x - p1.x
+      const dy = p2.y - p1.y
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI)
+      const length = Math.hypot(dx, dy)
+
+      // Find closest target angle
+      const targets = [0, 45, 90, 135, 180, -45, -90, -135, -180]
+      let closestAngle = 0
+      let minDiff = Infinity
+      for (const t of targets) {
+        const diff = Math.abs(angle - t)
+        if (diff < minDiff) { minDiff = diff; closestAngle = t }
+      }
+
+      const rad = closestAngle * (Math.PI / 180)
+      next[p2Idx] = { x: p1.x + length * Math.cos(rad), y: p1.y + length * Math.sin(rad) }
+      return next
+    })
+  }
+
+  // Straighten all edges that are close to H/V (within 10°)
+  const handleStraightenAll = () => {
+    if (points.length < 3 || !scale) return
+    pushPointsHistory()
+    setPoints(prev => {
+      const next = prev.map(p => ({ ...p }))
+      for (let i = 0; i < next.length; i++) {
+        const j = (i + 1) % next.length
+        const dx = next[j].x - next[i].x
+        const dy = next[j].y - next[i].y
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI)
+
+        // Straighten if within 10° of horizontal
+        if (Math.abs(angle) < 10 || Math.abs(angle - 180) < 10 || Math.abs(angle + 180) < 10) {
+          next[j] = { ...next[j], y: next[i].y }
+        }
+        // Straighten if within 10° of vertical
+        else if (Math.abs(angle - 90) < 10 || Math.abs(angle + 90) < 10) {
+          next[j] = { ...next[j], x: next[i].x }
+        }
+      }
+      return next
+    })
   }
 
   const handleWheel = (e) => {
@@ -367,6 +704,30 @@ export default function ImageTracer({
     setScaleMode(false)
   }
 
+  const handleAutoDetect = async () => {
+    if (!image || autoDetecting) return
+    setAutoDetecting(true)
+    setAutoDetectError(null)
+
+    try {
+      const result = await detectSitePlanBoundary(image)
+
+      // Boundary coordinates are already in original image space (resizing handled in service)
+      setPoints(result.boundary)
+      setPointsHistory([])
+
+      // If scale was returned, set it (already scaled to original image coords)
+      if (result.scale?.pixelsPerMeter) {
+        setScale(result.scale.pixelsPerMeter)
+        setScaleMode(false)
+      }
+    } catch (err) {
+      setAutoDetectError(err.message || 'Detection failed. Try manual tracing.')
+    } finally {
+      setAutoDetecting(false)
+    }
+  }
+
   const handleComplete = () => {
     if (points.length < 3 || !scale) return
     // Show summary instead of completing immediately
@@ -392,14 +753,20 @@ export default function ImageTracer({
     setScaleDistance('')
     setZoom(1)
     setPan({ x: 0, y: 0 })
+    setPointsHistory([])
     onClear?.()
   }
 
   const handleUndo = () => {
     if (scaleMode && scalePoints.length > 0) {
       setScalePoints(scalePoints.slice(0, -1))
-    } else if (points.length > 0) {
-      setPoints(points.slice(0, -1))
+    } else if (pointsHistory.length > 0) {
+      setPointsHistory(prev => {
+        const next = [...prev]
+        const restored = next.pop()
+        setPoints(restored)
+        return next
+      })
     }
   }
 
@@ -567,14 +934,15 @@ export default function ImageTracer({
         width={canvasSize}
         height={canvasSize}
         onClick={handleCanvasClick}
+        onDoubleClick={handleDoubleClick}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => setIsPanning(false)}
+        onMouseLeave={() => { setIsPanning(false); if (draggingIndex >= 0) { wasDragging.current = true; setDraggingIndex(-1); dragStartRef.current = null; setSnapInfo(null) } }}
         onWheel={handleWheel}
-        onContextMenu={(e) => e.preventDefault()}
-        className="rounded border border-white/20 w-full cursor-crosshair"
-        style={{ maxWidth: canvasSize }}
+        onContextMenu={handleContextMenu}
+        className="rounded border border-white/20 w-full"
+        style={{ maxWidth: canvasSize, cursor: draggingIndex >= 0 ? 'grabbing' : 'crosshair' }}
       />
 
       {/* Step indicator */}
@@ -642,12 +1010,16 @@ export default function ImageTracer({
           {/* Scale Calibration Info */}
           <div className="bg-white/5 rounded p-2 text-xs">
             <div className="text-white/50 mb-1">Scale Calibration</div>
-            <div className="text-white/70">
-              Reference: {scaleDistance} {lengthUnit} = {scale ? Math.round(Math.sqrt(
-                Math.pow(scalePoints[1]?.x - scalePoints[0]?.x, 2) +
-                Math.pow(scalePoints[1]?.y - scalePoints[0]?.y, 2)
-              )) : 0} pixels
-            </div>
+            {scalePoints.length >= 2 ? (
+              <div className="text-white/70">
+                Reference: {scaleDistance} {lengthUnit} = {Math.round(Math.sqrt(
+                  Math.pow(scalePoints[1].x - scalePoints[0].x, 2) +
+                  Math.pow(scalePoints[1].y - scalePoints[0].y, 2)
+                ))} pixels
+              </div>
+            ) : (
+              <div className="text-white/70">Scale set via auto-detect</div>
+            )}
             <div className="text-white/50">
               1 pixel = {scale ? (1/scale).toFixed(4) : 0} m
             </div>
@@ -702,6 +1074,43 @@ export default function ImageTracer({
               >
                 Start Scale Calibration
               </button>
+
+              {/* Auto-detect boundary — paid users only */}
+              {isPaidUser && (
+                <>
+                  <div className="flex items-center gap-2 my-2">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <span className="text-[10px] text-white/30 uppercase tracking-wider">or</span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+                  <button
+                    onClick={handleAutoDetect}
+                    disabled={autoDetecting}
+                    className="w-full px-3 py-2 text-sm bg-cyan-600 hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-wait rounded font-medium flex items-center justify-center gap-2"
+                  >
+                    {autoDetecting ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-25" />
+                          <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                        </svg>
+                        Detecting...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        Auto-detect Boundary
+                        <span className="text-[9px] bg-cyan-400/20 text-cyan-200 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Pro</span>
+                      </>
+                    )}
+                  </button>
+                  {autoDetectError && (
+                    <div className="text-xs text-red-400 mt-1">{autoDetectError}</div>
+                  )}
+                </>
+              )}
             </>
           ) : scalePoints.length < 2 ? (
             <>
@@ -802,9 +1211,14 @@ export default function ImageTracer({
           <div className="text-xs text-white/60">
             {points.length < 3
               ? 'Click corners of your land boundary (minimum 3 points)'
-              : 'Continue adding points or click Done'
+              : 'Drag to adjust · Shift+drag to snap 45°/90° · Right-click to delete'
             }
           </div>
+          {points.length >= 3 && (
+            <div className="text-xs text-white/40 mt-0.5">
+              Double-click edge to straighten · Ctrl+Z to undo
+            </div>
+          )}
         </div>
       )}
 
@@ -813,7 +1227,7 @@ export default function ImageTracer({
         <div className="flex gap-2">
           <button
             onClick={handleUndo}
-            disabled={(scaleMode ? scalePoints.length : points.length) === 0}
+            disabled={(scaleMode ? scalePoints.length : pointsHistory.length) === 0}
             className="flex-1 px-2 py-1 text-xs bg-white/10 hover:bg-white/20 disabled:opacity-30 rounded"
           >
             Undo
@@ -825,12 +1239,21 @@ export default function ImageTracer({
             Clear
           </button>
           {points.length >= 3 && scale && (
-            <button
-              onClick={handleComplete}
-              className="flex-1 px-2 py-1 text-xs bg-green-600 hover:bg-green-700 rounded font-medium"
-            >
-              Done
-            </button>
+            <>
+              <button
+                onClick={handleStraightenAll}
+                className="flex-1 px-2 py-1 text-xs bg-white/10 hover:bg-white/20 rounded"
+                title="Straighten edges close to horizontal/vertical"
+              >
+                Straighten
+              </button>
+              <button
+                onClick={handleComplete}
+                className="flex-1 px-2 py-1 text-xs bg-green-600 hover:bg-green-700 rounded font-medium"
+              >
+                Done
+              </button>
+            </>
           )}
         </div>
       )}

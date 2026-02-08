@@ -74,8 +74,8 @@ export const PREVIEW_COLOR_VALID = '#14B8A6'
 export const PREVIEW_COLOR_INVALID = '#EF4444'
 export const PREVIEW_OPACITY = 0.4
 
-// Sun position for lighting - directly overhead for accurate shadows
-export const SUN_POSITION = [0.1, 150, 0.1]
+// Sun position for lighting - angled for golden hour shadows
+export const SUN_POSITION = [80, 120, 40]
 
 // Animation constants
 export const IDLE_BOB_AMPLITUDE = 0.015

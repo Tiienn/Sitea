@@ -17,7 +17,9 @@ export function PoolItem({
   onDelete,
   onUpdate,
   onSelect,
-  onOpenProperties
+  onOpenProperties,
+  onDragStart,
+  onDragEnd
 }) {
   const { gl } = useThree()
 
@@ -51,12 +53,13 @@ export function PoolItem({
       }
 
       setDragState({ isDragging: false, startPoint: null, offset: { x: 0, z: 0 } })
+      onDragEnd?.()
       gl.domElement.style.cursor = 'auto'
     }
 
     window.addEventListener('pointerup', handlePointerUp)
     return () => window.removeEventListener('pointerup', handlePointerUp)
-  }, [dragState.isDragging, dragState.offset, pool.id, pool.points, onUpdate, gl.domElement])
+  }, [dragState.isDragging, dragState.offset, pool.id, pool.points, onUpdate, onDragEnd, gl.domElement])
 
   const rawPoints = pool.points
   if (!rawPoints || rawPoints.length < 3) return null
@@ -115,6 +118,7 @@ export function PoolItem({
       startPoint: { x: e.point.x, z: e.point.z },
       offset: { x: 0, z: 0 }
     })
+    onDragStart?.()
     gl.domElement.style.cursor = 'grabbing'
   }
 
@@ -238,7 +242,9 @@ export function FoundationItem({
   onDelete,
   onUpdate,
   onSelect,
-  onOpenProperties
+  onOpenProperties,
+  onDragStart,
+  onDragEnd
 }) {
   // Internal drag state
   const [dragState, setDragState] = useState({
@@ -270,12 +276,13 @@ export function FoundationItem({
       }
 
       setDragState({ isDragging: false, startPoint: null, offset: { x: 0, z: 0 } })
+      onDragEnd?.()
       document.body.style.cursor = 'auto'
     }
 
     window.addEventListener('pointerup', handlePointerUp)
     return () => window.removeEventListener('pointerup', handlePointerUp)
-  }, [dragState.isDragging, dragState.offset, foundation.id, foundation.points, onUpdate])
+  }, [dragState.isDragging, dragState.offset, foundation.id, foundation.points, onUpdate, onDragEnd])
 
   const rawPoints = foundation.points
   if (!rawPoints || rawPoints.length < 3) return null
@@ -349,6 +356,7 @@ export function FoundationItem({
       startPoint: { x: e.point.x, z: e.point.z },
       offset: { x: 0, z: 0 }
     })
+    onDragStart?.()
     document.body.style.cursor = 'grabbing'
   }
 
@@ -418,7 +426,9 @@ export function StairsItem({
   onDelete,
   onUpdate,
   onSelect,
-  onOpenProperties
+  onOpenProperties,
+  onDragStart,
+  onDragEnd
 }) {
   // Internal drag state
   const [dragState, setDragState] = useState({
@@ -456,12 +466,13 @@ export function StairsItem({
       }
 
       setDragState({ isDragging: false, startPoint: null, offset: { x: 0, z: 0 } })
+      onDragEnd?.()
       document.body.style.cursor = 'auto'
     }
 
     window.addEventListener('pointerup', handlePointerUp)
     return () => window.removeEventListener('pointerup', handlePointerUp)
-  }, [dragState.isDragging, dragState.offset, stair, onUpdate])
+  }, [dragState.isDragging, dragState.offset, stair, onUpdate, onDragEnd])
 
   const start = stair.start
   const end = stair.end
@@ -513,6 +524,7 @@ export function StairsItem({
       startPoint: { x: e.point.x, z: e.point.z },
       offset: { x: 0, z: 0 }
     })
+    onDragStart?.()
     document.body.style.cursor = 'grabbing'
   }
 
