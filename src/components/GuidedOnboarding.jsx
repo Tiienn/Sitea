@@ -113,7 +113,7 @@ export default function GuidedOnboarding({ step, onStart, onComplete, onSkip, is
   // Step 4: Unlock — action buttons
   if (step === 4) {
     return (
-      <div className="fixed inset-0 z-[60] flex items-end justify-center pb-24 pointer-events-none">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
         <div className="panel-premium p-6 max-w-sm w-[90%] text-center pointer-events-auto animate-slide-in-bottom" style={{ boxShadow: '0 0 30px rgba(0,0,0,0.5), 0 0 15px var(--color-accent-glow)' }}>
           <p className="font-display font-semibold text-white text-base mb-1" style={{ fontFamily: 'var(--font-display)' }}>
             What would you like to do?

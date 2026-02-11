@@ -545,7 +545,7 @@ function App() {
   const [areaUnit, setAreaUnit] = useState('m²') // 'm²', 'ft²', 'acres', 'hectares'
   const [cameraState, setCameraState] = useState({ position: { x: 0, y: 1.7, z: 10 }, rotation: 0 })
   const [guidedStep, setGuidedStep] = useState(0) // 0=off, 1=welcome, 2=walk, 3=inside, 4=unlock
-  const isGuidedMode = guidedStep > 0 && guidedStep < 4
+  const isGuidedMode = guidedStep > 0
   const [userHasLand, setUserHasLand] = useState(false) // Will be set true when user defines their land
   const [isDefiningLand, setIsDefiningLand] = useState(false) // Shows land definition flow
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
@@ -2783,7 +2783,7 @@ function App() {
       </Suspense>
 
       {/* Minimap (hidden in 2D mode - redundant with top-down view) */}
-      {viewMode !== '2d' && (
+      {viewMode !== '2d' && !isGuidedMode && (
         <Minimap
           landWidth={dimensions.width}
           landLength={dimensions.length}
