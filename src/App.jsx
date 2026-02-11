@@ -3634,23 +3634,69 @@ function App() {
       {/* Grouped View Controls - top right */}
       {/* Mobile: settings icon + slide-up sheet */}
       {isMobile && !isGuidedMode && (
-        <div className={`absolute right-3 z-30 flex items-center gap-2 animate-fade-in ${isReadOnly ? 'top-20' : 'top-12'}`}>
-          <div className="panel-premium flex items-center rounded-xl p-1.5 gap-1">
-            {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
-              <button key={mode} onClick={() => setViewMode(mode)}
-                className={`px-5 py-2.5 text-base font-bold rounded-lg transition-all ${viewMode === mode ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)]'}`}
-              >{label}</button>
-            ))}
+        <div className={`absolute right-3 z-30 flex flex-col items-end gap-2 animate-fade-in ${isReadOnly ? 'top-20' : 'top-12'}`}>
+          <div className="flex items-center gap-2">
+            <div className="panel-premium flex items-center rounded-xl p-1.5 gap-1">
+              {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
+                <button key={mode} onClick={() => setViewMode(mode)}
+                  className={`px-5 py-2.5 text-base font-bold rounded-lg transition-all ${viewMode === mode ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)]'}`}
+                >{label}</button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowMobileViewControls(true)}
+              className="panel-premium p-3 rounded-xl"
+            >
+              <svg className="w-6 h-6 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
           </div>
-          <button
-            onClick={() => setShowMobileViewControls(true)}
-            className="panel-premium p-3 rounded-xl"
-          >
-            <svg className="w-6 h-6 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
+          {/* 1P sub-controls: 1st/3rd person toggle + distance */}
+          {viewMode === 'firstPerson' && (
+            <div className="panel-premium rounded-xl p-1.5 flex items-center gap-1">
+              <button
+                onClick={() => { setCameraMode(CAMERA_MODE.FIRST_PERSON); setFollowDistance(0) }}
+                className={`px-3 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  cameraMode === CAMERA_MODE.FIRST_PERSON
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
+                    : 'text-[var(--color-text-secondary)]'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                1st
+              </button>
+              <button
+                onClick={() => { setCameraMode(CAMERA_MODE.THIRD_PERSON); setFollowDistance(DEFAULT_TP_DISTANCE) }}
+                className={`px-3 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  cameraMode === CAMERA_MODE.THIRD_PERSON
+                    ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
+                    : 'text-[var(--color-text-secondary)]'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
+                </svg>
+                3rd
+              </button>
+              {cameraMode === CAMERA_MODE.THIRD_PERSON && (
+                <input
+                  type="range"
+                  min={2}
+                  max={15}
+                  step={0.5}
+                  value={followDistance}
+                  onChange={e => setFollowDistance(parseFloat(e.target.value))}
+                  className="w-16 h-6 accent-[var(--color-accent)]"
+                  title={`Distance: ${followDistance.toFixed(1)}m`}
+                />
+              )}
+            </div>
+          )}
         </div>
       )}
 

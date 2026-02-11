@@ -3714,7 +3714,7 @@ function TimeSlider({ timeOfDay, setTimeOfDay }) {
     <div style={{
       position: 'absolute',
       right: 12,
-      top: 182,
+      top: 248,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
