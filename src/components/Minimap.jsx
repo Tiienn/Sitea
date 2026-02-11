@@ -405,7 +405,7 @@ export default function Minimap({
   }, [landWidth, landLength, polygonPoints, placedBuildings, comparisonObjects, comparisonPositions, comparisonRotations, playerPosition, playerRotation, showDimensions, lengthUnit, walls, rooms, buildings])
 
   return (
-    <div className={`fixed z-40 animate-fade-in ${isMobile ? 'top-16 right-3' : 'bottom-20 right-4'}`}>
+    <div className={`fixed z-40 animate-fade-in ${isMobile ? 'top-28 right-3' : 'bottom-20 right-4'}`}>
       <div className="minimap-frame p-1">
       <canvas
         ref={canvasRef}

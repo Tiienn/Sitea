@@ -193,19 +193,22 @@ export function CameraController({
     }
 
     // Touch: look + pinch zoom
+    // Use targetTouches (touches on this element) not touches (all touches on page)
+    // so joystick finger doesn't interfere with camera look
     const onTouchStart = (e) => {
       if (!isTouchDevice.current || !enabled || orbitEnabled) return
       const target = e.target
       if (target.closest('.control-panel') || target.closest('.joystick-zone')) return
 
-      if (e.touches.length === 1) {
-        const touch = e.touches[0]
+      if (e.targetTouches.length === 1) {
+        const touch = e.targetTouches[0]
         lastTouch.current = { x: touch.clientX, y: touch.clientY }
         touchLookActive.current = true
-      } else if (e.touches.length === 2) {
-        // Start pinch
-        const dx = e.touches[0].clientX - e.touches[1].clientX
-        const dy = e.touches[0].clientY - e.touches[1].clientY
+      } else if (e.targetTouches.length === 2) {
+        // Start pinch — prevent native zoom
+        e.preventDefault()
+        const dx = e.targetTouches[0].clientX - e.targetTouches[1].clientX
+        const dy = e.targetTouches[0].clientY - e.targetTouches[1].clientY
         lastPinchDistance.current = Math.sqrt(dx * dx + dy * dy)
         touchLookActive.current = false
       }
@@ -214,24 +217,27 @@ export function CameraController({
     const onTouchMove = (e) => {
       if (!enabled || orbitEnabled) return
 
-      if (e.touches.length === 1 && touchLookActive.current) {
-        // Single finger: look
-        const touch = e.touches[0]
+      if (e.targetTouches.length === 1 && touchLookActive.current) {
+        // Single finger on canvas: look (update euler directly, same as mouse handler)
+        const touch = e.targetTouches[0]
         const deltaX = touch.clientX - lastTouch.current.x
         const deltaY = touch.clientY - lastTouch.current.y
 
-        euler.current.setFromQuaternion(camera.quaternion)
         euler.current.y -= deltaX * 0.003
         euler.current.x -= deltaY * 0.003
         euler.current.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.current.x))
-        camera.quaternion.setFromEuler(euler.current)
+
+        if (cameraMode === CAMERA_MODE.FIRST_PERSON) {
+          camera.quaternion.setFromEuler(euler.current)
+        }
         playerYaw.current = euler.current.y
 
         lastTouch.current = { x: touch.clientX, y: touch.clientY }
-      } else if (e.touches.length === 2) {
-        // Two fingers: pinch zoom
-        const dx = e.touches[0].clientX - e.touches[1].clientX
-        const dy = e.touches[0].clientY - e.touches[1].clientY
+      } else if (e.targetTouches.length === 2) {
+        // Two fingers on canvas: pinch zoom — prevent native zoom
+        e.preventDefault()
+        const dx = e.targetTouches[0].clientX - e.targetTouches[1].clientX
+        const dy = e.targetTouches[0].clientY - e.targetTouches[1].clientY
         const pinchDistance = Math.sqrt(dx * dx + dy * dy)
 
         if (lastPinchDistance.current > 0) {
@@ -276,8 +282,8 @@ export function CameraController({
     canvas.addEventListener('wheel', onWheel, { passive: false })
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('keyup', onKeyUp)
-    canvas.addEventListener('touchstart', onTouchStart, { passive: true })
-    canvas.addEventListener('touchmove', onTouchMove, { passive: true })
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
     canvas.addEventListener('touchend', onTouchEnd)
 
     // Note: Pointer lock must be triggered by user gesture (click), not on mount
