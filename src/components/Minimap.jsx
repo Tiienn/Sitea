@@ -17,7 +17,8 @@ export default function Minimap({
   walls = [],
   rooms = [],
   buildings = [],
-  isLandscape = false
+  isLandscape = false,
+  mobileTopOffset = null
 }) {
   const canvasRef = useRef(null)
   const [showDimensions, setShowDimensions] = useState(true)
@@ -405,7 +406,10 @@ export default function Minimap({
   }, [landWidth, landLength, polygonPoints, placedBuildings, comparisonObjects, comparisonPositions, comparisonRotations, playerPosition, playerRotation, showDimensions, lengthUnit, walls, rooms, buildings])
 
   return (
-    <div className={`fixed z-40 animate-fade-in ${isMobile ? 'top-28 right-3' : 'bottom-20 right-4'}`}>
+    <div
+      className={`fixed z-40 animate-fade-in transition-all duration-200 ${isMobile ? 'right-3' : 'bottom-20 right-4'}`}
+      style={isMobile && mobileTopOffset != null ? { top: mobileTopOffset } : isMobile ? { top: '7rem' } : undefined}
+    >
       <div className="minimap-frame p-1">
       <canvas
         ref={canvasRef}
