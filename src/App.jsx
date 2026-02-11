@@ -27,6 +27,8 @@ const LoadingFallback = () => (
 // These are lighter, load normally
 import Minimap from './components/Minimap'
 import Onboarding from './components/Onboarding'
+import GuidedOnboarding from './components/GuidedOnboarding'
+import { FSM_HOUSE_WALLS, FSM_LAND, FSM_CAMERA_START, FSM_HOUSE_BOUNDS } from './data/houseTemplate'
 import BuildPanel from './components/BuildPanel'
 import ComparePanel from './components/ComparePanel'
 import LandPanel from './components/LandPanel'
@@ -111,6 +113,7 @@ const COMPARISON_OBJECTS = [
   { id: 'soccerField', name: 'Soccer Field', width: 68, length: 105, color: '#228B22' },
   { id: 'basketballCourt', name: 'Basketball Court', width: 15, length: 28, color: '#CD853F' },
   { id: 'tennisCourt', name: 'Tennis Court', width: 10.97, length: 23.77, color: '#4169E1' },
+  { id: 'swimmingPool', name: 'Olympic Pool', width: 25, length: 50, color: '#00CED1' },
   // Buildings
   { id: 'house', name: 'House (10m×10m)', width: 10, length: 10, color: '#8B4513' },
   { id: 'studioApartment', name: 'Studio Apartment', width: 6, length: 7, color: '#9CA3AF' },
@@ -120,7 +123,6 @@ const COMPARISON_OBJECTS = [
   { id: 'schoolBus', name: 'School Bus', width: 2.6, length: 12, color: '#F7B500' },
   // Other
   { id: 'parkingSpace', name: 'Parking Space', width: 2.5, length: 5, color: '#696969' },
-  { id: 'swimmingPool', name: 'Olympic Pool', width: 25, length: 50, color: '#00CED1' },
   { id: 'kingSizeBed', name: 'King Size Bed', width: 2, length: 2.1, color: '#E8DCC8' },
   // Landmarks
   { id: 'eiffelTower', name: 'Eiffel Tower', width: 125, length: 125, color: '#8B7355' },
@@ -542,6 +544,8 @@ function App() {
   const [lengthUnit, setLengthUnit] = useState('m') // 'm' or 'ft'
   const [areaUnit, setAreaUnit] = useState('m²') // 'm²', 'ft²', 'acres', 'hectares'
   const [cameraState, setCameraState] = useState({ position: { x: 0, y: 1.7, z: 10 }, rotation: 0 })
+  const [guidedStep, setGuidedStep] = useState(0) // 0=off, 1=welcome, 2=walk, 3=inside, 4=unlock
+  const isGuidedMode = guidedStep > 0 && guidedStep < 4
   const [userHasLand, setUserHasLand] = useState(false) // Will be set true when user defines their land
   const [isDefiningLand, setIsDefiningLand] = useState(false) // Shows land definition flow
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
@@ -845,14 +849,16 @@ function App() {
   // Example mode: when user hasn't defined their own land
   const isExampleMode = !userHasLand
 
-  // Initialize walkthrough for first-time visitors
+  // Initialize guided mode for first-time visitors (FSM), or fallback to walkthrough
   useEffect(() => {
+    if (!localStorage.getItem('fsmCompleted') && !userHasLand && !isReadOnly) {
+      setGuidedStep(1)
+      return
+    }
+    // Legacy walkthrough for returning users who haven't seen intro
     if (!hasSeenIntro && isExampleMode) {
-      // Start walkthrough step 0 (movement prompt)
       setWalkthroughStep(0)
       setWalkthroughVisible(true)
-
-      // Auto-advance after 3 seconds if no movement
       walkthroughTimerRef.current = setTimeout(() => {
         advanceWalkthrough()
       }, 3000)
@@ -893,6 +899,53 @@ function App() {
       }, 3000)
       return next
     })
+  }
+
+  // Guided mode: detect when player walks inside the house
+  useEffect(() => {
+    if (guidedStep !== 2) return
+    const { x, z } = cameraState.position
+    if (x > FSM_HOUSE_BOUNDS.minX && x < FSM_HOUSE_BOUNDS.maxX &&
+        z > FSM_HOUSE_BOUNDS.minZ && z < FSM_HOUSE_BOUNDS.maxZ) {
+      setGuidedStep(3)
+    }
+  }, [guidedStep, cameraState.position])
+
+  // Guided mode: "Start Walkthrough" handler
+  const startGuidedFlow = useCallback(() => {
+    setDimensions({ length: FSM_LAND.length, width: FSM_LAND.width })
+    setShapeMode('rectangle')
+    setConfirmedPolygon(null)
+    clearWallsHistory(FSM_HOUSE_WALLS)
+    setUserHasLand(true)
+    setViewMode('firstPerson')
+    setGuidedStep(2)
+  }, [clearWallsHistory])
+
+  // Guided mode: Step 4 action handler
+  const handleGuidedComplete = (action) => {
+    if (action === 'auto') {
+      // Step 3 → Step 4 auto-advance
+      setGuidedStep(4)
+      return
+    }
+    localStorage.setItem('fsmCompleted', 'true')
+    setGuidedStep(0)
+    setHasSeenIntro(true)
+    localStorage.setItem('landVisualizerIntroSeen', 'true')
+    if (action === 'edit') {
+      setActivePanel('build')
+    } else if (action === 'upload') {
+      setShowUploadModal(true)
+    } else if (action === 'land') {
+      startDefiningLand()
+    }
+  }
+
+  // Guided mode: skip handler
+  const handleSkipGuided = () => {
+    localStorage.setItem('fsmCompleted', 'true')
+    setGuidedStep(0)
   }
 
   // Set example land with soccer field comparison on mount (if no user land)
@@ -2546,13 +2599,29 @@ function App() {
       )}
 
       {/* Land definition flow (non-blocking until user clicks Define) */}
-      {isDefiningLand && (
+      {isDefiningLand && !isGuidedMode && (
         <Onboarding
           onComplete={handleLandDefined}
           onCancel={() => setIsDefiningLand(false)}
+          onDetectedFloorPlan={(imageData) => {
+            setIsDefiningLand(false)
+            setFloorPlanImageForGenerator(imageData)
+            setShowFloorPlanGenerator(true)
+          }}
           lengthUnit={lengthUnit}
           setLengthUnit={setLengthUnit}
           isTouchDevice={isTouchDevice}
+        />
+      )}
+
+      {/* Guided onboarding overlay (first-time users) */}
+      {guidedStep > 0 && (
+        <GuidedOnboarding
+          step={guidedStep}
+          onStart={startGuidedFlow}
+          onComplete={handleGuidedComplete}
+          onSkip={handleSkipGuided}
+          isMobile={isMobile}
         />
       )}
 
@@ -2561,6 +2630,7 @@ function App() {
           length={dimensions.length}
           width={dimensions.width}
           isExploring={isExploring && !selectedBuilding}
+          initialCameraPosition={guidedStep >= 2 ? FSM_CAMERA_START : null}
         comparisonObjects={COMPARISON_OBJECTS.filter(obj => activeComparisons[obj.id])}
         polygonPoints={(shapeMode === 'polygon' || shapeMode === 'upload') ? confirmedPolygon : null}
         placedBuildings={placedBuildings}
@@ -2966,7 +3036,7 @@ function App() {
         isLandscape
           ? "fixed left-0 top-0 bottom-0 w-12 z-50 ribbon-nav landscape-nav flex flex-col"
           : "fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up safe-area-bottom"
-      }>
+      } style={isGuidedMode ? { display: 'none' } : undefined}>
         <div className={
           isLandscape
             ? "flex flex-col items-center justify-center gap-1 flex-1 py-2"
@@ -3321,10 +3391,10 @@ function App() {
       )}
 
       {/* Primary CTA Card - top left, shifts right when sidebar open */}
-      {!isReadOnly && !isDefiningLand && (
+      {!isReadOnly && !isDefiningLand && !isGuidedMode && (
         isMobile ? (
-          /* Mobile: compact collapsible version */
-          <div className={`absolute top-4 z-50 ${isLandscape ? 'left-16' : 'left-4'}`}>
+          /* Mobile: compact collapsible version, hidden when side panel is open */
+          !activePanel && <div className={`absolute top-12 z-50 ${isLandscape ? 'left-16' : 'left-4'}`}>
             <button
               onClick={() => setMobileCtaExpanded(!mobileCtaExpanded)}
               className="panel-premium p-4 text-white animate-fade-in"
@@ -3397,7 +3467,7 @@ function App() {
       )}
 
       {/* Non-blocking walkthrough hint (first visit only) */}
-      {!hasSeenIntro && isExampleMode && !isDefiningLand && walkthroughStep === 0 && (
+      {!hasSeenIntro && isExampleMode && !isDefiningLand && !isGuidedMode && walkthroughStep === 0 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 panel-premium py-3 z-40 animate-gentle-pulse" style={{ padding: '12px 32px' }}>
           <p className="text-[var(--color-text-primary)] text-sm font-medium">
             {isTouchDevice ? 'Use joystick to explore' : 'Use WASD to explore'}
@@ -3407,7 +3477,7 @@ function App() {
       )}
 
       {/* Help text - top-center pill with auto-fade */}
-      {!isDefiningLand && !isReadOnly && helpTextVisible && (
+      {!isDefiningLand && !isReadOnly && !isGuidedMode && helpTextVisible && (
         <div
           className="absolute top-4 left-1/2 -translate-x-1/2 z-30 rounded-full pointer-events-none animate-fade-in"
           style={{
@@ -3563,8 +3633,8 @@ function App() {
 
       {/* Grouped View Controls - top right */}
       {/* Mobile: settings icon + slide-up sheet */}
-      {isMobile && (
-        <div className={`absolute right-3 z-30 flex items-center gap-2 animate-fade-in ${isReadOnly ? 'top-14' : 'top-3'}`}>
+      {isMobile && !isGuidedMode && (
+        <div className={`absolute right-3 z-30 flex items-center gap-2 animate-fade-in ${isReadOnly ? 'top-20' : 'top-12'}`}>
           <div className="panel-premium flex items-center rounded-xl p-1.5 gap-1">
             {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
               <button key={mode} onClick={() => setViewMode(mode)}
@@ -3621,7 +3691,7 @@ function App() {
       )}
 
       {/* Desktop: always-visible view controls */}
-      {!isMobile && (
+      {!isMobile && !isGuidedMode && (
       <div className={`absolute right-4 panel-premium text-white overflow-hidden animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}>
         <div className="px-4 py-3 space-y-3">
           <div className="space-y-2">
@@ -3711,7 +3781,7 @@ function App() {
       )}
 
       {/* Compass overlay - positioned below view controls */}
-      {labels.orientation && (
+      {labels.orientation && !isGuidedMode && (
         <div className={`absolute right-4 panel-premium w-14 h-14 flex items-center justify-center animate-fade-in ${isReadOnly ? 'top-44' : 'top-40'}`}>
           <div
             className="relative w-10 h-10"

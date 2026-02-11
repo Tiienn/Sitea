@@ -318,13 +318,13 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
 
 // Lighting interpolation table for day/night cycle
 const LIGHT_STOPS = [
-  { t: 0.0,  sunY: -50, sunInt: 0.0, sunCol: [0,0,0],           ambInt: 0.12, ambCol: [0.133,0.200,0.333], fogCol: [0.039,0.082,0.125] },
+  { t: 0.0,  sunY: 40,  sunInt: 0.4, sunCol: [0.450,0.550,0.750], ambInt: 0.9, ambCol: [0.250,0.300,0.450], fogCol: [0.085,0.130,0.200] },
   { t: 0.2,  sunY: 20,  sunInt: 0.4, sunCol: [1.0,0.6,0.4],     ambInt: 0.25, ambCol: [0.533,0.467,0.400], fogCol: [0.753,0.502,0.376] },
   { t: 0.35, sunY: 120, sunInt: 1.4, sunCol: [1.0,0.976,0.940], ambInt: 0.45, ambCol: [0.941,0.961,1.0],   fogCol: [0.753,0.831,0.878] },
   { t: 0.5,  sunY: 150, sunInt: 1.5, sunCol: [1.0,1.0,1.0],     ambInt: 0.5,  ambCol: [0.941,0.961,1.0],   fogCol: [0.722,0.831,0.910] },
   { t: 0.7,  sunY: 30,  sunInt: 0.8, sunCol: [1.0,0.533,0.267], ambInt: 0.3,  ambCol: [0.667,0.533,0.400], fogCol: [0.784,0.565,0.408] },
-  { t: 0.85, sunY: -10, sunInt: 0.1, sunCol: [0.333,0.200,0.267],ambInt: 0.15, ambCol: [0.200,0.267,0.333], fogCol: [0.102,0.145,0.251] },
-  { t: 1.0,  sunY: -50, sunInt: 0.0, sunCol: [0,0,0],           ambInt: 0.12, ambCol: [0.133,0.200,0.333], fogCol: [0.039,0.082,0.125] },
+  { t: 0.85, sunY: -10, sunInt: 0.2, sunCol: [0.350,0.300,0.400],ambInt: 0.45, ambCol: [0.230,0.270,0.400], fogCol: [0.102,0.145,0.251] },
+  { t: 1.0,  sunY: 40,  sunInt: 0.4, sunCol: [0.450,0.550,0.750], ambInt: 0.9, ambCol: [0.250,0.300,0.450], fogCol: [0.085,0.130,0.200] },
 ]
 
 function lerpLightValue(time, key) {
@@ -345,11 +345,11 @@ function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sun
   const isPaused = useRef(false)
 
   useFrame((_, delta) => {
-    // Auto-cycle: ~10 min per full cycle, only for paid users in 3D
+    // Auto-cycle: ~1 hour per full cycle, only for paid users in 3D
     if (isPaidUser && viewMode !== '2d' && !isPaused.current) {
-      // 600s cycle → delta/600 per frame
+      // 3600s cycle → delta/3600 per frame
       setTimeOfDay(prev => {
-        const next = prev + delta / 600
+        const next = prev + delta / 3600
         return next >= 1 ? next - 1 : next
       })
     }
@@ -390,7 +390,7 @@ function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sun
   return null
 }
 
-function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, roofs = [], addRoof, deleteRoof, roofType = 'gable', roofPitch = 30, selectedRoofId = null, setSelectedRoofId, setRoofPropertiesOpen, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false }) {
+function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, roofs = [], addRoof, deleteRoof, roofType = 'gable', roofPitch = 30, selectedRoofId = null, setSelectedRoofId, setRoofPropertiesOpen, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null }) {
   const { camera, gl } = useThree()
   const [previewPos, setPreviewPos] = useState(null)
   const qualitySettings = QUALITY_SETTINGS[quality]
@@ -2261,6 +2261,14 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     if (cameraInitialized.current) return
     cameraInitialized.current = true
 
+    // Guided mode: override camera position to face the house entrance
+    if (initialCameraPosition) {
+      const { position, lookAt } = initialCameraPosition
+      camera.position.set(position.x, position.y, position.z)
+      camera.lookAt(lookAt.x, lookAt.y, lookAt.z)
+      return
+    }
+
     // Position camera inside land boundary, facing forward with good visibility
     // Camera height: 1.65m (eye level), positioned ~2.5m inside boundary
     if (polygonPoints && polygonPoints.length >= 3) {
@@ -3627,51 +3635,132 @@ function formatTimeLabel(t) {
   return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`
 }
 
-// Pro-only time-of-day slider (rendered outside Canvas as plain HTML)
+// Pro-only time-of-day slider — collapsible button on mobile, always-visible on desktop
 function TimeSlider({ timeOfDay, setTimeOfDay }) {
-  const icon = timeOfDay > 0.25 && timeOfDay < 0.75 ? '\u2600' : '\uD83C\uDF19'
+  const [open, setOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const isNight = timeOfDay < 0.15 || timeOfDay > 0.85
 
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  const sunIcon = (size) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  )
+  const moonIcon = (size) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+    </svg>
+  )
+
+  const slider = (sliderWidth) => (
+    <input
+      type="range"
+      min={0}
+      max={1}
+      step={0.001}
+      value={timeOfDay}
+      onChange={e => setTimeOfDay(parseFloat(e.target.value))}
+      style={{
+        width: sliderWidth,
+        cursor: 'pointer',
+        accentColor: '#f59e0b',
+        writingMode: 'vertical-lr',
+        direction: 'rtl',
+      }}
+    />
+  )
+
+  // Desktop: always-visible slider
+  if (!isMobile) {
+    return (
+      <div style={{
+        position: 'absolute',
+        right: 16,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        background: 'rgba(0,0,0,0.5)',
+        borderRadius: 20,
+        padding: '12px 6px',
+        color: '#fff',
+        fontSize: 13,
+        pointerEvents: 'auto',
+        zIndex: 10,
+        userSelect: 'none',
+      }}>
+        {sunIcon(16)}
+        {slider(100)}
+        {moonIcon(16)}
+      </div>
+    )
+  }
+
+  // Mobile: toggle button + dropdown, positioned below minimap
   return (
     <div style={{
       position: 'absolute',
-      right: 16,
-      top: '50%',
-      transform: 'translateY(-50%)',
+      right: 12,
+      top: 182,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      gap: 6,
-      background: 'rgba(0,0,0,0.5)',
-      borderRadius: 20,
-      padding: '12px 6px',
-      color: '#fff',
-      fontSize: 13,
       pointerEvents: 'auto',
       zIndex: 10,
       userSelect: 'none',
     }}>
-      <span style={{ fontSize: 16 }}>☀️</span>
-      <input
-        type="range"
-        min={0}
-        max={1}
-        step={0.001}
-        value={timeOfDay}
-        onChange={e => setTimeOfDay(parseFloat(e.target.value))}
+      <button
+        onClick={() => setOpen(prev => !prev)}
         style={{
-          width: 100,
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          border: 'none',
+          background: open ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.5)',
           cursor: 'pointer',
-          accentColor: '#f59e0b',
-          writingMode: 'vertical-lr',
-          direction: 'rtl',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 0,
         }}
-      />
-      <span style={{ fontSize: 16 }}>🌙</span>
+      >
+        {isNight ? moonIcon(16) : sunIcon(16)}
+      </button>
+
+      {open && (
+        <div style={{
+          marginTop: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 3,
+          background: 'rgba(0,0,0,0.5)',
+          borderRadius: 14,
+          padding: '6px 3px',
+        }}>
+          {sunIcon(11)}
+          {slider(70)}
+          {moonIcon(11)}
+        </div>
+      )}
     </div>
   )
 }
 
-export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, roofs = [], addRoof, deleteRoof, roofType = 'gable', roofPitch = 30, selectedRoofId = null, setSelectedRoofId, setRoofPropertiesOpen, canvasRef, sceneRef, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false }) {
+export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, roofs = [], addRoof, deleteRoof, roofType = 'gable', roofPitch = 30, selectedRoofId = null, setSelectedRoofId, setRoofPropertiesOpen, canvasRef, sceneRef, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null }) {
   const qualitySettings = QUALITY_SETTINGS[quality]
 
   // NPC dialog state - lifted to wrapper so dialog renders outside Canvas
@@ -3861,6 +3950,7 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         timeOfDay={timeOfDay}
         setTimeOfDay={setTimeOfDay}
         isPaidUser={isPaidUser}
+        initialCameraPosition={initialCameraPosition}
         />
       </Canvas>
     </Canvas3DErrorBoundary>
