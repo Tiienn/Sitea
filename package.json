@@ -7,10 +7,20 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android",
+    "cap:build": "npm run build && npx cap sync",
+    "postinstall": "node -e \"const fs=require('fs');const f='node_modules/@capacitor/app/android/build.gradle';if(fs.existsSync(f)){let c=fs.readFileSync(f,'utf8');c=c.replace(\\\"proguard-android.txt\\\",\\\"proguard-android-optimize.txt\\\");fs.writeFileSync(f,c)}\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
+    "@capacitor/ios": "^8.0.2",
     "@paypal/react-paypal-js": "^8.9.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",

@@ -91,12 +91,13 @@ RULES:
 - All vertices must be INSIDE or ON the border of the colored region
 - Coordinates are pixels from top-left: x ranges 0 to ${width || 'image width'}, y ranges 0 to ${height || 'image height'}
 - List vertices clockwise
-- For scale: read a dimension label, measure that edge in pixels, compute pixelsPerMeter
+- For dimensions: read any dimension labels on the edges (e.g. "21.45m", "15.30", "50ft"). For each label, identify which two boundary vertices it connects (use 0-based indices matching the boundary array order). Do NOT try to measure pixel distances — just read the text labels.
 
 Return ONLY this JSON, nothing else:
 {
   "boundary": [{ "x": NUMBER, "y": NUMBER }],
-  "scale": { "pixelsPerMeter": NUMBER_OR_NULL, "confidence": NUMBER_0_TO_1, "referenceDistance": "STRING_OR_NULL" },
+  "dimensions": [{ "fromVertex": INDEX, "toVertex": INDEX, "label": "TEXT_VALUE", "unit": "m_OR_ft_OR_unknown" }],
+  "scale": null,
   "imageSize": { "width": ${width || 0}, "height": ${height || 0} }
 }`
           }
@@ -125,7 +126,7 @@ Return ONLY this JSON, nothing else:
 
     console.log('[SitePlan API] Analysis:', {
       boundaryPoints: result.boundary.length,
-      hasScale: !!result.scale?.pixelsPerMeter,
+      dimensions: result.dimensions?.length || 0,
     });
 
     return res.status(200).json(result);

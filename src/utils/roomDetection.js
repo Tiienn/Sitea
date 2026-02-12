@@ -20,8 +20,8 @@ export function detectRooms(walls, options = {}) {
 
   // Filter to only actual user-drawn walls (not land boundary segments)
   const validWalls = walls.filter(wall => {
-    // Must have wall ID format
-    if (!wall.id || !wall.id.startsWith('wall-')) return false
+    // Must have wall ID format (user-drawn 'wall-' or preset 'fsm-')
+    if (!wall.id || !(wall.id.startsWith('wall-') || wall.id.startsWith('fsm-'))) return false
     // Must have valid start/end points
     if (!wall.start || !wall.end) return false
     return true
@@ -307,6 +307,65 @@ export function isPointInPolygon(point, polygon) {
 }
 
 /**
+ * BFS from a set of starting wall IDs to find all walls connected through shared endpoints
+ * @param {Array} startingWallIds - Wall IDs to start from (e.g. one room's walls)
+ * @param {Array} allWalls - All wall objects in the scene
+ * @param {number} threshold - Distance threshold for endpoint matching (default 0.3m)
+ * @returns {Array} Array of all connected wall IDs
+ */
+export function findConnectedWalls(startingWallIds, allWalls, threshold = 0.3) {
+  // Filter to valid walls only
+  const validWalls = allWalls.filter(w =>
+    w.id && (w.id.startsWith('wall-') || w.id.startsWith('fsm-')) && w.start && w.end
+  )
+
+  const visited = new Set(startingWallIds)
+  const queue = [...startingWallIds]
+
+  while (queue.length > 0) {
+    const wallId = queue.shift()
+    const wall = validWalls.find(w => w.id === wallId)
+    if (!wall) continue
+
+    for (const other of validWalls) {
+      if (visited.has(other.id)) continue
+
+      // Check endpoint-to-endpoint OR endpoint-on-segment (T-junctions)
+      const connected =
+        dist2D(wall.start, other.start) < threshold ||
+        dist2D(wall.start, other.end) < threshold ||
+        dist2D(wall.end, other.start) < threshold ||
+        dist2D(wall.end, other.end) < threshold ||
+        pointOnSegment(other.start, wall.start, wall.end, threshold) ||
+        pointOnSegment(other.end, wall.start, wall.end, threshold) ||
+        pointOnSegment(wall.start, other.start, other.end, threshold) ||
+        pointOnSegment(wall.end, other.start, other.end, threshold)
+
+      if (connected) {
+        visited.add(other.id)
+        queue.push(other.id)
+      }
+    }
+  }
+
+  return [...visited]
+}
+
+function dist2D(a, b) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.z - b.z) ** 2)
+}
+
+/** Check if point p is on segment from a to b (within threshold) */
+function pointOnSegment(p, a, b, threshold) {
+  const lenSq = (b.x - a.x) ** 2 + (b.z - a.z) ** 2
+  if (lenSq === 0) return dist2D(p, a) < threshold
+  // Project p onto line ab, clamped to [0,1]
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.z - a.z) * (b.z - a.z)) / lenSq))
+  const proj = { x: a.x + t * (b.x - a.x), z: a.z + t * (b.z - a.z) }
+  return dist2D(p, proj) < threshold
+}
+
+/**
  * Find wall IDs that form a room's boundary
  * Matches walls whose endpoints align with consecutive room vertices
  * @param {Object} room - Room object with points array
@@ -326,7 +385,7 @@ export function findWallsForRoom(room, walls) {
 
     // Find wall that matches this edge
     for (const wall of walls) {
-      if (!wall.id?.startsWith('wall-')) continue
+      if (!wall.id?.startsWith('wall-') && !wall.id?.startsWith('fsm-')) continue
 
       // Check if wall matches edge in either direction
       const matchForward = (

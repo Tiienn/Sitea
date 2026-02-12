@@ -14,9 +14,11 @@ export function PoolItem({
   pool,
   isSelected,
   isDeleteMode,
+  isRotateMode,
   onDelete,
   onUpdate,
   onSelect,
+  onRotateStart,
   onOpenProperties,
   onDragStart,
   onDragEnd
@@ -91,6 +93,11 @@ export function PoolItem({
 
     if (isDeleteMode) {
       onDelete?.(pool.id)
+      return
+    }
+
+    if (isRotateMode) {
+      onRotateStart?.('pool', pool.id, e.point)
       return
     }
 
@@ -239,9 +246,11 @@ export function FoundationItem({
   foundation,
   isSelected,
   isDeleteMode,
+  isRotateMode,
   onDelete,
   onUpdate,
   onSelect,
+  onRotateStart,
   onOpenProperties,
   onDragStart,
   onDragEnd
@@ -337,6 +346,11 @@ export function FoundationItem({
       return
     }
 
+    if (isRotateMode) {
+      onRotateStart?.('foundation', foundation.id, e.point)
+      return
+    }
+
     // Manual double-click detection
     const now = Date.now()
     const timeSinceLastClick = now - clickTracker.current.lastClickTime
@@ -423,9 +437,11 @@ export function StairsItem({
   stair,
   isSelected,
   isDeleteMode,
+  isRotateMode,
   onDelete,
   onUpdate,
   onSelect,
+  onRotateStart,
   onOpenProperties,
   onDragStart,
   onDragEnd
@@ -502,6 +518,11 @@ export function StairsItem({
 
     if (isDeleteMode) {
       onDelete?.(stair.id)
+      return
+    }
+
+    if (isRotateMode) {
+      onRotateStart?.('stairs', stair.id, e.point)
       return
     }
 

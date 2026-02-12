@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useThree } from '@react-three/fiber'
 import { Text, Billboard, Line } from '@react-three/drei'
 import { FEET_PER_METER } from '../../constants/landSceneConstants'
 import { createWallTexture } from '../../utils/textureGenerators'
@@ -8,8 +9,9 @@ import { createWallTexture } from '../../utils/textureGenerators'
  * Supports both 2D (floor plan view) and 3D rendering modes
  * Handles regular walls and various fence styles
  */
-export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelected = false, onSelect, isDeleteMode = false, onDelete, isOpeningMode = false, openingType = 'door', onPlaceOpening, showDimensions = true, roomMoveDragState, wallColor, onOpenProperties, floorYOffset = 0, isInactiveFloor = false }) {
+export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelected = false, onSelect, isDeleteMode = false, onDelete, isOpeningMode = false, openingType = 'door', onPlaceOpening, showDimensions = true, roomMoveDragState, wallColor, onOpenProperties, floorYOffset = 0, isInactiveFloor = false, onOpeningDragStart, isDrawingTool = false, onDrawingClick }) {
   const [isHovered, setIsHovered] = useState(false)
+  const { gl } = useThree()
   const { start: rawStart, end: rawEnd, height = 2.7, thickness = 0.15, openings = [] } = wall
   const is2D = viewMode === '2d'
 
@@ -146,7 +148,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
       if (fenceStyle === 'privacy') {
         return (
           <group>
-            <mesh position={[midX, 0.1, midZ]} rotation={[-Math.PI / 2, 0, -angle]}>
+            <mesh position={[midX, 0.1, midZ]} rotation={[-Math.PI / 2, 0, angle]}>
               <planeGeometry args={[0.04, wallLength]} />
               <meshBasicMaterial color={fenceColor} />
             </mesh>
@@ -200,7 +202,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
 
     return (
       <group>
-        {segments.map((seg, i) => {
+        {segments.filter(seg => seg.bottomY === 0 && seg.topY === height).map((seg, i) => {
           const segLength = seg.endDist - seg.startDist
           const centerDist = (seg.startDist + seg.endDist) / 2
           const pos = getWorldPos(centerDist)
@@ -208,7 +210,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
             <mesh
               key={i}
               position={[pos.x, 0.1, pos.z]}
-              rotation={[-Math.PI / 2, 0, -angle]}
+              rotation={[-Math.PI / 2, 0, angle]}
             >
               <planeGeometry args={[thickness * 2, segLength]} />
               <meshBasicMaterial color="#ffffff" />
@@ -227,7 +229,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
           // Sliding door: show two overlapping panels
           if (dType === 'sliding') {
             return (
-              <group key={`door2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+              <group key={`door2d-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
                 {/* Fixed panel (left) */}
                 <Line points={[[0.05, 0.12, -halfWidth], [0.05, 0.12, 0]]} color="#00ffff" lineWidth={2} />
                 {/* Sliding panel (right, slightly offset) */}
@@ -241,7 +243,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
           // Garage door: show sectional rectangle with lines
           if (dType === 'garage') {
             return (
-              <group key={`door2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+              <group key={`door2d-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
                 {/* Garage door outline */}
                 <Line points={[[-0.15, 0.12, -halfWidth], [-0.15, 0.12, halfWidth], [0.15, 0.12, halfWidth], [0.15, 0.12, -halfWidth], [-0.15, 0.12, -halfWidth]]} color="#00ffff" lineWidth={2} />
                 {/* Section lines (3 horizontal lines) */}
@@ -251,64 +253,107 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
             )
           }
 
-          // Double door: two swing arcs forming butterfly pattern (from center outward)
+          // Double door: two swing arcs (arc from center edge sweeps to meet leaf tip)
           if (dType === 'double') {
             const leafWidth = doorWidth / 2
             const leftArcPoints = []
             const rightArcPoints = []
             for (let i = 0; i <= arcSegments; i++) {
               const a = (i / arcSegments) * (Math.PI / 2)
-              // Left arc: hinge at -halfWidth, swings outward (negative X direction)
-              leftArcPoints.push([-Math.sin(a) * leafWidth, 0.12, -halfWidth + (1 - Math.cos(a)) * leafWidth])
-              // Right arc: hinge at +halfWidth, swings outward (negative X direction)
-              rightArcPoints.push([-Math.sin(a) * leafWidth, 0.12, halfWidth - (1 - Math.cos(a)) * leafWidth])
+              // Left arc: centered at hinge (-halfWidth), from center (0) sweeping to open position
+              leftArcPoints.push([-Math.sin(a) * leafWidth, 0.12, -halfWidth + Math.cos(a) * leafWidth])
+              // Right arc: centered at hinge (+halfWidth), from center (0) sweeping to open position
+              rightArcPoints.push([-Math.sin(a) * leafWidth, 0.12, halfWidth - Math.cos(a) * leafWidth])
             }
             return (
-              <group key={`door2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+              <group key={`door2d-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
                 {/* Left door swing arc */}
                 <Line points={leftArcPoints} color="#00ffff" lineWidth={1} />
                 {/* Right door swing arc */}
                 <Line points={rightArcPoints} color="#00ffff" lineWidth={1} />
-                {/* Left door leaf (closed position) */}
-                <Line points={[[0, 0.12, -halfWidth], [0, 0.12, 0]]} color="#00ffff" lineWidth={2} />
-                {/* Right door leaf (closed position) */}
-                <Line points={[[0, 0.12, 0], [0, 0.12, halfWidth]]} color="#00ffff" lineWidth={2} />
+                {/* Left door leaf (open position - perpendicular from hinge) */}
+                <Line points={[[0, 0.12, -halfWidth], [-leafWidth, 0.12, -halfWidth]]} color="#00ffff" lineWidth={2} />
+                {/* Right door leaf (open position - perpendicular from hinge) */}
+                <Line points={[[0, 0.12, halfWidth], [-leafWidth, 0.12, halfWidth]]} color="#00ffff" lineWidth={2} />
               </group>
             )
           }
 
-          // Single door: one swing arc (hinge at left edge, swings outward)
+          // Single door: arc from latch edge sweeps to meet leaf tip at open position
           const arcPoints = []
           for (let i = 0; i <= arcSegments; i++) {
             const a = (i / arcSegments) * (Math.PI / 2)
-            // Hinge at -halfWidth, door swings outward (negative X direction)
-            arcPoints.push([-Math.sin(a) * doorWidth, 0.12, -halfWidth + (1 - Math.cos(a)) * doorWidth])
+            // Arc centered at hinge (-halfWidth), from latch edge (+halfWidth) to open position
+            arcPoints.push([-Math.sin(a) * doorWidth, 0.12, -halfWidth + Math.cos(a) * doorWidth])
           }
           return (
-            <group key={`door2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+            <group key={`door2d-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
               {/* Door swing arc */}
               <Line points={arcPoints} color="#00ffff" lineWidth={1} />
-              {/* Door leaf (closed position - spans full opening) */}
-              <Line points={[[0, 0.12, -halfWidth], [0, 0.12, halfWidth]]} color="#00ffff" lineWidth={2} />
+              {/* Door leaf (open position - perpendicular from hinge) */}
+              <Line points={[[0, 0.12, -halfWidth], [-doorWidth, 0.12, -halfWidth]]} color="#00ffff" lineWidth={2} />
             </group>
           )
         })}
 
-        {/* 2D Window symbols (perpendicular lines) */}
+        {/* 2D Window symbols (parallel lines across opening) */}
         {openings.filter(o => o.type === 'window').map(opening => {
           const pos = getWorldPos(opening.position)
           const halfWidth = (opening.width || 1.2) / 2
           return (
-            <group key={`window2d-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
-              {/* Two short perpendicular lines at window edges */}
-              <Line points={[[-0.15, 0.12, -halfWidth], [0.15, 0.12, -halfWidth]]} color="#00ffff" lineWidth={1} />
-              <Line points={[[-0.15, 0.12, halfWidth], [0.15, 0.12, halfWidth]]} color="#00ffff" lineWidth={1} />
+            <group key={`window2d-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+              {/* Two parallel lines spanning the window opening */}
+              <Line points={[[0.05, 0.12, -halfWidth], [0.05, 0.12, halfWidth]]} color="#00ffff" lineWidth={2} />
+              <Line points={[[-0.05, 0.12, -halfWidth], [-0.05, 0.12, halfWidth]]} color="#00ffff" lineWidth={2} />
+              {/* Perpendicular end marks */}
+              <Line points={[[-0.1, 0.12, -halfWidth], [0.1, 0.12, -halfWidth]]} color="#00ffff" lineWidth={1} />
+              <Line points={[[-0.1, 0.12, halfWidth], [0.1, 0.12, halfWidth]]} color="#00ffff" lineWidth={1} />
             </group>
           )
         })}
 
-        {/* Dimension label */}
-        {showDimensions && (
+        {/* 2D Opening drag hit areas (invisible meshes for pointer events) */}
+        {onOpeningDragStart && openings.map((opening, openingIndex) => {
+          const pos = getWorldPos(opening.position)
+          const halfWidth = (opening.width || 0.9) / 2
+          return (
+            <mesh
+              key={`opening-hit-${opening.id ?? openingIndex}`}
+              position={[pos.x, 0.15, pos.z]}
+              rotation={[-Math.PI / 2, 0, angle]}
+              onPointerOver={(e) => { e.stopPropagation(); gl.domElement.style.cursor = 'grab' }}
+              onPointerOut={() => { gl.domElement.style.cursor = 'crosshair' }}
+              onPointerDown={(e) => {
+                e.stopPropagation()
+                gl.domElement.style.cursor = 'grabbing'
+                onOpeningDragStart(wall.id, openingIndex, opening.width || 0.9)
+              }}
+            >
+              <planeGeometry args={[0.6, halfWidth * 2 + 0.2]} />
+              <meshBasicMaterial transparent opacity={0} />
+            </mesh>
+          )
+        })}
+
+        {/* Dimension label - offset perpendicular to wall so it doesn't overlap */}
+        {showDimensions && is2D && (() => {
+          // Pick the normal that points outward (away from origin)
+          const nX = -dirZ, nZ = dirX
+          const outward = (nX * midX + nZ * midZ) >= 0 ? 1 : -1
+          return (
+            <Text
+              position={[midX + nX * outward * 0.6, 0.2, midZ + nZ * outward * 0.6]}
+              rotation={[-Math.PI / 2, 0, 0]}
+              fontSize={0.5}
+              color="#00ffff"
+              anchorX="center"
+              anchorY="middle"
+            >
+              {lengthLabel}
+            </Text>
+          )
+        })()}
+        {showDimensions && !is2D && (
           <Text
             position={[midX, 0.2, midZ]}
             rotation={[-Math.PI / 2, 0, 0]}
@@ -340,6 +385,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
 
     // Common click handler for all fence parts
     const handleClick = (e) => {
+      if (isDrawingTool) { onDrawingClick?.(e); return }
       e.stopPropagation()
       if (isDeleteMode && onDelete) onDelete()
       else if (onSelect) onSelect()
@@ -579,6 +625,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
             castShadow
             receiveShadow
             onClick={(e) => {
+              if (isDrawingTool) { onDrawingClick?.(e); return }
               e.stopPropagation()
               if (isDeleteMode && onDelete) {
                 onDelete()
@@ -640,7 +687,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
           const panelWidth = doorWidth / 2
           const glassFrameThick = 0.03
           return (
-            <group key={`door-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+            <group key={`door-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
               {/* Frame - left */}
               <mesh position={[0, doorHeight / 2, -doorWidth / 2 - frameThickness / 2]} castShadow>
                 <boxGeometry args={[frameDepth, doorHeight, frameThickness]} />
@@ -712,7 +759,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
           const sectionCount = 4
           const sectionHeight = doorHeight / sectionCount
           return (
-            <group key={`door-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+            <group key={`door-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
               {/* Frame - left */}
               <mesh position={[0, doorHeight / 2, -doorWidth / 2 - frameThickness / 2]} castShadow>
                 <boxGeometry args={[frameDepth, doorHeight, frameThickness]} />
@@ -749,7 +796,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
         // Single or Double door: wood frame
         const isDoubleDoor = dType === 'double'
         return (
-          <group key={`door-${opening.id}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
+          <group key={`door-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
             {/* Left frame */}
             <mesh position={[0, doorHeight / 2, -doorWidth / 2 - frameThickness / 2]} castShadow>
               <boxGeometry args={[frameDepth, doorHeight, frameThickness]} />
@@ -786,7 +833,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
         const frameThick = 0.04
         const frameDepth = 0.06
         return (
-          <group key={`window-${opening.id}`} position={[pos.x, windowCenterY, pos.z]} rotation={[0, angle, 0]}>
+          <group key={`window-${opening.id ?? opening.position}`} position={[pos.x, windowCenterY, pos.z]} rotation={[0, angle, 0]}>
             {/* Glass pane - highly transparent */}
             <mesh rotation={[0, Math.PI / 2, 0]} renderOrder={2}>
               <planeGeometry args={[winWidth - frameThick * 2, winHeight - frameThick * 2]} />

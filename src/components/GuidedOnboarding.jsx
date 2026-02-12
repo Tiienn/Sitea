@@ -19,18 +19,11 @@ export default function GuidedOnboarding({ step, onStart, onComplete, onSkip, is
   if (step === 1) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: 'rgba(2, 6, 18, 0.85)', backdropFilter: 'blur(8px)' }}>
-        <div className="panel-premium p-8 max-w-md w-[90%] text-center animate-fade-in-scale">
-          {/* Icon */}
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-[var(--color-accent)]/15 flex items-center justify-center mb-5" style={{ boxShadow: '0 0 24px rgba(20,184,166,0.15)' }}>
-            <svg className="w-7 h-7 text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-            </svg>
-          </div>
-
+        <div className="panel-premium max-w-md w-[90%] text-center animate-fade-in-scale" style={{ padding: '32px' }}>
           <h1 className="font-display font-bold text-2xl text-white mb-2" style={{ fontFamily: 'var(--font-display)' }}>
             Walk Through Your Future Home
           </h1>
-          <p className="text-[var(--color-text-secondary)] text-sm leading-relaxed mb-8">
+          <p className="text-[var(--color-text-secondary)] text-sm leading-relaxed mb-6">
             Let's create your future home in under 5 minutes.
           </p>
 
@@ -57,7 +50,7 @@ export default function GuidedOnboarding({ step, onStart, onComplete, onSkip, is
   if (step === 2) {
     return (
       <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] pointer-events-none animate-fade-in">
-        <div className="panel-premium py-4 px-8 text-center" style={{ boxShadow: '0 0 30px rgba(0,0,0,0.5), 0 0 15px var(--color-accent-glow)' }}>
+        <div className="panel-premium text-center" style={{ padding: '32px', boxShadow: '0 0 30px rgba(0,0,0,0.5), 0 0 15px var(--color-accent-glow)' }}>
           {/* Bouncing arrow */}
           <div className="mb-2 flex justify-center">
             <svg
@@ -93,13 +86,8 @@ export default function GuidedOnboarding({ step, onStart, onComplete, onSkip, is
   if (step === 3) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
-        <div className="panel-premium py-5 px-8 max-w-sm text-center animate-fade-in-scale" style={{ boxShadow: '0 0 30px rgba(0,0,0,0.5), 0 0 15px var(--color-accent-glow)' }}>
-          <div className="mx-auto w-10 h-10 rounded-xl bg-[var(--color-accent)]/15 flex items-center justify-center mb-3">
-            <svg className="w-5 h-5 text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <p className="font-display font-semibold text-white text-base mb-1" style={{ fontFamily: 'var(--font-display)' }}>
+        <div className="panel-premium max-w-sm text-center animate-fade-in-scale" style={{ padding: '32px', boxShadow: '0 0 30px rgba(0,0,0,0.5), 0 0 15px var(--color-accent-glow)' }}>
+          <p className="font-display font-semibold text-white text-base mb-2" style={{ fontFamily: 'var(--font-display)' }}>
             You're inside!
           </p>
           <p className="text-[var(--color-text-secondary)] text-sm leading-relaxed">
@@ -114,7 +102,7 @@ export default function GuidedOnboarding({ step, onStart, onComplete, onSkip, is
   if (step === 4) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
-        <div className="panel-premium p-6 max-w-sm w-[90%] text-center pointer-events-auto animate-slide-in-bottom" style={{ boxShadow: '0 0 30px rgba(0,0,0,0.5), 0 0 15px var(--color-accent-glow)' }}>
+        <div className="panel-premium max-w-sm w-[90%] text-center pointer-events-auto animate-slide-in-bottom" style={{ padding: '32px', boxShadow: '0 0 30px rgba(0,0,0,0.5), 0 0 15px var(--color-accent-glow)' }}>
           <p className="font-display font-semibold text-white text-base mb-1" style={{ fontFamily: 'var(--font-display)' }}>
             What would you like to do?
           </p>

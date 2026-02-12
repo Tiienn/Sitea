@@ -15,7 +15,7 @@ const paypalOptions = {
  * PricingModal - Premium pricing display with PayPal payment integration
  *
  * Pricing:
- * - Monthly: $9.99/month subscription
+ * - Monthly: $19.99/month subscription
  * - Lifetime: $149 one-time payment
  */
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -36,7 +36,7 @@ export default function PricingModal({ onClose, onSuccess }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const MONTHLY_PRICE = '9.99'
+  const MONTHLY_PRICE = '19.99'
   const LIFETIME_PRICE = '149.00'
 
   // Validate email before payment

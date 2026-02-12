@@ -29,6 +29,7 @@ import Minimap from './components/Minimap'
 import Onboarding from './components/Onboarding'
 import GuidedOnboarding from './components/GuidedOnboarding'
 import { FSM_HOUSE_WALLS, FSM_LAND, FSM_CAMERA_START, FSM_HOUSE_BOUNDS } from './data/houseTemplate'
+import { houseTemplates } from './data/houseTemplates'
 import BuildPanel from './components/BuildPanel'
 import ComparePanel from './components/ComparePanel'
 import LandPanel from './components/LandPanel'
@@ -145,6 +146,17 @@ const COMPARISON_OBJECTS = [
   { id: 'fortnite1x1', name: 'Fortnite 1×1', width: 5, length: 5, color: '#5B7FDE' },
   { id: 'zeldaHouse', name: "Link's House", width: 8, length: 10, color: '#228B22' },
   { id: 'simsHouse', name: 'Sims Starter Home', width: 10, length: 12, color: '#32CD32' },
+  // Buildings (from structures)
+  { id: 'smallHouse', name: 'Small House', width: 8, length: 10, color: '#D2691E' },
+  { id: 'mediumHouse', name: 'Medium House', width: 12, length: 15, color: '#CD853F' },
+  { id: 'largeHouse', name: 'Large House', width: 15, length: 20, color: '#8B4513' },
+  { id: 'shed', name: 'Shed', width: 3, length: 4, color: '#A0522D' },
+  { id: 'garage', name: 'Garage', width: 6, length: 6, color: '#808080' },
+  { id: 'barn', name: 'Barn', width: 10, length: 14, color: '#8B0000' },
+  { id: 'workshop', name: 'Workshop', width: 6, length: 8, color: '#556B2F' },
+  { id: 'greenhouse', name: 'Greenhouse', width: 4, length: 6, color: '#98FB98' },
+  { id: 'gazebo', name: 'Gazebo', width: 4, length: 4, color: '#DEB887' },
+  { id: 'carport', name: 'Carport', width: 3, length: 6, color: '#696969' },
 ]
 
 const BUILDING_TYPES = [
@@ -183,6 +195,7 @@ const BUILD_TOOLS = {
   STAIRS: 'stairs',         // Stairs placement tool
   ROOF: 'roof',             // Click room to add roof
   ADD_FLOORS: 'addFloors',  // Click room to add multiple floors
+  ROTATE: 'rotate',         // Click element to rotate it
 }
 
 // Snap constants (tunable)
@@ -666,6 +679,11 @@ function App() {
   const [stairsPropertiesOpen, setStairsPropertiesOpen] = useState(false)
   const [roofPropertiesOpen, setRoofPropertiesOpen] = useState(false)
 
+  // Clipboard state for copy/paste
+  const [clipboard, setClipboard] = useState(null)
+  const copySelectedRef = useRef(null)
+  const pasteClipboardRef = useRef(null)
+
   // Tool options state
   const [poolDepth, setPoolDepth] = useState(1.5)
   const [poolDeckMaterial, setPoolDeckMaterial] = useState('concrete')
@@ -678,6 +696,7 @@ function App() {
   const [roofPitch, setRoofPitch] = useState(30)
   const [roofOverhang, setRoofOverhang] = useState(0.5)
   const [roofThickness, setRoofThickness] = useState(0.15)
+  const [rotateDegreeInput, setRotateDegreeInput] = useState('')
 
   // Multi-story building state
   const [currentFloor, setCurrentFloor] = useState(0) // 0 = ground floor
@@ -1014,7 +1033,7 @@ function App() {
       // Ignore if land panel is open (user may be typing dimensions)
       if (activePanel === 'land') return
       // Ignore if drawing tool is active (user may be typing dimensions)
-      if (activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE || activeBuildTool === BUILD_TOOLS.POOL || activeBuildTool === BUILD_TOOLS.FOUNDATION || activeBuildTool === BUILD_TOOLS.POLYGON_ROOM) return
+      if (activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE || activeBuildTool === BUILD_TOOLS.POOL || activeBuildTool === BUILD_TOOLS.FOUNDATION || activeBuildTool === BUILD_TOOLS.POLYGON_ROOM || activeBuildTool === BUILD_TOOLS.ROTATE) return
       if (e.key === '1') setViewMode('firstPerson')
       else if (e.key === '2') setViewMode('orbit')
       else if (e.key === '3') setViewMode('2d')
@@ -1106,6 +1125,7 @@ function App() {
           setTimeout(() => setUndoRedoToast(null), 1500)
         }
       }
+
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -1759,6 +1779,20 @@ function App() {
     pushWallsState(newWalls)
   }, [walls, pushWallsState])
 
+  // Update position of an opening on a wall (for drag-to-move)
+  const updateOpeningPosition = useCallback((wallId, openingIndex, newPosition) => {
+    const newWalls = walls.map(w => {
+      if (w.id !== wallId) return w
+      return {
+        ...w,
+        openings: (w.openings || []).map((o, i) =>
+          i === openingIndex ? { ...o, position: newPosition } : o
+        )
+      }
+    })
+    pushWallsState(newWalls)
+  }, [walls, pushWallsState])
+
   // Handle generated floor plan from AI - enters placement mode
   const handleFloorPlanGenerated = useCallback((generatedData) => {
     // Store pending floor plan and enter placement mode
@@ -1932,6 +1966,109 @@ function App() {
     pushWallsState(newWalls)
   }, [selectedRoomId, rooms, walls, pushWallsState])
 
+  // Copy selected element to clipboard
+  const copySelected = useCallback(() => {
+    if (selectedRoomId) {
+      const room = rooms.find(r => r.id === selectedRoomId)
+      if (!room) return
+      const wallIds = findWallsForRoom(room, walls)
+      const wallData = walls.filter(w => wallIds.includes(w.id)).map(w => ({
+        start: { ...w.start },
+        end: { ...w.end },
+        height: w.height,
+        thickness: w.thickness,
+        openings: (w.openings || []).map(o => ({ ...o })),
+        isFence: w.isFence,
+        fenceType: w.fenceType,
+        floorLevel: w.floorLevel,
+      }))
+      setClipboard({ type: 'room', data: { walls: wallData } })
+      setUndoRedoToast('Room copied')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    } else if (selectedPoolId) {
+      const pool = pools.find(p => p.id === selectedPoolId)
+      if (!pool) return
+      setClipboard({ type: 'pool', data: { ...pool, points: pool.points.map(p => ({ ...p })), center: { ...pool.center } } })
+      setUndoRedoToast('Pool copied')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    } else if (selectedFoundationId) {
+      const found = foundations.find(f => f.id === selectedFoundationId)
+      if (!found) return
+      setClipboard({ type: 'foundation', data: { ...found, points: found.points.map(p => ({ ...p })), center: { ...found.center } } })
+      setUndoRedoToast('Platform copied')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    } else if (selectedStairsId) {
+      const stair = stairs.find(s => s.id === selectedStairsId)
+      if (!stair) return
+      setClipboard({ type: 'stairs', data: { ...stair, start: { ...stair.start }, end: { ...stair.end }, mid: stair.mid ? { ...stair.mid } : undefined, mid2: stair.mid2 ? { ...stair.mid2 } : undefined } })
+      setUndoRedoToast('Stairs copied')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    }
+  }, [selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, rooms, pools, foundations, stairs, walls])
+
+  // Paste clipboard element offset by +2m in X and Z
+  const pasteClipboard = useCallback(() => {
+    if (!clipboard) return
+    const OFFSET = 2
+
+    if (clipboard.type === 'room') {
+      const ts = Date.now()
+      const newWalls = clipboard.data.walls.map((w, i) => ({
+        ...w,
+        id: `wall-${ts}-${i}`,
+        start: { x: w.start.x + OFFSET, z: w.start.z + OFFSET },
+        end: { x: w.end.x + OFFSET, z: w.end.z + OFFSET },
+        openings: (w.openings || []).map(o => ({ ...o, id: `opening-${ts}-${i}-${Math.random().toString(36).slice(2, 6)}` })),
+      }))
+      pushWallsState([...walls, ...newWalls])
+      setUndoRedoToast('Room pasted')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    } else if (clipboard.type === 'pool') {
+      const d = clipboard.data
+      const newPool = {
+        ...d,
+        id: `pool-${Date.now()}`,
+        points: d.points.map(p => ({ x: p.x + OFFSET, z: p.z + OFFSET })),
+        center: { x: d.center.x + OFFSET, z: d.center.z + OFFSET },
+      }
+      setPools(prev => [...prev, newPool])
+      setSelectedPoolId(newPool.id)
+      setUndoRedoToast('Pool pasted')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    } else if (clipboard.type === 'foundation') {
+      const d = clipboard.data
+      const newFoundation = {
+        ...d,
+        id: `foundation-${Date.now()}`,
+        points: d.points.map(p => ({ x: p.x + OFFSET, z: p.z + OFFSET })),
+        center: { x: d.center.x + OFFSET, z: d.center.z + OFFSET },
+      }
+      setFoundations(prev => [...prev, newFoundation])
+      setSelectedFoundationId(newFoundation.id)
+      setUndoRedoToast('Platform pasted')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    } else if (clipboard.type === 'stairs') {
+      const d = clipboard.data
+      const offsetPt = (p) => p ? { x: p.x + OFFSET, z: p.z + OFFSET } : undefined
+      const newStairs = {
+        ...d,
+        id: `stairs-${Date.now()}`,
+        start: offsetPt(d.start),
+        end: offsetPt(d.end),
+        mid: offsetPt(d.mid),
+        mid2: offsetPt(d.mid2),
+      }
+      setStairs(prev => [...prev, newStairs])
+      setSelectedStairsId(newStairs.id)
+      setUndoRedoToast('Stairs pasted')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    }
+  }, [clipboard, walls, pushWallsState])
+
+  // Keep refs updated for keyboard handler access
+  copySelectedRef.current = copySelected
+  pasteClipboardRef.current = pasteClipboard
+
   // Wrapper to select room and deselect others
   const selectRoom = useCallback((id) => {
     setSelectedRoomId(id)
@@ -1994,6 +2131,28 @@ function App() {
     replaceWallsState(newWalls)
   }, [walls, replaceWallsState])
 
+  // Rotate walls by IDs around a center point (used for room rotation)
+  // Uses replaceWallsState for smooth real-time rotation (no history spam)
+  // originalWalls: optional array of {id, start, end} - if provided, rotates from these positions instead of current
+  const rotateWallsByIds = useCallback((wallIds, center, angle, originalWalls = null) => {
+    if (!wallIds || wallIds.length === 0) return
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+    const rotatePoint = (p) => ({
+      x: center.x + (p.x - center.x) * cos - (p.z - center.z) * sin,
+      z: center.z + (p.x - center.x) * sin + (p.z - center.z) * cos
+    })
+    // Build lookup for original positions
+    const origMap = {}
+    if (originalWalls) originalWalls.forEach(w => { origMap[w.id] = w })
+    const newWalls = walls.map(wall => {
+      if (!wallIds.includes(wall.id)) return wall
+      const base = origMap[wall.id] || wall
+      return { ...wall, start: rotatePoint(base.start), end: rotatePoint(base.end) }
+    })
+    replaceWallsState(newWalls)
+  }, [walls, replaceWallsState])
+
   // Commit current walls state to history (call after drag ends for undo support)
   const commitWallsToHistory = useCallback(() => {
     pushWallsState(walls)
@@ -2034,6 +2193,9 @@ function App() {
         } else if (selectedRoomId) {
           e.preventDefault()
           rotateSelectedRoom()
+        } else if (activePanel === 'build') {
+          e.preventDefault()
+          setActiveBuildTool(prev => prev === BUILD_TOOLS.ROTATE ? BUILD_TOOLS.NONE : BUILD_TOOLS.ROTATE)
         }
       }
 
@@ -2076,6 +2238,18 @@ function App() {
           e.preventDefault()
           deleteSelectedRoom()
         }
+      }
+
+      // Copy: Ctrl+C / Cmd+C
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault()
+        copySelectedRef.current?.()
+      }
+
+      // Paste: Ctrl+V / Cmd+V
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault()
+        pasteClipboardRef.current?.()
       }
     }
 
@@ -2431,11 +2605,16 @@ function App() {
   }
 
   // Handle land definition completion (from Onboarding component)
-  const handleLandDefined = ({ dimensions: dims, polygon, shapeMode: mode, action, templateId, method }) => {
+  const handleLandDefined = ({ dimensions: dims, polygon, shapeMode: mode, action, templateId, method, houseTemplate }) => {
+    // If a house template was selected, override land dimensions
+    const finalDims = (houseTemplate && houseTemplates[houseTemplate])
+      ? houseTemplates[houseTemplate].land
+      : dims
+
     // Set the land data
-    setDimensions(dims)
-    setShapeMode(mode)
-    if (polygon) {
+    setDimensions(finalDims)
+    setShapeMode(houseTemplate ? 'rectangle' : mode)
+    if (!houseTemplate && polygon) {
       setConfirmedPolygon(polygon)
       setPolygonPoints(polygon)
     } else {
@@ -2444,7 +2623,7 @@ function App() {
 
     // Analytics: track land created
     const methodMap = { rectangle: 'rectangle', polygon: 'draw', upload: 'upload', template: 'template' }
-    const landArea = polygon ? calculatePolygonArea(polygon) : dims.length * dims.width
+    const landArea = polygon ? calculatePolygonArea(polygon) : finalDims.length * finalDims.width
     const trackProps = {
       method: method === 'template' ? 'template' : (methodMap[mode] || mode),
       areaM2: roundArea(landArea),
@@ -2453,10 +2632,17 @@ function App() {
     if (method === 'template' && templateId) {
       trackProps.templateId = templateId
     }
+    if (houseTemplate) {
+      trackProps.houseTemplate = houseTemplate
+      track('house_template_selected', { templateId: houseTemplate })
+    }
     track('land_created', trackProps)
 
-    // Keep soccer field if already shown, otherwise don't force it
-    // (Don't reset activeComparisons to preserve user's choices)
+    // Load house template walls if selected
+    if (houseTemplate && houseTemplates[houseTemplate]) {
+      clearWallsHistory(houseTemplates[houseTemplate].walls)
+      setViewMode('firstPerson')
+    }
 
     // Mark user has defined their land
     setUserHasLand(true)
@@ -2685,6 +2871,7 @@ function App() {
         openingPlacementMode={openingPlacementMode}
         setOpeningPlacementMode={setOpeningPlacementMode}
         addOpeningToWall={addOpeningToWall}
+        updateOpeningPosition={updateOpeningPosition}
         activeBuildTool={activeBuildTool}
         setActiveBuildTool={setActiveBuildTool}
         selectedElement={selectedElement}
@@ -2722,6 +2909,7 @@ function App() {
         setRoomLabel={handleSetRoomLabel}
         moveRoom={moveRoom}
         moveWallsByIds={moveWallsByIds}
+        rotateWallsByIds={rotateWallsByIds}
         commitWallsToHistory={commitWallsToHistory}
         setRoomPropertiesOpen={setRoomPropertiesOpen}
         setWallPropertiesOpen={setWallPropertiesOpen}
@@ -2760,6 +2948,8 @@ function App() {
         stairsWidth={stairsWidth}
         stairsTopY={stairsTopY}
         stairsStyle={stairsStyle}
+        rotateDegreeInput={rotateDegreeInput}
+        setRotateDegreeInput={setRotateDegreeInput}
         selectedStairsId={selectedStairsId}
         setSelectedStairsId={setSelectedStairsId}
         setStairsPropertiesOpen={setStairsPropertiesOpen}
@@ -2910,6 +3100,8 @@ function App() {
           setSetbackDistanceM={setSetbackDistanceM}
           gridSnapEnabled={gridSnapEnabled}
           setGridSnapEnabled={setGridSnapEnabled}
+          gridSize={gridSize}
+          setGridSize={setGridSize}
           labels={labels}
           setLabels={setLabels}
           coveragePercent={computeCoverage(placedBuildings, area).coveragePercent}
@@ -3002,6 +3194,23 @@ function App() {
           setRoofThickness={setRoofThickness}
           selectedRoofId={selectedRoofId}
           updateRoof={updateRoof}
+          rotateDegreeInput={rotateDegreeInput}
+          setRotateDegreeInput={setRotateDegreeInput}
+          // Copy/paste
+          copySelected={copySelected}
+          hasSelection={!!(selectedRoomId || selectedPoolId || selectedFoundationId || selectedStairsId)}
+          // House templates
+          onLoadHouseTemplate={(key) => {
+            if (houseTemplates[key]) {
+              const template = houseTemplates[key]
+              setDimensions(template.land)
+              setShapeMode('rectangle')
+              setConfirmedPolygon(null)
+              clearWallsHistory(template.walls)
+              setViewMode('firstPerson')
+              track('house_template_selected', { templateId: key, source: 'build_panel' })
+            }
+          }}
           // Multi-story floor props
           currentFloor={currentFloor}
           setCurrentFloor={setCurrentFloor}

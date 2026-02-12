@@ -80,11 +80,38 @@ export async function detectSitePlanBoundary(imageBase64) {
     y: p.y * scaleY,
   }))
 
-  // Also scale pixelsPerMeter back to original image coords
-  let scale = result.scale
-  if (scale?.pixelsPerMeter) {
-    const avgScale = (scaleX + scaleY) / 2
-    scale = { ...scale, pixelsPerMeter: scale.pixelsPerMeter * avgScale }
+  // Compute pixelsPerMeter from dimension labels (frontend does the pixel math)
+  let scale = null
+  const dimensions = result.dimensions
+  if (dimensions?.length > 0 && boundary.length >= 2) {
+    const computedScales = []
+    for (const dim of dimensions) {
+      const from = boundary[dim.fromVertex]
+      const to = boundary[dim.toVertex]
+      if (!from || !to) continue
+
+      const parsedValue = parseFloat(dim.label)
+      if (!parsedValue || parsedValue <= 0) continue
+
+      // Convert feet to meters if needed
+      let meters = parsedValue
+      if (dim.unit === 'ft') meters = parsedValue * 0.3048
+
+      // Pixel distance in original image coords (boundary already scaled)
+      const pixelDist = Math.hypot(to.x - from.x, to.y - from.y)
+      if (pixelDist > 0) {
+        computedScales.push(pixelDist / meters)
+      }
+    }
+
+    if (computedScales.length > 0) {
+      const avgPixelsPerMeter = computedScales.reduce((a, b) => a + b, 0) / computedScales.length
+      scale = {
+        pixelsPerMeter: avgPixelsPerMeter,
+        confidence: Math.min(1, 0.7 + computedScales.length * 0.1),
+        referenceDistance: dimensions[0].label + (dimensions[0].unit !== 'unknown' ? dimensions[0].unit : ''),
+      }
+    }
   }
 
   return {

@@ -121,6 +121,7 @@ export function UserProvider({ children }) {
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user)
+        setShowAuthModal(false)
         localStorage.setItem('landVisualizerEmail', session.user.email)
         checkSubscription()
       } else {

@@ -113,6 +113,13 @@ export default function LandPanel({
     }
   }, [activeSection, onExpandedChange, isActive])
 
+  // Auto-switch to upload section when uploadedImage is set externally (e.g. from Build panel)
+  useEffect(() => {
+    if (uploadedImage && activeSection !== 'upload') {
+      setActiveSection('upload')
+    }
+  }, [uploadedImage])
+
   // Sync local dimensions when props change
   useEffect(() => {
     setLocalDimensions({

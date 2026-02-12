@@ -3,14 +3,14 @@ import { useThree } from '@react-three/fiber'
 import { Text, Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 import { SQ_FEET_PER_SQ_METER } from '../../constants/landSceneConstants'
-import { findWallsForRoom } from '../../utils/roomDetection'
+import { findWallsForRoom, findConnectedWalls } from '../../utils/roomDetection'
 import { createFloorTexture } from '../../utils/textureGenerators'
 
 /**
  * RoomFloor - renders floor and area label for detected rooms
  * Supports drag-to-move functionality, floor patterns/textures, and selection states
  */
-export function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUnit = 'm', onSelect, label = '', onLabelChange, style = {}, walls = [], moveWallsByIds, commitWallsToHistory, setRoomMoveDragState, onOpenProperties, floorYOffset = 0, isInactiveFloor = false }) {
+export function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUnit = 'm', onSelect, label = '', onLabelChange, style = {}, walls = [], moveWallsByIds, commitWallsToHistory, setRoomMoveDragState, onOpenProperties, floorYOffset = 0, isInactiveFloor = false, isDrawingTool = false, onDrawingClick, isRotateMode = false, onRotateStart }) {
   const { camera, gl } = useThree()
   const [isHovered, setIsHovered] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -55,6 +55,17 @@ export function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUn
   const handlePointerDown = useCallback((e) => {
     // Only handle left mouse button (matching ComparisonObject pattern)
     if (e.button !== 0) return
+    // When a drawing tool is active, forward click to ground handler
+    if (isDrawingTool) {
+      onDrawingClick?.(e)
+      return
+    }
+    // When rotate tool is active, start rotation
+    if (isRotateMode) {
+      e.stopPropagation()
+      onRotateStart?.('room', room.id, e.point)
+      return
+    }
     e.stopPropagation()
 
     // Manual double-click detection
@@ -80,7 +91,8 @@ export function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUn
     }
 
     // If selected, start drag - compute wall IDs NOW before walls change
-    const wallIds = findWallsForRoom(room, walls)
+    const roomWallIds = findWallsForRoom(room, walls)
+    const wallIds = findConnectedWalls(roomWallIds, walls)
 
     // Start drag
     const point = raycastToGround(e.clientX, e.clientY)
@@ -93,7 +105,7 @@ export function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUn
       }
       gl.domElement.style.cursor = 'grabbing'
     }
-  }, [isSelected, onSelect, raycastToGround, gl.domElement, room, walls])
+  }, [isSelected, onSelect, raycastToGround, gl.domElement, room, walls, isDrawingTool, onDrawingClick, isRotateMode, onRotateStart])
 
   // Global pointer move/up for drag (like ComparisonObject)
   useEffect(() => {

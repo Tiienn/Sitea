@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import PolygonEditor, { calculatePolygonArea } from './PolygonEditor'
 import ImageTracer from './ImageTracer'
 import { useUser } from '../hooks/useUser.jsx'
+import { analyzeImage } from '../services/imageAnalysis'
 import {
   LAND_TEMPLATES,
   areaToRectDims,
   formatTemplateArea,
   formatTemplateDims,
 } from '../data/landTemplates'
+import { houseTemplates, HOUSE_TEMPLATE_ORDER, DEFAULT_HOUSE_TEMPLATE } from '../data/houseTemplates'
 
 const FEET_PER_METER = 3.28084
 const SQ_FEET_PER_SQ_METER = 10.7639
@@ -104,9 +106,12 @@ const METHODS = [
   },
 ]
 
+const AUTO_ROUTE_THRESHOLD = 0.7
+
 export default function Onboarding({
   onComplete,
   onCancel,
+  onDetectedFloorPlan,
   lengthUnit,
   setLengthUnit,
   isTouchDevice
@@ -141,6 +146,10 @@ export default function Onboarding({
   const [uploadedImage, setUploadedImage] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [pendingImage, setPendingImage] = useState(null)
+  const [detectedType, setDetectedType] = useState(null)
 
   // Template state
   const [selectedTemplateId, setSelectedTemplateId] = useState(null)
@@ -155,6 +164,9 @@ export default function Onboarding({
   const [finalArea, setFinalArea] = useState(0)
   const [finalDimensions, setFinalDimensions] = useState({ length: 20, width: 15 })
   const [finalPolygon, setFinalPolygon] = useState(null)
+
+  // House picker state
+  const [showHousePicker, setShowHousePicker] = useState(false)
 
   // Step 4 state
   const [showReinforce, setShowReinforce] = useState(false)
@@ -224,6 +236,59 @@ export default function Onboarding({
     })
   }
 
+  // Handle file upload with auto-detection (same pattern as LandPanel)
+  const handleFileUpload = async (file) => {
+    if (!file) return
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
+    if (!validTypes.includes(file.type)) {
+      alert('Please upload a PNG, JPG, or PDF file')
+      return
+    }
+    if (file.type === 'application/pdf') {
+      alert('PDF support coming soon. Please use PNG or JPG for now.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      const imageData = e.target.result
+      setPendingImage(imageData)
+      setIsAnalyzing(true)
+      try {
+        const result = await analyzeImage(imageData, isPaidUser)
+        if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
+          if (result.type === 'site-plan') {
+            setUploadedImage(imageData)
+          } else {
+            onDetectedFloorPlan?.(imageData)
+          }
+          setPendingImage(null)
+        } else {
+          setDetectedType(result.type)
+          setShowConfirm(true)
+        }
+      } catch (err) {
+        console.error('Analysis failed:', err)
+        // Fallback: show confirmation so user can choose
+        setDetectedType('site-plan')
+        setShowConfirm(true)
+      }
+      setIsAnalyzing(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Confirm detected type
+  const confirmType = (type) => {
+    if (type === 'site-plan') {
+      setUploadedImage(pendingImage)
+    } else {
+      onDetectedFloorPlan?.(pendingImage)
+    }
+    setShowConfirm(false)
+    setPendingImage(null)
+    setDetectedType(null)
+  }
+
   // Handle upload trace complete
   const handleUploadComplete = (worldPoints) => {
     if (worldPoints && worldPoints.length >= 3) {
@@ -234,7 +299,7 @@ export default function Onboarding({
     }
   }
 
-  // Handle template selection - auto-complete after Aha moment
+  // Handle template selection - show Aha then house picker
   const handleTemplateSelect = (template) => {
     const { widthM, lengthM } = areaToRectDims(template.areaM2)
     const dims = { length: lengthM, width: widthM }
@@ -245,27 +310,8 @@ export default function Onboarding({
     setFinalArea(template.areaM2)
     setFinalPolygon(null)
 
-    // Show Aha moment
-    setStep(3)
-    setShowAha(true)
-
-    // Auto-complete after 2 seconds (no need for "Explore in 3D" button)
-    setTimeout(() => {
-      setAhaFading(true)
-      setTimeout(() => {
-        setShowAha(false)
-        setAhaFading(false)
-        // Directly complete - skip the reinforce panel for templates
-        onComplete({
-          dimensions: dims,
-          polygon: null,
-          shapeMode: 'rectangle',
-          action: 'explore',
-          templateId: template.id,
-          method: 'template',
-        })
-      }, 500)
-    }, 2000)
+    // Use the standard Aha flow (auto-fades after 3s → house picker)
+    triggerAha(template.areaM2)
   }
 
   // Trigger the Aha moment
@@ -289,7 +335,7 @@ export default function Onboarding({
     setTimeout(() => {
       setShowAha(false)
       setAhaFading(false)
-      completeOnboarding('explore')
+      setShowHousePicker(true)
     }, 500)
   }
 
@@ -325,7 +371,7 @@ export default function Onboarding({
   }
 
   // Complete onboarding
-  const completeOnboarding = (action) => {
+  const completeOnboarding = (action, houseTemplate = null) => {
     // For templates, ensure we use the computed dimensions from the template
     let dims = finalDimensions
     if (method === 'template' && selectedTemplateId) {
@@ -345,6 +391,7 @@ export default function Onboarding({
       // Include template info for analytics
       templateId: selectedTemplateId,
       method: method, // 'rectangle', 'draw', 'upload', or 'template'
+      houseTemplate, // null if skipped, or 'compact'/'modern'/'luxury'
     })
   }
 
@@ -353,6 +400,18 @@ export default function Onboarding({
       {/* Step 1 & 2: Full overlay */}
       {step <= 2 && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center overflow-y-auto">
+          {/* Close button */}
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors z-10"
+              aria-label="Close"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
           <div className={`w-full px-6 py-8 ${step === 1 ? 'max-w-3xl' : 'max-w-lg'}`}>
             {/* Step 1: Method Selection */}
             {step === 1 && (
@@ -570,7 +629,7 @@ export default function Onboarding({
                 {/* Upload Input */}
                 {method === 'upload' && (
                   <div className="flex flex-col items-center">
-                    {!uploadedImage ? (
+                    {!uploadedImage && !isAnalyzing && !showConfirm ? (
                       <div className="w-full max-w-md">
                         {/* Subtitle */}
                         <p className="text-gray-400 text-sm text-center mb-6">Upload your site plan or floor plan</p>
@@ -585,12 +644,7 @@ export default function Onboarding({
                             onDrop={(e) => {
                               e.preventDefault()
                               setIsDragging(false)
-                              const file = e.dataTransfer.files[0]
-                              if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
-                                const reader = new FileReader()
-                                reader.onload = (ev) => setUploadedImage(ev.target.result)
-                                reader.readAsDataURL(file)
-                              }
+                              handleFileUpload(e.dataTransfer.files[0])
                             }}
                             className={`
                               cursor-pointer rounded-xl border-2 border-dashed p-10
@@ -606,14 +660,7 @@ export default function Onboarding({
                               type="file"
                               accept="image/png,image/jpeg,application/pdf"
                               className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) {
-                                  const reader = new FileReader()
-                                  reader.onload = (ev) => setUploadedImage(ev.target.result)
-                                  reader.readAsDataURL(file)
-                                }
-                              }}
+                              onChange={(e) => handleFileUpload(e.target.files?.[0])}
                             />
 
                             {/* All content centered with flex column */}
@@ -664,6 +711,53 @@ export default function Onboarding({
                           We'll automatically detect if this is a site plan or floor plan
                         </p>
                       </div>
+                    ) : isAnalyzing ? (
+                      /* Analyzing State */
+                      <div className="py-8 text-center">
+                        {pendingImage && (
+                          <div className="w-24 h-24 mx-auto mb-4 rounded-xl overflow-hidden bg-gray-800">
+                            <img src={pendingImage} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                        <div className="w-8 h-8 mx-auto mb-3 border-2 border-teal-400 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-white text-sm font-medium">Analyzing...</p>
+                        <p className="text-gray-500 text-xs">Detecting plan type</p>
+                      </div>
+                    ) : showConfirm ? (
+                      /* Confirmation UI */
+                      <div className="text-center">
+                        {pendingImage && (
+                          <div className="w-24 h-24 mx-auto mb-4 rounded-xl overflow-hidden bg-gray-800">
+                            <img src={pendingImage} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                        <p className="text-white text-sm font-medium mb-1">
+                          Detected: <span className={detectedType === 'site-plan' ? 'text-green-400' : 'text-teal-400'}>
+                            {detectedType === 'site-plan' ? 'Site Plan' : 'Floor Plan'}
+                          </span>
+                        </p>
+                        <p className="text-gray-500 text-xs mb-4">Is that correct?</p>
+                        <div className="flex gap-2 max-w-xs mx-auto">
+                          <button
+                            onClick={() => confirmType('site-plan')}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${detectedType === 'site-plan' ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                          >
+                            Site Plan
+                          </button>
+                          <button
+                            onClick={() => confirmType('floor-plan')}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${detectedType === 'floor-plan' ? 'bg-teal-500 hover:bg-teal-400 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                          >
+                            Floor Plan
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => { setShowConfirm(false); setPendingImage(null); setDetectedType(null) }}
+                          className="mt-3 text-gray-500 text-xs hover:text-white transition-colors"
+                        >
+                          Upload different image
+                        </button>
+                      </div>
                     ) : (
                       <div className="bg-white/5 rounded-xl p-4">
                         <ImageTracer
@@ -694,23 +788,7 @@ export default function Onboarding({
             if (ahaFading) return
             // For templates, clicking completes immediately
             if (method === 'template' && selectedTemplateId) {
-              const template = LAND_TEMPLATES.find(t => t.id === selectedTemplateId)
-              if (template) {
-                const { widthM, lengthM } = areaToRectDims(template.areaM2)
-                setAhaFading(true)
-                setTimeout(() => {
-                  setShowAha(false)
-                  setAhaFading(false)
-                  onComplete({
-                    dimensions: { length: lengthM, width: widthM },
-                    polygon: null,
-                    shapeMode: 'rectangle',
-                    action: 'explore',
-                    templateId: template.id,
-                    method: 'template',
-                  })
-                }, 500)
-              }
+              fadeAha()
             } else {
               fadeAha()
             }
@@ -723,6 +801,54 @@ export default function Onboarding({
         </div>
       )}
 
+
+      {/* House Picker — shown after Aha fades */}
+      {showHousePicker && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center pb-6 sm:pb-0">
+          <div
+            className="bg-black/80 backdrop-blur-md rounded-2xl mx-4 w-full max-w-md"
+            style={{ padding: '24px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-display font-semibold text-white text-base text-center mb-5">
+              Start with a house?
+            </h3>
+            <div className="flex gap-2">
+              {HOUSE_TEMPLATE_ORDER.map((key) => {
+                const t = houseTemplates[key]
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setShowHousePicker(false)
+                      completeOnboarding('explore', key)
+                    }}
+                    className="flex-1 rounded-xl border border-[var(--color-border)] bg-white/5 hover:bg-white/10 transition-colors text-left relative"
+                    style={{ padding: '12px' }}
+                  >
+                    {key === DEFAULT_HOUSE_TEMPLATE && (
+                      <span className="absolute -top-2 right-2 text-[10px] font-bold bg-teal-500 text-white rounded-full px-2 py-0.5">
+                        Popular
+                      </span>
+                    )}
+                    <div className="text-sm font-semibold text-white">{t.label}</div>
+                    <div className="text-[11px] text-[var(--color-text-muted)] mt-1">{t.description}</div>
+                  </button>
+                )
+              })}
+            </div>
+            <button
+              onClick={() => {
+                setShowHousePicker(false)
+                completeOnboarding('explore', null)
+              }}
+              className="w-full text-center text-sm text-[var(--color-text-muted)] hover:text-white transition-colors mt-4 py-2"
+            >
+              Skip — empty lot
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen Done Modal */}
       {showFullscreenModal && (

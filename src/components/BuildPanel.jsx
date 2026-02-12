@@ -1,11 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
-import { PRESETS } from '../data/presets'
-import { placePreset } from '../utils/presetPlacer'
+import { houseTemplates, HOUSE_TEMPLATE_ORDER, DEFAULT_HOUSE_TEMPLATE } from '../data/houseTemplates'
 import { analyzeImage } from '../services/imageAnalysis'
 import { useUser } from '../hooks/useUser.jsx'
 
 // Confidence threshold for auto-routing
 const AUTO_ROUTE_THRESHOLD = 0.7
+
+// Grid size options
+const GRID_SIZES = [
+  { value: 0.5, label: '0.5m' },
+  { value: 1, label: '1m' },
+  { value: 2, label: '2m' },
+  { value: 5, label: '5m' },
+]
 
 // Coverage thresholds (percentage)
 const COVERAGE_THRESHOLDS = { green: 20, yellow: 40 }
@@ -20,9 +27,7 @@ const getCoverageColorClass = (percent) => {
 // Section definitions with icons
 const SECTIONS = [
   { id: 'tools', label: 'Tools', icon: 'hammer' },
-  { id: 'structures', label: 'Structures', icon: 'home' },
-  { id: 'floors', label: 'Floors', icon: 'floors' },
-  { id: 'presets', label: 'Quick Presets', icon: 'zap' },
+  { id: 'presets', label: 'House Templates', icon: 'zap' },
   { id: 'coverage', label: 'Coverage', icon: 'chart' },
   { id: 'setbacks', label: 'Setbacks', icon: 'ruler' },
   { id: 'upload', label: 'Upload', icon: 'upload' },
@@ -111,6 +116,16 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
     </svg>
   ),
+  rotate: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.992 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+    </svg>
+  ),
+  copy: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m0 0a2.625 2.625 0 115.25 0" />
+    </svg>
+  ),
   // Sims 4-style feature icons
   pool: (
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -132,75 +147,9 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l9-9 9 9M4.5 10.5v9.75a.75.75 0 00.75.75h4.5v-6h4.5v6h4.5a.75.75 0 00.75-.75V10.5" />
     </svg>
   ),
-  floors: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M3 17h18M3 13h18M6 21v-4M6 17v-4M6 13V9l6-4 6 4v4M18 13v4M18 17v4M12 5v4" />
-    </svg>
-  ),
   paint: (
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
-    </svg>
-  ),
-  // Structure icons
-  smallHouse: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-    </svg>
-  ),
-  mediumHouse: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" />
-    </svg>
-  ),
-  largeHouse: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-    </svg>
-  ),
-  shed: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5M9 13h.01M15 13h.01" />
-    </svg>
-  ),
-  garage: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V8l7-4 7 4v13M8 21v-6h8v6M8 12h8M8 9h8" />
-    </svg>
-  ),
-  barn: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M4 21V9l8-6 8 6v12M12 3v4M8 21v-6h8v6M7 12h10M4 9h16" />
-    </svg>
-  ),
-  greenhouse: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V8a2 2 0 012-2h10a2 2 0 012 2v13M5 12h14M5 16h14M9 6v15M12 6v15M15 6v15" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 8l7-4 7 4" />
-    </svg>
-  ),
-  gazebo: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l9 6v1H3V9l9-6zM5 10v11M19 10v11M3 21h18M9 21v-5M15 21v-5" />
-    </svg>
-  ),
-  carport: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10l9-6 9 6M5 10v11M19 10v11M3 21h18" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 17h8M8 17a2 2 0 01-2-2v-1h12v1a2 2 0 01-2 2M8 17v2M16 17v2" />
-    </svg>
-  ),
-  workshop: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-4h6v4" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 8.17L13.25 10 11.42 11.83M14.58 8.17L12.75 10l1.83 1.83" />
-    </svg>
-  ),
-  poolStructure: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 19h16a2 2 0 002-2v-6a2 2 0 00-2-2H4a2 2 0 00-2 2v6a2 2 0 002 2z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 13c1-1 2.5-1 3.5 0s2.5 1 3.5 0 2.5-1 3.5 0" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 16c1-1 2.5-1 3.5 0s2.5 1 3.5 0 2.5-1 3.5 0" />
     </svg>
   ),
 }
@@ -219,6 +168,8 @@ export default function BuildPanel({
   setSetbackDistanceM,
   gridSnapEnabled,
   setGridSnapEnabled,
+  gridSize = 1,
+  setGridSize,
   labels,
   setLabels,
   coveragePercent,
@@ -301,21 +252,16 @@ export default function BuildPanel({
   setRoofThickness,
   selectedRoofId,
   updateRoof,
-  // Multi-story floor props
-  currentFloor = 0,
-  setCurrentFloor,
-  totalFloors = 1,
-  floorHeight = 2.7,
-  setFloorHeight,
-  addFloor,
-  removeCurrentFloor,
-  switchFloor,
-  floorCountToAdd = 2,
-  setFloorCountToAdd,
+  rotateDegreeInput = '',
+  setRotateDegreeInput,
+  // Copy/paste
+  copySelected,
+  hasSelection = false,
+  // House templates
+  onLoadHouseTemplate,
 }) {
   const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed } = useUser()
   const [activeSection, setActiveSection] = useState('tools')
-  const [presetToast, setPresetToast] = useState(null)
 
   // Upload state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -341,22 +287,6 @@ export default function BuildPanel({
     }
   }
 
-  // Handle preset button click
-  const handlePresetClick = (presetId) => {
-    if (!canEdit || !polygon) return
-
-    const setbackM = setbacksEnabled ? setbackDistanceM : 0
-    const result = placePreset(presetId, polygon, setbackM, BUILDING_TYPES)
-
-    if (result.success) {
-      setPlacedBuildings(prev => [...prev, ...result.buildings])
-      setPresetToast('success')
-    } else {
-      setPresetToast('error')
-    }
-
-    setTimeout(() => setPresetToast(null), 2000)
-  }
 
   // Format dimension for display
   const formatDimension = (meters) => {
@@ -796,6 +726,26 @@ export default function BuildPanel({
                     <span className="text-[10px]">Roof <kbd className="opacity-40 text-[8px]">J</kbd></span>
                   </button>
 
+                  {/* Rotate Tool */}
+                  <button
+                    onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.ROTATE ? BUILD_TOOLS.NONE : BUILD_TOOLS.ROTATE)}
+                    disabled={!canEdit}
+                    className={`tool-btn ${activeBuildTool === BUILD_TOOLS.ROTATE ? 'active' : ''}`}
+                  >
+                    <span className="w-5 h-5">{Icons.rotate}</span>
+                    <span className="text-[10px]">Rotate <kbd className="opacity-40 text-[8px]">R</kbd></span>
+                  </button>
+
+                  {/* Copy Tool */}
+                  <button
+                    onClick={() => canEdit && hasSelection && copySelected?.()}
+                    disabled={!canEdit || !hasSelection}
+                    className="tool-btn"
+                  >
+                    <span className="w-5 h-5">{Icons.copy}</span>
+                    <span className="text-[10px]">Copy</span>
+                  </button>
+
                   {/* Delete Tool */}
                   <button
                     onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.DELETE ? BUILD_TOOLS.NONE : BUILD_TOOLS.DELETE)}
@@ -853,8 +803,28 @@ export default function BuildPanel({
                   {activeBuildTool === BUILD_TOOLS.POOL && 'Click to place pool corners · Click first point to close'}
                   {activeBuildTool === BUILD_TOOLS.FOUNDATION && 'Click to place platform corners · Click first point to close'}
                   {activeBuildTool === BUILD_TOOLS.STAIRS && 'Select preset, then click to place'}
+                  {activeBuildTool === BUILD_TOOLS.ROTATE && (rotateDegreeInput ? 'Type degrees, then click element to apply' : 'Click element to rotate · Shift: 45° snap')}
                   {activeBuildTool === BUILD_TOOLS.ROOF && 'Click on a room to add a roof'}
                 </div>
+
+                {/* Rotate Options */}
+                {activeBuildTool === BUILD_TOOLS.ROTATE && (
+                  <div className="bg-[var(--color-bg-elevated)] rounded-xl" style={{ padding: '12px 16px' }}>
+                    <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Exact Rotation</div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={rotateDegreeInput}
+                        onChange={(e) => setRotateDegreeInput?.(e.target.value)}
+                        placeholder="e.g. 45"
+                        className="flex-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                      <span className="text-xs text-[var(--color-text-muted)]">deg</span>
+                    </div>
+                    <div className="text-[10px] text-[var(--color-text-muted)] mt-1.5">Type degrees then click an element</div>
+                  </div>
+                )}
 
                 {/* Door Options */}
                 {activeBuildTool === BUILD_TOOLS.DOOR && (
@@ -1307,220 +1277,39 @@ export default function BuildPanel({
               </div>
             )}
 
-            {/* STRUCTURES Section */}
-            {activeSection === 'structures' && (
-              <div className="space-y-2">
-                {BUILDING_TYPES.map(building => (
-                  <button
-                    key={building.id}
-                    onClick={() => {
-                      if (!canEdit) return
-                      const newSelection = selectedBuilding === building.id ? null : building.id
-                      setSelectedBuilding(newSelection)
-                    }}
-                    disabled={!canEdit}
-                    className={`structure-card w-full ${selectedBuilding === building.id ? 'selected' : ''}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center"
-                        style={{ backgroundColor: building.color + '30', border: `2px solid ${building.color}` }}
-                      >
-                        <span className="w-6 h-6" style={{ color: building.color }}>
-                          {building.icon && Icons[building.icon] ? Icons[building.icon] : Icons.home}
-                        </span>
-                      </div>
-                      <div className="text-left flex-1">
-                        <div className="text-sm font-medium text-[var(--color-text-primary)]">{building.name}</div>
-                        <div className="text-[11px] text-[var(--color-text-muted)]">
-                          {formatDimension(building.width)} × {formatDimension(building.length)} • {building.height > 0 ? `${building.height}m tall` : `${Math.abs(building.height)}m deep`}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-                {selectedBuilding && canEdit && (
-                  <>
-                    {/* Rotation controls */}
-                    <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-                      <div className="text-xs text-[var(--color-text-muted)] mb-2">Rotation</div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setBuildingRotation(prev => (prev - 15 + 360) % 360)}
-                          className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] hover:bg-white/15 transition-colors"
-                        >
-                          ↺ -15°
-                        </button>
-                        <span className="text-sm font-medium text-[var(--color-text-primary)] min-w-[40px] text-center">
-                          {buildingRotation}°
-                        </span>
-                        <button
-                          onClick={() => setBuildingRotation(prev => (prev + 15) % 360)}
-                          className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] hover:bg-white/15 transition-colors"
-                        >
-                          ↻ +15°
-                        </button>
-                      </div>
-                    </div>
-                    <div className="text-xs text-[var(--color-text-muted)] mt-2">
-                      Click on land to place structure
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* PRESETS Section */}
+            {/* HOUSE TEMPLATES Section */}
             {activeSection === 'presets' && (
               <div className="space-y-3">
-                {PRESETS.map(preset => (
-                  <button
-                    key={preset.id}
-                    onClick={() => handlePresetClick(preset.id)}
-                    disabled={!canEdit}
-                    className={`w-full text-sm font-medium rounded-xl transition-colors text-left ${
-                      !canEdit
-                        ? 'bg-white/5 text-white/30 cursor-not-allowed'
-                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] hover:bg-white/15 border border-[var(--color-border)]'
-                    }`}
-                    style={{ padding: '10px 16px' }}
-                  >
-                    {preset.name}
-                  </button>
-                ))}
-                {presetToast && (
-                  <div className={`text-xs ${presetToast === 'success' ? 'text-green-400' : 'text-orange-400'}`}>
-                    {presetToast === 'success' ? 'Preset placed!' : "Doesn't fit — try larger plot or disable setbacks"}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* FLOORS Section */}
-            {activeSection === 'floors' && (
-              <div className="space-y-4">
-                {/* Current floor display */}
-                <div className="text-center py-2">
-                  <div className="text-3xl font-display font-bold text-teal-400">
-                    {currentFloor === 0 ? 'Ground' : `Floor ${currentFloor}`}
-                  </div>
-                  <div className="text-xs text-[var(--color-text-muted)] mt-1">
-                    {totalFloors} {totalFloors === 1 ? 'floor' : 'floors'} total
-                  </div>
-                </div>
-
-                {/* Floor tabs */}
-                <div className="flex flex-wrap gap-1" style={{ paddingLeft: 4 }}>
-                  {Array.from({ length: totalFloors }, (_, i) => (
+                {HOUSE_TEMPLATE_ORDER.map(key => {
+                  const t = houseTemplates[key]
+                  return (
                     <button
-                      key={i}
-                      onClick={() => switchFloor?.(i)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                        currentFloor === i
-                          ? 'bg-teal-500 text-white'
-                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-white'
+                      key={key}
+                      onClick={() => onLoadHouseTemplate?.(key)}
+                      disabled={!canEdit}
+                      className={`w-full rounded-xl transition-colors text-left relative ${
+                        !canEdit
+                          ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] hover:bg-white/15 border border-[var(--color-border)]'
                       }`}
+                      style={{ padding: '12px 16px' }}
                     >
-                      {i === 0 ? 'G' : i}
+                      {key === DEFAULT_HOUSE_TEMPLATE && (
+                        <span className="absolute -top-2 right-3 text-[10px] font-bold bg-teal-500 text-white rounded-full px-2 py-0.5">
+                          Popular
+                        </span>
+                      )}
+                      <div className="text-sm font-semibold">{t.label}</div>
+                      <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">{t.description}</div>
                     </button>
-                  ))}
-                  <button
-                    onClick={() => addFloor?.()}
-                    disabled={!canEdit}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-bg-elevated)] text-teal-400 hover:bg-teal-500/20 transition-colors disabled:opacity-50"
-                    title="Add floor above"
-                  >
-                    +
-                  </button>
-                </div>
-
-                {/* Floor actions */}
-                <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => addFloor?.()}
-                      disabled={!canEdit}
-                      className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-teal-500/20 text-teal-400 hover:bg-teal-500/30 transition-colors disabled:opacity-50"
-                    >
-                      Add Floor Above
-                    </button>
-                    <button
-                      onClick={() => removeCurrentFloor?.()}
-                      disabled={!canEdit || currentFloor === 0}
-                      className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                      title={currentFloor === 0 ? "Can't remove ground floor" : 'Remove current floor'}
-                    >
-                      Remove Floor
-                    </button>
-                  </div>
-
-                  {/* Floor height */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-[var(--color-text-muted)]">Floor Height</span>
-                      <span className="text-xs text-[var(--color-text-primary)] font-medium">{floorHeight.toFixed(1)}m</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="2.4"
-                      max="4"
-                      step="0.1"
-                      value={floorHeight}
-                      onChange={(e) => setFloorHeight?.(parseFloat(e.target.value))}
-                      disabled={!canEdit}
-                      className="w-full h-1 bg-[var(--color-border)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-teal-500 [&::-webkit-slider-thumb]:rounded-full"
-                    />
-                  </div>
-                </div>
-
-                {/* Add Floors to Room */}
-                <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
-                  <div className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-                    Add Floors to Room
-                  </div>
-
-                  {/* Floor count selector */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--color-text-muted)]">Floors to add:</span>
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <button
-                          key={n}
-                          onClick={() => setFloorCountToAdd?.(n)}
-                          className={`w-7 h-7 text-xs font-medium rounded-lg transition-colors ${
-                            floorCountToAdd === n
-                              ? 'bg-teal-500 text-white'
-                              : 'bg-[var(--color-bg-surface)] text-[var(--color-text-muted)] hover:bg-white/10'
-                          }`}
-                        >
-                          {n}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Activate tool button */}
-                  <button
-                    onClick={() => setActiveBuildTool?.(BUILD_TOOLS.ADD_FLOORS)}
-                    disabled={!canEdit}
-                    className={`w-full px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                      activeBuildTool === BUILD_TOOLS.ADD_FLOORS
-                        ? 'bg-teal-500 text-white'
-                        : 'bg-teal-500/20 text-teal-400 hover:bg-teal-500/30'
-                    } disabled:opacity-50`}
-                  >
-                    {activeBuildTool === BUILD_TOOLS.ADD_FLOORS
-                      ? `Click a room to add ${floorCountToAdd} floor${floorCountToAdd > 1 ? 's' : ''}`
-                      : `Add ${floorCountToAdd} Floor${floorCountToAdd > 1 ? 's' : ''} to Room`}
-                  </button>
-                </div>
-
-                {/* Info */}
-                <div className="text-xs text-[var(--color-text-muted)] text-center">
-                  Walls drawn will be placed on the current floor
+                  )
+                })}
+                <div className="text-[11px] text-[var(--color-text-muted)] text-center pt-1">
+                  Replaces current walls with template
                 </div>
               </div>
             )}
+
 
             {/* COVERAGE Section */}
             {activeSection === 'coverage' && (
@@ -1711,6 +1500,47 @@ export default function BuildPanel({
                     )}
                   </div>
                 </button>
+
+                {/* Snap to Grid */}
+                <button
+                  onClick={() => setGridSnapEnabled?.(!gridSnapEnabled)}
+                  className={`w-full flex items-center justify-between rounded-xl transition-colors ${
+                    gridSnapEnabled
+                      ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30'
+                      : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)]'
+                  }`}
+                  style={{ padding: '12px 16px' }}
+                >
+                  <span className={`text-sm font-medium ${gridSnapEnabled ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
+                    Snap to grid
+                  </span>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    gridSnapEnabled ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : 'border-[var(--color-text-muted)]'
+                  }`}>
+                    {gridSnapEnabled && (
+                      <svg className="w-3 h-3 text-[var(--color-bg-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </button>
+                {gridSnapEnabled && (
+                  <div className="flex gap-1">
+                    {GRID_SIZES.map(size => (
+                      <button
+                        key={size.value}
+                        onClick={() => setGridSize?.(size.value)}
+                        className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${
+                          gridSize === size.value
+                            ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)]'
+                            : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-white/10'
+                        }`}
+                      >
+                        {size.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

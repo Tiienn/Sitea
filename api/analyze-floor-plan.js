@@ -8,6 +8,98 @@ export const config = {
   maxDuration: 60,
 };
 
+// --- Roboflow CV detection (CubiCasa5K model) ---
+
+async function callRoboflow(base64Image) {
+  const apiKey = process.env.ROBOFLOW_API_KEY;
+  if (!apiKey) {
+    console.log('[FloorPlan] No ROBOFLOW_API_KEY set, skipping CV detection');
+    return null;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(
+      `https://detect.roboflow.com/cubicasa5k-2-qpmsa/4?api_key=${apiKey}&confidence=40`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: base64Image,
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.warn(`[FloorPlan] Roboflow returned ${response.status}`);
+      return null;
+    }
+
+    return await response.json();
+  } catch (err) {
+    console.warn('[FloorPlan] Roboflow call failed:', err.message);
+    return null;
+  }
+}
+
+function formatRoboflowHints(roboflowData) {
+  if (!roboflowData || !roboflowData.predictions || roboflowData.predictions.length === 0) {
+    return '';
+  }
+
+  const predictions = roboflowData.predictions;
+  const imgW = roboflowData.image?.width || 0;
+  const imgH = roboflowData.image?.height || 0;
+
+  const walls = predictions.filter(p => p.class === 'wall');
+  const doors = predictions.filter(p => p.class === 'door');
+  const windows = predictions.filter(p => p.class === 'window');
+
+  if (walls.length === 0 && doors.length === 0 && windows.length === 0) {
+    return '';
+  }
+
+  let hints = `\n═══════════════════════════════════════════════════════════════
+CV DETECTION HINTS (from a computer-vision model — use as approximate guides)
+Image size: ${imgW} x ${imgH} pixels
+═══════════════════════════════════════════════════════════════\n`;
+
+  if (walls.length > 0) {
+    hints += `\nDetected ${walls.length} wall regions (approximate centerlines):\n`;
+    walls.forEach((w, i) => {
+      const halfW = w.width / 2;
+      const halfH = w.height / 2;
+      if (w.width > w.height) {
+        // horizontal wall
+        hints += `  Wall ${i}: horizontal (${Math.round(w.x - halfW)}, ${Math.round(w.y)}) → (${Math.round(w.x + halfW)}, ${Math.round(w.y)}), thickness≈${Math.round(w.height)}, conf=${Math.round(w.confidence * 100)}%\n`;
+      } else {
+        // vertical wall
+        hints += `  Wall ${i}: vertical (${Math.round(w.x)}, ${Math.round(w.y - halfH)}) → (${Math.round(w.x)}, ${Math.round(w.y + halfH)}), thickness≈${Math.round(w.width)}, conf=${Math.round(w.confidence * 100)}%\n`;
+      }
+    });
+  }
+
+  if (doors.length > 0) {
+    hints += `\nDetected ${doors.length} doors:\n`;
+    doors.forEach((d, i) => {
+      hints += `  Door ${i}: center=(${Math.round(d.x)}, ${Math.round(d.y)}), bbox=${Math.round(d.width)}x${Math.round(d.height)}, conf=${Math.round(d.confidence * 100)}%\n`;
+    });
+  }
+
+  if (windows.length > 0) {
+    hints += `\nDetected ${windows.length} windows:\n`;
+    windows.forEach((w, i) => {
+      hints += `  Window ${i}: center=(${Math.round(w.x)}, ${Math.round(w.y)}), bbox=${Math.round(w.width)}x${Math.round(w.height)}, conf=${Math.round(w.confidence * 100)}%\n`;
+    });
+  }
+
+  hints += `\nNote: These are bounding-box detections. Use them to GUIDE your wall/door/window placement — they show WHERE elements are but not exact start/end coordinates. Trust your own analysis for exact geometry, connectivity, and room labels.\n`;
+
+  return hints;
+}
+
 const SYSTEM_PROMPT = `You are an architectural floor plan wall detector. Your ONLY job is to extract STRUCTURAL ELEMENTS: walls, doors, windows, and stairs.
 
 CRITICAL RULES:
@@ -78,6 +170,10 @@ export default async function handler(req, res) {
   });
 
   try {
+    // Call Roboflow CV model for spatial hints (graceful fallback if unavailable)
+    const roboflowData = await callRoboflow(image);
+    const cvHints = formatRoboflowHints(roboflowData);
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 16384,
@@ -96,103 +192,93 @@ export default async function handler(req, res) {
           },
           {
             type: 'text',
-            text: `Extract ONLY structural elements from this floor plan.
-
+            text: `Extract structural elements from this floor plan.
+${cvHints}
 ═══════════════════════════════════════════════════════════════
 CRITICAL: DIMENSION LINES ARE NOT WALLS!
 ═══════════════════════════════════════════════════════════════
 
-DIMENSION LINES look like this (IGNORE ALL OF THESE):
+DIMENSION LINES (IGNORE — never detect as walls):
 ❌ Thin lines with NUMBERS next to them (e.g., "2900", "4580", "5.37m")
 ❌ Lines with small ARROWS or TICKS at both ends
-❌ Lines that have measurement text like "2900", "4580mm", "5.37 m"
 ❌ Lines positioned OUTSIDE the floor plan pointing to edges
-❌ Horizontal or vertical lines with numbers written along them
 ❌ Any line where you can see a measurement number nearby
 
-WALLS look like this (DETECT THESE):
-✓ Form CLOSED shapes (rectangles, L-shapes, etc.)
-✓ Create the BOUNDARY of rooms - you cannot walk through them
-✓ Connect to OTHER walls at corners (T-junctions, L-corners)
-✓ Usually THICKER than dimension lines
-✓ Do NOT have measurement numbers written on them
-✓ Are part of the building structure, not annotations
-
 ═══════════════════════════════════════════════════════════════
-TWO-PASS DETECTION PROCESS:
+1. WALLS — Trace the CENTERLINE of each wall band
 ═══════════════════════════════════════════════════════════════
 
-PASS 1: FIND THE OUTER BOUNDARY FIRST
-- Look for the OUTERMOST closed shape that forms the building perimeter
-- This should form a CLOSED polygon (rectangle, L-shape, etc.)
-- Trace this boundary - these are your EXTERIOR walls (isExterior: true)
-- The outer boundary should have 4+ walls that connect end-to-end
+Walls are THICK bands (drawn as two parallel lines with fill between them).
+Your job: place start/end at the CENTER of each wall band (midway between the two edges).
 
-PASS 2: FIND INTERIOR WALLS
-- Look INSIDE the outer boundary for lines that divide the space
-- Interior walls CONNECT to the outer boundary or to each other
-- They create separate rooms within the building
-- Mark these as isExterior: false
+HOW TO TRACE:
+• Each wall is a STRAIGHT segment from one corner/junction to the next
+• At CORNERS (L-shape): two walls meet — both must share the EXACT same {x,y} endpoint
+• At T-JUNCTIONS: the joining wall's endpoint must exactly match a point on the through-wall
+• At CROSS-JUNCTIONS: walls share the same intersection point
+• NEVER leave gaps between walls that should connect — if two walls meet, their endpoints must be IDENTICAL pixel coordinates
 
-═══════════════════════════════════════════════════════════════
-WALL VALIDATION RULES:
-═══════════════════════════════════════════════════════════════
+EXTERIOR vs INTERIOR:
+• EXTERIOR walls (isExterior: true): ALL walls that form the OUTERMOST perimeter of the building. This includes walls around balconies, extensions, bay windows, and any protruding sections — if it has walls and is part of the building, include it. Trace the FULL perimeter as a CLOSED loop (last wall's end = first wall's start). The building shape may be L-shaped, U-shaped, or complex — trace the entire outline.
+• INTERIOR walls (isExterior: false): walls INSIDE the building that divide it into rooms. Each must connect to at least one exterior wall or another interior wall.
 
-A valid wall MUST:
-✓ Connect to at least ONE other wall at an endpoint
-✓ Be part of a room boundary (not floating in space)
-✓ NOT have dimension numbers written along it
+THICKNESS:
+• Measure the pixel distance between the two parallel edges of the wall band
+• Exterior walls are typically thicker than interior walls
 
-A line is NOT a wall if:
-✗ It has numbers like "2900", "4580", "5470" next to it
-✗ It has arrows or tick marks at its ends
-✗ It floats outside the building boundary
-✗ It doesn't connect to any other structural element
-✗ It's a thin annotation line
+WALL VALIDATION:
+✓ Every wall connects to at least ONE other wall
+✓ Exterior walls form a closed loop
+✓ No floating/disconnected segments
+✗ Lines with numbers nearby are NOT walls — they are dimension annotations
 
 ═══════════════════════════════════════════════════════════════
-WHAT TO DETECT:
+2. DOORS — Openings in walls with swing arcs
 ═══════════════════════════════════════════════════════════════
 
-1. WALLS - Lines that form room boundaries
-   • Must form CLOSED shapes when connected
-   • Must NOT have measurement numbers on them
-   • Exterior walls: outer perimeter (isExterior: true)
-   • Interior walls: room dividers (isExterior: false)
+VISUAL IDENTIFICATION:
+• SINGLE door: quarter-circle ARC touching a wall, with a straight line from the hinge point. The ARC RADIUS equals the door width.
+• DOUBLE door: TWO quarter-circle arcs facing each other, forming a butterfly/M shape
+• SLIDING door: two overlapping rectangles or parallel lines with an arrow, OR a gap in the wall with parallel guide lines
 
-2. DOORS - Openings in walls:
-   • Quarter-circle arc = hinged door
-   • Double arc = double doors
-   • Gap in wall = doorway
-
-3. WINDOWS - On exterior walls:
-   • Parallel lines crossing the wall
-   • Small rectangles on wall line
-
-4. STAIRS - Parallel step lines with arrow
-
-═══════════════════════════════════════════════════════════════
-WHAT TO COMPLETELY IGNORE:
-═══════════════════════════════════════════════════════════════
-
-DIMENSION ANNOTATIONS (NEVER detect as walls):
-❌ ANY line with numbers nearby (2900, 4580, 5.37m, etc.)
-❌ Lines with arrows/ticks at ends
-❌ Measurement indicators outside the floor plan
-❌ Scale bars or rulers
-
-FURNITURE:
-❌ Sofas, beds, tables, chairs (inside rooms)
-❌ Kitchen counters, appliances
-❌ Bathroom fixtures (toilet, tub, sink)
-
-OTHER:
-❌ Room labels and text
-❌ North arrows, scale indicators
-❌ Hatching or fill patterns
+FOR EACH DOOR, REPORT:
+• center: the pixel {x,y} at the MIDPOINT of the door opening along the wall. This should be ON the wall line, centered in the gap where the door is.
+• width: the RADIUS of the door swing arc in PIXELS. This is how wide the door opening is. Measure the arc radius or the gap in the wall. A standard door arc is typically 50-100 pixels in a typical floor plan image. Do NOT return small values like 10-30 — measure carefully.
+• wallIndex: the 0-based INDEX into the walls array for the wall this door is in
+• rotation: the angle in DEGREES (0, 90, 180, or 270) that the door arc faces:
+  - 0° = arc swings to the RIGHT and DOWN from hinge
+  - 90° = arc swings DOWN and to the LEFT
+  - 180° = arc swings to the LEFT and UP
+  - 270° = arc swings UP and to the RIGHT
+  Look at which direction the arc curves in the image to determine rotation.
+• doorType: "single", "double", or "sliding"
 
 ═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT:
+3. WINDOWS — Parallel lines crossing through walls
+═══════════════════════════════════════════════════════════════
+
+VISUAL IDENTIFICATION:
+• Two or three SHORT parallel lines that cross PERPENDICULAR to a wall
+• Sometimes shown as a thin rectangle or double-line symbol ON a wall
+• Often on exterior walls but can also appear on interior walls
+
+FOR EACH WINDOW, REPORT:
+• center: the CENTER of the window along the wall (in pixels)
+• width: the width of the window in PIXELS (measure along the wall direction)
+• wallIndex: the 0-based INDEX into the walls array for the wall this window is on
+
+═══════════════════════════════════════════════════════════════
+4. OTHER ELEMENTS
+═══════════════════════════════════════════════════════════════
+
+ROOMS: Identify each labeled room. Report its name (from the label text), center point, and labeled area if shown (e.g. "12.5 m²").
+
+STAIRS: Parallel step lines with direction arrow. Report center and direction.
+
+IGNORE: furniture, fixtures, bathroom fittings, kitchen appliances, text labels (except room names), north arrows, hatching.
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════
 
 {
@@ -210,13 +296,16 @@ OUTPUT FORMAT:
     {
       "center": { "x": NUMBER, "y": NUMBER },
       "width": NUMBER,
+      "wallIndex": NUMBER,
+      "rotation": NUMBER,
       "doorType": "single" | "double" | "sliding"
     }
   ],
   "windows": [
     {
       "center": { "x": NUMBER, "y": NUMBER },
-      "width": NUMBER
+      "width": NUMBER,
+      "wallIndex": NUMBER
     }
   ],
   "rooms": [
@@ -242,14 +331,15 @@ OUTPUT FORMAT:
 }
 
 ═══════════════════════════════════════════════════════════════
-FINAL CHECKLIST (verify before responding):
+FINAL CHECKLIST:
 ═══════════════════════════════════════════════════════════════
 
-□ Did I ignore ALL lines with numbers (dimension lines)?
-□ Do my exterior walls form a CLOSED boundary?
-□ Does each wall connect to at least one other wall?
-□ Did I only detect structural walls, not annotations?
-□ Are there no floating/disconnected wall segments?
+□ Did I trace wall CENTERLINES (not edges)?
+□ Do walls that meet share the EXACT same endpoint coordinates?
+□ Do exterior walls form a CLOSED loop?
+□ Did I set wallIndex on every door and window?
+□ Did I set rotation (0/90/180/270) on every door based on the arc direction?
+□ Did I ignore dimension lines (lines with numbers)?
 
 Return ONLY the JSON object, nothing else.`
           }
@@ -305,7 +395,9 @@ Return ONLY the JSON object, nothing else.`
       windows: result.windows.length,
       rooms: result.rooms.length,
       stairs: result.stairs?.length || 0,
-      shape: result.overallShape
+      shape: result.overallShape,
+      cvHintsUsed: cvHints.length > 0,
+      roboflowDetections: roboflowData ? roboflowData.predictions?.length || 0 : 'skipped',
     });
 
     return res.status(200).json(result);

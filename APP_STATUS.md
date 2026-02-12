@@ -1,32 +1,37 @@
-# Sitea - Land Visualizer: Complete Status Report
+# Sitea - 3D Land & Building Visualizer: Complete Status Report
 
 **Last Updated:** February 9, 2026
 **Live URL:** https://sitea-one.vercel.app
-**Deployment:** Vercel via `npx vercel --prod` (not git push due to large files in history)
+**Deployment:** Vercel via `npx vercel --prod`
 
 ---
 
 ## Vision & Purpose
 
-**Sitea** is a **web-based 3D land and building visualization tool** that transforms abstract property measurements and floor plans into immersive, explorable 3D experiences.
+**Sitea** is a **browser-based 3D land and building visualization platform** that transforms abstract property measurements and floor plans into immersive, explorable 3D experiences — no CAD skills, no downloads, no install.
 
-**Core value proposition:** *Turn abstract land measurements into tangible, explorable 3D experiences — no CAD skills required.*
+**Core value proposition:** *See your land before you build. Walk through it. Design on it. Share it.*
 
 **Target Users:**
-- Real estate professionals (agents, developers)
-- Architects and designers
-- Homeowners planning renovations/builds
-- Urban planners
-- Property investors
-- Anyone needing to visualize land and building scale
+- Real estate agents showing land to buyers
+- Homeowners planning a build or renovation
+- Architects doing early concept visualization
+- Property developers comparing lot utilization
+- Urban planners and investors evaluating parcels
+- Anyone who needs to understand "how big is this land, really?"
 
-**What makes it unique:** Users can draw their land boundaries, design buildings with Sims 4-style tools, import AI-analyzed floor plans, and then walk through their designs in first-person — all in a browser with no install.
+**What makes Sitea unique:**
+1. **Instant scale understanding** — compare your land to a soccer field, a Walmart, or the Great Pyramid
+2. **Sims 4-style building tools** — intuitive room/wall/door/window design, no CAD knowledge needed
+3. **AI floor plan import** — photograph a floor plan, Claude Vision + Roboflow CV extract walls/doors/windows automatically
+4. **First-person walkthrough** — walk through your design at human scale, experience the space
+5. **Browser-based** — works on desktop and mobile, nothing to install
 
 ---
 
-## Current State: Production — Revenue-Ready
+## Current State: Production — Shipping
 
-All core features are **stable and deployed**. Payment system is fully wired (PayPal + Supabase). Pro features are gated and functional.
+All core features are **stable and deployed**. Payment system is fully wired (PayPal + Supabase). Hybrid AI analysis (Roboflow CV + Claude Vision) is live. Mobile experience is polished.
 
 ### Tech Stack
 | Layer | Technology |
@@ -34,12 +39,13 @@ All core features are **stable and deployed**. Payment system is fully wired (Pa
 | Frontend | React 19.2 + Vite 7.2 + Tailwind CSS 4.1 |
 | 3D Engine | Three.js 0.181 + React Three Fiber 9.4 + Drei 10.7 |
 | Backend | Vercel Serverless Functions |
-| AI | Claude Vision (claude-sonnet-4-20250514) |
+| AI (Vision) | Claude Sonnet 4 (claude-sonnet-4-20250514) |
+| AI (CV) | Roboflow CubiCasa5K object detection model |
 | Database | Supabase (PostgreSQL + Auth + Storage) |
 | Payments | PayPal (react-paypal-js) |
 | PDF | jsPDF |
 | Mobile | nipplejs virtual joystick |
-| Asset Hosting | Supabase Storage (GLB models, public bucket) |
+| Asset Hosting | Supabase Storage (GLB models, public bucket + CORS) |
 
 ### Codebase Metrics
 | Metric | Value |
@@ -47,11 +53,12 @@ All core features are **stable and deployed**. Payment system is fully wired (Pa
 | Total source code | ~25,000+ lines |
 | App.jsx | ~4,100 lines |
 | LandScene.jsx | ~3,700 lines |
-| Components | 35+ (panels, modals, scene components, property panels) |
+| Components | 35+ |
 | Utilities | 10 |
 | Custom hooks | 4 |
 | Services | 3 |
-| Bundle (gzipped) | ~880KB total (Three.js alone is 382KB) |
+| API endpoints | 2 (floor plan analysis, site plan analysis) |
+| Bundle (gzipped) | ~880KB total (Three.js = 382KB) |
 | Build time | ~8-12 seconds |
 | Build errors | 0 |
 
@@ -64,39 +71,40 @@ All core features are **stable and deployed**. Payment system is fully wired (Pa
 |---------|--------|
 | Rectangle land (length x width input) | Done |
 | Custom polygon boundaries (click to draw) | Done |
-| Land templates (preset lot sizes) | Done |
-| Upload floor plan (AI-assisted tracing) | Done |
+| Land templates (7 preset lot sizes: 600m2 to 1 acre) | Done |
+| Upload site plan (AI boundary detection) | Done |
 | Area calculation (m2, ft2, acres, hectares) | Done |
 | Unit switching (meters / feet / mm) | Done |
 | Setback boundary visualization | Done |
 | Polygon vertex editing with snapping | Done |
-| Onboarding walkthrough (3-step) | Done |
+| Touch-friendly polygon dragging (pointer events) | Done |
+| Onboarding walkthrough (3-step, close button) | Done |
 
 ### 2. Building Design System (Sims 4-Style)
 | Feature | Status |
 |---------|--------|
-| Rectangular rooms (click-click) | Done |
-| Polygon rooms (multi-click) | Done |
-| Standalone walls | Done |
-| Half walls (railings, counters) | Done |
+| Rectangular rooms (click-click corners) | Done |
+| Polygon rooms (multi-click freeform) | Done |
+| Standalone walls (thickness customizable) | Done |
+| Half walls (railings, counters, dividers) | Done |
 | Fences (5 styles: picket, privacy, chain-link, iron, ranch) | Done |
-| Doors (single, double, sliding, garage) | Done |
-| Windows (customizable width, height, sill) | Done |
-| Pools (polygon-based, depth, deck, water color) | Done |
+| Doors (single, double, sliding, garage with swing arcs) | Done |
+| Windows (customizable width, height, sill height) | Done |
+| Pools (polygon-based, depth 0.5-3m, deck, water color) | Done |
 | Foundations/Platforms (polygon, adjustable height) | Done |
-| Stairs (straight, L-shaped, railings) | Done |
-| Roofs (gable, adjustable pitch, overhang) | Done |
-| Preset buildings (houses, garage, shed, barn) | Done |
-| Multi-story buildings (up to 5+ floors) | Done |
-| Click-to-add-floors (extrude rooms) | Done |
+| Stairs (straight, L-shaped with railings) | Done |
+| Roofs (gable, adjustable pitch 5-60 degrees, overhang) | Done |
+| 10 preset buildings (house, garage, shed, barn, greenhouse, gazebo, etc.) | Done |
+| Multi-story buildings (up to 5+ floors per room) | Done |
+| Click-to-add-floors (extrude rooms vertically) | Done |
 | Undo/Redo (Ctrl+Z / Ctrl+Shift+Z) | Done |
-| Grid snapping (adjustable size) | Done |
-| Vertex/edge snapping (walls, corners) | Done |
+| Grid snapping (1m default, adjustable) | Done |
+| Vertex/edge snapping (2m threshold) | Done |
 | Shift+draw for 45-degree angle snapping | Done |
 | Spacebar to confirm drawing point | Done |
-| Ctrl+Z undoes drawing points (not objects) | Done |
+| Ctrl+Z undoes individual drawing points | Done |
 | Right-click exits drawing mode | Done |
-| Auto-exit drawing mode on polygon close | Done |
+| Auto-exit drawing on polygon close | Done |
 | Select, move, drag, rotate, delete tools | Done |
 | Context-sensitive "Clear all" button | Done |
 | 7 property panels (Room, Wall, Fence, Pool, Foundation, Stairs, Roof) | Done |
@@ -104,76 +112,89 @@ All core features are **stable and deployed**. Payment system is fully wired (Pa
 ### 3. AI Floor Plan Generator (Pro Feature)
 | Feature | Status |
 |---------|--------|
-| Image upload with preview | Done |
-| Claude Vision analysis (wall/door/window extraction) | Done |
-| Scale calibration (click-to-calibrate) | Done |
-| 2D interactive editor (zoom, pan, select, drag) | Done |
+| Image upload with preview (drag/drop or file select) | Done |
+| Roboflow CubiCasa5K CV detection (walls, doors, windows) | Done |
+| Claude Vision analysis with CV hints (guided detection) | Done |
+| Graceful fallback (no API key or timeout = Claude-only) | Done |
+| Scale calibration (click-to-calibrate dimension labels) | Done |
+| 2D interactive editor (zoom, pan, select, drag walls) | Done |
 | Wall endpoint snapping (0/45/90 degrees) | Done |
-| 3D preview before committing | Done |
+| 3D preview before committing to scene | Done |
 | JWT auth + subscription check on API | Done |
-| 1 free upload for free users | Done |
+| 1 free upload for free users, unlimited for Pro | Done |
 
 ### 4. Camera & Navigation
 | Feature | Status |
 |---------|--------|
-| First-person mode (WASD + mouse) | Done |
-| Third-person follow camera | Done |
-| Orbit camera (scroll zoom) | Done |
+| First-person mode (WASD + mouse look) | Done |
+| Third-person follow camera (smooth lerp) | Done |
+| Orbit camera (free rotation, scroll zoom) | Done |
 | 2D top-down orthographic view | Done |
-| Jump with gravity physics | Done |
-| Head bob + lateral sway | Done |
+| Jump with gravity physics (9.81 m/s2) | Done |
+| Head bob + lateral sway (walk/run) | Done |
 | Camera lock during item drag | Done |
 | Fit-to-land auto-frame | Done |
-| Smooth mode transitions | Done |
+| Smooth mode transitions (FP <-> TP via scroll) | Done |
+| Mobile touch look (pitch + yaw) | Done |
+| Pinch zoom on mobile | Done |
 
 ### 5. Character & NPC System
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Player character (GLB from Supabase Storage) | Done | |
+| Player character (GLB from Supabase Storage) | Done | Auto-scaled via Box3 |
 | 13 animation clips (idle, walk, run, jump, strafe, turn) | Done | |
-| Auto-scale model detection (Box3) | Done | |
-| Animation crossfading | Done | |
+| Animation crossfading (smooth transitions) | Done | |
 | Root motion lock (Hips bone X/Z) | Done | |
-| NPC guide characters | Done | |
-| Proximity detection (E to talk / mobile Talk button) | Done | |
-| Dialog system | Done | |
+| NPC guide characters (colored) | Done | |
+| Proximity detection (E key / mobile Talk button) | Done | |
+| Dialog system (chat bubbles) | Done | |
 | Character arms T-pose | Bug | Arms stuck horizontal, needs bind-pose debugging |
 
 ### 6. Graphics & Environment
 | Feature | Status |
 |---------|--------|
-| Day/Night cycle (Pro: auto-cycling, slider) | Done |
-| Night stars (200 points, fade in/out) | Done |
-| Realistic sky shader (7 time stops) | Done |
+| Day/Night cycle (1-hour auto-cycle for Pro, manual slider) | Done |
+| Moonlight at night (ambient 0.9 + directional 0.4) | Done |
+| Collapsible time slider on mobile (button + dropdown) | Done |
+| Night stars (200 points, fade in/out at dusk/dawn) | Done |
+| Realistic sky shader (7 time-of-day stops) | Done |
 | Golden hour lighting (sun, ambient, fill) | Done |
-| Dynamic fog (color varies with time) | Done |
+| Dynamic fog (color/density varies with time) | Done |
 | Procedural grass textures (canvas-based) | Done |
 | Dirt/earth land plot texture | Done |
 | 2000m ground plane (no visible edge) | Done |
 | 120 scattered low-poly trees (InstancedMesh) | Done |
-| 3-ring mountain silhouettes | Done |
-| Shadow mapping (BEST quality mode) | Done |
+| 3-ring mountain silhouettes (parallax) | Done |
+| Shadow mapping (quality-dependent) | Done |
 | FAST/BEST quality presets | Done |
-| Z-fighting prevention | Done |
-| Transparent material depth sorting | Done |
 
 ### 7. Comparison Objects (24+)
-Soccer fields, basketball courts, tennis courts, swimming pools, parking spaces, vehicles (car, bus, container), buildings (house, apartment), landmarks, commercial establishments — all draggable and rotatable.
+| Category | Objects |
+|----------|---------|
+| Sports (4) | Soccer Field, Basketball Court, Tennis Court, Olympic Pool |
+| Buildings (2) | House (10x10m), Studio Apartment |
+| Vehicles (3) | Sedan, School Bus, Shipping Container |
+| Commercial (6) | 7-Eleven, McDonald's, Gas Station, Supermarket, Starbucks, Walmart |
+| Landmarks (6) | Eiffel Tower, Statue of Liberty, Great Pyramid, Taj Mahal, Colosseum, Big Ben |
+| Gaming (6) | Pokemon Center, Minecraft House, AC Villager House, Fortnite 1x1, Link's House, Sims Starter Home |
+| Other (2) | Parking Space, King Size Bed |
+
+All draggable, rotatable, with fit count calculations ("X fit on your land").
 
 ### 8. Export System
 | Export | Status |
 |--------|--------|
-| PNG floor plan | Done |
-| PDF report (A4, stats, floor plan) | Done |
-| 3D screenshot (1x/2x/4x) | Done |
-| GLB/GLTF/OBJ model export | Done |
+| PNG floor plan (dimensions, room labels, legend, grid) | Done |
+| PDF report (A4, stats, floor plan, metadata) | Done |
+| 3D screenshot (1x/2x/4x resolution) | Done |
+| GLB/GLTF/OBJ model export (full scene geometry) | Done |
 
 ### 9. Sharing & Persistence
 | Feature | Status |
 |---------|--------|
 | Shareable URLs via Supabase | Done |
 | Read-only mode for shared scenes | Done |
-| Scene serialization/deserialization | Done |
+| Scene serialization/deserialization (JSON) | Done |
 | localStorage session persistence | Done |
 
 ### 10. Payment & Monetization
@@ -182,22 +203,26 @@ Soccer fields, basketball courts, tennis courts, swimming pools, parking spaces,
 | PricingModal with PayPal buttons | Done |
 | Monthly plan: $9.99/month | Done |
 | Lifetime plan: $149 one-time | Done |
-| Feature gating (isPaidUser check) | Done |
+| Feature gating (isPaidUser hook) | Done |
 | Supabase subscriptions table | Done |
 | JWT auth on API endpoints | Done |
-| Subscription status checking | Done |
 | UpgradePrompt component | Done |
+| Google OAuth + email/password auth | Done |
 
 ### 11. Mobile Support
 | Feature | Status |
 |---------|--------|
-| useIsMobile + useIsLandscape hooks | Done |
 | Virtual joystick (nipplejs) | Done |
 | Action buttons (Jump, Talk, Use, Run) | Done |
 | Bottom nav (4 items + More overflow) | Done |
 | Collapsible side panels | Done |
+| CTA card hides when panel is open | Done |
 | Safe area CSS (notch, home indicator) | Done |
-| Touch controls (pinch zoom, tap) | Done |
+| Touch controls (pinch zoom, tap, drag) | Done |
+| Touch-friendly polygon point dragging (35px hit area) | Done |
+| Touch camera look (pitch + yaw fix) | Done |
+| Landscape mode support | Done |
+| Collapsible day/night button (below minimap) | Done |
 
 ### 12. Security
 | Feature | Status |
@@ -205,20 +230,36 @@ Soccer fields, basketball courts, tennis courts, swimming pools, parking spaces,
 | JWT auth on API endpoints | Done |
 | Subscription check before AI analysis | Done |
 | Error message sanitization (no stack traces) | Done |
-| Email validation (regex) | Done |
+| Email validation | Done |
 | Supabase RLS policies | Done |
 
-### 13. Drawing UX (Added Feb 7-9, 2026)
-| Feature | Status |
-|---------|--------|
-| Shift+draw snaps to 0/45/90 degree angles | Done |
-| Spacebar confirms drawing point (alternative to click) | Done |
-| Spacebar + typed length = exact distance placement | Done |
-| Ctrl+Z undoes last drawing point (not last object) | Done |
-| Right-click exits any drawing tool | Done |
-| Auto-exit drawing mode on polygon close | Done |
-| Selection instructions toast for all item types | Done |
-| Camera locks when dragging pools/platforms/stairs | Done |
+---
+
+## AI Analysis Pipeline
+
+```
+Floor Plan Image Upload
+  |
+  v
+Roboflow CubiCasa5K (object detection)  ─── 1-3s, 10s timeout
+  |  Returns: bounding boxes for walls, doors, windows
+  |  Fallback: skipped if no API key or timeout
+  v
+formatRoboflowHints()
+  |  Converts bboxes to approximate wall lines + door/window centers
+  v
+Claude Vision (claude-sonnet-4, temp=0)  ─── 20-45s
+  |  Input: image + CV hints + detailed prompt
+  |  Output: walls, doors, windows, rooms, stairs, scale
+  v
+Post-processing
+  |  Ensure required fields, validate wall connectivity
+  v
+Client: 2D editor → 3D preview → commit to scene
+```
+
+**Total pipeline:** 22-49 seconds (within 60s Vercel limit)
+**Verified metrics:** cvHintsUsed: true, roboflowDetections: 25 (test run)
 
 ---
 
@@ -226,31 +267,32 @@ Soccer fields, basketball courts, tennis courts, swimming pools, parking spaces,
 
 ```
 New Visitor → Landing page with example land (~2750 m2)
-    ↓
-Walkthrough: "Use WASD to walk" (auto-advance or on movement)
-    ↓
-Explore example land in first-person
-    ↓
-┌─────────────────────────────────────────────┐
-│ Define Land → Rectangle / Polygon / Upload  │
-│ Design Building → Walls, Rooms, Pools, etc  │
-│ Explore → Walk through in first-person      │
-│ Export → PNG / PDF / GLB / Share link        │
-└─────────────────────────────────────────────┘
-    ↓
-Pro Upgrade Trigger (2nd floor plan upload)
+    |
+    v
+Walk around in first-person (WASD or mobile joystick)
+    |
+    v
+  +---------------------------------------------------+
+  | Define Land  → Rectangle / Polygon / Template      |
+  | Compare      → Overlay soccer fields, buildings    |
+  | Build        → Walls, rooms, pools, roofs, stairs  |
+  | Export       → PNG / PDF / GLB / Share link         |
+  +---------------------------------------------------+
+    |
+    v
+Pro Upgrade Trigger (2nd floor plan upload or pro feature)
     → PricingModal → PayPal → Subscription saved
-    → Day/night cycle + unlimited uploads unlocked
+    → Day/night cycle + unlimited AI uploads unlocked
 ```
 
 ---
 
-## Known Issues & Bugs
+## Known Issues
 
 | Issue | Severity | Notes |
 |-------|----------|-------|
-| Character arms T-pose | Medium | Arms stuck horizontal when idle/walking. Multiple fix attempts failed. Needs full XYZ bind-pose debugging. See tasks/todo.md for details. |
-| Mobile landscape refinements | Low | Some button positioning inconsistencies in landscape orientation |
+| Character arms T-pose | Medium | Arms stuck horizontal when idle/walking. Needs bind-pose bone axis debugging. |
+| Mobile landscape refinements | Low | Minor button positioning inconsistencies |
 | Large design PDF export | Low | 50+ wall designs may timeout on slow connections |
 
 ---
@@ -260,133 +302,156 @@ Pro Upgrade Trigger (2nd floor plan upload)
 ```
 Sitea1/
 ├── api/
-│   └── analyze-floor-plan.js          # Claude Vision serverless endpoint (JWT auth)
+│   ├── analyze-floor-plan.js          # Claude Vision + Roboflow CV, JWT auth
+│   └── analyze-site-plan.js           # Land boundary detection from site plans
 ├── src/
 │   ├── main.jsx                       # Entry point (providers, router)
-│   ├── App.jsx (~4100 lines)          # Main app state, callbacks, UI shell
+│   ├── App.jsx (~4100 lines)          # Main state, callbacks, UI shell
 │   ├── index.css                      # Tailwind + custom animations
 │   ├── components/
-│   │   ├── LandScene.jsx (~3700 lines)  # 3D scene engine (R3F)
-│   │   ├── LandPanel.jsx               # Land definition UI
-│   │   ├── BuildPanel.jsx              # Building tools + floor controls
-│   │   ├── ComparePanel.jsx            # Comparison objects
-│   │   ├── ExportPanel.jsx             # 4 export types
-│   │   ├── AuthModal.jsx               # Sign in/up (Google OAuth + email)
-│   │   ├── PricingModal.jsx            # PayPal subscription UI
+│   │   ├── LandScene.jsx (~3700)      # 3D scene engine (R3F Canvas)
+│   │   ├── LandPanel.jsx              # Land definition UI
+│   │   ├── BuildPanel.jsx             # Building tools + floor controls
+│   │   ├── ComparePanel.jsx           # Comparison objects (24+)
+│   │   ├── ExportPanel.jsx            # 4 export types
+│   │   ├── AuthModal.jsx              # Sign in/up (Google OAuth + email)
+│   │   ├── PricingModal.jsx           # PayPal subscription UI
 │   │   ├── FloorPlanGeneratorModal.jsx # AI floor plan editor
-│   │   ├── UploadImageModal.jsx        # Image upload
-│   │   ├── Onboarding.jsx             # Welcome walkthrough
-│   │   ├── PolygonEditor.jsx           # Land polygon drawing
-│   │   ├── ImageTracer.jsx             # Wall tracing on uploaded image
-│   │   ├── Minimap.jsx                 # Mini 2D map
-│   │   ├── NPCDialog.jsx              # NPC chat overlay
-│   │   ├── UpgradePrompt.jsx           # Pro upgrade prompts
-│   │   ├── *PropertiesPanel.jsx        # 7 property panels
+│   │   ├── Onboarding.jsx             # Welcome walkthrough (close button)
+│   │   ├── PolygonEditor.jsx          # Land polygon drawing
+│   │   ├── ImageTracer.jsx            # Wall tracing on images
+│   │   ├── ShapeEditor.jsx            # Shape editing (pointer events)
+│   │   ├── Minimap.jsx                # Mini 2D map
+│   │   ├── UpgradePrompt.jsx          # Pro upgrade prompts
+│   │   ├── *PropertiesPanel.jsx (x7)  # Room, Wall, Fence, Pool, Foundation, Stairs, Roof
 │   │   └── scene/
-│   │       ├── AnimatedPlayerMesh.jsx  # Player model + skeletal animation
-│   │       ├── CameraController.jsx   # FP/TP/Orbit camera + physics
-│   │       ├── SceneEnvironment.jsx   # Sky, ground, trees, mountains, day/night
-│   │       ├── PolygonRenderers.jsx   # Pools, foundations, stairs, roofs
-│   │       ├── WallSegment.jsx        # Wall mesh + openings
-│   │       ├── RoomFloor.jsx          # Room floor planes
-│   │       ├── BuildingComponents.jsx # Building meshes + preview
-│   │       ├── ComparisonObjects.jsx  # Draggable comparisons
-│   │       ├── GridComponents.jsx     # Grid overlay + CAD dots
-│   │       └── NPCCharacter.jsx       # NPC figures
-│   ├── hooks/
-│   │   ├── useUser.jsx                # Auth + subscription context
-│   │   ├── useIsMobile.js             # Mobile + landscape detection
-│   │   ├── useBuildHistory.js         # Undo/redo state
-│   │   └── useGrassTextures.js        # Procedural texture generation
-│   ├── services/
-│   │   ├── analytics.js               # Event tracking
-│   │   ├── imageAnalysis.js           # Frontend API wrapper
-│   │   └── shareScene.js             # Scene serialization + Supabase
-│   ├── utils/                         # 10 utility modules
+│   │       ├── AnimatedPlayerMesh.jsx  # Player model + 13 animations
+│   │       ├── CameraController.jsx    # FP/TP/Orbit + physics + touch fix
+│   │       ├── SceneEnvironment.jsx    # Sky, ground, trees, mountains
+│   │       ├── PolygonRenderers.jsx    # Pools, foundations, stairs, roofs
+│   │       ├── WallSegment.jsx         # Wall mesh + openings
+│   │       ├── ComparisonObjects.jsx   # Draggable comparisons
+│   │       └── NPCCharacter.jsx        # NPC figures
+│   ├── hooks/                          # useUser, useIsMobile, useBuildHistory, useGrassTextures
+│   ├── services/                       # analytics, imageAnalysis, shareScene
+│   ├── utils/                          # 10 modules (export, collision, texture, etc.)
 │   ├── constants/landSceneConstants.js
-│   ├── data/presets.js + landTemplates.js
-│   └── lib/supabaseClient.js
-├── APP_STATUS.md                      # This file
-├── CLAUDE.md                          # Claude Code instructions
-├── tasks/todo.md                      # Dev task tracker + session reviews
+│   └── data/                           # landTemplates, presets
+├── APP_STATUS.md                       # This file
+├── CLAUDE.md                           # Claude Code instructions
+├── tasks/todo.md                       # Dev task tracker
 └── package.json
 ```
 
 ---
 
-## What's Done vs What's Next
+## Development Timeline
 
-### Completed (Production-Ready)
-- Full land definition system (4 methods)
-- Complete building design toolkit (walls, rooms, doors, windows, pools, stairs, roofs, fences)
-- Multi-story buildings with floor management
-- AI floor plan analysis (Claude Vision)
-- 4 camera modes with smooth transitions
-- Player character with 13 animation clips
-- NPC system with dialog
-- Day/night cycle (Pro feature)
-- Open-world environment (sky, terrain, trees, mountains)
-- Quality presets (FAST/BEST)
-- Mobile support (joystick, touch, responsive UI)
-- 4 export types (PNG, PDF, GLB, screenshot)
-- Scene sharing via Supabase
-- Payment system (PayPal monthly + lifetime)
-- Security hardening (JWT auth, RLS, error sanitization)
-- Drawing UX improvements (Shift snap, spacebar, undo points, right-click exit)
+| Date | Focus | Status |
+|------|-------|--------|
+| Feb 9, 2026 | Hybrid AI: Roboflow CV + Claude Vision for floor plans | Done |
+| Feb 9, 2026 | Night lighting fix (moonlight, ambient boost to 0.9) | Done |
+| Feb 9, 2026 | Day/night cycle: 1-hour auto, collapsible mobile slider | Done |
+| Feb 9, 2026 | Mobile touch camera fix (pitch/yaw in 1P mode) | Done |
+| Feb 9, 2026 | Mobile polygon point dragging (pointer events, 35px hit area) | Done |
+| Feb 9, 2026 | Mobile CTA hides behind side panels | Done |
+| Feb 9, 2026 | Onboarding modal close button (X) | Done |
+| Feb 9, 2026 | Olympic Pool moved to Sports category | Done |
+| Feb 7-9, 2026 | Drawing UX: Shift snap, spacebar, undo points, right-click exit | Done |
+| Feb 7, 2026 | Character model: FBX to GLB, auto-scale, Supabase hosting | Done |
+| Feb 6, 2026 | Day/Night cycle, sky shader, stars, time slider | Done |
+| Feb 6, 2026 | Security: JWT auth, subscription check, error sanitization | Done |
+| Feb 6, 2026 | Open world: golden hour, mountains, trees, fog | Done |
+| Feb 5, 2026 | Terrain: dirt texture, 2000m ground plane, transparency fixes | Done |
+| Feb 1, 2026 | Mobile: Talk/Use buttons, landscape mode, responsive layout | Done |
+| Jan 23, 2026 | Multi-story buildings, floor management, export overhaul | Done |
+| Jan 22, 2026 | NPC dialog system, payment frontend | Done |
+| Earlier | First-person camera, bundle optimization, LandScene refactor | Done |
 
-### Improvements to Make
+---
 
-#### High Priority — Polish & Revenue
-| Item | Impact | Effort |
-|------|--------|--------|
-| Fix character arm T-pose | Visual quality | Medium (needs bone axis debugging) |
-| PayPal sandbox testing end-to-end | Revenue | Low (manual testing) |
-| Onboarding improvement (guide users to build) | Retention | Medium |
-| Loading screen / progress indicator | First impression | Low |
-| Performance profiling (large designs 50+ walls) | Usability | Medium |
+## What's Next: Roadmap to Keep Improving
 
-#### Medium Priority — Feature Expansion
-| Item | Impact | Effort |
-|------|--------|--------|
-| Furniture library (beds, tables, chairs, etc.) | Interior design use case | High |
-| Terrain elevation (hills, slopes) | Realism | High |
-| Driveways & pathways (hardscape tools) | Completeness | Medium |
+### Phase 1: Ship & Validate (Now)
+The app is production-ready. Focus on getting users, collecting feedback, and validating the payment flow.
+
+| Item | Why | Effort |
+|------|-----|--------|
+| PayPal end-to-end testing (sandbox + live) | Validate revenue works | Low |
+| Analytics dashboard (track key funnels) | Know where users drop off | Low |
+| Landing page / marketing site | Drive signups | Medium |
+| SEO + social sharing meta tags | Organic discovery | Low |
+| Fix character arm T-pose | Visual polish | Medium |
+
+### Phase 2: Retention & Engagement
+Once users are coming in, keep them coming back.
+
+| Item | Why | Effort |
+|------|-----|--------|
+| Saved projects (multiple designs per user) | Users can't save today, biggest gap | Medium |
+| Better onboarding (guided tour: define land -> build -> walk) | First-time user experience | Medium |
+| Furniture library (beds, tables, chairs, appliances) | Interior design use case | High |
+| Room textures (floor materials, wall paint colors) | Visual quality | Medium |
+| Undo/redo for all operations (not just walls) | Core UX | Medium |
+
+### Phase 3: Professional Features
+Expand into professional use cases.
+
+| Item | Why | Effort |
+|------|-----|--------|
+| Site plan AI improvement (OpenCV contour detection) | More accurate site plan boundaries | Medium |
+| Cost estimation (material lists + rough pricing) | Real estate / builder value | High |
+| Terrain elevation (hills, slopes, grading) | Realistic site modeling | High |
+| Driveways, pathways, hardscape tools | Completeness | Medium |
 | Vegetation tools (trees, bushes, gardens) | Landscaping use case | Medium |
-| Cost estimation (material lists + pricing) | Professional use case | High |
-| Saved projects (multiple designs per user) | User retention | Medium |
-| Undo/redo for all operations (not just walls) | UX | Medium |
+| CAD import (DXF/DWG) | Professional interop | High |
 
-#### Low Priority — Advanced Features
-| Item | Impact | Effort |
-|------|--------|--------|
-| CAD import (DXF/DWG) | Professional users | High |
-| Real-time collaboration (multi-user) | Team use case | Very High |
-| WebXR/AR (VR walkthrough, mobile AR) | Wow factor | High |
-| TypeScript full migration | Code quality | Medium |
-| Unit test suite (Vitest) | Reliability | Medium |
-| App.jsx refactor (extract into hooks) | Maintainability | Medium |
+### Phase 4: Scale & Differentiate
+Long-term vision features.
+
+| Item | Why | Effort |
+|------|-----|--------|
+| Real-time collaboration (multi-user editing) | Team workflows | Very High |
+| WebXR / AR preview (walk through in VR, view in AR on phone) | Wow factor, differentiation | High |
+| AI room layout suggestions | "Design this room for me" | High |
+| Neighborhood context (import surrounding buildings) | Realistic context | High |
+| API for integrations (embed viewer in real estate sites) | B2B revenue | High |
 
 ---
 
 ## Technical Debt
 
 ### Resolved
-- Bundle: 2MB → 880KB gzipped (code splitting)
-- LandScene.jsx: 9109 → 3700 lines (component extraction)
-- Character model: 62MB FBX → 3.1MB optimized GLB
-- Asset hosting: Git LFS → Supabase Storage (Vercel-compatible)
+- Bundle: 2MB -> 880KB gzipped (code splitting)
+- LandScene.jsx: 9109 -> 3700 lines (component extraction)
+- Character model: 62MB FBX -> 3.1MB optimized GLB
+- Asset hosting: Git LFS -> Supabase Storage (Vercel-compatible)
 - Error boundary for 3D canvas crashes
 - Z-fighting and transparent material rendering
-- Dead code cleanup (unused move handlers)
+- Touch camera look not updating pitch (fixed: removed setFromQuaternion)
+- Mobile polygon dragging not working (fixed: switched to pointer events)
 
 ### Remaining
 | Issue | Impact | Priority |
 |-------|--------|----------|
 | App.jsx ~4100 lines | Maintainability | Medium |
-| LandScene.jsx ~3700 lines | Maintainability | Low (acceptable) |
 | No unit tests | Reliability | Medium |
 | Three.js chunk 382KB gzipped | Load time | Low (inherent to 3D) |
 | Partial TypeScript (2 files) | Code quality | Low |
+
+---
+
+## Environment Variables (Vercel)
+
+```
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+VITE_PAYPAL_CLIENT_ID
+VITE_PAYPAL_MONTHLY_PLAN_ID
+VITE_PAYPAL_LIFETIME_PLAN_ID
+ANTHROPIC_API_KEY
+ROBOFLOW_API_KEY
+```
 
 ---
 
@@ -400,82 +465,39 @@ Sitea1/
 | Shift (drawing) | Snap to 45-degree angles |
 | Space (movement) | Jump |
 | Space (drawing) | Confirm point |
-| Ctrl+Z | Undo (drawing point or last wall action) |
+| Ctrl+Z | Undo |
 | Ctrl+Shift+Z / Ctrl+Y | Redo |
 | Right-click (drawing) | Exit drawing mode |
-| V | Toggle first-person / third-person |
-| E | Talk to nearby NPC |
-| R | Rotate selected object |
-| Del | Delete selected object |
-| Escape | Cancel current tool / deselect |
-| 1/2/3 | View mode (First-person / Orbit / 2D) |
-| Q/T/G/C/V/B/N/H/J/X | Build tools |
+| V | Toggle FP / TP |
+| E | Talk to NPC |
+| R | Rotate selected |
+| Del | Delete selected |
+| Escape | Cancel / deselect |
 
 ### Mobile
 | Control | Action |
 |---------|--------|
 | Left joystick | Move |
+| Swipe on screen | Look around |
 | Run button | Toggle run |
 | Jump button | Jump |
-| Talk button | Talk to nearby NPC |
-| Use button | Select nearby building |
-
----
-
-## Development Commands
-
-```bash
-npm install          # Install dependencies
-npm run dev          # Start dev server (localhost:5173)
-npm run build        # Production build
-npm run preview      # Preview production build
-npx vercel --prod    # Deploy to production
-```
-
----
-
-## Development Timeline
-
-| Date | Focus | Status |
-|------|-------|--------|
-| Feb 7-9, 2026 | Drawing UX: Shift snap, spacebar confirm, undo points, right-click exit, camera lock, selection toasts | Done |
-| Feb 7, 2026 | Character model fix: FBX→GLB unit scale, auto-detect height, Supabase Storage hosting | Done |
-| Feb 6, 2026 | Day/Night cycle (auto-cycling, sky shader, stars, time slider) | Done |
-| Feb 6, 2026 | Security hardening (JWT auth, subscription check, error sanitization) | Done |
-| Feb 6, 2026 | Open world visuals (golden hour, mountains, trees, warm fog) | Done |
-| Feb 5, 2026 | Terrain improvements (dirt texture, 2000m ground plane) | Done |
-| Feb 5, 2026 | Transparent material rendering fixes | Done |
-| Feb 1, 2026 | Mobile Talk/Use buttons, landscape mode, responsive layout | Done |
-| Jan 24, 2026 | Removed fixtures/furniture feature (user requested) | Done |
-| Jan 23, 2026 | Multi-story buildings, click-to-add-floors, export overhaul | Done |
-| Jan 22, 2026 | NPC dialog system, payment frontend | Done |
-| Earlier | First-person camera, bundle optimization, LandScene refactor | Done |
+| Talk button | Talk to NPC |
+| Sun/Moon button | Open day/night slider |
 
 ---
 
 ## Summary
 
-**Sitea is a mature, feature-rich 3D land visualization app** deployed at https://sitea-one.vercel.app.
+**Sitea is shipping.** It's a complete 3D land visualization platform with:
 
-**What's ready:**
-- Complete land visualization (4 definition methods)
-- Full building design toolkit (Sims 4-style: walls, rooms, doors, windows, pools, roofs, stairs, fences)
-- Multi-story support with floor management
-- AI floor plan import (Claude Vision)
-- Immersive open world (day/night cycle, terrain, trees, mountains, sky)
-- Player character with 13 animation clips
-- NPC guide system
-- 4 camera modes (first-person, third-person, orbit, 2D)
-- 4 export types (PNG, PDF, GLB, screenshot)
-- Scene sharing via Supabase
-- Mobile support (joystick, touch, responsive)
-- Payment system (PayPal monthly + lifetime, fully wired)
-- Security (JWT auth, RLS, input validation)
-- Drawing UX (shift snap, spacebar, undo points, right-click exit)
+- **4 ways to define land** (rectangle, polygon, templates, AI upload)
+- **Full Sims 4-style building toolkit** (walls, rooms, doors, windows, pools, roofs, stairs, fences, multi-story)
+- **Hybrid AI floor plan import** (Roboflow CV + Claude Vision, 22s pipeline)
+- **Immersive open world** (day/night cycle, terrain, trees, mountains, stars, moonlight)
+- **4 camera modes** (first-person walkthrough, third-person, orbit, 2D)
+- **24+ comparison objects** across 7 categories
+- **4 export formats** (PNG, PDF, GLB, screenshot)
+- **Mobile-first** (joystick, touch controls, responsive panels)
+- **Revenue-ready** (PayPal monthly $9.99 / lifetime $149, feature gating, JWT auth)
 
-**Biggest remaining opportunities:**
-1. Fix character arm T-pose animation
-2. Furniture/interior design library
-3. Terrain elevation (hills, slopes)
-4. Saved projects (multiple designs per user)
-5. Cost estimation tools
+The next focus is **getting users, validating payments, and collecting feedback** to drive the roadmap.

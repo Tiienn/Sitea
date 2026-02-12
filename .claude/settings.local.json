@@ -85,7 +85,22 @@
       "Bash(du:*)",
       "mcp__plugin_supabase_supabase__get_project_url",
       "mcp__plugin_supabase_supabase__get_publishable_keys",
-      "Bash(npm show:*)"
+      "Bash(npm show:*)",
+      "WebFetch(domain:docs.roboflow.com)",
+      "WebFetch(domain:universe.roboflow.com)",
+      "WebFetch(domain:inference.roboflow.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(npx cap init:*)",
+      "Bash(npx cap:*)",
+      "Bash(npm run cap:build:*)",
+      "Bash(keytool:*)",
+      "Bash(\"C:/Program Files/Android/Android Studio/jbr/bin/keytool.exe\" -list -v -keystore \"C:/Users/Admin/.android/debug.keystore\" -alias androiddebugkey -storepass android -keypass android)",
+      "Bash(grep:*)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_press_key",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_run_code"
     ],
     "deny": [],
     "ask": []

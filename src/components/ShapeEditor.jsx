@@ -471,11 +471,14 @@ export default function ShapeEditor({
     return -1
   }, [points, toCanvas])
 
-  // Mouse handlers
-  const handleMouseDown = (e) => {
+  // Pointer handlers (work for both mouse and touch)
+  const getPointerPos = (e) => {
     const rect = canvasRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+
+  const handlePointerDown = (e) => {
+    const { x, y } = getPointerPos(e)
 
     // Middle click = pan
     if (e.button === 1) {
@@ -485,20 +488,21 @@ export default function ShapeEditor({
       return
     }
 
-    // Left click
-    if (e.button === 0) {
-      const pointIndex = findPointNear(x, y)
+    // Left click or touch (bigger hit area for touch)
+    if (e.button === 0 || e.pointerType === 'touch') {
+      const hitThreshold = e.pointerType === 'touch' ? 35 : 20
+      const pointIndex = findPointNear(x, y, hitThreshold)
       if (pointIndex !== -1) {
         setDraggingPoint(pointIndex)
         e.preventDefault()
+        // Capture pointer so we get move/up events even outside canvas
+        e.target.setPointerCapture(e.pointerId)
       }
     }
   }
 
-  const handleMouseMove = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+  const handlePointerMove = (e) => {
+    const { x, y } = getPointerPos(e)
 
     // Panning
     if (isPanning) {
@@ -526,7 +530,7 @@ export default function ShapeEditor({
       return
     }
 
-    // Hover detection - points then edges
+    // Hover detection - points then edges (not needed on touch but harmless)
     const pointIndex = findPointNear(x, y)
     setHoveredPoint(pointIndex !== -1 ? pointIndex : null)
 
@@ -538,7 +542,7 @@ export default function ShapeEditor({
     }
   }
 
-  const handleMouseUp = (e) => {
+  const handlePointerUp = (e) => {
     if (e.button === 1) {
       setIsPanning(false)
     }
@@ -548,10 +552,6 @@ export default function ShapeEditor({
   const handleMouseLeave = () => {
     setHoveredPoint(null)
     setHoveredEdge(null)
-    // Don't cancel drag on leave - window listeners handle it
-    if (!draggingPoint && !isPanning) {
-      // Only reset if not actively dragging
-    }
   }
 
   // Window-level listeners for drag outside canvas
@@ -739,9 +739,9 @@ export default function ShapeEditor({
             ref={canvasRef}
             width={canvasSize}
             height={canvasSize}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
             onMouseLeave={handleMouseLeave}
             onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}

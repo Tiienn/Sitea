@@ -18,6 +18,8 @@ export default function ImageTracer({
   const [scalePoints, setScalePoints] = useState([]) // Two points for scale reference
   const [scaleDistance, setScaleDistance] = useState('')
   const [scaleUnit, setScaleUnit] = useState(lengthUnit) // Unit for scale input (m, ft, mm)
+  const [editingScaleDimension, setEditingScaleDimension] = useState(false)
+  const [draggingScaleIndex, setDraggingScaleIndex] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [autoDetecting, setAutoDetecting] = useState(false)
@@ -28,6 +30,7 @@ export default function ImageTracer({
   const [pointsHistory, setPointsHistory] = useState([])
   const wasDragging = useRef(false)
   const dragStartRef = useRef(null)
+  const clickTimeoutRef = useRef(null)
   const [snapInfo, setSnapInfo] = useState(null) // { anchorX, anchorY, angle } for shift-drag visual
 
   // Zoom and pan state
@@ -189,8 +192,8 @@ export default function ImageTracer({
         y: baseOffsetY + p.y * baseScale
       })
 
-      // Draw scale reference line if setting scale
-      if (scaleMode && scalePoints.length > 0) {
+      // Draw scale reference line and points
+      if (scalePoints.length > 0) {
         ctx.strokeStyle = '#f59e0b'
         ctx.lineWidth = 2 / zoom
         ctx.setLineDash([5 / zoom, 5 / zoom])
@@ -476,6 +479,14 @@ export default function ImageTracer({
     const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
     const canvasY = (e.clientY - rect.top) * (canvasSize / rect.height)
 
+    // Skip if clicking near a scale reference point
+    if (scalePoints.length > 0) {
+      for (const sp of scalePoints) {
+        const spc = imageToCanvasSpace(sp.x, sp.y)
+        if (Math.hypot(canvasX - spc.x, canvasY - spc.y) < 15) return
+      }
+    }
+
     const imagePoint = canvasToImageSpace(canvasX, canvasY)
 
     if (scaleMode) {
@@ -488,16 +499,20 @@ export default function ImageTracer({
       if (points.length >= 3) {
         const edgeIdx = findNearEdge(canvasX, canvasY)
         if (edgeIdx >= 0) {
-          pushPointsHistory()
-          setPoints(prev => {
-            const next = [...prev]
-            next.splice(edgeIdx + 1, 0, imagePoint)
-            return next
-          })
-          return
+          // Delay insertion so double-click can cancel it
+          clickTimeoutRef.current = setTimeout(() => {
+            clickTimeoutRef.current = null
+            pushPointsHistory()
+            setPoints(prev => {
+              const next = [...prev]
+              next.splice(edgeIdx + 1, 0, imagePoint)
+              return next
+            })
+          }, 250)
         }
+        return // Boundary complete — only insert on edges, don't append
       }
-      // Otherwise append point
+      // Append point (boundary not yet complete)
       pushPointsHistory()
       setPoints(prev => [...prev, imagePoint])
     }
@@ -511,16 +526,31 @@ export default function ImageTracer({
       setLastPanPos({ x: e.clientX, y: e.clientY })
       return
     }
-    // Left-click: check if near a point to start dragging
-    if (e.button === 0 && scale && !scaleMode && points.length > 0) {
+    // Left-click: check if near a scale point or boundary point to start dragging
+    if (e.button === 0 && scale) {
       const rect = canvasRef.current.getBoundingClientRect()
       const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
       const canvasY = (e.clientY - rect.top) * (canvasSize / rect.height)
-      const idx = findNearPoint(canvasX, canvasY)
-      if (idx >= 0) {
-        pushPointsHistory()
-        dragStartRef.current = { ...points[idx] }
-        setDraggingIndex(idx)
+
+      // Check scale reference points first (they render on top)
+      if (scalePoints.length > 0) {
+        for (let i = 0; i < scalePoints.length; i++) {
+          const sp = imageToCanvasSpace(scalePoints[i].x, scalePoints[i].y)
+          if (Math.hypot(canvasX - sp.x, canvasY - sp.y) < 12) {
+            setDraggingScaleIndex(i)
+            return
+          }
+        }
+      }
+
+      // Then check boundary points
+      if (!scaleMode && points.length > 0) {
+        const idx = findNearPoint(canvasX, canvasY)
+        if (idx >= 0) {
+          pushPointsHistory()
+          dragStartRef.current = { ...points[idx] }
+          setDraggingIndex(idx)
+        }
       }
     }
   }
@@ -533,7 +563,20 @@ export default function ImageTracer({
       setLastPanPos({ x: e.clientX, y: e.clientY })
       return
     }
-    // Drag a point
+    // Drag a scale reference point
+    if (draggingScaleIndex !== null) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
+      const canvasY = (e.clientY - rect.top) * (canvasSize / rect.height)
+      const imgPt = canvasToImageSpace(canvasX, canvasY)
+      setScalePoints(prev => {
+        const next = [...prev]
+        next[draggingScaleIndex] = imgPt
+        return next
+      })
+      return
+    }
+    // Drag a boundary point
     if (draggingIndex >= 0) {
       const rect = canvasRef.current.getBoundingClientRect()
       const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
@@ -561,6 +604,10 @@ export default function ImageTracer({
     if (e.button === 1) {
       setIsPanning(false)
     }
+    if (draggingScaleIndex !== null) {
+      wasDragging.current = true
+      setDraggingScaleIndex(null)
+    }
     if (draggingIndex >= 0) {
       wasDragging.current = true
       setDraggingIndex(-1)
@@ -584,10 +631,59 @@ export default function ImageTracer({
 
   // Double-click edge to straighten it to nearest H/V/45°
   const handleDoubleClick = (e) => {
+    // Cancel any pending single-click edge insertion
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current)
+      clickTimeoutRef.current = null
+    }
     if (!scale || scaleMode || points.length < 3) return
     const rect = canvasRef.current.getBoundingClientRect()
     const canvasX = (e.clientX - rect.left) * (canvasSize / rect.width)
     const canvasY = (e.clientY - rect.top) * (canvasSize / rect.height)
+
+    // Check if double-clicking near any dimension label → enter re-calibration editing
+    // Check boundary edge dimension labels (drawn at edge midpoints)
+    for (let i = 0; i < points.length; i++) {
+      const j = (i + 1) % points.length
+      const mid = imageToCanvasSpace(
+        (points[i].x + points[j].x) / 2,
+        (points[i].y + points[j].y) / 2
+      )
+      if (Math.hypot(canvasX - mid.x, canvasY - mid.y) < 25) {
+        // Set scale reference to this edge and enter dimension editing
+        setScalePoints([{ ...points[i] }, { ...points[j] }])
+        const dx = points[j].x - points[i].x
+        const dy = points[j].y - points[i].y
+        const pixelDist = Math.sqrt(dx * dx + dy * dy)
+        const meters = pixelDist / scale
+        let displayVal = meters
+        if (scaleUnit === 'ft') displayVal = meters * 3.28084
+        else if (scaleUnit === 'mm') displayVal = meters * 1000
+        setEditingScaleDimension(true)
+        setScaleDistance(displayVal.toFixed(1))
+        return
+      }
+    }
+
+    // Also check the scale reference line itself
+    if (scalePoints.length === 2) {
+      const sp0 = imageToCanvasSpace(scalePoints[0].x, scalePoints[0].y)
+      const sp1 = imageToCanvasSpace(scalePoints[1].x, scalePoints[1].y)
+      const mid = { x: (sp0.x + sp1.x) / 2, y: (sp0.y + sp1.y) / 2 }
+      if (Math.hypot(canvasX - mid.x, canvasY - mid.y) < 25) {
+        const dx = scalePoints[1].x - scalePoints[0].x
+        const dy = scalePoints[1].y - scalePoints[0].y
+        const pixelDist = Math.sqrt(dx * dx + dy * dy)
+        const meters = pixelDist / scale
+        let displayVal = meters
+        if (scaleUnit === 'ft') displayVal = meters * 3.28084
+        else if (scaleUnit === 'mm') displayVal = meters * 1000
+        setEditingScaleDimension(true)
+        setScaleDistance(displayVal.toFixed(1))
+        return
+      }
+    }
+
     const edgeIdx = findNearEdge(canvasX, canvasY, 12)
     if (edgeIdx < 0) return
 
@@ -702,6 +798,7 @@ export default function ImageTracer({
 
     setScale(pixelsPerMeter)
     setScaleMode(false)
+    setEditingScaleDimension(false)
   }
 
   const handleAutoDetect = async () => {
@@ -716,10 +813,23 @@ export default function ImageTracer({
       setPoints(result.boundary)
       setPointsHistory([])
 
-      // If scale was returned, set it (already scaled to original image coords)
+      // If scale was returned, set it and place reference points on longest edge
       if (result.scale?.pixelsPerMeter) {
         setScale(result.scale.pixelsPerMeter)
         setScaleMode(false)
+        // Initialize scale reference points at endpoints of longest boundary edge
+        if (result.boundary && result.boundary.length >= 2) {
+          let longestDist = 0, p1 = result.boundary[0], p2 = result.boundary[1]
+          for (let i = 0; i < result.boundary.length; i++) {
+            const j = (i + 1) % result.boundary.length
+            const dx = result.boundary[j].x - result.boundary[i].x
+            const dy = result.boundary[j].y - result.boundary[i].y
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            if (dist > longestDist) { longestDist = dist; p1 = result.boundary[i]; p2 = result.boundary[j] }
+          }
+          setScalePoints([{ ...p1 }, { ...p2 }])
+          setScaleDistance('')
+        }
       }
     } catch (err) {
       setAutoDetectError(err.message || 'Detection failed. Try manual tracing.')
@@ -929,21 +1039,90 @@ export default function ImageTracer({
         </div>
       </div>
 
-      <canvas
-        ref={canvasRef}
-        width={canvasSize}
-        height={canvasSize}
-        onClick={handleCanvasClick}
-        onDoubleClick={handleDoubleClick}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setIsPanning(false); if (draggingIndex >= 0) { wasDragging.current = true; setDraggingIndex(-1); dragStartRef.current = null; setSnapInfo(null) } }}
-        onWheel={handleWheel}
-        onContextMenu={handleContextMenu}
-        className="rounded border border-white/20 w-full"
-        style={{ maxWidth: canvasSize, cursor: draggingIndex >= 0 ? 'grabbing' : 'crosshair' }}
-      />
+      <div style={{ position: 'relative', maxWidth: canvasSize }} className="w-full">
+        <canvas
+          ref={canvasRef}
+          width={canvasSize}
+          height={canvasSize}
+          onClick={handleCanvasClick}
+          onDoubleClick={handleDoubleClick}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={() => { setIsPanning(false); if (draggingScaleIndex !== null) { wasDragging.current = true; setDraggingScaleIndex(null) } if (draggingIndex >= 0) { wasDragging.current = true; setDraggingIndex(-1); dragStartRef.current = null; setSnapInfo(null) } }}
+          onWheel={handleWheel}
+          onContextMenu={handleContextMenu}
+          className="rounded border border-white/20 w-full"
+          style={{ maxWidth: canvasSize, cursor: draggingIndex >= 0 || draggingScaleIndex !== null ? 'grabbing' : 'crosshair' }}
+        />
+
+        {/* Dimension overlay between scale reference points */}
+        {scalePoints.length === 2 && scale && (() => {
+          const midImgX = (scalePoints[0].x + scalePoints[1].x) / 2
+          const midImgY = (scalePoints[0].y + scalePoints[1].y) / 2
+          const pos = imageToCanvasSpace(midImgX, midImgY)
+          const leftPct = (pos.x / canvasSize) * 100
+          const topPct = (pos.y / canvasSize) * 100
+
+          const dx = scalePoints[1].x - scalePoints[0].x
+          const dy = scalePoints[1].y - scalePoints[0].y
+          const pixelDist = Math.sqrt(dx * dx + dy * dy)
+          const meters = pixelDist / scale
+          let displayVal = meters
+          if (scaleUnit === 'ft') displayVal = meters * 3.28084
+          else if (scaleUnit === 'mm') displayVal = meters * 1000
+          const label = `${displayVal.toFixed(1)}${scaleUnit}`
+
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${leftPct}%`,
+                top: `${topPct}%`,
+                transform: 'translate(-50%, -100%) translateY(-8px)',
+                zIndex: 10,
+                pointerEvents: 'auto',
+              }}
+            >
+              {editingScaleDimension ? (
+                <div className="flex items-center gap-0.5">
+                  <input
+                    type="number"
+                    value={scaleDistance}
+                    onChange={(e) => setScaleDistance(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && scaleDistance) {
+                        e.preventDefault()
+                        handleSetScale()
+                      }
+                      if (e.key === 'Escape') {
+                        setEditingScaleDimension(false)
+                        setScaleDistance('')
+                      }
+                    }}
+                    autoFocus
+                    className="w-16 px-1 py-0.5 text-xs text-center bg-amber-900/90 border border-amber-500 rounded text-white"
+                    style={{ outline: 'none' }}
+                  />
+                  <span className="text-xs text-amber-200 bg-black/60 px-1 rounded">{scaleUnit}</span>
+                </div>
+              ) : (
+                <div
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    setEditingScaleDimension(true)
+                    setScaleDistance(displayVal.toFixed(1))
+                  }}
+                  className="px-2 py-0.5 text-xs bg-black/70 rounded text-white cursor-pointer hover:bg-amber-900/70 border border-white/20"
+                  title="Double-click to edit"
+                >
+                  {label}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+      </div>
 
       {/* Step indicator */}
       <div className="flex gap-2 text-xs mb-2">
@@ -1054,10 +1233,10 @@ export default function ImageTracer({
       )}
 
       {/* Scale calibration UI - hide when showing summary */}
-      {!showSummary && !scale ? (
+      {!showSummary && (!scale || scaleMode) ? (
         <div className="bg-amber-900/30 border border-amber-500/30 rounded p-3">
           <div className="text-sm font-medium text-amber-200 mb-2">
-            Step 1: Set Scale Reference
+            {scale ? 'Re-calibrate Scale' : 'Step 1: Set Scale Reference'}
           </div>
 
           {!scaleMode ? (
@@ -1133,8 +1312,54 @@ export default function ImageTracer({
                 }}
                 className="mt-2 w-full px-2 py-1 text-xs bg-white/10 hover:bg-white/20 rounded"
               >
-                Cancel
+                {scale ? 'Skip' : 'Cancel'}
               </button>
+            </>
+          ) : scale ? (
+            <>
+              <div className="text-xs text-amber-100 mb-2">
+                Double-click the dimension label to enter the correct distance
+              </div>
+              <div className="flex gap-2 mb-2">
+                <select
+                  value={scaleUnit}
+                  onChange={(e) => setScaleUnit(e.target.value)}
+                  className="flex-1 px-2 py-2 bg-[#1a1a2e] border border-white/20 rounded text-white text-sm"
+                >
+                  <option value="m" className="bg-[#1a1a2e] text-white">meters</option>
+                  <option value="ft" className="bg-[#1a1a2e] text-white">feet</option>
+                  <option value="mm" className="bg-[#1a1a2e] text-white">mm</option>
+                </select>
+              </div>
+              <button
+                onClick={handleSetScale}
+                disabled={!scaleDistance}
+                className="w-full px-3 py-2.5 text-sm bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-bold tracking-wide"
+              >
+                Re-calibrate
+              </button>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    setScalePoints([])
+                    setEditingScaleDimension(false)
+                  }}
+                  className="flex-1 px-2 py-1 text-xs bg-white/10 hover:bg-white/20 rounded"
+                >
+                  Re-pick Points
+                </button>
+                <button
+                  onClick={() => {
+                    setScaleMode(false)
+                    setScalePoints([])
+                    setScaleDistance('')
+                    setEditingScaleDimension(false)
+                  }}
+                  className="flex-1 px-2 py-1 text-xs bg-white/10 hover:bg-white/20 rounded"
+                >
+                  Skip
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -1180,25 +1405,41 @@ export default function ImageTracer({
             </>
           )}
         </div>
-      ) : !showSummary && (
+      ) : !showSummary && !scaleMode && (
         <div className="bg-green-900/30 border border-green-500/30 rounded p-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-1">
             <div>
               <div className="text-sm font-medium text-green-200">✓ Scale Set</div>
               <div className="text-xs text-green-300/70">1 pixel = {(1/scale).toFixed(3)}m</div>
             </div>
-            <button
-              onClick={() => {
-                setScale(null)
-                setScalePoints([])
-                setScaleDistance('')
-                setScaleMode(false)
-              }}
-              className="text-xs text-white/50 hover:text-white"
-            >
-              Reset
-            </button>
           </div>
+          {scalePoints.length === 2 ? (
+            <>
+              <div className="text-[10px] text-white/50 mb-2">
+                Drag reference points, then double-click dimension to edit
+              </div>
+              <div className="flex gap-2 mb-2">
+                <select
+                  value={scaleUnit}
+                  onChange={(e) => setScaleUnit(e.target.value)}
+                  className="flex-1 px-2 py-1.5 bg-[#1a1a2e] border border-white/20 rounded text-white text-xs"
+                >
+                  <option value="m" className="bg-[#1a1a2e] text-white">meters</option>
+                  <option value="ft" className="bg-[#1a1a2e] text-white">feet</option>
+                  <option value="mm" className="bg-[#1a1a2e] text-white">mm</option>
+                </select>
+              </div>
+              <button
+                onClick={handleSetScale}
+                disabled={!scaleDistance}
+                className="w-full px-3 py-2.5 text-sm bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-bold tracking-wide"
+              >
+                Re-calibrate
+              </button>
+            </>
+          ) : (
+            <div className="text-[10px] text-white/40 mt-1">Scale calibrated via auto-detect</div>
+          )}
         </div>
       )}
 

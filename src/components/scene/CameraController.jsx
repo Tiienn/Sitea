@@ -45,7 +45,8 @@ export function CameraController({
   onPlayerPositionUpdate,
   walls = [],
   mobileRunning = false,
-  mobileJumpTrigger = 0
+  mobileJumpTrigger = 0,
+  initialCameraPosition = null
 }) {
   const { camera, gl } = useThree()
 
@@ -81,13 +82,34 @@ export function CameraController({
   // Camera bob time accumulator
   const bobTimeRef = useRef(0)
 
-  // Initialize player position from camera on mount
+  // Sync player position from camera or initialCameraPosition
+  const hasInitialized = useRef(false)
   useEffect(() => {
-    playerPosition.current.copy(camera.position)
-    playerPosition.current.y = PLAYER_HEIGHT
-    euler.current.setFromQuaternion(camera.quaternion, 'YXZ')
-    playerYaw.current = euler.current.y
-  }, [])
+    if (!enabled) return // Don't touch refs when disabling (preserves position for re-enable)
+
+    if (hasInitialized.current) {
+      // Re-enabling (e.g. returning from 2D mode): restore camera from preserved refs
+      camera.position.copy(playerPosition.current)
+      camera.quaternion.setFromEuler(euler.current)
+      return
+    }
+
+    // First enable: initialize from initialCameraPosition or current camera
+    hasInitialized.current = true
+    if (initialCameraPosition) {
+      const { position, lookAt } = initialCameraPosition
+      playerPosition.current.set(position.x, PLAYER_HEIGHT, position.z)
+      camera.position.set(position.x, position.y, position.z)
+      camera.lookAt(lookAt.x, lookAt.y, lookAt.z)
+      euler.current.setFromQuaternion(camera.quaternion, 'YXZ')
+      playerYaw.current = euler.current.y
+    } else {
+      playerPosition.current.copy(camera.position)
+      playerPosition.current.y = PLAYER_HEIGHT
+      euler.current.setFromQuaternion(camera.quaternion, 'YXZ')
+      playerYaw.current = euler.current.y
+    }
+  }, [enabled, initialCameraPosition])
 
   useEffect(() => {
     isTouchDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0
