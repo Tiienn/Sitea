@@ -40,7 +40,6 @@ import FencePropertiesPanel from './components/FencePropertiesPanel'
 import PoolPropertiesPanel from './components/PoolPropertiesPanel'
 import FoundationPropertiesPanel from './components/FoundationPropertiesPanel'
 import StairsPropertiesPanel from './components/StairsPropertiesPanel'
-import RoofPropertiesPanel from './components/RoofPropertiesPanel'
 
 // Import constants from LandScene (these are re-exported)
 import { CAMERA_MODE, DEFAULT_TP_DISTANCE, ORBIT_START_DISTANCE, QUALITY } from './constants/landSceneConstants'
@@ -50,7 +49,6 @@ import { captureAndDownload } from './utils/screenshotCapture'
 import { exportModel } from './utils/modelExport'
 import { exportToPDF } from './utils/pdfExport'
 import { computeOverlappingIds, checkPreviewOverlap } from './utils/collision2d'
-import { computeCompassRotation } from './utils/labels'
 import { detectRooms, findWallsForRoom } from './utils/roomDetection'
 import { buildScenePayload, createSharedScene, fetchSharedScene } from './services/shareScene'
 import { isSupabaseConfigured } from './lib/supabaseClient'
@@ -193,7 +191,6 @@ const BUILD_TOOLS = {
   POOL: 'pool',             // Polygon pool tool
   FOUNDATION: 'foundation', // Elevated platform tool
   STAIRS: 'stairs',         // Stairs placement tool
-  ROOF: 'roof',             // Click room to add roof
   ADD_FLOORS: 'addFloors',  // Click room to add multiple floors
   ROTATE: 'rotate',         // Click element to rotate it
 }
@@ -520,7 +517,7 @@ function VirtualJoystick({ joystickInput, isRunning, setIsRunning, onJump, onTal
 
 function App() {
   // User context for paid features
-  const { user, isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid, signOut, showAuthModal, setShowAuthModal, planType, theme, setTheme } = useUser()
+  const { user, isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid, signOut, showAuthModal, setShowAuthModal, planType, theme, setTheme, hasUsedUpload } = useUser()
   const isMobile = useIsMobile()
   const isLandscape = useIsLandscape()
   const [showOverflow, setShowOverflow] = useState(false)
@@ -658,7 +655,6 @@ function App() {
   const [pools, setPools] = useState([])
   const [foundations, setFoundations] = useState([])
   const [stairs, setStairs] = useState([])
-  const [roofs, setRoofs] = useState([])
 
   // Tool-specific drawing state
   const [poolPolygonPoints, setPoolPolygonPoints] = useState([])
@@ -670,14 +666,12 @@ function App() {
   const [selectedPoolId, setSelectedPoolId] = useState(null)
   const [selectedFoundationId, setSelectedFoundationId] = useState(null)
   const [selectedStairsId, setSelectedStairsId] = useState(null)
-  const [selectedRoofId, setSelectedRoofId] = useState(null)
   const [selectedPlacedBuildingId, setSelectedPlacedBuildingId] = useState(null)
 
   // Properties panels state
   const [poolPropertiesOpen, setPoolPropertiesOpen] = useState(false)
   const [foundationPropertiesOpen, setFoundationPropertiesOpen] = useState(false)
   const [stairsPropertiesOpen, setStairsPropertiesOpen] = useState(false)
-  const [roofPropertiesOpen, setRoofPropertiesOpen] = useState(false)
 
   // Clipboard state for copy/paste
   const [clipboard, setClipboard] = useState(null)
@@ -692,10 +686,6 @@ function App() {
   const [stairsWidth, setStairsWidth] = useState(1.0)
   const [stairsStyle, setStairsStyle] = useState('straight')
   const [stairsTopY, setStairsTopY] = useState(2.7)
-  const [roofType, setRoofType] = useState('gable')
-  const [roofPitch, setRoofPitch] = useState(30)
-  const [roofOverhang, setRoofOverhang] = useState(0.5)
-  const [roofThickness, setRoofThickness] = useState(0.15)
   const [rotateDegreeInput, setRotateDegreeInput] = useState('')
 
   // Multi-story building state
@@ -746,44 +736,6 @@ function App() {
     }
   }, [rooms])
 
-  // Update roof roomIds when rooms regenerate (rooms get new IDs after wall moves)
-  useEffect(() => {
-    if (roofs.length === 0 || rooms.length === 0) return
-
-    // Check if any roof's roomId no longer exists
-    const orphanedRoofs = roofs.filter(roof => !rooms.find(r => r.id === roof.roomId))
-
-    if (orphanedRoofs.length > 0) {
-      // For each orphaned roof, find matching room by wall IDs
-      const updates = []
-      orphanedRoofs.forEach(roof => {
-        // If roof has stored wallIds, find room with same walls
-        if (roof.wallIds && roof.wallIds.length > 0) {
-          const newRoom = rooms.find(r => {
-            const roomWallIds = findWallsForRoom(r, walls)
-            // Check if same walls (order may differ)
-            return roof.wallIds.length === roomWallIds.length &&
-              roof.wallIds.every(id => roomWallIds.includes(id))
-          })
-          if (newRoom) {
-            updates.push({ roofId: roof.id, newRoomId: newRoom.id })
-          }
-        }
-      })
-
-      // Apply updates
-      if (updates.length > 0) {
-        setRoofs(prev => prev.map(roof => {
-          const update = updates.find(u => u.roofId === roof.id)
-          if (update) {
-            return { ...roof, roomId: update.newRoomId }
-          }
-          return roof
-        }))
-      }
-    }
-  }, [rooms, roofs, walls])
-
   // Floor plan background state (for tracing walls over uploaded image)
   const [floorPlanImage, setFloorPlanImage] = useState(null) // Base64 image data
   const [floorPlanSettings, setFloorPlanSettings] = useState({
@@ -794,6 +746,7 @@ function App() {
     offsetZ: 0,
   })
   const [showUploadModal, setShowUploadModal] = useState(false)
+  const [showProBanner, setShowProBanner] = useState(false)
 
   // Labels state (load from localStorage) - land labels default ON
   const [labels, setLabels] = useState(() => {
@@ -864,6 +817,45 @@ function App() {
       if (helpTextTimerRef.current) clearTimeout(helpTextTimerRef.current)
     }
   }, [helpTextVisible, isDefiningLand])
+
+  // Soft upgrade banner — show 30s after onboarding for free users
+  useEffect(() => {
+    if (!userHasLand || isPaidUser || isReadOnly) return
+    if (localStorage.getItem('sitea_proBannerDismissed')) return
+    if (hasUsedUpload) return
+
+    const timer = setTimeout(() => {
+      setShowProBanner(true)
+    }, 30000)
+
+    return () => clearTimeout(timer)
+  }, [userHasLand, isPaidUser, isReadOnly, hasUsedUpload])
+
+  // Auto-hide banner when upload opens or user upgrades
+  useEffect(() => {
+    if (showUploadModal || showFloorPlanGenerator || isPaidUser) {
+      setShowProBanner(false)
+    }
+  }, [showUploadModal, showFloorPlanGenerator, isPaidUser])
+
+  // Track banner impression
+  useEffect(() => {
+    if (showProBanner) {
+      track('pro_banner_shown', {})
+    }
+  }, [showProBanner])
+
+  const dismissProBanner = () => {
+    setShowProBanner(false)
+    localStorage.setItem('sitea_proBannerDismissed', 'true')
+    track('pro_banner_dismissed', {})
+  }
+
+  const handleProBannerClick = () => {
+    setShowProBanner(false)
+    setShowUploadModal(true)
+    track('pro_banner_clicked', {})
+  }
 
   // Example mode: when user hasn't defined their own land
   const isExampleMode = !userHasLand
@@ -1056,14 +1048,13 @@ function App() {
       const key = e.key.toLowerCase()
       const toolMap = {
         q: BUILD_TOOLS.ROOM,
-        t: BUILD_TOOLS.WALL,
+        j: BUILD_TOOLS.WALL,
         g: BUILD_TOOLS.FENCE,
         c: BUILD_TOOLS.DOOR,
         v: BUILD_TOOLS.WINDOW,
         b: BUILD_TOOLS.POOL,
         n: BUILD_TOOLS.FOUNDATION,
         h: BUILD_TOOLS.STAIRS,
-        j: BUILD_TOOLS.ROOF,
         x: BUILD_TOOLS.DELETE,
       }
       if (toolMap[key]) {
@@ -1407,9 +1398,6 @@ function App() {
         }
         if (roomWallIds.size === 0) return
         pushWallsState(walls.filter(w => !roomWallIds.has(w.id)))
-        // Remove roofs tied to those rooms
-        const roomIds = new Set(rooms.map(r => r.id))
-        setRoofs(prev => prev.filter(r => !roomIds.has(r.roomId)))
         break
       }
       case BUILD_TOOLS.WALL:
@@ -1458,9 +1446,6 @@ function App() {
       case BUILD_TOOLS.STAIRS:
         setStairs([])
         break
-      case BUILD_TOOLS.ROOF:
-        setRoofs([])
-        break
       default:
         // Clear everything
         pushWallsState([])
@@ -1468,7 +1453,6 @@ function App() {
         setPools([])
         setFoundations([])
         setStairs([])
-        setRoofs([])
         break
     }
     setSelectedElement(null)
@@ -1737,36 +1721,6 @@ function App() {
     setStairs(prev => prev.map(s => s.id === stairsId ? { ...s, ...updates } : s))
   }, [])
 
-  // Roof callbacks
-  const addRoof = useCallback((roomId) => {
-    // Check if roof already exists for this room
-    if (roofs.some(r => r.roomId === roomId)) return
-    // Find the room and its wall IDs to track the roof even when room ID changes
-    const room = rooms.find(r => r.id === roomId)
-    const wallIds = room ? findWallsForRoom(room, walls) : []
-    const newRoof = {
-      id: `roof-${Date.now()}`,
-      roomId,
-      wallIds, // Store wall IDs so we can find the room after it regenerates
-      type: roofType,
-      pitch: roofPitch,
-      overhang: roofOverhang,
-      thickness: roofThickness,
-      material: 'shingle',
-      color: '#8B4513'
-    }
-    setRoofs(prev => [...prev, newRoof])
-  }, [roofType, roofPitch, roofOverhang, roofThickness, roofs, rooms, walls])
-
-  const deleteRoof = useCallback((roofId) => {
-    setRoofs(prev => prev.filter(r => r.id !== roofId))
-    if (selectedRoofId === roofId) setSelectedRoofId(null)
-  }, [selectedRoofId])
-
-  const updateRoof = useCallback((roofId, updates) => {
-    setRoofs(prev => prev.map(r => r.id === roofId ? { ...r, ...updates } : r))
-  }, [])
-
   // Delete an opening from a wall
   const deleteOpening = useCallback((wallId, openingId) => {
     const newWalls = walls.map(w => {
@@ -1889,14 +1843,35 @@ function App() {
     setSelectedComparisonId(null)
   }, [selectedComparisonId])
 
-  // Delete selected room (by deleting its boundary walls)
+  // Delete selected room (by deleting its boundary walls + orphan cleanup)
   const deleteSelectedRoom = useCallback(() => {
     if (!selectedRoomId) return
     const room = rooms.find(r => r.id === selectedRoomId)
     if (!room) return
     const wallIds = findWallsForRoom(room, walls)
     if (wallIds.length > 0) {
-      pushWallsState(walls.filter(w => !wallIds.includes(w.id)))
+      let remaining = walls.filter(w => !wallIds.includes(w.id))
+
+      // Clean up orphaned walls: any wall with a dangling endpoint (not connected to another wall)
+      const THRESHOLD = 0.5
+      let changed = true
+      while (changed) {
+        changed = false
+        remaining = remaining.filter(wall => {
+          const startOk = remaining.some(o => o.id !== wall.id && (
+            (Math.abs(o.start.x - wall.start.x) < THRESHOLD && Math.abs(o.start.z - wall.start.z) < THRESHOLD) ||
+            (Math.abs(o.end.x - wall.start.x) < THRESHOLD && Math.abs(o.end.z - wall.start.z) < THRESHOLD)
+          ))
+          const endOk = remaining.some(o => o.id !== wall.id && (
+            (Math.abs(o.start.x - wall.end.x) < THRESHOLD && Math.abs(o.start.z - wall.end.z) < THRESHOLD) ||
+            (Math.abs(o.end.x - wall.end.x) < THRESHOLD && Math.abs(o.end.z - wall.end.z) < THRESHOLD)
+          ))
+          if (!startOk || !endOk) { changed = true; return false }
+          return true
+        })
+      }
+
+      pushWallsState(remaining)
     }
     setSelectedRoomId(null)
   }, [selectedRoomId, rooms, walls, pushWallsState])
@@ -2271,12 +2246,10 @@ function App() {
       setUndoRedoToast('Platform selected • Drag to move • Double-click for properties • ESC to deselect • Del to delete')
     } else if (selectedStairsId) {
       setUndoRedoToast('Stairs selected • Drag to move • Double-click for properties • ESC to deselect • Del to delete')
-    } else if (selectedRoofId) {
-      setUndoRedoToast('Roof selected • Double-click for properties • ESC to deselect • Del to delete')
     } else if (!floorPlanPlacementMode) {
       setUndoRedoToast(null)
     }
-  }, [selectedBuildingId, selectedComparisonId, selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, selectedRoofId, floorPlanPlacementMode])
+  }, [selectedBuildingId, selectedComparisonId, selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, floorPlanPlacementMode])
 
   // Get current polygon for snapping (memoized)
   const currentPolygon = useMemo(() => {
@@ -2606,15 +2579,10 @@ function App() {
 
   // Handle land definition completion (from Onboarding component)
   const handleLandDefined = ({ dimensions: dims, polygon, shapeMode: mode, action, templateId, method, houseTemplate }) => {
-    // If a house template was selected, override land dimensions
-    const finalDims = (houseTemplate && houseTemplates[houseTemplate])
-      ? houseTemplates[houseTemplate].land
-      : dims
-
-    // Set the land data
-    setDimensions(finalDims)
-    setShapeMode(houseTemplate ? 'rectangle' : mode)
-    if (!houseTemplate && polygon) {
+    // Keep the user's chosen land dimensions (don't override with house template land)
+    setDimensions(dims)
+    setShapeMode(mode)
+    if (polygon) {
       setConfirmedPolygon(polygon)
       setPolygonPoints(polygon)
     } else {
@@ -2623,12 +2591,11 @@ function App() {
 
     // Analytics: track land created
     const methodMap = { rectangle: 'rectangle', polygon: 'draw', upload: 'upload', template: 'template' }
-    const landArea = polygon ? calculatePolygonArea(polygon) : finalDims.length * finalDims.width
+    const landArea = polygon ? calculatePolygonArea(polygon) : dims.length * dims.width
     const trackProps = {
       method: method === 'template' ? 'template' : (methodMap[mode] || mode),
       areaM2: roundArea(landArea),
     }
-    // Include templateId if method was template
     if (method === 'template' && templateId) {
       trackProps.templateId = templateId
     }
@@ -2638,10 +2605,13 @@ function App() {
     }
     track('land_created', trackProps)
 
-    // Load house template walls if selected
+    // Load house template walls, or clear walls if skipped
     if (houseTemplate && houseTemplates[houseTemplate]) {
       clearWallsHistory(houseTemplates[houseTemplate].walls)
       setViewMode('firstPerson')
+    } else if (houseTemplate === 'skip') {
+      // User explicitly chose "Skip — empty lot" from house picker
+      clearWallsHistory([])
     }
 
     // Mark user has defined their land
@@ -2680,6 +2650,7 @@ function App() {
     setHasSeenIntro(false)
     setWalkthroughStep(0)
     localStorage.removeItem('landVisualizerIntroSeen')
+    localStorage.removeItem('housePickerSeen')
     localStorage.removeItem('landVisualizer')
     setPlacedBuildings([])
     setConfirmedPolygon(EXAMPLE_LAND_POLYGON)
@@ -2953,15 +2924,6 @@ function App() {
         selectedStairsId={selectedStairsId}
         setSelectedStairsId={setSelectedStairsId}
         setStairsPropertiesOpen={setStairsPropertiesOpen}
-        roofs={roofs}
-        addRoof={addRoof}
-        deleteRoof={deleteRoof}
-        updateRoof={updateRoof}
-        roofType={roofType}
-        roofPitch={roofPitch}
-        selectedRoofId={selectedRoofId}
-        setSelectedRoofId={setSelectedRoofId}
-        setRoofPropertiesOpen={setRoofPropertiesOpen}
         canvasRef={canvasRef}
         sceneRef={sceneRef}
         // Multi-story floor props
@@ -3169,7 +3131,6 @@ function App() {
           pools={pools}
           foundations={foundations}
           stairs={stairs}
-          roofs={roofs}
           poolDepth={poolDepth}
           setPoolDepth={setPoolDepth}
           poolDeckMaterial={poolDeckMaterial}
@@ -3184,16 +3145,6 @@ function App() {
           setStairsStyle={setStairsStyle}
           stairsTopY={stairsTopY}
           setStairsTopY={setStairsTopY}
-          roofType={roofType}
-          setRoofType={setRoofType}
-          roofPitch={roofPitch}
-          setRoofPitch={setRoofPitch}
-          roofOverhang={roofOverhang}
-          setRoofOverhang={setRoofOverhang}
-          roofThickness={roofThickness}
-          setRoofThickness={setRoofThickness}
-          selectedRoofId={selectedRoofId}
-          updateRoof={updateRoof}
           rotateDegreeInput={rotateDegreeInput}
           setRotateDegreeInput={setRotateDegreeInput}
           // Copy/paste
@@ -3202,11 +3153,7 @@ function App() {
           // House templates
           onLoadHouseTemplate={(key) => {
             if (houseTemplates[key]) {
-              const template = houseTemplates[key]
-              setDimensions(template.land)
-              setShapeMode('rectangle')
-              setConfirmedPolygon(null)
-              clearWallsHistory(template.walls)
+              clearWallsHistory(houseTemplates[key].walls)
               setViewMode('firstPerson')
               track('house_template_selected', { templateId: key, source: 'build_panel' })
             }
@@ -3421,7 +3368,7 @@ function App() {
                             <div className="min-w-0">
                               <div className="text-white text-sm truncate">{user.email}</div>
                               <div className="text-xs text-gray-400">
-                                {isPaidUser ? (planType === 'lifetime' ? 'Pro Lifetime' : 'Pro Monthly') : 'Free'}
+                                {isPaidUser ? (planType === 'lifetime' ? 'Pro Lifetime' : planType === 'homeowner' ? 'Pro Homeowner' : 'Pro Monthly') : 'Free'}
                               </div>
                             </div>
                           </div>
@@ -3435,29 +3382,7 @@ function App() {
                             </svg>
                             <span>Plans & Pricing</span>
                           </button>
-                          {/* Theme */}
-                          <button
-                            onClick={() => {
-                              const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
-                              setTheme(next)
-                            }}
-                            className="flex items-center justify-between w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
-                          >
-                            <div className="flex items-center gap-3">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                {theme === 'dark' ? (
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-                                ) : theme === 'light' ? (
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-                                ) : (
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
-                                )}
-                              </svg>
-                              <span>Theme</span>
-                            </div>
-                            <span className="text-xs text-gray-400 capitalize">{theme}</span>
-                          </button>
-                          {/* Divider + Log Out */}
+                          {/* Log Out */}
                           <div className="border-t border-[var(--color-border)] my-1" />
                           <button
                             onClick={() => { signOut(); setShowUserMenu(false) }}
@@ -3549,7 +3474,7 @@ function App() {
                   <div className="min-w-0">
                     <div className="text-white text-sm truncate">{user.email}</div>
                     <div className="text-xs text-gray-400">
-                      {isPaidUser ? (planType === 'lifetime' ? 'Pro Lifetime' : 'Pro Monthly') : 'Free'}
+                      {isPaidUser ? (planType === 'lifetime' ? 'Pro Lifetime' : planType === 'homeowner' ? 'Pro Homeowner' : 'Pro Monthly') : 'Free'}
                     </div>
                   </div>
                 </div>
@@ -3563,28 +3488,6 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
                   </svg>
                   <span>Plans & Pricing</span>
-                </button>
-                {/* Theme */}
-                <button
-                  onClick={() => {
-                    const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
-                    setTheme(next)
-                  }}
-                  className="flex items-center justify-between w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
-                >
-                  <div className="flex items-center gap-3">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      {theme === 'dark' ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-                      ) : theme === 'light' ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-                      ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
-                      )}
-                    </svg>
-                    <span>Theme</span>
-                  </div>
-                  <span className="text-xs text-gray-400 capitalize">{theme}</span>
                 </button>
                 <div className="border-t border-[var(--color-border)] my-1" />
                 {/* Log Out */}
@@ -3819,12 +3722,6 @@ function App() {
         </div>
       )}
 
-      {/* Roof tool indicator */}
-      {activeBuildTool === BUILD_TOOLS.ROOF && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
-          {rooms.length === 0 ? 'Draw a room first to add a roof' : 'Click on a room to add a roof · Escape to cancel'}
-        </div>
-      )}
 
       {/* Add Floors tool indicator */}
       {activeBuildTool === BUILD_TOOLS.ADD_FLOORS && (
@@ -4052,26 +3949,55 @@ function App() {
       </div>
       )}
 
-      {/* Compass overlay - positioned below view controls */}
-      {labels.orientation && !isGuidedMode && (
-        <div className={`absolute right-4 panel-premium w-14 h-14 flex items-center justify-center animate-fade-in ${isReadOnly ? 'top-44' : 'top-40'}`}>
-          <div
-            className="relative w-10 h-10"
-            style={{ transform: `rotate(${computeCompassRotation(cameraState.rotation)}deg)`, transition: 'transform 0.15s ease-out' }}
-          >
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 text-[var(--color-accent)] font-bold text-[11px]">N</div>
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[var(--color-text-muted)] text-[10px]">S</div>
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] text-[10px]">W</div>
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] text-[10px]">E</div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-[var(--color-text-secondary)] rounded-full" />
-          </div>
-        </div>
-      )}
 
       {/* Undo/Redo toast notification */}
       {undoRedoToast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm font-medium shadow-lg border border-[var(--color-border)] animate-fade-in" style={{ padding: '8px 32px' }}>
           {undoRedoToast}
+        </div>
+      )}
+
+      {/* Soft Pro upgrade banner */}
+      {showProBanner && !isPaidUser && (
+        <div className={`fixed left-1/2 -translate-x-1/2 z-40 animate-slide-in-bottom ${
+          isTouchDevice ? 'bottom-20' : 'bottom-6'
+        }`}>
+          <div className="flex items-center gap-3 bg-[var(--color-bg-secondary)]/95 backdrop-blur-md
+            rounded-xl border border-[var(--color-border)] shadow-lg shadow-black/20
+            pl-4 pr-2 py-2.5 max-w-md">
+
+            {/* Banner content — clickable */}
+            <button
+              onClick={handleProBannerClick}
+              className="flex items-center gap-3 text-left group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-teal-500/15 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                </svg>
+              </div>
+
+              <div>
+                <span className="text-sm text-white group-hover:text-teal-300 transition-colors">
+                  Have your own floor plan?
+                </span>
+                <span className="text-sm text-teal-400 ml-1 group-hover:text-teal-300 transition-colors">
+                  See it in 3D →
+                </span>
+              </div>
+            </button>
+
+            {/* Dismiss button */}
+            <button
+              onClick={dismissProBanner}
+              className="w-7 h-7 rounded-lg flex items-center justify-center
+                text-white/30 hover:text-white/60 hover:bg-white/5 transition-all flex-shrink-0"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
@@ -4207,17 +4133,6 @@ function App() {
         />
       )}
 
-      {/* Roof Properties Panel */}
-      {roofPropertiesOpen && selectedRoofId && (
-        <RoofPropertiesPanel
-          roof={roofs.find(r => r.id === selectedRoofId)}
-          onClose={() => {
-            setRoofPropertiesOpen(false)
-            setSelectedRoofId(null)
-          }}
-          onUpdateRoof={updateRoof}
-        />
-      )}
 
       {/* Account buttons now integrated into toolbar ribbon above */}
 
@@ -4317,7 +4232,7 @@ function App() {
 
                   {helpGuideSection === 'build' && (
                     <div className="space-y-4 text-gray-300 leading-relaxed">
-                      <p>Open the <span className="text-white font-medium">Build</span> panel to access tools. Draw rooms, walls, and fences. Add doors, windows, pools, platforms, stairs, and roofs. Use the Structures tab to place pre-made buildings.</p>
+                      <p>Open the <span className="text-white font-medium">Build</span> panel to access tools. Draw rooms, walls, and fences. Add doors, windows, pools, platforms, and stairs. Use the Structures tab to place pre-made buildings.</p>
                       <p>In the Floors section, select a number of floors and click a room to stack floors on top. Use the floor selector to switch between levels.</p>
                     </div>
                   )}
@@ -4426,14 +4341,13 @@ function App() {
                   {helpShortcutSection === 'tools' && !isMobile && (
                     <div className="space-y-1 text-gray-300">
                       <div className="flex justify-between gap-4"><span>Room</span><span className="text-gray-400 shrink-0">Q</span></div>
-                      <div className="flex justify-between gap-4"><span>Wall</span><span className="text-gray-400 shrink-0">T</span></div>
+                      <div className="flex justify-between gap-4"><span>Wall</span><span className="text-gray-400 shrink-0">J</span></div>
                       <div className="flex justify-between gap-4"><span>Fence</span><span className="text-gray-400 shrink-0">G</span></div>
                       <div className="flex justify-between gap-4"><span>Door</span><span className="text-gray-400 shrink-0">C</span></div>
                       <div className="flex justify-between gap-4"><span>Window</span><span className="text-gray-400 shrink-0">V</span></div>
                       <div className="flex justify-between gap-4"><span>Pool</span><span className="text-gray-400 shrink-0">B</span></div>
                       <div className="flex justify-between gap-4"><span>Platform</span><span className="text-gray-400 shrink-0">N</span></div>
                       <div className="flex justify-between gap-4"><span>Stairs</span><span className="text-gray-400 shrink-0">H</span></div>
-                      <div className="flex justify-between gap-4"><span>Roof</span><span className="text-gray-400 shrink-0">J</span></div>
                       <div className="flex justify-between gap-4"><span>Delete</span><span className="text-gray-400 shrink-0">X</span></div>
                     </div>
                   )}

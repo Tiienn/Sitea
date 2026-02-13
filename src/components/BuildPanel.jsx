@@ -142,11 +142,6 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 21h4v-4h4v-4h4v-4h4V5M4 21V17M8 17V13M12 13V9M16 9V5" />
     </svg>
   ),
-  roof: (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l9-9 9 9M4.5 10.5v9.75a.75.75 0 00.75.75h4.5v-6h4.5v6h4.5a.75.75 0 00.75-.75V10.5" />
-    </svg>
-  ),
   paint: (
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
@@ -260,13 +255,14 @@ export default function BuildPanel({
   // House templates
   onLoadHouseTemplate,
 }) {
-  const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed } = useUser()
+  const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed, setShowPricingModal } = useUser()
   const [activeSection, setActiveSection] = useState('tools')
 
   // Upload state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [pendingImage, setPendingImage] = useState(null)
   const [detectedType, setDetectedType] = useState(null)
   const fileInputRef = useRef(null)
@@ -296,14 +292,9 @@ export default function BuildPanel({
     return `${meters}m`
   }
 
-  // Handle file upload with auto-detection
-  const handleFileUpload = async (file) => {
+  // Handle file upload — go to preview instead of auto-analyzing
+  const handleFileUpload = (file) => {
     if (!file) return
-
-    // Check if user can upload (first time free, then Pro required)
-    if (!canUseUpload()) {
-      return
-    }
 
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(file.type)) {
@@ -318,39 +309,40 @@ export default function BuildPanel({
     }
 
     const reader = new FileReader()
-    reader.onload = async (e) => {
-      const imageData = e.target.result
-      setPendingImage(imageData)
-      setIsAnalyzing(true)
-
-      try {
-        const result = await analyzeImage(imageData, isPaidUser)
-
-        if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
-          // High confidence - auto-route
-          markUploadUsed() // Consume free trial
-          if (result.type === 'floor-plan') {
-            // Open AI generator modal for floor plans
-            onOpenFloorPlanGenerator?.(imageData)
-          } else {
-            onDetectedSitePlan?.(imageData)
-          }
-          setPendingImage(null)
-        } else {
-          // Low confidence - show confirmation
-          setDetectedType(result.type)
-          setShowConfirm(true)
-        }
-      } catch (err) {
-        console.error('Analysis failed:', err)
-        // Fallback: open generator modal (we're in Build panel, assume floor plan)
-        onOpenFloorPlanGenerator?.(imageData)
-        setPendingImage(null)
-      }
-
-      setIsAnalyzing(false)
+    reader.onload = (e) => {
+      setPendingImage(e.target.result)
+      setShowPreview(true)
     }
     reader.readAsDataURL(file)
+  }
+
+  // Called when user clicks "Generate 3D" from preview
+  const proceedToBuildAnalysis = async () => {
+    setShowPreview(false)
+    setIsAnalyzing(true)
+
+    try {
+      const result = await analyzeImage(pendingImage, isPaidUser)
+
+      if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
+        markUploadUsed()
+        if (result.type === 'floor-plan') {
+          onOpenFloorPlanGenerator?.(pendingImage)
+        } else {
+          onDetectedSitePlan?.(pendingImage)
+        }
+        setPendingImage(null)
+      } else {
+        setDetectedType(result.type)
+        setShowConfirm(true)
+      }
+    } catch (err) {
+      console.error('Analysis failed:', err)
+      onOpenFloorPlanGenerator?.(pendingImage)
+      setPendingImage(null)
+    }
+
+    setIsAnalyzing(false)
   }
 
   // Confirm detected type (for low confidence)
@@ -404,7 +396,51 @@ export default function BuildPanel({
             {/* UPLOAD Section */}
             {activeSection === 'upload' && (
               <div className="space-y-4">
-                {!floorPlanImage && !isAnalyzing && !showConfirm ? (
+                {showPreview && pendingImage ? (
+                  /* Preview + Gate */
+                  <div className="text-center">
+                    <div className="rounded-xl overflow-hidden mb-4 border border-white/10">
+                      <img src={pendingImage} alt="Your plan" className="w-full" />
+                    </div>
+
+                    {!isPaidUser && hasUsedUpload ? (
+                      /* PAYWALL */
+                      <>
+                        <p className="text-white text-sm font-medium mb-2">Ready to generate your 3D walkthrough</p>
+                        <p className="text-[var(--color-text-muted)] text-xs mb-4">
+                          You've used your free upload. Upgrade to continue.
+                        </p>
+                        <button
+                          onClick={() => setShowPricingModal(true)}
+                          className="w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold rounded-lg transition-all mb-2"
+                        >
+                          Try Pro — $29
+                        </button>
+                        <button
+                          onClick={() => { setShowPreview(false); setPendingImage(null) }}
+                          className="text-xs text-[var(--color-text-muted)] hover:text-white transition-colors"
+                        >
+                          Go back
+                        </button>
+                      </>
+                    ) : (
+                      /* ALLOWED */
+                      <button
+                        onClick={proceedToBuildAnalysis}
+                        className="w-full py-2.5 bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        Generate 3D Walkthrough
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => { setShowPreview(false); setPendingImage(null) }}
+                      className="mt-3 text-[var(--color-text-muted)] text-xs hover:text-white transition-colors"
+                    >
+                      Upload different image
+                    </button>
+                  </div>
+                ) : !floorPlanImage && !isAnalyzing && !showConfirm ? (
                   <>
                     {/* Direct Upload Zone */}
                     <div
@@ -511,7 +547,7 @@ export default function BuildPanel({
                       >
                         Floor Plan
                         {!isPaidUser && hasUsedUpload && (
-                          <span className="px-1 py-0.5 text-[8px] font-bold bg-amber-500 text-black rounded">PRO</span>
+                          <span className="px-1 py-0.5 text-[8px] font-bold bg-teal-500 text-white rounded">Pro</span>
                         )}
                       </button>
                     </div>
@@ -653,7 +689,7 @@ export default function BuildPanel({
                     className={`tool-btn ${activeBuildTool === BUILD_TOOLS.WALL ? 'active' : ''}`}
                   >
                     <span className="w-5 h-5">{Icons.wall}</span>
-                    <span className="text-[10px]">Wall <kbd className="opacity-40 text-[8px]">T</kbd></span>
+                    <span className="text-[10px]">Wall <kbd className="opacity-40 text-[8px]">J</kbd></span>
                   </button>
 
                   {/* Fence Tool */}
@@ -714,16 +750,6 @@ export default function BuildPanel({
                   >
                     <span className="w-5 h-5">{Icons.stairs}</span>
                     <span className="text-[10px]">Stairs <kbd className="opacity-40 text-[8px]">H</kbd></span>
-                  </button>
-
-                  {/* Roof Tool */}
-                  <button
-                    onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.ROOF ? BUILD_TOOLS.NONE : BUILD_TOOLS.ROOF)}
-                    disabled={!canEdit}
-                    className={`tool-btn ${activeBuildTool === BUILD_TOOLS.ROOF ? 'active' : ''}`}
-                  >
-                    <span className="w-5 h-5">{Icons.roof}</span>
-                    <span className="text-[10px]">Roof <kbd className="opacity-40 text-[8px]">J</kbd></span>
                   </button>
 
                   {/* Rotate Tool */}
@@ -804,7 +830,6 @@ export default function BuildPanel({
                   {activeBuildTool === BUILD_TOOLS.FOUNDATION && 'Click to place platform corners · Click first point to close'}
                   {activeBuildTool === BUILD_TOOLS.STAIRS && 'Select preset, then click to place'}
                   {activeBuildTool === BUILD_TOOLS.ROTATE && (rotateDegreeInput ? 'Type degrees, then click element to apply' : 'Click element to rotate · Shift: 45° snap')}
-                  {activeBuildTool === BUILD_TOOLS.ROOF && 'Click on a room to add a roof'}
                 </div>
 
                 {/* Rotate Options */}
@@ -1112,94 +1137,6 @@ export default function BuildPanel({
                   </div>
                 )}
 
-                {/* Roof Options */}
-                {activeBuildTool === BUILD_TOOLS.ROOF && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-3" style={{ padding: '12px 16px' }}>
-                    <div>
-                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Roof Type</div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {['flat', 'gable', 'hip', 'shed'].map((type) => (
-                          <button
-                            key={type}
-                            onClick={() => setRoofType?.(type)}
-                            className={`px-2 py-1.5 text-[10px] rounded capitalize transition-colors ${
-                              roofType === type
-                                ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] font-medium'
-                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:bg-white/10'
-                            }`}
-                          >
-                            {type}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {roofType !== 'flat' && (
-                      <div>
-                        <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Roof Pitch</div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="range"
-                            min="15"
-                            max="60"
-                            step="5"
-                            value={roofPitch}
-                            onChange={(e) => {
-                              const value = parseInt(e.target.value)
-                              setRoofPitch?.(value)
-                              if (selectedRoofId) {
-                                updateRoof?.(selectedRoofId, { pitch: value })
-                              }
-                            }}
-                            className="flex-1"
-                          />
-                          <span className="text-xs text-[var(--color-text-primary)] w-12">{roofPitch}°</span>
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Overhang (sides)</div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min="0"
-                          max="2"
-                          step="0.1"
-                          value={roofOverhang}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value)
-                            setRoofOverhang?.(value)
-                            if (selectedRoofId) {
-                              updateRoof?.(selectedRoofId, { overhang: value })
-                            }
-                          }}
-                          className="flex-1"
-                        />
-                        <span className="text-xs text-[var(--color-text-primary)] w-12">{roofOverhang.toFixed(1)}m</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-[var(--color-text-muted)] font-medium mb-2">Thickness</div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min="0.05"
-                          max="1"
-                          step="0.05"
-                          value={roofThickness}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value)
-                            setRoofThickness?.(value)
-                            if (selectedRoofId) {
-                              updateRoof?.(selectedRoofId, { thickness: value })
-                            }
-                          }}
-                          className="flex-1"
-                        />
-                        <span className="text-xs text-[var(--color-text-primary)] w-12">{roofThickness.toFixed(2)}m</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Stats */}
                 <div className="bg-[var(--color-bg-elevated)] rounded-xl space-y-2" style={{ padding: '12px 16px', marginTop: '12px' }}>
@@ -1248,12 +1185,11 @@ export default function BuildPanel({
                     [BUILD_TOOLS.POOL]: { label: 'Clear all pools', show: pools.length > 0 },
                     [BUILD_TOOLS.FOUNDATION]: { label: 'Clear all platforms', show: foundations.length > 0 },
                     [BUILD_TOOLS.STAIRS]: { label: 'Clear all stairs', show: stairs.length > 0 },
-                    [BUILD_TOOLS.ROOF]: { label: 'Clear all roofs', show: roofs.length > 0 },
                   }
                   const entry = clearMap[activeBuildTool]
                   if (!entry) {
                     // Default: show "Clear all" when no specific tool / delete tool
-                    const hasAnything = walls.length > 0 || pools.length > 0 || foundations.length > 0 || stairs.length > 0 || roofs.length > 0
+                    const hasAnything = walls.length > 0 || pools.length > 0 || foundations.length > 0 || stairs.length > 0
                     if (!hasAnything) return null
                     return (
                       <button
@@ -1478,28 +1414,6 @@ export default function BuildPanel({
                   </div>
                 </button>
 
-                <button
-                  onClick={() => setLabels(prev => ({ ...prev, orientation: !prev.orientation }))}
-                  className={`w-full flex items-center justify-between rounded-xl transition-colors ${
-                    labels.orientation
-                      ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30'
-                      : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)]'
-                  }`}
-                  style={{ padding: '12px 16px' }}
-                >
-                  <span className={`text-sm font-medium ${labels.orientation ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
-                    Compass
-                  </span>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    labels.orientation ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : 'border-[var(--color-text-muted)]'
-                  }`}>
-                    {labels.orientation && (
-                      <svg className="w-3 h-3 text-[var(--color-bg-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </div>
-                </button>
 
                 {/* Snap to Grid */}
                 <button

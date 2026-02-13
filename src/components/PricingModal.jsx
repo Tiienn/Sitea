@@ -15,14 +15,15 @@ const paypalOptions = {
  * PricingModal - Premium pricing display with PayPal payment integration
  *
  * Pricing:
- * - Monthly: $19.99/month subscription
+ * - Monthly Pro: $9.99/month subscription
+ * - Homeowner: $29 one-time payment (MOST POPULAR)
  * - Lifetime: $149 one-time payment
  */
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export default function PricingModal({ onClose, onSuccess }) {
   const { user, setShowAuthModal } = useUser()
-  const [selectedPlan, setSelectedPlan] = useState(null) // 'monthly' | 'lifetime'
+  const [selectedPlan, setSelectedPlan] = useState('homeowner')
   const [email, setEmail] = useState(user?.email || '')
   const [error, setError] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -36,7 +37,8 @@ export default function PricingModal({ onClose, onSuccess }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const MONTHLY_PRICE = '19.99'
+  const MONTHLY_PRICE = '9.99'
+  const HOMEOWNER_PRICE = '29.00'
   const LIFETIME_PRICE = '149.00'
 
   // Validate email before payment
@@ -68,7 +70,7 @@ export default function PricingModal({ onClose, onSuccess }) {
           paypal_payer_id: paypalData.payerID,
           status: 'active',
           plan_type: planType,
-          expires_at: planType === 'lifetime' ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          expires_at: (planType === 'lifetime' || planType === 'homeowner') ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }, { onConflict: 'email' })
 
       if (dbError) {
@@ -88,7 +90,36 @@ export default function PricingModal({ onClose, onSuccess }) {
     }
   }
 
-  // PayPal order creation for one-time payment
+  // PayPal order creation for homeowner one-time payment
+  const createHomeownerOrder = (data, actions) => {
+    if (!validateEmail()) return Promise.reject('Invalid email')
+
+    return actions.order.create({
+      purchase_units: [{
+        amount: {
+          value: HOMEOWNER_PRICE,
+          currency_code: 'USD'
+        },
+        description: 'Sitea Pro - Homeowner Access'
+      }]
+    })
+  }
+
+  // PayPal order approval for homeowner
+  const onHomeownerApprove = async (data, actions) => {
+    setIsProcessing(true)
+    try {
+      const details = await actions.order.capture()
+      await saveSubscription({ payerID: details.payer.payer_id }, 'homeowner')
+      onSuccess?.('homeowner')
+    } catch (err) {
+      setError('Payment failed. Please try again.')
+      console.error(err)
+    }
+    setIsProcessing(false)
+  }
+
+  // PayPal order creation for lifetime one-time payment
   const createLifetimeOrder = (data, actions) => {
     if (!validateEmail()) return Promise.reject('Invalid email')
 
@@ -103,7 +134,7 @@ export default function PricingModal({ onClose, onSuccess }) {
     })
   }
 
-  // PayPal order approval for one-time payment
+  // PayPal order approval for lifetime
   const onLifetimeApprove = async (data, actions) => {
     setIsProcessing(true)
     try {
@@ -143,38 +174,58 @@ export default function PricingModal({ onClose, onSuccess }) {
   }
 
   const features = {
+    homeowner: [
+      { icon: 'home', text: 'Walk through your real floor plan in 3D' },
+      { icon: 'sparkles', text: 'AI detects walls, doors & windows automatically' },
+      { icon: 'share', text: 'Share your walkthrough with family' },
+      { icon: 'download', text: 'Export images & 3D models' },
+    ],
     monthly: [
-      { icon: 'sparkles', text: 'AI-powered floor plan analysis' },
-      { icon: 'layers', text: 'Unlimited projects & exports' },
-      { icon: 'refresh', text: 'Cancel anytime' }
+      { icon: 'infinity', text: 'Unlimited floor plan uploads' },
+      { icon: 'sun', text: 'Day & night visualization' },
+      { icon: 'refresh', text: 'Cancel anytime' },
     ],
     lifetime: [
-      { icon: 'infinity', text: 'Everything in Monthly Pro' },
       { icon: 'crown', text: 'Pay once, own forever' },
-      { icon: 'rocket', text: 'All future updates free' }
+      { icon: 'rocket', text: 'All future features included' },
     ]
   }
 
   const FeatureIcon = ({ type }) => {
     const icons = {
+      home: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
+        </svg>
+      ),
       sparkles: (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
         </svg>
       ),
-      layers: (
+      share: (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
         </svg>
       ),
-      refresh: (
+      download: (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
         </svg>
       ),
       infinity: (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.781 0-4.781 8 0 8 5.606 0 7.644-8 12.74-8z" />
+        </svg>
+      ),
+      sun: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+      refresh: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
       ),
       crown: (
@@ -186,9 +237,103 @@ export default function PricingModal({ onClose, onSuccess }) {
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
         </svg>
+      ),
+      layers: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
       )
     }
     return icons[type] || null
+  }
+
+  // Shared card renderer
+  const PlanCard = ({ plan, price, priceSuffix, title, badge, badgeColor, accentColor, isHighlighted, featureList, inheritNote, paypalContent }) => {
+    const isSelected = selectedPlan === plan
+    const borderGradient = accentColor === 'emerald'
+      ? 'linear-gradient(135deg, #10b981, #06b6d4, #10b981)'
+      : accentColor === 'amber'
+      ? 'linear-gradient(135deg, #f59e0b, #f97316, #f59e0b)'
+      : 'linear-gradient(135deg, #10b981, #06b6d4, #10b981)'
+
+    const iconBg = accentColor === 'amber' ? 'bg-amber-500/10' : 'bg-emerald-500/10'
+    const iconText = accentColor === 'amber' ? 'text-amber-400' : 'text-emerald-400'
+    const checkBorder = accentColor === 'amber' ? 'border-amber-400 bg-amber-400' : 'border-emerald-400 bg-emerald-400'
+
+    return (
+      <div
+        className={`relative group cursor-pointer transition-all duration-300 ${
+          isSelected ? 'scale-[1.02]' : 'hover:scale-[1.01]'
+        } ${isHighlighted ? 'md:-mt-4 md:mb-[-16px]' : ''}`}
+        onClick={() => setSelectedPlan(plan)}
+      >
+        {/* Badge */}
+        {badge && (
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
+            <div className={`rounded-full font-bold shadow-lg whitespace-nowrap ${
+              badgeColor === 'emerald'
+                ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-900 shadow-emerald-500/25'
+                : 'bg-gradient-to-r from-amber-400 to-orange-400 text-slate-900 shadow-amber-500/25'
+            }`} style={{ padding: '4px 14px', fontSize: '10px', letterSpacing: '0.1em' }}>
+              {badge}
+            </div>
+          </div>
+        )}
+
+        {/* Animated border gradient */}
+        <div className={`absolute -inset-px rounded-2xl transition-opacity duration-300 ${
+          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
+        }`} style={{
+          background: borderGradient,
+          backgroundSize: '200% 200%',
+          animation: 'gradientShift 3s ease infinite'
+        }} />
+
+        {/* Card content */}
+        <div className={`relative rounded-2xl transition-all duration-300 ${
+          isSelected
+            ? 'bg-slate-800/90'
+            : 'bg-slate-800/40 group-hover:bg-slate-800/60'
+        }`} style={{ padding: '28px' }}>
+          {/* Selection indicator */}
+          <div className={`absolute w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+            isSelected ? checkBorder : 'border-slate-600'
+          }`} style={{ top: '20px', right: '20px' }}>
+            {isSelected && (
+              <svg className="w-3 h-3 text-slate-900" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-baseline gap-1">
+              <span className={`font-bold text-white ${isHighlighted ? 'text-4xl' : 'text-3xl'}`}>${price}</span>
+              <span className="text-slate-400 text-sm">{priceSuffix}</span>
+            </div>
+            <h3 className="text-lg font-semibold text-white mt-1">{title}</h3>
+          </div>
+
+          {inheritNote && (
+            <p className="text-xs text-slate-500 mb-3">{inheritNote}</p>
+          )}
+
+          <ul className="space-y-3 mb-5">
+            {featureList.map((feature, i) => (
+              <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
+                <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center ${iconText} flex-shrink-0`}>
+                  <FeatureIcon type={feature.icon} />
+                </div>
+                {feature.text}
+              </li>
+            ))}
+          </ul>
+
+          {/* PayPal button */}
+          {isSelected && email && paypalContent}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -206,7 +351,7 @@ export default function PricingModal({ onClose, onSuccess }) {
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-2xl"
+        className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto"
         style={{
           animation: 'modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
@@ -214,7 +359,7 @@ export default function PricingModal({ onClose, onSuccess }) {
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute -top-14 right-0 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105"
+          className="absolute -top-14 right-0 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105 z-10"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -230,7 +375,7 @@ export default function PricingModal({ onClose, onSuccess }) {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-emerald-500/10 blur-3xl pointer-events-none" />
 
           {/* Header */}
-          <div className="relative px-8 pb-8 text-center" style={{ paddingTop: '24px' }}>
+          <div className="relative px-8 pb-6 text-center" style={{ paddingTop: '24px' }}>
             {/* Pro badge */}
             <div className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 mb-5" style={{ gap: '8px', padding: '8px 20px' }}>
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -240,10 +385,10 @@ export default function PricingModal({ onClose, onSuccess }) {
             </div>
 
             <h2 className="text-3xl font-bold text-white mb-3 tracking-tight">
-              Design Without Limits
+              See Your Home Before You Build It
             </h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Transform any floor plan into stunning 3D visualizations with AI-powered tools.
+              Turn any floor plan into a walkable 3D experience.
             </p>
           </div>
 
@@ -267,170 +412,77 @@ export default function PricingModal({ onClose, onSuccess }) {
             )}
           </div>
 
-          {/* Pricing cards */}
-          <div className="px-8 pb-8 pt-2 grid md:grid-cols-2 gap-6">
-            {/* Monthly Plan */}
-            <div
-              className={`relative group cursor-pointer transition-all duration-300 ${
-                selectedPlan === 'monthly' ? 'scale-[1.02]' : 'hover:scale-[1.01]'
-              }`}
-              onClick={() => setSelectedPlan('monthly')}
-            >
-              {/* Animated border gradient */}
-              <div className={`absolute -inset-px rounded-2xl transition-opacity duration-300 ${
-                selectedPlan === 'monthly' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
-              }`} style={{
-                background: 'linear-gradient(135deg, #10b981, #06b6d4, #10b981)',
-                backgroundSize: '200% 200%',
-                animation: 'gradientShift 3s ease infinite'
-              }} />
-
-              {/* Card content */}
-              <div className={`relative rounded-2xl transition-all duration-300 ${
-                selectedPlan === 'monthly'
-                  ? 'bg-slate-800/90'
-                  : 'bg-slate-800/40 group-hover:bg-slate-800/60'
-              }`} style={{ padding: '32px' }}>
-                {/* Selection indicator */}
-                <div className={`absolute w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                  selectedPlan === 'monthly'
-                    ? 'border-emerald-400 bg-emerald-400'
-                    : 'border-slate-600'
-                }`} style={{ top: '24px', right: '24px' }}>
-                  {selectedPlan === 'monthly' && (
-                    <svg className="w-3 h-3 text-slate-900" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
+          {/* Pricing cards — 3 columns on desktop, stacked on mobile */}
+          <div className="px-8 pb-8 pt-2 grid md:grid-cols-3 gap-5 items-start">
+            {/* Monthly Pro (left, secondary) */}
+            <PlanCard
+              plan="monthly"
+              price={MONTHLY_PRICE}
+              priceSuffix="/month"
+              title="Monthly Pro"
+              accentColor="emerald"
+              featureList={features.monthly}
+              inheritNote="Everything in Homeowner, plus:"
+              paypalContent={
+                <div className="mt-4 animate-fadeIn">
+                  <PayPalButtons
+                    style={{ layout: 'vertical', color: 'gold', shape: 'pill', label: 'subscribe', height: 45 }}
+                    createSubscription={createMonthlySubscription}
+                    onApprove={onMonthlyApprove}
+                    onError={(err) => { console.error('PayPal error:', err); setError('Payment failed. Please try again.') }}
+                    disabled={isProcessing}
+                  />
                 </div>
+              }
+            />
 
-                <div className="mb-4">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-white">${MONTHLY_PRICE}</span>
-                    <span className="text-slate-400 text-sm">/month</span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-white mt-1">Monthly Pro</h3>
+            {/* Homeowner (center, highlighted hero) */}
+            <PlanCard
+              plan="homeowner"
+              price={HOMEOWNER_PRICE}
+              priceSuffix="one-time"
+              title="Homeowner"
+              badge="MOST POPULAR"
+              badgeColor="emerald"
+              accentColor="emerald"
+              isHighlighted={true}
+              featureList={features.homeowner}
+              paypalContent={
+                <div className="mt-4 animate-fadeIn">
+                  <PayPalButtons
+                    style={{ layout: 'vertical', color: 'gold', shape: 'pill', label: 'pay', height: 45 }}
+                    createOrder={createHomeownerOrder}
+                    onApprove={onHomeownerApprove}
+                    onError={(err) => { console.error('PayPal error:', err); setError('Payment failed. Please try again.') }}
+                    disabled={isProcessing}
+                  />
                 </div>
+              }
+            />
 
-                <ul className="space-y-3 mb-5">
-                  {features.monthly.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                        <FeatureIcon type={feature.icon} />
-                      </div>
-                      {feature.text}
-                    </li>
-                  ))}
-                </ul>
-
-                {/* PayPal button for monthly */}
-                {selectedPlan === 'monthly' && email && (
-                  <div className="mt-4 animate-fadeIn">
-                    <PayPalButtons
-                      style={{
-                        layout: 'vertical',
-                        color: 'gold',
-                        shape: 'pill',
-                        label: 'subscribe',
-                        height: 45
-                      }}
-                      createSubscription={createMonthlySubscription}
-                      onApprove={onMonthlyApprove}
-                      onError={(err) => {
-                        console.error('PayPal error:', err)
-                        setError('Payment failed. Please try again.')
-                      }}
-                      disabled={isProcessing}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Lifetime Plan */}
-            <div
-              className={`relative group cursor-pointer transition-all duration-300 ${
-                selectedPlan === 'lifetime' ? 'scale-[1.02]' : 'hover:scale-[1.01]'
-              }`}
-              onClick={() => setSelectedPlan('lifetime')}
-            >
-              {/* Best value badge */}
-              <div className="absolute -top-2 right-4 z-10">
-                <div className="rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-slate-900 font-bold shadow-lg shadow-amber-500/25" style={{ padding: '4px 14px', fontSize: '10px', letterSpacing: '0.1em' }}>
-                  BEST VALUE
+            {/* Lifetime (right, secondary) */}
+            <PlanCard
+              plan="lifetime"
+              price={LIFETIME_PRICE}
+              priceSuffix="one-time"
+              title="Lifetime Access"
+              badge="BEST VALUE"
+              badgeColor="amber"
+              accentColor="amber"
+              featureList={features.lifetime}
+              inheritNote="Everything in Monthly Pro, plus:"
+              paypalContent={
+                <div className="mt-4 animate-fadeIn">
+                  <PayPalButtons
+                    style={{ layout: 'vertical', color: 'gold', shape: 'pill', label: 'pay', height: 45 }}
+                    createOrder={createLifetimeOrder}
+                    onApprove={onLifetimeApprove}
+                    onError={(err) => { console.error('PayPal error:', err); setError('Payment failed. Please try again.') }}
+                    disabled={isProcessing}
+                  />
                 </div>
-              </div>
-
-              {/* Animated border gradient */}
-              <div className={`absolute -inset-px rounded-2xl transition-opacity duration-300 ${
-                selectedPlan === 'lifetime' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
-              }`} style={{
-                background: 'linear-gradient(135deg, #f59e0b, #f97316, #f59e0b)',
-                backgroundSize: '200% 200%',
-                animation: 'gradientShift 3s ease infinite'
-              }} />
-
-              {/* Card content */}
-              <div className={`relative rounded-2xl transition-all duration-300 ${
-                selectedPlan === 'lifetime'
-                  ? 'bg-slate-800/90'
-                  : 'bg-slate-800/40 group-hover:bg-slate-800/60'
-              }`} style={{ padding: '32px' }}>
-                {/* Selection indicator */}
-                <div className={`absolute w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                  selectedPlan === 'lifetime'
-                    ? 'border-amber-400 bg-amber-400'
-                    : 'border-slate-600'
-                }`} style={{ top: '24px', right: '24px' }}>
-                  {selectedPlan === 'lifetime' && (
-                    <svg className="w-3 h-3 text-slate-900" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-white">${LIFETIME_PRICE}</span>
-                    <span className="text-slate-400 text-sm">one-time</span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-white mt-1">Lifetime Access</h3>
-                </div>
-
-                <ul className="space-y-3 mb-5">
-                  {features.lifetime.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
-                        <FeatureIcon type={feature.icon} />
-                      </div>
-                      {feature.text}
-                    </li>
-                  ))}
-                </ul>
-
-                {/* PayPal button for lifetime */}
-                {selectedPlan === 'lifetime' && email && (
-                  <div className="mt-4 animate-fadeIn">
-                    <PayPalButtons
-                      style={{
-                        layout: 'vertical',
-                        color: 'gold',
-                        shape: 'pill',
-                        label: 'pay',
-                        height: 45
-                      }}
-                      createOrder={createLifetimeOrder}
-                      onApprove={onLifetimeApprove}
-                      onError={(err) => {
-                        console.error('PayPal error:', err)
-                        setError('Payment failed. Please try again.')
-                      }}
-                      disabled={isProcessing}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+              }
+            />
           </div>
 
           {/* Trust indicators */}

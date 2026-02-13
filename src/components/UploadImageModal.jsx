@@ -6,10 +6,10 @@ import { useUser } from '../hooks/useUser.jsx'
 const AUTO_ROUTE_THRESHOLD = 0.7
 
 export default function UploadImageModal({ onClose, onUploadForLand, onUploadForFloorPlan }) {
-  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload } = useUser()
+  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload, setShowPricingModal } = useUser()
   const [isDragging, setIsDragging] = useState(false)
   const [preview, setPreview] = useState(null)
-  const [step, setStep] = useState('upload') // 'upload' | 'analyzing' | 'confirm'
+  const [step, setStep] = useState('promise') // 'promise' | 'upload' | 'preview' | 'analyzing' | 'confirm'
   const [detection, setDetection] = useState(null) // { type, confidence, method }
   const [error, setError] = useState(null)
   const fileInputRef = useRef(null)
@@ -27,14 +27,8 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
     onClose()
   }
 
-  const handleFile = async (f) => {
+  const handleFile = (f) => {
     if (!f) return
-
-    // Check if user can upload (first time free, then Pro required)
-    if (!canUseUpload()) {
-      onClose() // Close modal, pricing modal will open
-      return
-    }
 
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
     if (!validTypes.includes(f.type)) {
@@ -45,30 +39,31 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
     setError(null)
 
     const reader = new FileReader()
-    reader.onload = async (e) => {
-      const imageData = e.target.result
-      setPreview(imageData)
-      setStep('analyzing')
-
-      try {
-        // Analyze the image to detect type
-        const result = await analyzeImage(imageData, isPaidUser)
-        setDetection(result)
-
-        // Auto-route if high confidence
-        if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
-          routeToMode(result.type, imageData)
-        } else {
-          // Low confidence - show confirmation
-          setStep('confirm')
-        }
-      } catch (err) {
-        console.error('Analysis failed:', err)
-        setError('Could not analyze image. Please try again.')
-        setStep('upload')
-      }
+    reader.onload = (e) => {
+      setPreview(e.target.result)
+      setStep('preview')
     }
     reader.readAsDataURL(f)
+  }
+
+  // Called when user clicks "Generate 3D Walkthrough" from preview step
+  const proceedToAnalysis = async () => {
+    setStep('analyzing')
+
+    try {
+      const result = await analyzeImage(preview, isPaidUser)
+      setDetection(result)
+
+      if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
+        routeToMode(result.type, preview)
+      } else {
+        setStep('confirm')
+      }
+    } catch (err) {
+      console.error('Analysis failed:', err)
+      setError('Could not analyze image. Please try again.')
+      setStep('upload')
+    }
   }
 
   const handleDragOver = (e) => {
@@ -86,7 +81,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
 
   const resetModal = () => {
     setPreview(null)
-    setStep('upload')
+    setStep('promise')
     setDetection(null)
     setError(null)
   }
@@ -119,6 +114,43 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
         {/* Main Card */}
         <div className="bg-[var(--color-bg-primary)] rounded-2xl p-6 shadow-2xl border border-[var(--color-border)]">
 
+          {step === 'promise' && (
+            <div className="text-center">
+              <h1 className="text-xl font-display font-semibold text-white mb-2">
+                Turn your floor plan into a 3D walkthrough
+              </h1>
+              <p className="text-[var(--color-text-muted)] text-sm mb-6">
+                Upload a photo or screenshot. We'll detect walls, doors, and windows automatically.
+              </p>
+
+              {/* 2D → 3D visual */}
+              <div className="flex items-center justify-center gap-4 mb-8">
+                <div className="w-20 h-20 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                  <svg className="w-9 h-9 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <rect x="3" y="3" width="18" height="18" rx="1" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="12" y1="3" x2="12" y2="21" />
+                  </svg>
+                </div>
+                <svg className="w-6 h-6 text-[var(--color-accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+                <div className="w-20 h-20 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/30 flex items-center justify-center">
+                  <svg className="w-9 h-9 text-[var(--color-accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                  </svg>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setStep('upload')}
+                className="w-full py-3 bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold rounded-lg transition-colors"
+              >
+                Upload Floor Plan
+              </button>
+            </div>
+          )}
+
           {step === 'upload' && (
             <>
               {/* Header */}
@@ -128,12 +160,11 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                 {!isPaidUser && (
                   <p className="mt-2 text-xs">
                     {hasUsedUpload ? (
-                      <span className="text-amber-400">
-                        <span className="px-1.5 py-0.5 bg-amber-500 text-black font-bold rounded mr-1">PRO</span>
-                        Upgrade to upload more plans
+                      <span className="text-teal-400">
+                        Want to upload more? <span className="px-1.5 py-0.5 bg-teal-500 text-white font-bold rounded ml-0.5">Pro — $29</span>
                       </span>
                     ) : (
-                      <span className="text-green-400">First upload free!</span>
+                      <span className="text-green-400">Your first upload is free</span>
                     )}
                   </p>
                 )}
@@ -220,6 +251,46 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
             </>
           )}
 
+          {step === 'preview' && preview && (
+            <div>
+              {/* Show uploaded image */}
+              <div className="rounded-xl overflow-hidden mb-4 border border-white/10">
+                <img src={preview} alt="Your floor plan" className="w-full" />
+              </div>
+
+              {/* Gate check */}
+              {!isPaidUser && hasUsedUpload ? (
+                /* PAYWALL — user has used free trial */
+                <div className="text-center">
+                  <p className="text-white font-medium mb-2">Ready to generate your 3D walkthrough</p>
+                  <p className="text-[var(--color-text-muted)] text-sm mb-4">
+                    You've used your free upload. Upgrade to continue.
+                  </p>
+                  <button
+                    onClick={() => setShowPricingModal(true)}
+                    className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold rounded-lg transition-all mb-3"
+                  >
+                    Upgrade to Pro
+                  </button>
+                  <button
+                    onClick={handleClose}
+                    className="text-sm text-[var(--color-text-muted)] hover:text-white transition-colors"
+                  >
+                    Go back
+                  </button>
+                </div>
+              ) : (
+                /* ALLOWED — first free upload or paid user */
+                <button
+                  onClick={proceedToAnalysis}
+                  className="w-full py-3 bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold rounded-lg transition-colors"
+                >
+                  Generate 3D Walkthrough
+                </button>
+              )}
+            </div>
+          )}
+
           {step === 'analyzing' && (
             /* Analyzing State */
             <div className="py-12 text-center">
@@ -286,7 +357,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                   </svg>
                   Floor Plan
                   {!isPaidUser && hasUsedUpload && (
-                    <span className="ml-1 px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-black rounded">PRO</span>
+                    <span className="ml-1 px-1.5 py-0.5 text-[9px] font-bold bg-teal-500 text-white rounded">Pro</span>
                   )}
                 </button>
               </div>
@@ -305,10 +376,10 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
 
         {/* Help Text */}
         <p className="text-center text-[var(--color-text-muted)] text-sm mt-4">
-          {step === 'confirm'
-            ? 'Choose the type that best matches your image'
-            : 'We\'ll automatically detect if this is a site plan or floor plan'
-          }
+          {step === 'confirm' && 'Choose the type that best matches your image'}
+          {step === 'upload' && 'We\'ll automatically detect if this is a site plan or floor plan'}
+          {step === 'preview' && 'Your image is ready for analysis'}
+          {step === 'promise' && 'Works with photos, screenshots, and scanned plans'}
         </p>
 
       </div>

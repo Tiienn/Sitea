@@ -386,8 +386,9 @@ export function findWallsForRoom(room, walls) {
     // Find wall that matches this edge
     for (const wall of walls) {
       if (!wall.id?.startsWith('wall-') && !wall.id?.startsWith('fsm-')) continue
+      if (wallIds.includes(wall.id)) continue
 
-      // Check if wall matches edge in either direction
+      // Check if wall matches edge in either direction (exact endpoint match)
       const matchForward = (
         Math.abs(wall.start.x - p1.x) < MATCH_THRESHOLD &&
         Math.abs(wall.start.z - p1.z) < MATCH_THRESHOLD &&
@@ -401,7 +402,36 @@ export function findWallsForRoom(room, walls) {
         Math.abs(wall.end.z - p1.z) < MATCH_THRESHOLD
       )
 
-      if ((matchForward || matchBackward) && !wallIds.includes(wall.id)) {
+      if (matchForward || matchBackward) {
+        wallIds.push(wall.id)
+        continue
+      }
+
+      // Check if the room edge is a sub-segment of this wall (for walls spanning multiple rooms)
+      // Both the edge and wall must be collinear, and the edge must lie within the wall
+      const wallDx = wall.end.x - wall.start.x
+      const wallDz = wall.end.z - wall.start.z
+      const edgeDx = p2.x - p1.x
+      const edgeDz = p2.z - p1.z
+
+      // Check collinearity: wall and edge must be parallel
+      const cross = wallDx * edgeDz - wallDz * edgeDx
+      if (Math.abs(cross) > MATCH_THRESHOLD) continue
+
+      // Check that edge endpoints lie on the wall line (perpendicular distance ≈ 0)
+      const wallLen = Math.sqrt(wallDx * wallDx + wallDz * wallDz)
+      if (wallLen < 0.01) continue
+      const nx = -wallDz / wallLen
+      const nz = wallDx / wallLen
+      const dist1 = Math.abs(nx * (p1.x - wall.start.x) + nz * (p1.z - wall.start.z))
+      const dist2 = Math.abs(nx * (p2.x - wall.start.x) + nz * (p2.z - wall.start.z))
+      if (dist1 > MATCH_THRESHOLD || dist2 > MATCH_THRESHOLD) continue
+
+      // Check that at least one edge endpoint is within the wall segment (not just on the line)
+      const t1 = wallLen > 0.01 ? ((p1.x - wall.start.x) * wallDx + (p1.z - wall.start.z) * wallDz) / (wallLen * wallLen) : 0
+      const t2 = wallLen > 0.01 ? ((p2.x - wall.start.x) * wallDx + (p2.z - wall.start.z) * wallDz) / (wallLen * wallLen) : 0
+      const margin = MATCH_THRESHOLD / wallLen
+      if (t1 >= -margin && t1 <= 1 + margin && t2 >= -margin && t2 <= 1 + margin) {
         wallIds.push(wall.id)
       }
     }

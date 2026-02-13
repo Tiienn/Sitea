@@ -163,6 +163,7 @@ export default function Onboarding({
   // Calculated values
   const [finalArea, setFinalArea] = useState(0)
   const [finalDimensions, setFinalDimensions] = useState({ length: 20, width: 15 })
+  const finalDimsRef = useRef({ length: 20, width: 15 })
   const [finalPolygon, setFinalPolygon] = useState(null)
 
   // House picker state
@@ -201,7 +202,9 @@ export default function Onboarding({
   const handleRectangleSubmit = () => {
     const l = toMeters(length) || 20
     const w = toMeters(width) || 15
-    setFinalDimensions({ length: Math.max(1, l), width: Math.max(1, w) })
+    const dims = { length: Math.max(1, l), width: Math.max(1, w) }
+    setFinalDimensions(dims)
+    finalDimsRef.current = dims
     setFinalArea(l * w)
     setFinalPolygon(null)
     triggerAha(l * w)
@@ -307,6 +310,7 @@ export default function Onboarding({
     // Set state for display
     setSelectedTemplateId(template.id)
     setFinalDimensions(dims)
+    finalDimsRef.current = dims
     setFinalArea(template.areaM2)
     setFinalPolygon(null)
 
@@ -335,7 +339,12 @@ export default function Onboarding({
     setTimeout(() => {
       setShowAha(false)
       setAhaFading(false)
-      setShowHousePicker(true)
+      // Only show house picker on first onboarding
+      if (localStorage.getItem('housePickerSeen')) {
+        completeOnboarding('explore', null)
+      } else {
+        setShowHousePicker(true)
+      }
     }, 500)
   }
 
@@ -372,16 +381,8 @@ export default function Onboarding({
 
   // Complete onboarding
   const completeOnboarding = (action, houseTemplate = null) => {
-    // For templates, ensure we use the computed dimensions from the template
-    let dims = finalDimensions
-    if (method === 'template' && selectedTemplateId) {
-      // Re-compute dimensions from the selected template to ensure correctness
-      const template = LAND_TEMPLATES.find(t => t.id === selectedTemplateId)
-      if (template) {
-        const { widthM, lengthM } = areaToRectDims(template.areaM2)
-        dims = { length: lengthM, width: widthM }
-      }
-    }
+    // Use ref to avoid stale closure from setTimeout in fadeAha
+    const dims = finalDimsRef.current
 
     onComplete({
       dimensions: dims,
@@ -820,6 +821,7 @@ export default function Onboarding({
                   <button
                     key={key}
                     onClick={() => {
+                      localStorage.setItem('housePickerSeen', 'true')
                       setShowHousePicker(false)
                       completeOnboarding('explore', key)
                     }}
@@ -839,8 +841,9 @@ export default function Onboarding({
             </div>
             <button
               onClick={() => {
+                localStorage.setItem('housePickerSeen', 'true')
                 setShowHousePicker(false)
-                completeOnboarding('explore', null)
+                completeOnboarding('explore', 'skip')
               }}
               className="w-full text-center text-sm text-[var(--color-text-muted)] hover:text-white transition-colors mt-4 py-2"
             >

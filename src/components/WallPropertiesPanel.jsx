@@ -24,6 +24,7 @@ export default function WallPropertiesPanel({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose?.()
+      if (e.key === 'Enter') { e.preventDefault(); onClose?.() }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)

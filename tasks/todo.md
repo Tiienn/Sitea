@@ -1,44 +1,48 @@
-# House Template Variations
+# Post-Onboarding Soft Upgrade Banner
 
 ## Plan
-Replace Quick Presets with 3 house template options (Compact, Modern, Luxury). Each is a set of walls with doors/windows that spawn onto the land. Also add a house picker to the onboarding flow after the Aha moment.
+Add a subtle floating banner at bottom-center for free users, 30s after onboarding. Nudges them to upload their floor plan. Dismissable with localStorage persistence.
 
 ## Tasks
 
-- [x] 1. Create `src/data/houseTemplates.js` with 3 templates (compact, modern, luxury) using the same wall format as `houseTemplate.js`
-- [x] 2. Modify `Onboarding.jsx` — after Aha fade, show house picker instead of immediately completing. 3 cards + "Skip" option.
-- [x] 3. Modify `App.jsx` — update `handleLandDefined` to accept `houseTemplate` param, load walls via `clearWallsHistory()`, override land size, switch to first-person
-- [x] 4. Replace Quick Presets in `BuildPanel.jsx` — swap PRESETS import for houseTemplates, update the presets section UI to show 3 house template cards
-- [x] 5. Verify build passes and update review
+- [x] 1. **App.jsx** — Add `showProBanner` state, 30s timer useEffect, dismiss/click handlers, auto-hide effects
+- [x] 2. **App.jsx** — Render banner JSX at bottom-center with mobile positioning
+- [x] 3. **App.jsx** — Add analytics tracking (shown/clicked/dismissed)
+- [x] 4. **Verify** — `npm run build` passes
 
 ## Review
 
 ### Changes Made
 
-**`src/data/houseTemplates.js`** (NEW)
-- 3 house templates: compact (9×8m, 2 bed, 6 walls), modern (12×10m, 3 bed, 7 walls), luxury (16×14m, 4 bed, 9 walls)
-- Each template has `id`, `label`, `description`, `land` (recommended lot size), and `walls` array
-- Wall format matches existing app format exactly (id, start, end, height, thickness, isExterior, openings, floorLevel)
-- All exterior walls form closed rectangles, interior walls connect at T-junctions
-- Exports: `houseTemplates`, `HOUSE_TEMPLATE_ORDER`, `DEFAULT_HOUSE_TEMPLATE`
+**`src/App.jsx`** — ~60 lines added, no other files changed
 
-**`src/components/Onboarding.jsx`**
-- Added `showHousePicker` state
-- Modified `fadeAha()` to show house picker instead of immediately completing
-- Modified template-click Aha path to use same `fadeAha()` flow
-- Added `houseTemplate` parameter to `completeOnboarding()` and `onComplete` data
-- Added house picker UI: 3 cards + "Skip — empty lot" button, dark overlay card style
+**State:**
+- `showProBanner` state, default `false`
 
-**`src/App.jsx`**
-- Imported `houseTemplates` from new data file
-- Updated `handleLandDefined` to accept `houseTemplate` param
-- When house template selected: overrides land dimensions, sets rectangle mode, loads walls via `clearWallsHistory()`, switches to first-person view
-- Added analytics tracking for house template selection
-- Passed `onLoadHouseTemplate` callback to BuildPanel (loads template walls, sets land, switches view)
+**Logic (useEffects + handlers):**
+- Timer useEffect: 30s delay after `userHasLand` becomes true, only for free users who haven't dismissed or uploaded
+- Auto-hide useEffect: hides banner when upload modal/floor plan generator opens, or when user upgrades to Pro
+- `dismissProBanner()`: hides + sets `sitea_proBannerDismissed` in localStorage (permanent)
+- `handleProBannerClick()`: hides banner, opens `showUploadModal`
 
-**`src/components/BuildPanel.jsx`**
-- Replaced `PRESETS` import with `houseTemplates` import
-- Renamed section label from "Quick Presets" to "House Templates"
-- Replaced preset buttons with house template cards (label + description + "Popular" badge on Modern)
-- Removed `handlePresetClick`, `presetToast`, `placePreset` import
-- Added `onLoadHouseTemplate` prop
+**Analytics:**
+- `pro_banner_shown` — fires when banner appears
+- `pro_banner_clicked` — fires when user clicks banner text
+- `pro_banner_dismissed` — fires when user clicks X
+
+**Banner JSX:**
+- Floating at bottom-center, `z-40`, `animate-slide-in-bottom`
+- Teal house icon + "Have your own floor plan? See it in 3D →"
+- X dismiss button (subtle, white/30 opacity)
+- Mobile: `bottom-20` (clears joystick/nav), Desktop: `bottom-6`
+- `backdrop-blur-md`, rounded-xl, border — matches app design system
+
+### Behavior Rules Implemented
+- Only free users (double-check: `!isPaidUser` in render + useEffect guard)
+- localStorage permanent dismiss
+- Only after onboarding (`userHasLand` check)
+- Auto-hides on upload/upgrade
+- 30s delay
+- Not shown if `hasUsedUpload`
+- Not shown if `isReadOnly`
+- Non-blocking (not a modal)
