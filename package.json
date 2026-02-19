@@ -29,6 +29,7 @@
     "@tailwindcss/vite": "^4.1.17",
     "jspdf": "^4.0.0",
     "nipplejs": "^0.10.2",
+    "openai": "^6.22.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.10.1",

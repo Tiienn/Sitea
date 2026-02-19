@@ -7,6 +7,7 @@ const SECTIONS = [
   { id: 'pdf', label: 'PDF Report', icon: 'document' },
   { id: 'screenshot', label: '3D View', icon: 'camera' },
   { id: 'model', label: '3D Model', icon: 'cube' },
+  { id: 'airender', label: 'AI Render', icon: 'sparkles' },
 ]
 
 // Icon components
@@ -32,6 +33,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
     </svg>
   ),
+  sparkles: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+    </svg>
+  ),
 }
 
 export default function ExportPanel({
@@ -51,6 +57,10 @@ export default function ExportPanel({
   isExportingPdf = false,
   landArea = 0,
   buildingArea = 0,
+  onAiVisualize,
+  isGeneratingAI = false,
+  aiRenderResult = null,
+  onShowAiRender,
 }) {
   const { isPaidUser } = useUser()
   const [activeSection, setActiveSection] = useState('floorplan')
@@ -65,6 +75,9 @@ export default function ExportPanel({
 
   // Model export options
   const [modelFormat, setModelFormat] = useState('glb')
+
+  // AI render options
+  const [aiStyle, setAiStyle] = useState('modern')
 
   const canExport = hasLand || wallCount > 0
   const currentSection = SECTIONS.find(s => s.id === activeSection)
@@ -807,6 +820,142 @@ export default function ExportPanel({
                     ))}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* AI RENDER Section */}
+            {activeSection === 'airender' && (
+              <div className="space-y-5">
+                {/* Preview area */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[var(--color-bg-elevated)] to-[var(--color-bg-secondary)] border border-[var(--color-border)]">
+                  <div className="p-5 flex items-center justify-center">
+                    {aiRenderResult ? (
+                      <div
+                        className="relative w-full aspect-square max-w-[200px] rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => onShowAiRender?.()}
+                      >
+                        <img
+                          src={`data:image/png;base64,${aiRenderResult}`}
+                          alt="AI Render"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors">
+                          <svg className="w-8 h-8 text-white opacity-0 hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                          </svg>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative w-full aspect-square max-w-[200px]">
+                        {/* AI visualization placeholder */}
+                        <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-purple-900/40 to-pink-900/40 border border-purple-500/20 flex flex-col items-center justify-center gap-3">
+                          <svg className="w-12 h-12 text-purple-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                          </svg>
+                          <span className="text-xs text-purple-300/60 font-medium">AI Photorealistic Render</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info row */}
+                  <div className="px-4 pb-4">
+                    <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Transforms your 3D view into a photo</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Style selector */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-3.5 h-3.5 text-[var(--color-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
+                    </svg>
+                    <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Style</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'modern', label: 'Modern', desc: 'Clean & minimal' },
+                      { id: 'traditional', label: 'Traditional', desc: 'Classic & warm' },
+                      { id: 'minimalist', label: 'Minimalist', desc: 'Pure & simple' },
+                      { id: 'rustic', label: 'Rustic', desc: 'Natural & cozy' },
+                    ].map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={() => setAiStyle(style.id)}
+                        className={`p-3 rounded-xl text-left transition-all ${
+                          aiStyle === style.id
+                            ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-2 border-purple-500/50'
+                            : 'bg-[var(--color-bg-secondary)] border-2 border-transparent hover:bg-[var(--color-bg-elevated)]'
+                        }`}
+                      >
+                        <div className="text-sm font-medium text-[var(--color-text-primary)]">{style.label}</div>
+                        <div className="text-[10px] text-[var(--color-text-muted)]">{style.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Generate Button */}
+                <button
+                  style={{ marginTop: '12px' }}
+                  onClick={() => onAiVisualize?.({ style: aiStyle })}
+                  disabled={isGeneratingAI || viewMode === '2d'}
+                  className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                    !isGeneratingAI && viewMode !== '2d'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white shadow-lg shadow-purple-500/20'
+                      : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] cursor-not-allowed'
+                  }`}
+                >
+                  {isGeneratingAI ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      <span>Generating... (15-30s)</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                      </svg>
+                      <span>Generate AI Render</span>
+                      {!isPaidUser && (
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-400 text-amber-900 rounded-full">PRO</span>
+                      )}
+                    </>
+                  )}
+                </button>
+
+                {/* Time estimate */}
+                {!isGeneratingAI && viewMode !== '2d' && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                    <svg className="w-4 h-4 text-purple-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-purple-200">
+                      Takes 15-30 seconds to generate
+                    </p>
+                  </div>
+                )}
+
+                {/* 2D mode warning */}
+                {viewMode === '2d' && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                    <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-amber-200">
+                      Switch to 3D or 1P view to generate
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

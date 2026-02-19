@@ -1,48 +1,57 @@
-# Post-Onboarding Soft Upgrade Banner
+# AI Visualization (P5)
 
 ## Plan
-Add a subtle floating banner at bottom-center for free users, 30s after onboarding. Nudges them to upload their floor plan. Dismissable with localStorage persistence.
 
-## Tasks
+### Step 1: Install OpenAI SDK
+- [x] `npm install openai`
 
-- [x] 1. **App.jsx** — Add `showProBanner` state, 30s timer useEffect, dismiss/click handlers, auto-hide effects
-- [x] 2. **App.jsx** — Render banner JSX at bottom-center with mobile positioning
-- [x] 3. **App.jsx** — Add analytics tracking (shown/clicked/dismissed)
-- [x] 4. **Verify** — `npm run build` passes
+### Step 2: Create API endpoint — `api/ai-visualize.js`
+- [x] Copy auth pattern from `api/analyze-floor-plan.js`
+- [x] POST only, `maxDuration: 60`
+- [x] JWT auth + subscription check
+- [x] Takes `{ image, style }`, calls OpenAI gpt-image-1
+- [x] Returns `{ success: true, image: base64Result }`
+
+### Step 3: Add AI Render handler in `src/App.jsx`
+- [x] Add new state: `isGeneratingAI`, `aiRenderResult`, `showAiRenderModal`
+- [x] Add `handleAiVisualize` handler (requirePaid, capture canvas, call API)
+- [x] Pass new props to ExportPanel
+- [x] Add AI render result modal
+
+### Step 4: Add AI Render tab to `src/components/ExportPanel.jsx`
+- [x] Add 'airender' to SECTIONS with sparkles icon
+- [x] Add `aiStyle` state, style selector (4 styles)
+- [x] Add generate button with PRO badge + spinner
+- [x] Add preview area for result
+- [x] Add 2D mode warning
+
+### Step 5: Build verification
+- [x] `npm run build` passes
 
 ## Review
 
 ### Changes Made
 
-**`src/App.jsx`** — ~60 lines added, no other files changed
+**New file: `api/ai-visualize.js`**
+- Vercel serverless endpoint with same auth pattern as `analyze-floor-plan.js`
+- JWT Bearer token auth → Supabase user verification → subscription check
+- 4 style prompts (modern, traditional, minimalist, rustic)
+- Calls OpenAI `gpt-image-1` model via `images.edit()` with the captured 3D view
+- Returns base64 image result
 
-**State:**
-- `showProBanner` state, default `false`
+**Modified: `src/App.jsx`**
+- Added `captureScreenshot` import (was only importing `captureAndDownload`)
+- Added `supabase` import from supabaseClient
+- 3 new state variables: `isGeneratingAI`, `aiRenderResult`, `showAiRenderModal`
+- New `handleAiVisualize` handler: captures canvas → converts to base64 → calls API → shows result
+- 4 new props passed to ExportPanel
+- New modal for viewing/downloading AI render result (dark overlay, centered image, download + close buttons)
 
-**Logic (useEffects + handlers):**
-- Timer useEffect: 30s delay after `userHasLand` becomes true, only for free users who haven't dismissed or uploaded
-- Auto-hide useEffect: hides banner when upload modal/floor plan generator opens, or when user upgrades to Pro
-- `dismissProBanner()`: hides + sets `sitea_proBannerDismissed` in localStorage (permanent)
-- `handleProBannerClick()`: hides banner, opens `showUploadModal`
+**Modified: `src/components/ExportPanel.jsx`**
+- Added 5th section 'airender' with sparkles icon (Heroicons outline)
+- 4 new props: `onAiVisualize`, `isGeneratingAI`, `aiRenderResult`, `onShowAiRender`
+- New `aiStyle` state (default: 'modern')
+- AI Render tab with: preview area (shows last result or placeholder), 2x2 style grid, generate button with PRO badge, time estimate hint, 2D mode warning
 
-**Analytics:**
-- `pro_banner_shown` — fires when banner appears
-- `pro_banner_clicked` — fires when user clicks banner text
-- `pro_banner_dismissed` — fires when user clicks X
-
-**Banner JSX:**
-- Floating at bottom-center, `z-40`, `animate-slide-in-bottom`
-- Teal house icon + "Have your own floor plan? See it in 3D →"
-- X dismiss button (subtle, white/30 opacity)
-- Mobile: `bottom-20` (clears joystick/nav), Desktop: `bottom-6`
-- `backdrop-blur-md`, rounded-xl, border — matches app design system
-
-### Behavior Rules Implemented
-- Only free users (double-check: `!isPaidUser` in render + useEffect guard)
-- localStorage permanent dismiss
-- Only after onboarding (`userHasLand` check)
-- Auto-hides on upload/upgrade
-- 30s delay
-- Not shown if `hasUsedUpload`
-- Not shown if `isReadOnly`
-- Non-blocking (not a modal)
+### Remaining Manual Step
+- Add `OPENAI_API_KEY` to Vercel environment variables

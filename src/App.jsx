@@ -10,6 +10,7 @@ const FloorPlanGeneratorModal = lazy(() => import('./components/FloorPlanGenerat
 const UploadImageModal = lazy(() => import('./components/UploadImageModal'))
 const PricingModal = lazy(() => import('./components/PricingModal'))
 const AuthModal = lazy(() => import('./components/AuthModal'))
+const ProjectsModal = lazy(() => import('./components/ProjectsModal'))
 
 // Named export from PolygonEditor (used for area calculation)
 import { calculatePolygonArea } from './components/PolygonEditor'
@@ -45,13 +46,14 @@ import StairsPropertiesPanel from './components/StairsPropertiesPanel'
 import { CAMERA_MODE, DEFAULT_TP_DISTANCE, ORBIT_START_DISTANCE, QUALITY } from './constants/landSceneConstants'
 import { useUser } from './hooks/useUser'
 import { exportFloorPlanAsPNG } from './utils/exportFloorPlan'
-import { captureAndDownload } from './utils/screenshotCapture'
+import { captureScreenshot, captureAndDownload } from './utils/screenshotCapture'
 import { exportModel } from './utils/modelExport'
 import { exportToPDF } from './utils/pdfExport'
 import { computeOverlappingIds, checkPreviewOverlap } from './utils/collision2d'
 import { detectRooms, findWallsForRoom } from './utils/roomDetection'
 import { buildScenePayload, createSharedScene, fetchSharedScene } from './services/shareScene'
-import { isSupabaseConfigured } from './lib/supabaseClient'
+import { listProjects, countProjects, createProject, updateProject, renameProject, deleteProject, fetchProject } from './services/projectService'
+import { supabase, isSupabaseConfigured } from './lib/supabaseClient'
 import {
   track,
   trackDefineClicked,
@@ -193,6 +195,7 @@ const BUILD_TOOLS = {
   STAIRS: 'stairs',         // Stairs placement tool
   ADD_FLOORS: 'addFloors',  // Click room to add multiple floors
   ROTATE: 'rotate',         // Click element to rotate it
+  FURNITURE: 'furniture',   // Place furniture from catalog
 }
 
 // Snap constants (tunable)
@@ -655,6 +658,8 @@ function App() {
   const [pools, setPools] = useState([])
   const [foundations, setFoundations] = useState([])
   const [stairs, setStairs] = useState([])
+  const [furnitureItems, setFurnitureItems] = useState([])
+  const [selectedFurnitureCatalogId, setSelectedFurnitureCatalogId] = useState(null)
 
   // Tool-specific drawing state
   const [poolPolygonPoints, setPoolPolygonPoints] = useState([])
@@ -666,6 +671,7 @@ function App() {
   const [selectedPoolId, setSelectedPoolId] = useState(null)
   const [selectedFoundationId, setSelectedFoundationId] = useState(null)
   const [selectedStairsId, setSelectedStairsId] = useState(null)
+  const [selectedFurnitureId, setSelectedFurnitureId] = useState(null)
   const [selectedPlacedBuildingId, setSelectedPlacedBuildingId] = useState(null)
 
   // Properties panels state
@@ -762,10 +768,20 @@ function App() {
   const [shareLoading, setShareLoading] = useState(false)
   const [shareError, setShareError] = useState(null)
   const [shareStatus, setShareStatus] = useState(null) // 'copied' | 'error' | null
+  // Project state (saved projects)
+  const [currentProjectId, setCurrentProjectId] = useState(null)
+  const [currentProjectName, setCurrentProjectName] = useState('Untitled Project')
+  const [projectSaveStatus, setProjectSaveStatus] = useState(null) // 'saving'|'saved'|'error'
+  const [showProjectsModal, setShowProjectsModal] = useState(false)
+  const isLoadingProjectRef = useRef(false) // prevents auto-save during project load
+
   const [isExporting, setIsExporting] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
   const [isExportingModel, setIsExportingModel] = useState(false)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+  const [aiRenderResult, setAiRenderResult] = useState(null)
+  const [showAiRenderModal, setShowAiRenderModal] = useState(false)
   const canvasRef = useRef(null)
   const sceneRef = useRef(null)
 
@@ -1055,6 +1071,7 @@ function App() {
         b: BUILD_TOOLS.POOL,
         n: BUILD_TOOLS.FOUNDATION,
         h: BUILD_TOOLS.STAIRS,
+        f: BUILD_TOOLS.FURNITURE,
         x: BUILD_TOOLS.DELETE,
       }
       if (toolMap[key]) {
@@ -1222,6 +1239,16 @@ function App() {
       clearWallsHistory([]) // No walls in old shares
     }
 
+    // Restore v2 fields (backward compatible — guards skip if absent)
+    if (payload.pools && Array.isArray(payload.pools)) setPools(payload.pools)
+    if (payload.foundations && Array.isArray(payload.foundations)) setFoundations(payload.foundations)
+    if (payload.stairs && Array.isArray(payload.stairs)) setStairs(payload.stairs)
+    if (payload.furniture && Array.isArray(payload.furniture)) setFurnitureItems(payload.furniture)
+    if (payload.roomLabels) setRoomLabels(payload.roomLabels)
+    if (payload.roomStyles) setRoomStyles(payload.roomStyles)
+    if (payload.comparisonPositions) setComparisonPositions(payload.comparisonPositions)
+    if (payload.comparisonRotations) setComparisonRotations(payload.comparisonRotations)
+
     // Mark as user land (not example) and read-only
     setUserHasLand(true)
     setIsReadOnly(true)
@@ -1230,6 +1257,183 @@ function App() {
     // Analytics: shared link opened successfully
     track('share_link_opened', {})
   }, [])
+
+  // Load a saved project (editable, not read-only)
+  const loadProject = useCallback(async (projectId) => {
+    const result = await fetchProject(projectId)
+    if (result.error) return
+
+    isLoadingProjectRef.current = true
+    const payload = result.data.scene_json
+
+    // Restore land
+    if (payload.land) {
+      setDimensions(payload.land.dimensions || { length: 20, width: 15 })
+      setShapeMode(payload.land.type === 'rectangle' ? 'rectangle' : 'polygon')
+      if (payload.land.vertices) {
+        setConfirmedPolygon(payload.land.vertices)
+        setPolygonPoints(payload.land.vertices)
+      }
+    }
+
+    // Restore buildings
+    if (payload.buildings) {
+      const restoredBuildings = payload.buildings.map(b => {
+        const buildingType = BUILDING_TYPES.find(t => t.id === b.typeId)
+        return buildingType ? { id: b.id, type: buildingType, position: { x: b.x, z: b.z }, rotationY: b.rotationY } : null
+      }).filter(Boolean)
+      setPlacedBuildings(restoredBuildings)
+    }
+
+    // Restore settings
+    if (payload.settings) {
+      if (payload.settings.unitSystem) {
+        setLengthUnit(payload.settings.unitSystem.lengthUnit || 'm')
+        setAreaUnit(payload.settings.unitSystem.areaUnit || 'm²')
+      }
+      if (payload.settings.setbacksEnabled !== undefined) setSetbacksEnabled(payload.settings.setbacksEnabled)
+      if (payload.settings.setbackDistanceM !== undefined) setSetbackDistanceM(payload.settings.setbackDistanceM)
+      if (payload.settings.labels) setLabels(payload.settings.labels)
+    }
+
+    // Restore comparisons
+    if (payload.comparisons) {
+      const comparisons = {}
+      payload.comparisons.forEach(id => { comparisons[id] = true })
+      setActiveComparisons(comparisons)
+    }
+
+    // Restore walls
+    if (payload.walls && Array.isArray(payload.walls)) {
+      const loadedWalls = payload.walls
+        .filter(w => w && w.start && w.end)
+        .map(wall => ({
+          id: wall.id || `wall-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          start: { x: wall.start.x, z: wall.start.z },
+          end: { x: wall.end.x, z: wall.end.z },
+          height: wall.height || 2.7,
+          thickness: wall.thickness || 0.15,
+          openings: (wall.openings || [])
+            .filter(o => o && o.type && typeof o.position === 'number')
+            .map(opening => ({
+              id: opening.id || `${opening.type}-${Date.now()}`,
+              type: opening.type, position: opening.position,
+              width: opening.width, height: opening.height, sillHeight: opening.sillHeight || 0
+            }))
+        }))
+      clearWallsHistory(loadedWalls)
+    } else {
+      clearWallsHistory([])
+    }
+
+    // Restore v2 fields
+    if (payload.pools && Array.isArray(payload.pools)) setPools(payload.pools)
+    else setPools([])
+    if (payload.foundations && Array.isArray(payload.foundations)) setFoundations(payload.foundations)
+    else setFoundations([])
+    if (payload.stairs && Array.isArray(payload.stairs)) setStairs(payload.stairs)
+    else setStairs([])
+    if (payload.furniture && Array.isArray(payload.furniture)) setFurnitureItems(payload.furniture)
+    else setFurnitureItems([])
+    if (payload.roomLabels) setRoomLabels(payload.roomLabels)
+    else setRoomLabels({})
+    if (payload.roomStyles) setRoomStyles(payload.roomStyles)
+    else setRoomStyles({})
+    if (payload.comparisonPositions) setComparisonPositions(payload.comparisonPositions)
+    if (payload.comparisonRotations) setComparisonRotations(payload.comparisonRotations)
+
+    // Set project context (editable)
+    setCurrentProjectId(result.data.id)
+    setCurrentProjectName(result.data.name)
+    setUserHasLand(true)
+    setIsReadOnly(false)
+
+    // Allow auto-save after a tick so state settles
+    setTimeout(() => { isLoadingProjectRef.current = false }, 1000)
+  }, [clearWallsHistory])
+
+  // Build scene payload helper (reused by save + share)
+  const buildCurrentPayload = useCallback(() => {
+    return buildScenePayload({
+      shapeMode, dimensions, confirmedPolygon, placedBuildings,
+      lengthUnit, areaUnit, setbacksEnabled, setbackDistanceM, labels,
+      activeComparisons, cameraState: null, walls,
+      pools, foundations, stairs, furnitureItems,
+      roomLabels, roomStyles, comparisonPositions, comparisonRotations
+    })
+  }, [shapeMode, dimensions, confirmedPolygon, placedBuildings, lengthUnit, areaUnit,
+      setbacksEnabled, setbackDistanceM, labels, activeComparisons, walls,
+      pools, foundations, stairs, furnitureItems, roomLabels, roomStyles,
+      comparisonPositions, comparisonRotations])
+
+  // Save project to cloud
+  const saveProjectToCloud = useCallback(async () => {
+    if (!user || isLoadingProjectRef.current) return
+
+    const payload = buildCurrentPayload()
+
+    if (currentProjectId) {
+      // Update existing project
+      setProjectSaveStatus('saving')
+      const result = await updateProject(currentProjectId, payload)
+      setProjectSaveStatus(result.error ? 'error' : 'saved')
+      if (!result.error) setTimeout(() => setProjectSaveStatus(null), 2000)
+    } else {
+      // Create new project — check limit for free users
+      if (!isPaidUser) {
+        const { count } = await countProjects()
+        if (count >= 1) {
+          setShowPricingModal(true)
+          return
+        }
+      }
+      setProjectSaveStatus('saving')
+      const result = await createProject(user.id, currentProjectName, payload)
+      if (result.error) {
+        setProjectSaveStatus('error')
+      } else {
+        setCurrentProjectId(result.data.id)
+        setCurrentProjectName(result.data.name)
+        setProjectSaveStatus('saved')
+        setTimeout(() => setProjectSaveStatus(null), 2000)
+      }
+    }
+  }, [user, isPaidUser, currentProjectId, currentProjectName, buildCurrentPayload, setShowPricingModal])
+
+  // Auto-save: debounce 5s after design state changes (only when project exists)
+  useEffect(() => {
+    if (!currentProjectId || isLoadingProjectRef.current || !user) return
+    const timer = setTimeout(() => {
+      saveProjectToCloud()
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [buildCurrentPayload, currentProjectId, user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle "New Project" — clear design state and project context
+  const handleNewProject = useCallback(() => {
+    setCurrentProjectId(null)
+    setCurrentProjectName('Untitled Project')
+    setProjectSaveStatus(null)
+    setDimensions({ length: 20, width: 15 })
+    setInputValues({ length: '20', width: '15' })
+    setShapeMode('rectangle')
+    setPolygonPoints([])
+    setConfirmedPolygon(null)
+    setPlacedBuildings([])
+    setActiveComparisons({})
+    clearWallsHistory([])
+    setPools([])
+    setFoundations([])
+    setStairs([])
+    setFurnitureItems([])
+    setRoomLabels({})
+    setRoomStyles({})
+    setComparisonPositions({})
+    setComparisonRotations({})
+    setUserHasLand(false)
+    setIsDefiningLand(false)
+    setIsReadOnly(false)
+  }, [clearWallsHistory])
 
   // Check URL for shared scene on mount + track landing
   useEffect(() => {
@@ -1446,6 +1650,10 @@ function App() {
       case BUILD_TOOLS.STAIRS:
         setStairs([])
         break
+      case BUILD_TOOLS.FURNITURE:
+        setFurnitureItems([])
+        setSelectedFurnitureId(null)
+        break
       default:
         // Clear everything
         pushWallsState([])
@@ -1453,6 +1661,8 @@ function App() {
         setPools([])
         setFoundations([])
         setStairs([])
+        setFurnitureItems([])
+        setSelectedFurnitureId(null)
         break
     }
     setSelectedElement(null)
@@ -1721,6 +1931,27 @@ function App() {
     setStairs(prev => prev.map(s => s.id === stairsId ? { ...s, ...updates } : s))
   }, [])
 
+  // Furniture callbacks
+  const addFurniture = useCallback((catalogId, position) => {
+    const newItem = {
+      id: `furniture-${Date.now()}`,
+      catalogId,
+      position: { x: position.x, z: position.z },
+      rotation: 0,
+    }
+    setFurnitureItems(prev => [...prev, newItem])
+    setSelectedFurnitureId(newItem.id)
+  }, [])
+
+  const deleteFurniture = useCallback((id) => {
+    setFurnitureItems(prev => prev.filter(f => f.id !== id))
+    if (selectedFurnitureId === id) setSelectedFurnitureId(null)
+  }, [selectedFurnitureId])
+
+  const updateFurniture = useCallback((id, updates) => {
+    setFurnitureItems(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f))
+  }, [])
+
   // Delete an opening from a wall
   const deleteOpening = useCallback((wallId, openingId) => {
     const newWalls = walls.map(w => {
@@ -1978,8 +2209,14 @@ function App() {
       setClipboard({ type: 'stairs', data: { ...stair, start: { ...stair.start }, end: { ...stair.end }, mid: stair.mid ? { ...stair.mid } : undefined, mid2: stair.mid2 ? { ...stair.mid2 } : undefined } })
       setUndoRedoToast('Stairs copied')
       setTimeout(() => setUndoRedoToast(null), 1500)
+    } else if (selectedFurnitureId) {
+      const fItem = furnitureItems.find(f => f.id === selectedFurnitureId)
+      if (!fItem) return
+      setClipboard({ type: 'furniture', data: { ...fItem, position: { ...fItem.position } } })
+      setUndoRedoToast('Furniture copied')
+      setTimeout(() => setUndoRedoToast(null), 1500)
     }
-  }, [selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, rooms, pools, foundations, stairs, walls])
+  }, [selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, selectedFurnitureId, rooms, pools, foundations, stairs, furnitureItems, walls])
 
   // Paste clipboard element offset by +2m in X and Z
   const pasteClipboard = useCallback(() => {
@@ -2036,6 +2273,17 @@ function App() {
       setStairs(prev => [...prev, newStairs])
       setSelectedStairsId(newStairs.id)
       setUndoRedoToast('Stairs pasted')
+      setTimeout(() => setUndoRedoToast(null), 1500)
+    } else if (clipboard.type === 'furniture') {
+      const d = clipboard.data
+      const newFurniture = {
+        ...d,
+        id: `furniture-${Date.now()}`,
+        position: { x: d.position.x + OFFSET, z: d.position.z + OFFSET },
+      }
+      setFurnitureItems(prev => [...prev, newFurniture])
+      setSelectedFurnitureId(newFurniture.id)
+      setUndoRedoToast('Furniture pasted')
       setTimeout(() => setUndoRedoToast(null), 1500)
     }
   }, [clipboard, walls, pushWallsState])
@@ -2168,6 +2416,10 @@ function App() {
         } else if (selectedRoomId) {
           e.preventDefault()
           rotateSelectedRoom()
+        } else if (selectedFurnitureId) {
+          e.preventDefault()
+          const fItem = furnitureItems.find(f => f.id === selectedFurnitureId)
+          if (fItem) updateFurniture(selectedFurnitureId, { rotation: (fItem.rotation || 0) + Math.PI / 2 })
         } else if (activePanel === 'build') {
           e.preventDefault()
           setActiveBuildTool(prev => prev === BUILD_TOOLS.ROTATE ? BUILD_TOOLS.NONE : BUILD_TOOLS.ROTATE)
@@ -2194,6 +2446,13 @@ function App() {
           e.preventDefault()
           setRoomPropertiesOpen(false)  // Close properties panel first
           setSelectedRoomId(null)
+        } else if (selectedFurnitureId) {
+          e.preventDefault()
+          setSelectedFurnitureId(null)
+        } else if (activeBuildTool === BUILD_TOOLS.FURNITURE) {
+          e.preventDefault()
+          setSelectedFurnitureCatalogId(null)
+          setActiveBuildTool(BUILD_TOOLS.NONE)
         } else if (activePanel) {
           e.preventDefault()
           if (activePanel === 'build') setActiveBuildTool(BUILD_TOOLS.NONE)
@@ -2212,6 +2471,9 @@ function App() {
         } else if (selectedRoomId) {
           e.preventDefault()
           deleteSelectedRoom()
+        } else if (selectedFurnitureId) {
+          e.preventDefault()
+          deleteFurniture(selectedFurnitureId)
         }
       }
 
@@ -2230,7 +2492,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom, activePanel])
+  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, selectedFurnitureId, furnitureItems, updateFurniture, activeBuildTool, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom, activePanel])
 
   // Show toast when building, comparison, room, pool, foundation, stairs, or roof is selected
   useEffect(() => {
@@ -2246,10 +2508,12 @@ function App() {
       setUndoRedoToast('Platform selected • Drag to move • Double-click for properties • ESC to deselect • Del to delete')
     } else if (selectedStairsId) {
       setUndoRedoToast('Stairs selected • Drag to move • Double-click for properties • ESC to deselect • Del to delete')
+    } else if (selectedFurnitureId) {
+      setUndoRedoToast('Furniture selected • Drag to move • R to rotate • ESC to deselect • Del to delete')
     } else if (!floorPlanPlacementMode) {
       setUndoRedoToast(null)
     }
-  }, [selectedBuildingId, selectedComparisonId, selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, floorPlanPlacementMode])
+  }, [selectedBuildingId, selectedComparisonId, selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, selectedFurnitureId, floorPlanPlacementMode])
 
   // Get current polygon for snapping (memoized)
   const currentPolygon = useMemo(() => {
@@ -2405,6 +2669,7 @@ function App() {
   }, [])
 
   const handleSave = () => {
+    // Always save to localStorage
     const data = {
       dimensions,
       shapeMode,
@@ -2417,6 +2682,14 @@ function App() {
     localStorage.setItem('landVisualizer', JSON.stringify(data))
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus(null), 2000)
+
+    // Also save to cloud if logged in
+    if (user) {
+      saveProjectToCloud()
+    } else {
+      // Prompt sign in for cloud save
+      setShowAuthModal(true)
+    }
   }
 
   const handleClearSaved = () => {
@@ -2519,6 +2792,65 @@ function App() {
     }
   }
 
+  // Handle AI visualization
+  const handleAiVisualize = async (options = {}) => {
+    if (!requirePaid()) return
+
+    const canvas = canvasRef.current
+    if (!canvas) {
+      console.error('Canvas not available for AI visualization')
+      return
+    }
+
+    setIsGeneratingAI(true)
+    try {
+      // Capture current 3D view as PNG
+      const blob = await captureScreenshot(canvas, { format: 'png', scale: 1 })
+
+      // Convert blob to base64
+      const reader = new FileReader()
+      const base64 = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('Please sign in to use AI Render')
+        return
+      }
+
+      // Call API
+      const response = await fetch('/api/ai-visualize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          image: base64,
+          style: options.style || 'modern',
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate AI visualization')
+      }
+
+      setAiRenderResult(data.image)
+      setShowAiRenderModal(true)
+    } catch (error) {
+      console.error('AI visualization error:', error)
+      alert(error.message || 'Failed to generate AI visualization')
+    } finally {
+      setIsGeneratingAI(false)
+    }
+  }
+
   // Share scene - create link and copy to clipboard
   const handleShare = async () => {
     // Analytics: track share clicked
@@ -2542,7 +2874,15 @@ function App() {
       labels,
       activeComparisons,
       cameraState,
-      walls
+      walls,
+      pools,
+      foundations,
+      stairs,
+      furnitureItems,
+      roomLabels,
+      roomStyles,
+      comparisonPositions,
+      comparisonRotations
     })
 
     const result = await createSharedScene(payload)
@@ -2924,6 +3264,13 @@ function App() {
         selectedStairsId={selectedStairsId}
         setSelectedStairsId={setSelectedStairsId}
         setStairsPropertiesOpen={setStairsPropertiesOpen}
+        furnitureItems={furnitureItems}
+        addFurniture={addFurniture}
+        deleteFurniture={deleteFurniture}
+        updateFurniture={updateFurniture}
+        selectedFurnitureId={selectedFurnitureId}
+        setSelectedFurnitureId={setSelectedFurnitureId}
+        selectedFurnitureCatalogId={selectedFurnitureCatalogId}
         canvasRef={canvasRef}
         sceneRef={sceneRef}
         // Multi-story floor props
@@ -3147,9 +3494,12 @@ function App() {
           setStairsTopY={setStairsTopY}
           rotateDegreeInput={rotateDegreeInput}
           setRotateDegreeInput={setRotateDegreeInput}
+          // Furniture
+          selectedFurnitureCatalogId={selectedFurnitureCatalogId}
+          setSelectedFurnitureCatalogId={setSelectedFurnitureCatalogId}
           // Copy/paste
           copySelected={copySelected}
-          hasSelection={!!(selectedRoomId || selectedPoolId || selectedFoundationId || selectedStairsId)}
+          hasSelection={!!(selectedRoomId || selectedPoolId || selectedFoundationId || selectedStairsId || selectedFurnitureId)}
           // House templates
           onLoadHouseTemplate={(key) => {
             if (houseTemplates[key]) {
@@ -3198,6 +3548,10 @@ function App() {
           isExportingPdf={isExportingPdf}
           landArea={area}
           buildingArea={computeCoverage(placedBuildings, area).coverageAreaM2}
+          onAiVisualize={handleAiVisualize}
+          isGeneratingAI={isGeneratingAI}
+          aiRenderResult={aiRenderResult}
+          onShowAiRender={() => setShowAiRenderModal(true)}
         />
       </div>
 
@@ -3252,12 +3606,14 @@ function App() {
 
           <button
             onClick={() => canEdit && handleSave()}
-            className={`ribbon-btn ${saveStatus === 'saved' ? 'text-[var(--color-accent)]' : ''}`}
+            className={`ribbon-btn ${(saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'text-[var(--color-accent)]' : projectSaveStatus === 'saving' ? 'text-yellow-400' : projectSaveStatus === 'error' ? 'text-red-400' : ''}`}
             disabled={!canEdit}
-            title={!canEdit ? 'View-only mode' : 'Save your design'}
+            title={!canEdit ? 'View-only mode' : currentProjectId ? `Saving to "${currentProjectName}"` : 'Save your design'}
           >
             <span className="icon">
-              {saveStatus === 'saved' ? (
+              {projectSaveStatus === 'saving' ? (
+                <div className="w-5 h-5 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+              ) : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
@@ -3267,7 +3623,7 @@ function App() {
                 </svg>
               )}
             </span>
-            <span className="label">{saveStatus === 'saved' ? 'Saved' : 'Save'}</span>
+            <span className="label">{projectSaveStatus === 'saving' ? 'Saving...' : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'Saved' : 'Save'}</span>
           </button>
 
           {/* Desktop: show Export, Share, Help inline */}
@@ -3382,6 +3738,16 @@ function App() {
                             </svg>
                             <span>Plans & Pricing</span>
                           </button>
+                          {/* My Projects */}
+                          <button
+                            onClick={() => { setShowProjectsModal(true); setShowUserMenu(false) }}
+                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+                          >
+                            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                            </svg>
+                            <span>My Projects</span>
+                          </button>
                           {/* Log Out */}
                           <div className="border-t border-[var(--color-border)] my-1" />
                           <button
@@ -3488,6 +3854,16 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
                   </svg>
                   <span>Plans & Pricing</span>
+                </button>
+                {/* My Projects */}
+                <button
+                  onClick={() => { setShowProjectsModal(true); setShowOverflow(false) }}
+                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+                >
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                  </svg>
+                  <span>My Projects</span>
                 </button>
                 <div className="border-t border-[var(--color-border)] my-1" />
                 {/* Log Out */}
@@ -3722,6 +4098,15 @@ function App() {
         </div>
       )}
 
+
+      {/* Furniture tool indicator */}
+      {activeBuildTool === BUILD_TOOLS.FURNITURE && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-xl text-sm font-medium shadow-lg bg-[var(--color-accent)] text-[var(--color-bg-primary)] animate-gentle-pulse" style={{ padding: '10px 32px' }}>
+          {selectedFurnitureCatalogId
+            ? 'Click to place furniture · Escape to cancel'
+            : 'Select a furniture item from the panel · Escape to cancel'}
+        </div>
+      )}
 
       {/* Add Floors tool indicator */}
       {activeBuildTool === BUILD_TOOLS.ADD_FLOORS && (
@@ -4137,6 +4522,47 @@ function App() {
       {/* Account buttons now integrated into toolbar ribbon above */}
 
       {/* Pricing Modal for upgrades */}
+      {/* AI Render Result Modal */}
+      {showAiRenderModal && aiRenderResult && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowAiRenderModal(false)}
+        >
+          <div
+            className="relative max-w-2xl w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={`data:image/png;base64,${aiRenderResult}`}
+              alt="AI Render"
+              className="w-full rounded-2xl shadow-2xl"
+            />
+            <div className="flex gap-3 mt-4 justify-center">
+              <button
+                onClick={() => {
+                  const link = document.createElement('a')
+                  link.href = `data:image/png;base64,${aiRenderResult}`
+                  link.download = `ai-render-${Date.now()}.png`
+                  link.click()
+                }}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold text-sm hover:opacity-90 transition-all flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+              <button
+                onClick={() => setShowAiRenderModal(false)}
+                className="px-6 py-3 rounded-xl bg-white/10 text-white font-semibold text-sm hover:bg-white/20 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPricingModal && (
         <Suspense fallback={<LoadingFallback />}>
           <PricingModal
@@ -4152,6 +4578,18 @@ function App() {
           <AuthModal
             onClose={() => setShowAuthModal(false)}
             onSuccess={() => setShowAuthModal(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Projects Modal */}
+      {showProjectsModal && (
+        <Suspense fallback={<LoadingFallback />}>
+          <ProjectsModal
+            onClose={() => setShowProjectsModal(false)}
+            onLoad={loadProject}
+            onNew={handleNewProject}
+            currentProjectId={currentProjectId}
           />
         </Suspense>
       )}
