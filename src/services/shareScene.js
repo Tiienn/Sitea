@@ -11,7 +11,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 
 const TABLE_NAME = 'shared_scenes'
-const SCENE_VERSION = 1
+const SCENE_VERSION = 2
 
 /**
  * Build scene payload from app state
@@ -31,7 +31,15 @@ export function buildScenePayload(state) {
     labels,
     activeComparisons,
     cameraState,
-    walls
+    walls,
+    pools,
+    foundations,
+    stairs,
+    furnitureItems,
+    roomLabels,
+    roomStyles,
+    comparisonPositions,
+    comparisonRotations
   } = state
 
   return {
@@ -65,6 +73,26 @@ export function buildScenePayload(state) {
         sillHeight: opening.sillHeight || 0
       }))
     })),
+    // v2 fields
+    pools: (pools || []).map(p => ({
+      id: p.id, points: p.points, depth: p.depth,
+      deckMaterial: p.deckMaterial, waterColor: p.waterColor, center: p.center
+    })),
+    foundations: (foundations || []).map(f => ({
+      id: f.id, points: f.points, height: f.height,
+      material: f.material, center: f.center
+    })),
+    stairs: (stairs || []).map(s => ({
+      id: s.id, start: s.start, end: s.end, mid: s.mid, mid2: s.mid2,
+      topY: s.topY, style: s.style, width: s.width
+    })),
+    furniture: (furnitureItems || []).map(f => ({
+      id: f.id, catalogId: f.catalogId, position: f.position, rotation: f.rotation
+    })),
+    roomLabels: roomLabels || {},
+    roomStyles: roomStyles || {},
+    comparisonPositions: comparisonPositions || {},
+    comparisonRotations: comparisonRotations || {},
     settings: {
       unitSystem: { lengthUnit, areaUnit },
       setbacksEnabled,
@@ -72,12 +100,12 @@ export function buildScenePayload(state) {
       labels
     },
     comparisons: Object.keys(activeComparisons).filter(k => activeComparisons[k]),
-    camera: {
+    camera: cameraState ? {
       x: cameraState.position.x,
       y: cameraState.position.y,
       z: cameraState.position.z,
       yaw: cameraState.rotation
-    }
+    } : undefined
   }
 }
 

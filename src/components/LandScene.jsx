@@ -5,7 +5,6 @@ import { Grid, Text, Billboard, OrbitControls, MapControls, OrthographicCamera, 
 import * as THREE from 'three'
 import { computeEdgeLabelData, formatEdgeLength } from '../utils/labels'
 import { findWallsForRoom } from '../utils/roomDetection'
-import UpgradePrompt from './UpgradePrompt'
 import {
   trackFirstMovement,
   trackWalk5sCompleted,
@@ -87,7 +86,8 @@ import {
 import { WallSegment } from './scene/WallSegment'
 import { RoomFloor } from './scene/RoomFloor'
 import { PlacedBuilding, BuildingPreview, SetbackZone, SnapIndicator, EdgeLabels } from './scene/BuildingComponents'
-import { PoolItem, FoundationItem, StairsItem } from './scene/PolygonRenderers'
+import { PoolItem, FoundationItem, StairsItem, FurnitureItem } from './scene/PolygonRenderers'
+import { FURNITURE_ITEMS } from '../data/furnitureCatalog'
 import { Component } from 'react'
 
 // Silent error boundary - renders nothing on error (used for optional components like player mesh)
@@ -390,7 +390,7 @@ function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sun
   return null
 }
 
-function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null }) {
+function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, furnitureItems = [], addFurniture, deleteFurniture, updateFurniture, selectedFurnitureId = null, setSelectedFurnitureId, selectedFurnitureCatalogId = null, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null }) {
   const { camera, gl } = useThree()
   const [previewPos, setPreviewPos] = useState(null)
   const qualitySettings = QUALITY_SETTINGS[quality]
@@ -462,12 +462,40 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     if (elementType === 'room') {
       const room = rooms.find(r => r.id === elementId)
       if (!room) return
-      const pts = room.points
-      center = {
-        x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
-        z: pts.reduce((s, p) => s + p.z, 0) / pts.length
+
+      // Find all connected rooms (share a wall) to rotate the whole house together
+      const allWallSets = {}
+      for (const r of rooms) {
+        allWallSets[r.id] = findWallsForRoom(r, walls)
       }
-      wallIds = findWallsForRoom(room, walls)
+      const visited = new Set([elementId])
+      const queue = [elementId]
+      while (queue.length > 0) {
+        const rid = queue.shift()
+        const rWalls = allWallSets[rid] || []
+        for (const otherRoom of rooms) {
+          if (visited.has(otherRoom.id)) continue
+          const otherWalls = allWallSets[otherRoom.id] || []
+          if (rWalls.some(wid => otherWalls.includes(wid))) {
+            visited.add(otherRoom.id)
+            queue.push(otherRoom.id)
+          }
+        }
+      }
+
+      // Collect all wall IDs from connected rooms
+      const wallIdSet = new Set()
+      for (const rid of visited) {
+        for (const wid of (allWallSets[rid] || [])) wallIdSet.add(wid)
+      }
+      wallIds = [...wallIdSet]
+
+      // Center from all connected rooms' points
+      const allPts = rooms.filter(r => visited.has(r.id)).flatMap(r => r.points)
+      center = {
+        x: allPts.reduce((s, p) => s + p.x, 0) / allPts.length,
+        z: allPts.reduce((s, p) => s + p.z, 0) / allPts.length
+      }
       originalWalls = walls.filter(w => wallIds.includes(w.id)).map(w => ({
         id: w.id, start: { ...w.start }, end: { ...w.end }
       }))
@@ -495,6 +523,16 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         x: (stair.start.x + stair.end.x) / 2,
         z: (stair.start.z + stair.end.z) / 2
       }
+    } else if (elementType === 'furniture') {
+      const fItem = furnitureItems.find(f => f.id === elementId)
+      if (!fItem) return
+      // For furniture, just rotate by 90 degrees (or typed degrees) and return
+      const angleDeg = rotateDegreeInput && !isNaN(parseFloat(rotateDegreeInput))
+        ? parseFloat(rotateDegreeInput)
+        : 90
+      updateFurniture?.(elementId, { rotation: (fItem.rotation || 0) + angleDeg * Math.PI / 180 })
+      if (rotateDegreeInput) setRotateDegreeInput('')
+      return
     }
 
     // If user typed an exact degree, apply immediately and commit
@@ -922,6 +960,8 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     offset: { x: 0, z: 0 }
   })
 
+  const [furnitureDragState, setFurnitureDragState] = useState({ isDragging: false })
+
   // Manual double-click tracking for stairs
   const stairsClickTracker = useRef({ lastClickTime: 0, lastStairsId: null })
   const STAIRS_DOUBLE_CLICK_THRESHOLD = 400 // ms
@@ -961,10 +1001,10 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   // This runs during React's commit phase, before any new events can be processed
   useEffect(() => {
     if (orbitControlsRef.current) {
-      const shouldBeEnabled = (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) && !roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && !selectedBuildingId && !floorPlanPlacementMode && !selectedComparisonId && !selectedRoomId && !selectedPlacedBuildingId && !draggingOpening
+      const shouldBeEnabled = (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS) && !roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && !furnitureDragState.isDragging && !selectedBuildingId && !floorPlanPlacementMode && !selectedComparisonId && !selectedRoomId && !selectedPlacedBuildingId && !draggingOpening
       orbitControlsRef.current.enabled = shouldBeEnabled
     }
-  }, [activeBuildTool, roomDragState.isDragging, poolDragState.isDragging, foundationDragState.isDragging, stairsDragState.isDragging, selectedBuildingId, floorPlanPlacementMode, selectedComparisonId, selectedRoomId, selectedPlacedBuildingId, draggingOpening, BUILD_TOOLS])
+  }, [activeBuildTool, roomDragState.isDragging, poolDragState.isDragging, foundationDragState.isDragging, stairsDragState.isDragging, furnitureDragState.isDragging, selectedBuildingId, floorPlanPlacementMode, selectedComparisonId, selectedRoomId, selectedPlacedBuildingId, draggingOpening, BUILD_TOOLS])
 
   // Unified snap constants
   const SNAP_THRESHOLD = {
@@ -1440,8 +1480,9 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
     // Check if click was on a comparison object - if so, don't handle here
     // (ComparisonObject's onPointerDown will handle it)
-    // Skip this check when wall drawing is active (clicks forwarded from walls/floors)
-    if (!isWallMode && e.intersections && e.intersections.length > 1) {
+    // Skip this check when a build/placement tool is active (clicks forwarded from walls/floors)
+    const isPlacementTool = isWallMode || activeBuildTool === BUILD_TOOLS.FURNITURE || activeBuildTool === BUILD_TOOLS.POOL || activeBuildTool === BUILD_TOOLS.FOUNDATION || activeBuildTool === BUILD_TOOLS.STAIRS
+    if (!isPlacementTool && e.intersections && e.intersections.length > 1) {
       // Multiple objects hit - check if any is above the land (y > 0.01)
       const hasObjectAboveLand = e.intersections.some(int => int.point && int.point.y > 0.01)
       if (hasObjectAboveLand) {
@@ -1543,6 +1584,12 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       return
     }
 
+    // Deselect furniture when clicking on empty land
+    if (selectedFurnitureId) {
+      setSelectedFurnitureId?.(null)
+      return
+    }
+
     // Room tool uses pointer down/up, not click
     if (activeBuildTool === BUILD_TOOLS.ROOM) return
 
@@ -1567,6 +1614,14 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     // Stairs tool - handle via handleStairsClick
     if (activeBuildTool === BUILD_TOOLS.STAIRS) {
       handleStairsClick(e)
+      return
+    }
+
+    // Furniture tool - single-click placement
+    if (activeBuildTool === BUILD_TOOLS.FURNITURE && selectedFurnitureCatalogId) {
+      e.stopPropagation()
+      const snapped = snapRoomPoint(e.point)
+      addFurniture?.(selectedFurnitureCatalogId, snapped)
       return
     }
 
@@ -3297,6 +3352,29 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         />
       ))}
 
+      {/* Furniture */}
+      {furnitureItems.map((item) => {
+        const catalogEntry = FURNITURE_ITEMS.find(f => f.id === item.catalogId)
+        if (!catalogEntry) return null
+        return (
+          <FurnitureItem
+            key={item.id}
+            item={item}
+            catalogEntry={catalogEntry}
+            isSelected={selectedFurnitureId === item.id}
+            isDeleteMode={activeBuildTool === BUILD_TOOLS.DELETE}
+            isRotateMode={activeBuildTool === BUILD_TOOLS.ROTATE && !rotationState.isRotating}
+            onDelete={deleteFurniture}
+            onUpdate={updateFurniture}
+            onSelect={setSelectedFurnitureId}
+            onRotateStart={startRotation}
+            onDragStart={() => setFurnitureDragState({ isDragging: true })}
+            onDragEnd={() => setFurnitureDragState({ isDragging: false })}
+            snapPoint={snapRoomPoint}
+          />
+        )
+      })}
+
       {/* Rotation angle indicator */}
       {rotationState.isRotating && rotationState.center && (
         <PreviewDimensionLabel
@@ -3325,6 +3403,10 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
                 addFloorsToRoom?.(room.id)
                 return
               }
+              // Don't select room when a placement tool is active
+              if (activeBuildTool === BUILD_TOOLS.FURNITURE || activeBuildTool === BUILD_TOOLS.POOL || activeBuildTool === BUILD_TOOLS.FOUNDATION || activeBuildTool === BUILD_TOOLS.STAIRS) {
+                return
+              }
               setSelectedRoomId?.(room.id)
             }}
             label={roomLabels[room.id] || ''}
@@ -3337,7 +3419,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
             onOpenProperties={() => setRoomPropertiesOpen?.(true)}
             floorYOffset={roomFloorYOffset}
             isInactiveFloor={isInactiveRoomFloor}
-            isDrawingTool={activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE}
+            isDrawingTool={activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE || activeBuildTool === BUILD_TOOLS.FURNITURE || activeBuildTool === BUILD_TOOLS.POOL || activeBuildTool === BUILD_TOOLS.FOUNDATION || activeBuildTool === BUILD_TOOLS.STAIRS}
             onDrawingClick={handleLandClick}
             isRotateMode={activeBuildTool === BUILD_TOOLS.ROTATE && !rotationState.isRotating}
             onRotateStart={startRotation}
@@ -3384,7 +3466,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
             if (orbitControlsRef.current) orbitControlsRef.current.enabled = false
             setDraggingOpening({ wallId, openingIndex, openingWidth })
           } : undefined}
-          isDrawingTool={activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE}
+          isDrawingTool={activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE || activeBuildTool === BUILD_TOOLS.FURNITURE || activeBuildTool === BUILD_TOOLS.POOL || activeBuildTool === BUILD_TOOLS.FOUNDATION || activeBuildTool === BUILD_TOOLS.STAIRS}
           onDrawingClick={handleLandClick}
           onPlaceOpening={(wallId, posOnWall, type) => {
             // Validate and place opening
@@ -3770,7 +3852,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         <OrbitControls
           ref={orbitControlsRef}
           target={orbitTarget}
-          enabled={!selectedBuildingId && !floorPlanPlacementMode && !selectedComparisonId && !roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && !selectedPlacedBuildingId && (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS)}
+          enabled={!selectedBuildingId && !floorPlanPlacementMode && !selectedComparisonId && !roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && !furnitureDragState.isDragging && !selectedPlacedBuildingId && (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS)}
           enablePan={activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS}
           enableRotate={activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS}
           enableZoom={activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS}
@@ -3809,7 +3891,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           <MapControls
             ref={orbitControlsRef}
             target={[orbitTarget.x, 0, orbitTarget.z]}
-            enabled={!roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && !draggingOpening && (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS)}
+            enabled={!roomDragState.isDragging && !poolDragState.isDragging && !foundationDragState.isDragging && !stairsDragState.isDragging && !furnitureDragState.isDragging && !draggingOpening && (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS)}
             enableRotate={false}
             enableDamping={false}
             enablePan={!draggingOpening && (activeBuildTool === BUILD_TOOLS.NONE || activeBuildTool === BUILD_TOOLS.ROOF || activeBuildTool === BUILD_TOOLS.ADD_FLOORS)}
@@ -4016,7 +4098,7 @@ function TimeSlider({ timeOfDay, setTimeOfDay, mobileTop = 248 }) {
   )
 }
 
-export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, canvasRef, sceneRef, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null, timeSliderMobileTop = 248 }) {
+export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, furnitureItems = [], addFurniture, deleteFurniture, updateFurniture, selectedFurnitureId = null, setSelectedFurnitureId, selectedFurnitureCatalogId = null, canvasRef, sceneRef, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null, timeSliderMobileTop = 248 }) {
   const qualitySettings = QUALITY_SETTINGS[quality]
 
   // NPC dialog state - lifted to wrapper so dialog renders outside Canvas
@@ -4188,6 +4270,13 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         selectedStairsId={selectedStairsId}
         setSelectedStairsId={setSelectedStairsId}
         setStairsPropertiesOpen={setStairsPropertiesOpen}
+        furnitureItems={furnitureItems}
+        addFurniture={addFurniture}
+        deleteFurniture={deleteFurniture}
+        updateFurniture={updateFurniture}
+        selectedFurnitureId={selectedFurnitureId}
+        setSelectedFurnitureId={setSelectedFurnitureId}
+        selectedFurnitureCatalogId={selectedFurnitureCatalogId}
         onNPCInteract={setWrapperActiveNPC}
         wrapperActiveNPC={wrapperActiveNPC}
         // Multi-story floor props
@@ -4208,20 +4297,8 @@ export default function LandScene({ length, width, isExploring, comparisonObject
     </Canvas3DErrorBoundary>
 
     {/* Pro-only time slider */}
-    {viewMode !== '2d' && (
-      isPaidUser ? (
-        <TimeSlider timeOfDay={timeOfDay} setTimeOfDay={setTimeOfDay} mobileTop={timeSliderMobileTop} />
-      ) : (
-        <div style={{
-          position: 'absolute',
-          right: 16,
-          top: timeSliderMobileTop ?? 248,
-          pointerEvents: 'auto',
-          zIndex: 10,
-        }}>
-          <UpgradePrompt context="daynight" variant="inline" />
-        </div>
-      )
+    {viewMode !== '2d' && isPaidUser && (
+      <TimeSlider timeOfDay={timeOfDay} setTimeOfDay={setTimeOfDay} mobileTop={timeSliderMobileTop} />
     )}
 
   </>

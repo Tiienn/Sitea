@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SiteA</string>
+    <string name="title_activity_main">SiteA</string>
+    <string name="package_name">live.sitea.app</string>
+    <string name="custom_url_scheme">live.sitea.app</string>
+</resources>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useUser } from '../hooks/useUser'
 
 // Free comparison objects (available to all users)
-const FREE_OBJECTS = ['house', 'carSedan', 'parkingSpace', 'eiffelTower', 'statueOfLiberty', 'greatPyramid', 'tajMahal', 'colosseum', 'bigBen', 'sevenEleven', 'mcdonalds', 'gasStation', 'supermarket', 'starbucks', 'walmart', 'pokemonCenter', 'minecraftHouse', 'acHouse', 'fortnite1x1', 'zeldaHouse', 'simsHouse', 'smallHouse', 'mediumHouse', 'largeHouse', 'shed', 'garage', 'barn', 'workshop', 'greenhouse', 'gazebo', 'carport']
+const FREE_OBJECTS = ['house', 'carSedan', 'parkingSpace', 'soccerField', 'basketballCourt', 'tennisCourt', 'swimmingPool', 'eiffelTower', 'statueOfLiberty', 'greatPyramid', 'tajMahal', 'colosseum', 'bigBen', 'pokemonCenter', 'minecraftHouse', 'acHouse', 'fortnite1x1', 'zeldaHouse', 'simsHouse', 'mediumHouse', 'largeHouse', 'shed', 'garage', 'barn', 'workshop', 'greenhouse', 'gazebo', 'carport']
 
 // Calculate fit count and format for display
 function getFitInfo(landArea, objWidth, objLength) {
@@ -42,7 +42,6 @@ const OBJECT_CATEGORIES = {
   tennisCourt: 'sports',
   house: 'buildings',
   studioApartment: 'buildings',
-  smallHouse: 'buildings',
   mediumHouse: 'buildings',
   largeHouse: 'buildings',
   shed: 'buildings',
@@ -581,15 +580,6 @@ const Thumbnails = {
     </svg>
   ),
   // Buildings
-  smallHouse: (
-    <svg viewBox="0 0 40 40" className="w-10 h-10">
-      <rect x="2" y="2" width="36" height="36" rx="2" fill="#7CCD7C" />
-      <rect x="10" y="8" width="20" height="24" rx="1" fill="#D2691E" stroke="#A0522D" strokeWidth="1" />
-      <rect x="17" y="22" width="6" height="10" fill="#8B4513" />
-      <rect x="12" y="12" width="5" height="5" fill="#87CEEB" />
-      <rect x="23" y="12" width="5" height="5" fill="#87CEEB" />
-    </svg>
-  ),
   mediumHouse: (
     <svg viewBox="0 0 40 40" className="w-10 h-10">
       <rect x="2" y="2" width="36" height="36" rx="2" fill="#7CCD7C" />
