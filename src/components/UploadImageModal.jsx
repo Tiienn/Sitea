@@ -6,7 +6,7 @@ import { useUser } from '../hooks/useUser.jsx'
 const AUTO_ROUTE_THRESHOLD = 0.7
 
 export default function UploadImageModal({ onClose, onUploadForLand, onUploadForFloorPlan }) {
-  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload, setShowPricingModal } = useUser()
+  const { isPaidUser, planType, canUseUpload, markUploadUsed, hasUsedUpload, uploadCount, uploadsRemaining, setShowPricingModal } = useUser()
   const [isDragging, setIsDragging] = useState(false)
   const [preview, setPreview] = useState(null)
   const [step, setStep] = useState('promise') // 'promise' | 'upload' | 'preview' | 'analyzing' | 'confirm'
@@ -157,7 +157,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
               <div className="text-center mb-6">
                 <h1 className="text-xl font-display font-semibold text-white mb-2">Upload Plan</h1>
                 <p className="text-[var(--color-text-muted)] text-sm">Upload your site plan or floor plan</p>
-                {!isPaidUser && (
+                {!isPaidUser ? (
                   <p className="mt-2 text-xs">
                     {hasUsedUpload ? (
                       <span className="text-teal-400">
@@ -167,7 +167,11 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                       <span className="text-green-400">Your first upload is free</span>
                     )}
                   </p>
-                )}
+                ) : planType === 'homeowner' ? (
+                  <p className="mt-2 text-xs text-teal-400">
+                    {uploadCount} of 5 uploads used
+                  </p>
+                ) : null}
               </div>
 
               {/* Upload Zone */}
@@ -259,18 +263,20 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
               </div>
 
               {/* Gate check */}
-              {!isPaidUser && hasUsedUpload ? (
-                /* PAYWALL — user has used free trial */
+              {uploadsRemaining <= 0 ? (
+                /* PAYWALL — out of uploads */
                 <div className="text-center">
                   <p className="text-white font-medium mb-2">Ready to generate your 3D walkthrough</p>
                   <p className="text-[var(--color-text-muted)] text-sm mb-4">
-                    You've used your free upload. Upgrade to continue.
+                    {isPaidUser && planType === 'homeowner'
+                      ? "You've used all 5 uploads on the Homeowner plan. Upgrade for unlimited."
+                      : "You've used your free upload. Upgrade to continue."}
                   </p>
                   <button
                     onClick={() => setShowPricingModal(true)}
                     className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold rounded-lg transition-all mb-3"
                   >
-                    Upgrade to Pro
+                    {isPaidUser ? 'Upgrade Plan' : 'Upgrade to Pro'}
                   </button>
                   <button
                     onClick={handleClose}
@@ -280,7 +286,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                   </button>
                 </div>
               ) : (
-                /* ALLOWED — first free upload or paid user */
+                /* ALLOWED — has uploads remaining */
                 <button
                   onClick={proceedToAnalysis}
                   className="w-full py-3 bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold rounded-lg transition-colors"

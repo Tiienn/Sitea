@@ -175,7 +175,7 @@ export default function PricingModal({ onClose, onSuccess }) {
 
   const features = {
     homeowner: [
-      { icon: 'home', text: 'Walk through your real floor plan in 3D' },
+      { icon: 'home', text: '5 floor plan uploads' },
       { icon: 'sparkles', text: 'AI detects walls, doors & windows automatically' },
       { icon: 'share', text: 'Share your walkthrough with family' },
       { icon: 'download', text: 'Export images & 3D models' },
@@ -413,7 +413,7 @@ export default function PricingModal({ onClose, onSuccess }) {
           </div>
 
           {/* Pricing cards — 3 columns on desktop, stacked on mobile */}
-          <div className="px-8 pb-8 pt-2 grid md:grid-cols-3 gap-5 items-start">
+          <div className="px-8 pb-8 grid md:grid-cols-3 gap-5 items-start" style={{ paddingTop: '32px' }}>
             {/* Monthly Pro (left, secondary) */}
             <PlanCard
               plan="monthly"

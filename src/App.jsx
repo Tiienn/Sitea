@@ -29,6 +29,8 @@ const LoadingFallback = () => (
 import Minimap from './components/Minimap'
 import Onboarding from './components/Onboarding'
 import GuidedOnboarding from './components/GuidedOnboarding'
+import LandingHero from './components/LandingHero'
+import PlotReveal from './components/PlotReveal'
 import { FSM_HOUSE_WALLS, FSM_LAND, FSM_CAMERA_START, FSM_HOUSE_BOUNDS } from './data/houseTemplate'
 import { houseTemplates } from './data/houseTemplates'
 import BuildPanel from './components/BuildPanel'
@@ -558,6 +560,8 @@ function App() {
   const [guidedStep, setGuidedStep] = useState(0) // 0=off, 1=welcome, 2=walk, 3=inside, 4=unlock
   const isGuidedMode = guidedStep > 0
   const [userHasLand, setUserHasLand] = useState(false) // Will be set true when user defines their land
+  const [landingStep, setLandingStep] = useState('hero') // 'hero' | 'reveal' | null
+  const [revealData, setRevealData] = useState(null) // { sizeM2, unit } for PlotReveal
   const [isDefiningLand, setIsDefiningLand] = useState(false) // Shows land definition flow
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     return localStorage.getItem('landVisualizerIntroSeen') === 'true'
@@ -876,8 +880,8 @@ function App() {
 
   // Initialize guided mode for first-time visitors (FSM), or fallback to walkthrough
   useEffect(() => {
+    // New users see LandingHero instead of guided FSM — skip auto-trigger
     if (!localStorage.getItem('fsmCompleted') && !userHasLand && !isReadOnly) {
-      setGuidedStep(1)
       return
     }
     // Legacy walkthrough for returning users who haven't seen intro
@@ -1442,6 +1446,16 @@ function App() {
       track('landing_loaded', { mode: 'shared', device: getDeviceType() })
       loadSharedScene(match[1])
     } else {
+      // Check for ?size= param (shared plot link)
+      const params = new URLSearchParams(window.location.search)
+      const sizeParam = params.get('size')
+      if (sizeParam) {
+        const sizeM2 = parseFloat(sizeParam)
+        if (sizeM2 > 0) {
+          setRevealData({ sizeM2, unit: 'sqm' })
+          setLandingStep('reveal')
+        }
+      }
       // Check if user has saved land data
       const hasSavedLand = localStorage.getItem('landVisualizer') !== null
       const mode = hasSavedLand ? 'user' : 'example'
@@ -2970,6 +2984,28 @@ function App() {
   }
 
   // Start land definition flow
+  // Landing hero handler — goes to reveal step
+  const handleLandingExplore = ({ sizeM2, unit }) => {
+    setRevealData({ sizeM2, unit: unit || 'sqm' })
+    setLandingStep('reveal')
+  }
+
+  // PlotReveal → 3D designer handoff
+  const handleRevealTo3D = () => {
+    const sizeM2 = revealData?.sizeM2 || 800
+    const side = Math.sqrt(sizeM2)
+    setDimensions({ length: side, width: side })
+    setShapeMode('rectangle')
+    setConfirmedPolygon(null)
+    setUserHasLand(true)
+    setLandingStep(null)
+    setViewMode('firstPerson')
+    setHasSeenIntro(true)
+    localStorage.setItem('landVisualizerIntroSeen', 'true')
+    localStorage.setItem('fsmCompleted', 'true')
+    setActiveComparisons({ 'basketball-court': true, 'tennis-court': true })
+  }
+
   const startDefiningLand = () => {
     // Analytics: track define land clicked
     const mode = isReadOnly ? 'shared' : (userHasLand ? 'user' : 'example')
@@ -3109,7 +3145,19 @@ function App() {
         />
       )}
 
-      {/* Guided onboarding overlay (first-time users) */}
+      {/* Landing flow: hero → reveal → 3D */}
+      {!userHasLand && !isReadOnly && guidedStep === 0 && landingStep === 'hero' && (
+        <LandingHero onExplore={handleLandingExplore} />
+      )}
+      {landingStep === 'reveal' && revealData && (
+        <PlotReveal
+          sizeM2={revealData.sizeM2}
+          unit={revealData.unit}
+          onDesign3D={handleRevealTo3D}
+          onBack={() => setLandingStep('hero')}
+        />
+      )}
+
       {guidedStep > 0 && (
         <GuidedOnboarding
           step={guidedStep}
