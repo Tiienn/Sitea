@@ -1,29 +1,34 @@
-# Redesign Gaming 3D Models
+# Simplified Onboarding — Landing Hero
 
-## Tasks
-- [x] Redesign PokemonCenter3D to match Gen 4/5 game design
-- [x] Verify build passes
-- [ ] Redesign MinecraftHouse3D (7x7)
-- [ ] Redesign ACVillagerHouse3D (5x4)
-- [ ] Redesign Fortnite1x13D (5x5)
-- [ ] Redesign ZeldaHouse3D (8x10)
-- [ ] Redesign SimsStarterHome3D (10x12)
+## Plan
 
-## Review
+Replace the complex FSM-based GuidedOnboarding with a dead-simple landing hero overlay that gets users to the "wow moment" in under 10 seconds.
 
-### Pokémon Center (Gen 4/5 style)
-**`src/components/scene/ComparisonObjects.jsx`** — Replaced PokemonCenter3D
+### Tasks
 
-**Old**: Modern real-world store design (canopy, modern glass storefront, 3D rooftop Pokéball)
+- [ ] **1. Create `src/components/LandingHero.jsx`**
+  - Fullscreen overlay with dark glass style (panel-premium, CSS vars)
+  - Headline: "Can't picture how big your land is?"
+  - Subline: "Type in any size and walk through it at real scale."
+  - Number input with sqm/sqft toggle
+  - Big "Explore in 3D" CTA button (btn-primary)
+  - Preset chips: 449 m² (standard plot), 1000 m², 3000 m², 1 acre
+  - Small text: "No signup. No download. Free forever."
+  - Calls `onExplore({ sizeM2 })` prop when user clicks Explore or a preset
+  - Follows DESIGN.md spacing/padding rules
 
-**New** — Gen 4/5 game-accurate Pokémon Center:
-- Light gray walls (#E0E0E0) with darker base strip and white floor separator band
-- Orange roof (#E87830) with darker trim, white border stripes on left/right sides (Gen 4 style)
-- Pokéball emblem on roof front face (red half-cylinder top + white circle background)
-- Black flanking lines beside Pokéball (Gen 5 detail)
-- Automatic glass sliding doors with dark frame and sensor bar
-- 1st floor windows flanking the door, 2nd floor smaller windows
-- Side windows on both walls
-- Electronic arrow entrance sign (green emissive, Gen 5 detail)
-- Back service door and roof HVAC unit
-- Zero planeGeometry — all z-fighting-safe
+- [ ] **2. Modify `src/App.jsx`**
+  - Import LandingHero
+  - Show LandingHero when `!userHasLand && !isReadOnly` and fsmCompleted not set
+  - Change the FSM init useEffect: instead of `setGuidedStep(1)`, keep guidedStep at 0 — LandingHero takes over
+  - Add `handleLandingExplore({ sizeM2 })` handler that sets dimensions, marks land as user's, drops into first-person, enables basketball + tennis court comparisons
+  - Comparison IDs: `basketballCourt` and `tennisCourt` (camelCase)
+
+- [ ] **3. Update `index.html` meta tags**
+  - Title: "Sitea — Visualize Your Land in 3D"
+  - Description: "Can't picture how big 449 sqm is? Type any land size and walk through it at real scale. Free, no download, no signup."
+  - Update OG + Twitter tags to match
+
+- [ ] **4. Build verification** — run `npm run build`
+
+- [ ] **5. Run completion event**

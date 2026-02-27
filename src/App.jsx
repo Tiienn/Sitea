@@ -29,6 +29,7 @@ const LoadingFallback = () => (
 import Minimap from './components/Minimap'
 import Onboarding from './components/Onboarding'
 import GuidedOnboarding from './components/GuidedOnboarding'
+import LandingHero from './components/LandingHero'
 import { FSM_HOUSE_WALLS, FSM_LAND, FSM_CAMERA_START, FSM_HOUSE_BOUNDS } from './data/houseTemplate'
 import { houseTemplates } from './data/houseTemplates'
 import BuildPanel from './components/BuildPanel'
@@ -876,8 +877,8 @@ function App() {
 
   // Initialize guided mode for first-time visitors (FSM), or fallback to walkthrough
   useEffect(() => {
+    // New users see LandingHero instead of guided FSM — skip auto-trigger
     if (!localStorage.getItem('fsmCompleted') && !userHasLand && !isReadOnly) {
-      setGuidedStep(1)
       return
     }
     // Legacy walkthrough for returning users who haven't seen intro
@@ -2970,6 +2971,20 @@ function App() {
   }
 
   // Start land definition flow
+  // Landing hero handler — new first-run experience
+  const handleLandingExplore = ({ sizeM2 }) => {
+    const side = Math.sqrt(sizeM2)
+    setDimensions({ length: side, width: side })
+    setShapeMode('rectangle')
+    setConfirmedPolygon(null)
+    setUserHasLand(true)
+    setViewMode('firstPerson')
+    setHasSeenIntro(true)
+    localStorage.setItem('landVisualizerIntroSeen', 'true')
+    localStorage.setItem('fsmCompleted', 'true')
+    setActiveComparisons({ 'basketball-court': true, 'tennis-court': true })
+  }
+
   const startDefiningLand = () => {
     // Analytics: track define land clicked
     const mode = isReadOnly ? 'shared' : (userHasLand ? 'user' : 'example')
@@ -3110,6 +3125,11 @@ function App() {
       )}
 
       {/* Guided onboarding overlay (first-time users) */}
+      {/* Landing hero for first-time visitors */}
+      {!userHasLand && !isReadOnly && guidedStep === 0 && (
+        <LandingHero onExplore={handleLandingExplore} />
+      )}
+
       {guidedStep > 0 && (
         <GuidedOnboarding
           step={guidedStep}
