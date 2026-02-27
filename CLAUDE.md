@@ -11,3 +11,4 @@
 9. MAKE ALL FIXES AND CODE CHANGES AS SIMPLE AS HUMANLY POSSIBLE. THEY SHOULD ONLY IMPACT NECESSARY CODE RELEVANT TO THE TASK AND NOTHING ELSE. IT SHOULD IMPACT AS LITTLE CODE AS POSSIBLE. YOUR GOAL IS TO NOT INTRODUCE ANY BUGS. IT'S ALL ABOUT SIMPLICITY.
 10. Always use the frontend-design skill when changing the UI
 11. **Read DESIGN.md before creating any UI.** Follow the spacing, padding, and sizing rules. No cramped text, no edge-touching content, no layout shifts on toggle.
+12. **Read COMPARE-OBJECTS.md before creating new comparison objects.** Always search the web for design reference, dimensions, and logos. Follow the full checklist in that file.

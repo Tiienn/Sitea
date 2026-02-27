@@ -7,9 +7,9 @@ import { NPC_COLORS, IDLE_BOB_AMPLITUDE, IDLE_BOB_SPEED } from '../../constants/
 const NPC_DATA = {
   guide1: {
     name: 'Alex',
-    role: 'Land Advisor',
+    role: 'Architect',
     color: '#3b82f6',
-    greeting: "Hey there! I'm Alex, your land advisor.",
+    greeting: "Hey! I'm Alex, your architect. Let's design something great.",
     dialogs: [
       { question: "How do I measure my land?", answer: "Use the Rectangle tool for simple plots, or the Draw tool to trace a custom shape. For uploaded plans, use the Scale tool to set accurate measurements." },
       { question: "What are comparison objects?", answer: "Comparison objects help you visualize scale! Try placing a house, car, or sports field on your land to get a real sense of how big it is." },
@@ -19,9 +19,9 @@ const NPC_DATA = {
   },
   guide2: {
     name: 'Sam',
-    role: 'Design Expert',
+    role: 'Design Architect',
     color: '#8b5cf6',
-    greeting: "Hi! I'm Sam, here to help with your design.",
+    greeting: "Hi! I'm Sam. Ready to bring your space to life?",
     dialogs: [
       { question: "How do I add walls?", answer: "In the Build panel, select the Wall tool and click to place wall points. Hold Shift for straight lines. Double-click or click the first point to complete a room!" },
       { question: "Can I add a pool?", answer: "Yes! Use the Pool tool in the Build panel. Draw the pool shape, then customize its depth and style in the properties panel." },
@@ -311,116 +311,170 @@ export function NPCCharacter({ id, position, rotation = 0, onClick, isActive, is
           </div>
         </Html>
       )}
-      {/* === Robot Body (animated by floating bob) === */}
+      {/* === Architect Body (animated by floating bob) === */}
       <group ref={bodyRef} position={[0, 0, 0]}>
-        {/* Torso — rounded box */}
-        <mesh position={[0, 0.55, 0]} castShadow>
-          <boxGeometry args={[0.5, 0.55, 0.3]} />
-          <meshStandardMaterial color={colors.body} metalness={0.3} roughness={0.6} />
+        {/* Jeans / legs */}
+        <mesh position={[-0.12, 0.2, 0]} castShadow>
+          <boxGeometry args={[0.15, 0.42, 0.15]} />
+          <meshStandardMaterial color={colors.pants} roughness={0.9} />
         </mesh>
-        {/* Chest plate accent */}
-        <mesh position={[0, 0.58, 0.151]}>
-          <boxGeometry args={[0.3, 0.15, 0.01]} />
-          <meshStandardMaterial color={colors.accent} emissive={colors.accent} emissiveIntensity={0.2} />
-        </mesh>
-
-        {/* Left Arm */}
-        <mesh position={[-0.35, 0.55, 0]} castShadow>
-          <boxGeometry args={[0.12, 0.4, 0.14]} />
-          <meshStandardMaterial color={colors.bodyDark} metalness={0.3} roughness={0.6} />
-        </mesh>
-        {/* Left Hand — sphere */}
-        <mesh position={[-0.35, 0.3, 0]} castShadow>
-          <sphereGeometry args={[0.08, 8, 8]} />
-          <meshStandardMaterial color={colors.body} metalness={0.4} roughness={0.5} />
-        </mesh>
-        {/* Right Arm */}
-        <mesh position={[0.35, 0.55, 0]} castShadow>
-          <boxGeometry args={[0.12, 0.4, 0.14]} />
-          <meshStandardMaterial color={colors.bodyDark} metalness={0.3} roughness={0.6} />
-        </mesh>
-        {/* Right Hand — sphere */}
-        <mesh position={[0.35, 0.3, 0]} castShadow>
-          <sphereGeometry args={[0.08, 8, 8]} />
-          <meshStandardMaterial color={colors.body} metalness={0.4} roughness={0.5} />
+        <mesh position={[0.12, 0.2, 0]} castShadow>
+          <boxGeometry args={[0.15, 0.42, 0.15]} />
+          <meshStandardMaterial color={colors.pants} roughness={0.9} />
         </mesh>
 
-        {/* Left Leg */}
-        <mesh position={[-0.13, 0.13, 0]} castShadow>
-          <boxGeometry args={[0.14, 0.26, 0.16]} />
-          <meshStandardMaterial color={colors.bodyDark} metalness={0.3} roughness={0.6} />
+        {/* Work boots */}
+        <mesh position={[-0.12, -0.03, 0.05]} castShadow>
+          <boxGeometry args={[0.17, 0.08, 0.26]} />
+          <meshStandardMaterial color={colors.boots} roughness={0.8} />
         </mesh>
-        {/* Right Leg */}
-        <mesh position={[0.13, 0.13, 0]} castShadow>
-          <boxGeometry args={[0.14, 0.26, 0.16]} />
-          <meshStandardMaterial color={colors.bodyDark} metalness={0.3} roughness={0.6} />
+        <mesh position={[0.12, -0.03, 0.05]} castShadow>
+          <boxGeometry args={[0.17, 0.08, 0.26]} />
+          <meshStandardMaterial color={colors.boots} roughness={0.8} />
         </mesh>
-        {/* Left Foot */}
-        <mesh position={[-0.13, -0.02, 0.04]} castShadow>
-          <boxGeometry args={[0.16, 0.06, 0.24]} />
-          <meshStandardMaterial color={colors.body} metalness={0.4} roughness={0.5} />
+        {/* Boot sole */}
+        <mesh position={[-0.12, -0.075, 0.05]}>
+          <boxGeometry args={[0.18, 0.02, 0.27]} />
+          <meshStandardMaterial color=#1a1a1a roughness={1} />
         </mesh>
-        {/* Right Foot */}
-        <mesh position={[0.13, -0.02, 0.04]} castShadow>
-          <boxGeometry args={[0.16, 0.06, 0.24]} />
-          <meshStandardMaterial color={colors.body} metalness={0.4} roughness={0.5} />
+        <mesh position={[0.12, -0.075, 0.05]}>
+          <boxGeometry args={[0.18, 0.02, 0.27]} />
+          <meshStandardMaterial color=#1a1a1a roughness={1} />
+        </mesh>
+
+        {/* Shirt — light blue work shirt */}
+        <mesh position={[0, 0.58, 0]} castShadow>
+          <boxGeometry args={[0.46, 0.48, 0.28]} />
+          <meshStandardMaterial color={colors.shirt} roughness={0.85} />
+        </mesh>
+        {/* Shirt pocket */}
+        <mesh position={[-0.14, 0.66, 0.143]}>
+          <boxGeometry args={[0.1, 0.1, 0.01]} />
+          <meshStandardMaterial color={colors.shirtDark} roughness={0.85} />
+        </mesh>
+        {/* Pen in pocket */}
+        <mesh position={[-0.14, 0.73, 0.15]}>
+          <cylinderGeometry args={[0.01, 0.01, 0.12, 5]} />
+          <meshStandardMaterial color=#FFD700 metalness={0.4} roughness={0.3} />
+        </mesh>
+
+        {/* Left arm — straight down */}
+        <mesh position={[-0.33, 0.55, 0]} castShadow>
+          <boxGeometry args={[0.13, 0.42, 0.15]} />
+          <meshStandardMaterial color={colors.shirt} roughness={0.85} />
+        </mesh>
+        {/* Left hand */}
+        <mesh position={[-0.33, 0.3, 0]} castShadow>
+          <boxGeometry args={[0.11, 0.14, 0.1]} />
+          <meshStandardMaterial color={colors.skin} roughness={0.7} />
+        </mesh>
+
+        {/* Right arm — raised slightly, holding blueprint roll */}
+        <mesh position={[0.33, 0.6, 0]} rotation={[0, 0, -0.3]} castShadow>
+          <boxGeometry args={[0.13, 0.42, 0.15]} />
+          <meshStandardMaterial color={colors.shirt} roughness={0.85} />
+        </mesh>
+        {/* Right hand */}
+        <mesh position={[0.42, 0.38, 0]} castShadow>
+          <boxGeometry args={[0.11, 0.14, 0.1]} />
+          <meshStandardMaterial color={colors.skin} roughness={0.7} />
+        </mesh>
+
+        {/* Blueprint roll under right arm */}
+        <mesh position={[0.38, 0.52, 0]} rotation={[Math.PI / 2, 0, 0.2]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.32, 10]} />
+          <meshStandardMaterial color=#f5f0dc roughness={0.9} />
+        </mesh>
+        {/* Blueprint end caps */}
+        <mesh position={[0.38, 0.52, 0.17]} rotation={[Math.PI / 2, 0, 0.2]}>
+          <cylinderGeometry args={[0.055, 0.055, 0.02, 10]} />
+          <meshStandardMaterial color=#c8b870 roughness={0.6} />
+        </mesh>
+        <mesh position={[0.38, 0.52, -0.17]} rotation={[Math.PI / 2, 0, 0.2]}>
+          <cylinderGeometry args={[0.055, 0.055, 0.02, 10]} />
+          <meshStandardMaterial color=#c8b870 roughness={0.6} />
+        </mesh>
+        {/* Blueprint rubber band */}
+        <mesh position={[0.38, 0.52, 0]} rotation={[Math.PI / 2, 0, 0.2]}>
+          <cylinderGeometry args={[0.056, 0.056, 0.06, 10, 1, true]} />
+          <meshStandardMaterial color=#c0392b roughness={0.6} />
         </mesh>
       </group>
 
-      {/* === Robot Head (animated by floating bob) === */}
+      {/* === Architect Head (animated by floating bob) === */}
       <group ref={headRef} position={[0, 1.05, 0]}>
-        {/* Head box */}
+        {/* Neck */}
+        <mesh position={[0, -0.22, 0]}>
+          <cylinderGeometry args={[0.09, 0.1, 0.18, 8]} />
+          <meshStandardMaterial color={colors.skin} roughness={0.7} />
+        </mesh>
+
+        {/* Head — sphere */}
         <mesh castShadow>
-          <boxGeometry args={[0.44, 0.36, 0.32]} />
-          <meshStandardMaterial color={colors.body} metalness={0.3} roughness={0.6} />
+          <sphereGeometry args={[0.22, 14, 12]} />
+          <meshStandardMaterial color={colors.skin} roughness={0.7} />
         </mesh>
 
-        {/* Face screen */}
-        <mesh position={[0, -0.02, 0.161]}>
-          <boxGeometry args={[0.36, 0.24, 0.01]} />
-          <meshStandardMaterial color={colors.screen} metalness={0.1} roughness={0.3} />
+        {/* Eyes — left */}
+        <mesh position={[-0.08, 0.03, 0.2]}>
+          <sphereGeometry args={[0.03, 8, 8]} />
+          <meshStandardMaterial color=#2c2c2c roughness={0.5} />
+        </mesh>
+        {/* Eyes — right */}
+        <mesh position={[0.08, 0.03, 0.2]}>
+          <sphereGeometry args={[0.03, 8, 8]} />
+          <meshStandardMaterial color=#2c2c2c roughness={0.5} />
         </mesh>
 
-        {/* Left Eye — glowing dot */}
-        <mesh position={[-0.08, 0.02, 0.17]}>
-          <boxGeometry args={[0.07, 0.07, 0.01]} />
-          <meshStandardMaterial color={colors.eye} emissive={colors.eye} emissiveIntensity={0.8} />
+        {/* Eyebrows */}
+        <mesh position={[-0.08, 0.09, 0.19]} rotation={[0, 0, 0.15]}>
+          <boxGeometry args={[0.07, 0.015, 0.01]} />
+          <meshStandardMaterial color={colors.hair} roughness={0.8} />
         </mesh>
-        {/* Right Eye — glowing dot */}
-        <mesh position={[0.08, 0.02, 0.17]}>
-          <boxGeometry args={[0.07, 0.07, 0.01]} />
-          <meshStandardMaterial color={colors.eye} emissive={colors.eye} emissiveIntensity={0.8} />
-        </mesh>
-
-        {/* Smile — thin wide box */}
-        <mesh position={[0, -0.08, 0.17]}>
-          <boxGeometry args={[0.14, 0.025, 0.01]} />
-          <meshStandardMaterial color={colors.eye} emissive={colors.eye} emissiveIntensity={0.5} />
+        <mesh position={[0.08, 0.09, 0.19]} rotation={[0, 0, -0.15]}>
+          <boxGeometry args={[0.07, 0.015, 0.01]} />
+          <meshStandardMaterial color={colors.hair} roughness={0.8} />
         </mesh>
 
-        {/* Antenna */}
-        <group ref={antennaRef} position={[0, 0.18, 0]}>
-          {/* Antenna stick */}
-          <mesh position={[0, 0.1, 0]}>
-            <cylinderGeometry args={[0.015, 0.02, 0.2, 6]} />
-            <meshStandardMaterial color={colors.bodyDark} metalness={0.5} roughness={0.4} />
+        {/* Nose — small bump */}
+        <mesh position={[0, -0.01, 0.215]}>
+          <sphereGeometry args={[0.025, 6, 6]} />
+          <meshStandardMaterial color={colors.skinDark} roughness={0.7} />
+        </mesh>
+
+        {/* Smile — slight arc, two segments */}
+        <mesh position={[-0.04, -0.08, 0.2]} rotation={[0, 0, 0.4]}>
+          <boxGeometry args={[0.05, 0.015, 0.01]} />
+          <meshStandardMaterial color={colors.skinDark} roughness={0.8} />
+        </mesh>
+        <mesh position={[0.04, -0.08, 0.2]} rotation={[0, 0, -0.4]}>
+          <boxGeometry args={[0.05, 0.015, 0.01]} />
+          <meshStandardMaterial color={colors.skinDark} roughness={0.8} />
+        </mesh>
+
+        {/* Hair — simple cap over top of head */}
+        <mesh position={[0, 0.1, -0.02]}>
+          <sphereGeometry args={[0.225, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.52]} />
+          <meshStandardMaterial color={colors.hair} roughness={0.85} />
+        </mesh>
+
+        {/* Hard hat brim — flat disc, wobbles via antennaRef */}
+        <group ref={antennaRef} position={[0, 0.2, 0]} rotation={[0.08, 0, 0]}>
+          <mesh>
+            <cylinderGeometry args={[0.3, 0.28, 0.04, 16]} />
+            <meshStandardMaterial color={colors.hardHat} roughness={0.5} metalness={0.1} />
           </mesh>
-          {/* Antenna tip — glowing ball */}
-          <mesh position={[0, 0.22, 0]}>
-            <sphereGeometry args={[0.04, 8, 8]} />
-            <meshStandardMaterial color={colors.eye} emissive={colors.eye} emissiveIntensity={1.0} />
+          {/* Hard hat dome */}
+          <mesh position={[0, 0.08, 0]}>
+            <sphereGeometry args={[0.22, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
+            <meshStandardMaterial color={colors.hardHat} roughness={0.5} metalness={0.1} />
+          </mesh>
+          {/* Hard hat brim band */}
+          <mesh>
+            <cylinderGeometry args={[0.23, 0.23, 0.03, 16, 1, true]} />
+            <meshStandardMaterial color={colors.hardHatBand} roughness={0.6} />
           </mesh>
         </group>
-
-        {/* Ear panels */}
-        <mesh position={[-0.23, 0, 0]} castShadow>
-          <boxGeometry args={[0.04, 0.14, 0.14]} />
-          <meshStandardMaterial color={colors.bodyDark} metalness={0.4} roughness={0.5} />
-        </mesh>
-        <mesh position={[0.23, 0, 0]} castShadow>
-          <boxGeometry args={[0.04, 0.14, 0.14]} />
-          <meshStandardMaterial color={colors.bodyDark} metalness={0.4} roughness={0.5} />
-        </mesh>
       </group>
     </group>
   )

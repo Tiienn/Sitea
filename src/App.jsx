@@ -117,6 +117,10 @@ const COMPARISON_OBJECTS = [
   { id: 'basketballCourt', name: 'Basketball Court', width: 15, length: 28, color: '#CD853F' },
   { id: 'tennisCourt', name: 'Tennis Court', width: 10.97, length: 23.77, color: '#4169E1' },
   { id: 'swimmingPool', name: 'Olympic Pool', width: 25, length: 50, color: '#00CED1' },
+  { id: 'boxingRing', name: 'Boxing Ring', width: 6.1, length: 6.1, color: '#C0392B' },
+  { id: 'volleyballCourt', name: 'Volleyball Court', width: 9, length: 18, color: '#E67E22' },
+  { id: 'footballField', name: 'Football Field (NFL)', width: 48.76, length: 109.73, color: '#2E7D32' },
+  { id: 'padelCourt', name: 'Padel Court', width: 10, length: 20, color: '#2196F3' },
   // Buildings
   { id: 'house', name: 'House (10m×10m)', width: 10, length: 10, color: '#8B4513' },
   { id: 'studioApartment', name: 'Studio Apartment', width: 6, length: 7, color: '#9CA3AF' },

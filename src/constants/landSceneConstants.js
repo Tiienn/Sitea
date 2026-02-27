@@ -90,10 +90,24 @@ export const RUN_BOB_AMPLITUDE = 0.05
 export const RUN_CYCLE_SPEED = 12
 export const RUN_LEAN = 0.1
 
-// NPC robot color presets
+// NPC architect color presets
 export const NPC_COLORS = {
-  guide1: { body: '#4a90d9', bodyDark: '#3570b0', screen: '#1a2a40', eye: '#4ade80', accent: '#5bb8f5' },
-  guide2: { body: '#9b6dd7', bodyDark: '#7a50b0', screen: '#2a1a3a', eye: '#f0abfc', accent: '#c084fc' },
+  guide1: {
+    skin: '#d4956a', skinDark: '#b87a52',
+    hair: '#3b2410',
+    shirt: '#5b8fc9', shirtDark: '#4a78b0',
+    pants: '#3a5275',
+    boots: '#3d2b1a',
+    hardHat: '#f5c842', hardHatBand: '#e0a800',
+  },
+  guide2: {
+    skin: '#e8b89a', skinDark: '#c9956e',
+    hair: '#6b3a1f',
+    shirt: '#7c5cbf', shirtDark: '#6448a8',
+    pants: '#4a3f6b',
+    boots: '#2e1f10',
+    hardHat: '#e05a2b', hardHatBand: '#c04820',
+  },
 }
 
 // Format dimension with unit
