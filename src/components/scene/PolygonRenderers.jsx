@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useThree } from '@react-three/fiber'
+import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { createDeckTexture, createFoundationTexture, createStairsTexture, createRoofTexture } from '../../utils/textureGenerators'
 
@@ -843,4 +844,178 @@ export function RoofItem({
   }
 
   return null
+}
+
+/**
+ * FurnitureItem - renders a single placed furniture piece using a GLB model
+ * Handles drag, selection, rotation, and delete. Auto-scales via Box3.
+ */
+export function FurnitureItem({
+  item,
+  catalogEntry,
+  isSelected,
+  isDeleteMode,
+  isRotateMode,
+  onDelete,
+  onUpdate,
+  onSelect,
+  onRotateStart,
+  onDragStart,
+  onDragEnd,
+  snapPoint
+}) {
+  const { scene } = useGLTF(catalogEntry.url)
+  const { gl, camera, raycaster } = useThree()
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true)
+    // Clone materials so instances don't share highlight color
+    clone.traverse((child) => {
+      if (child.isMesh && child.material) {
+        child.material = child.material.clone()
+      }
+    })
+    return clone
+  }, [scene])
+
+  // Auto-scale using Box3 (same pattern as AnimatedPlayerMesh)
+  const { scale, offset } = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(clonedScene)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const modelWidth = size.x
+    const s = modelWidth > 0 ? catalogEntry.targetWidth / modelWidth : 1
+    return {
+      scale: s,
+      offset: {
+        x: -(box.max.x + box.min.x) / 2,
+        y: -box.min.y, // sit on ground
+        z: -(box.max.z + box.min.z) / 2,
+      }
+    }
+  }, [clonedScene, catalogEntry.targetWidth])
+
+  // Internal drag state
+  const [dragState, setDragState] = useState({
+    isDragging: false,
+    startPoint: null,
+    offset: { x: 0, z: 0 }
+  })
+
+  // Click tracking
+  const clickTracker = useRef({ lastClickTime: 0 })
+
+  useEffect(() => {
+    clickTracker.current = { lastClickTime: 0 }
+  }, [isSelected])
+
+  // Ground plane for raycasting during drag (y=0)
+  const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
+
+  // Window-level pointer move + up for smooth dragging
+  useEffect(() => {
+    if (!dragState.isDragging) return
+
+    const handlePointerMove = (e) => {
+      // Raycast to ground plane from mouse position
+      const rect = gl.domElement.getBoundingClientRect()
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      )
+      raycaster.setFromCamera(mouse, camera)
+      const hit = new THREE.Vector3()
+      if (raycaster.ray.intersectPlane(groundPlane, hit)) {
+        const rawX = item.position.x + (hit.x - dragState.startPoint.x)
+        const rawZ = item.position.z + (hit.z - dragState.startPoint.z)
+        // Snap the target position if snap function provided
+        const snapped = snapPoint ? snapPoint({ x: rawX, z: rawZ }) : { x: rawX, z: rawZ }
+        setDragState(prev => ({ ...prev, offset: { x: snapped.x - item.position.x, z: snapped.z - item.position.z } }))
+      }
+    }
+
+    const handlePointerUp = () => {
+      const off = dragState.offset
+      if (Math.abs(off.x) > 0.01 || Math.abs(off.z) > 0.01) {
+        onUpdate?.(item.id, {
+          position: {
+            x: item.position.x + off.x,
+            z: item.position.z + off.z
+          }
+        })
+      }
+      setDragState({ isDragging: false, startPoint: null, offset: { x: 0, z: 0 } })
+      onDragEnd?.()
+      document.body.style.cursor = 'auto'
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+    }
+  }, [dragState.isDragging, dragState.startPoint, dragState.offset, item.id, item.position, onUpdate, onDragEnd, gl, camera, raycaster, groundPlane, snapPoint])
+
+  // Apply highlight color
+  useEffect(() => {
+    const color = isDeleteMode ? '#FF4444' : isSelected ? '#22d3ee' : null
+    clonedScene.traverse((child) => {
+      if (child.isMesh && child.material) {
+        if (color) {
+          child.material.emissive = new THREE.Color(color)
+          child.material.emissiveIntensity = 0.3
+        } else {
+          child.material.emissive = new THREE.Color(0x000000)
+          child.material.emissiveIntensity = 0
+        }
+      }
+    })
+  }, [clonedScene, isSelected, isDeleteMode])
+
+  const dragOffset = dragState.isDragging ? dragState.offset : { x: 0, z: 0 }
+  const posX = item.position.x + dragOffset.x
+  const posZ = item.position.z + dragOffset.z
+
+  const handlePointerDown = (e) => {
+    e.stopPropagation()
+
+    if (isDeleteMode) {
+      onDelete?.(item.id)
+      return
+    }
+
+    if (isRotateMode) {
+      onRotateStart?.('furniture', item.id, e.point)
+      return
+    }
+
+    // First click selects, second click (when already selected) starts drag
+    if (!isSelected) {
+      onSelect?.(item.id)
+      return
+    }
+
+    // Already selected — start dragging
+    setDragState({
+      isDragging: true,
+      startPoint: { x: e.point.x, z: e.point.z },
+      offset: { x: 0, z: 0 }
+    })
+    onDragStart?.()
+    document.body.style.cursor = 'grabbing'
+  }
+
+  return (
+    <group
+      position={[posX, 0, posZ]}
+      rotation={[0, item.rotation || 0, 0]}
+      onPointerDown={handlePointerDown}
+    >
+      <primitive
+        object={clonedScene}
+        scale={scale}
+        position={[offset.x * scale, offset.y * scale, offset.z * scale]}
+      />
+    </group>
+  )
 }

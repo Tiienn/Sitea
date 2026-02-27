@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { houseTemplates, HOUSE_TEMPLATE_ORDER, DEFAULT_HOUSE_TEMPLATE } from '../data/houseTemplates'
+import { FURNITURE_CATEGORIES, FURNITURE_ITEMS } from '../data/furnitureCatalog'
 import { analyzeImage } from '../services/imageAnalysis'
 import { useUser } from '../hooks/useUser.jsx'
 
@@ -27,6 +28,7 @@ const getCoverageColorClass = (percent) => {
 // Section definitions with icons
 const SECTIONS = [
   { id: 'tools', label: 'Tools', icon: 'hammer' },
+  { id: 'furniture', label: 'Furniture', icon: 'furniture' },
   { id: 'presets', label: 'House Templates', icon: 'zap' },
   { id: 'coverage', label: 'Coverage', icon: 'chart' },
   { id: 'setbacks', label: 'Setbacks', icon: 'ruler' },
@@ -142,9 +144,88 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 21h4v-4h4v-4h4v-4h4V5M4 21V17M8 17V13M12 13V9M16 9V5" />
     </svg>
   ),
+  furniture: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 17v3M19 17v3M3 11v6h18v-6M5 11V8a2 2 0 012-2h10a2 2 0 012 2v3M3 14h18" />
+    </svg>
+  ),
   paint: (
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+    </svg>
+  ),
+}
+
+// Per-item furniture icons
+const FurnitureIcons = {
+  sofa: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 17v3M19 17v3M3 11v6h18v-6M5 11V8a2 2 0 012-2h10a2 2 0 012 2v3M3 14h18" />
+    </svg>
+  ),
+  armchair: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 17v3M17 17v3M5 11v6h14v-6M7 11V9a2 2 0 012-2h6a2 2 0 012 2v2M3 11a2 2 0 012-2v5H3v-3zM21 11a2 2 0 00-2-2v5h2v-3z" />
+    </svg>
+  ),
+  coffeeTable: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 14h16M6 14v5M18 14v5M5 11h14a1 1 0 011 1v2H4v-2a1 1 0 011-1z" />
+    </svg>
+  ),
+  tvStand: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16h16v3H4zM6 19v2M18 19v2M8 7l4-4 4 4M12 3v10M7 13h10" />
+    </svg>
+  ),
+  bed: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 18v-4a2 2 0 012-2h14a2 2 0 012 2v4M3 18v2M21 18v2M3 12V9a3 3 0 013-3h2v6M7 9h4a1 1 0 011 1v2H7V9z" />
+    </svg>
+  ),
+  nightstand: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h12v14H6zM6 13h12M8 6V4h8v2M9 9.5h6M9 16.5h6M8 20v1M16 20v1" />
+    </svg>
+  ),
+  desk: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h16M4 12v7M20 12v7M7 12V9h10v3M15 15h4v4h-4z" />
+    </svg>
+  ),
+  diningTable: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M5 12v7M19 12v7M12 12v7M4 10h16a1 1 0 011 1v1H3v-1a1 1 0 011-1z" />
+    </svg>
+  ),
+  chair: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 14v7M17 14v7M5 14h14M7 14v-3a2 2 0 012-2h6a2 2 0 012 2v3M9 9V5a1 1 0 011-1h4a1 1 0 011 1v4" />
+    </svg>
+  ),
+  fridge: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12a1 1 0 011 1v16a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM5 10h14M9 6v2M9 13v3M8 21v1M16 21v1" />
+    </svg>
+  ),
+  toilet: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 13h10a5 5 0 01-10 0zM8 13V6a2 2 0 012-2h1v4M17 13v0a2 2 0 01-2 2H9a2 2 0 01-2-2M10 18v3M14 18v3" />
+    </svg>
+  ),
+  bathtub: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 14h16M4 14v3a3 3 0 003 3h10a3 3 0 003-3v-3M4 14V9a3 3 0 013-3v8M7 17v2M17 17v2" />
+    </svg>
+  ),
+  tree: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 20v-6M12 14l-5 0L12 4l5 10h-5zM8 20h8" />
+    </svg>
+  ),
+  bench: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 14h16M4 14v4M20 14v4M6 14v-3h12v3M4 11h1M19 11h1" />
     </svg>
   ),
 }
@@ -249,6 +330,9 @@ export default function BuildPanel({
   updateRoof,
   rotateDegreeInput = '',
   setRotateDegreeInput,
+  // Furniture
+  selectedFurnitureCatalogId = null,
+  setSelectedFurnitureCatalogId,
   // Copy/paste
   copySelected,
   hasSelection = false,
@@ -257,6 +341,7 @@ export default function BuildPanel({
 }) {
   const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed, setShowPricingModal } = useUser()
   const [activeSection, setActiveSection] = useState('tools')
+  const [furnitureCategory, setFurnitureCategory] = useState('living')
 
   // Upload state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -829,6 +914,7 @@ export default function BuildPanel({
                   {activeBuildTool === BUILD_TOOLS.POOL && 'Click to place pool corners · Click first point to close'}
                   {activeBuildTool === BUILD_TOOLS.FOUNDATION && 'Click to place platform corners · Click first point to close'}
                   {activeBuildTool === BUILD_TOOLS.STAIRS && 'Select preset, then click to place'}
+                  {activeBuildTool === BUILD_TOOLS.FURNITURE && 'Select item, click to place · ESC to cancel'}
                   {activeBuildTool === BUILD_TOOLS.ROTATE && (rotateDegreeInput ? 'Type degrees, then click element to apply' : 'Click element to rotate · Shift: 45° snap')}
                 </div>
 
@@ -1210,6 +1296,76 @@ export default function BuildPanel({
                     </button>
                   )
                 })()}
+              </div>
+            )}
+
+            {/* FURNITURE Section */}
+            {activeSection === 'furniture' && (
+              <div className="space-y-3">
+                {/* Category pills — horizontal scroll, no wrap */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+                  {FURNITURE_CATEGORIES.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setFurnitureCategory(cat.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${
+                        furnitureCategory === cat.id
+                          ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)]'
+                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Items list — compact rows with unique icons */}
+                <div className="flex flex-col gap-1.5">
+                  {FURNITURE_ITEMS.filter(item => item.category === furnitureCategory).map(item => {
+                    const isActive = selectedFurnitureCatalogId === item.id
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          if (!canEdit) return
+                          setSelectedFurnitureCatalogId?.(isActive ? null : item.id)
+                          setActiveBuildTool?.(isActive ? BUILD_TOOLS.NONE : BUILD_TOOLS.FURNITURE)
+                        }}
+                        disabled={!canEdit}
+                        className={`flex items-center gap-3 w-full rounded-xl border transition-all text-left ${
+                          isActive
+                            ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]'
+                            : 'bg-[var(--color-bg-elevated)] border-[var(--color-border)] hover:border-white/20'
+                        }`}
+                        style={{ padding: '10px 12px' }}
+                      >
+                        <span className={`w-7 h-7 flex-shrink-0 ${isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-secondary)]'}`}>
+                          {FurnitureIcons[item.id] || Icons.furniture}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-xs font-medium truncate ${isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
+                            {item.name}
+                          </div>
+                          <div className="text-[10px] text-[var(--color-text-muted)]">
+                            {item.targetWidth}m wide
+                          </div>
+                        </div>
+                        {isActive && (
+                          <svg className="w-4 h-4 text-[var(--color-accent)] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Hint */}
+                <div className="text-[11px] text-[var(--color-text-muted)] text-center py-1">
+                  {selectedFurnitureCatalogId
+                    ? 'Click to place · Drag to move · R to rotate'
+                    : 'Select an item to place it'}
+                </div>
               </div>
             )}
 

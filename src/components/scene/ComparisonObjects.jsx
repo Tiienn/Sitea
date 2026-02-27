@@ -369,8 +369,8 @@ function House3D({ obj }) {
   return (
     <group>
       {/* Foundation */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width + 0.6, obj.length + 0.6]} />
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[obj.width + 0.6, 0.1, obj.length + 0.6]} />
         <meshStandardMaterial color="#808080" />
       </mesh>
 
@@ -441,28 +441,28 @@ function House3D({ obj }) {
       </mesh>
 
       {/* Door frame */}
-      <mesh position={[0, 1.1, obj.length / 2 + 0.02]}>
+      <mesh position={[0, 1.1, obj.length / 2 + 0.06]}>
         <boxGeometry args={[1.4, 2.4, 0.08]} />
         <meshStandardMaterial color="#4a3728" />
       </mesh>
 
       {/* Door */}
-      <mesh position={[0, 1.1, obj.length / 2 + 0.06]}>
+      <mesh position={[0, 1.1, obj.length / 2 + 0.11]}>
         <boxGeometry args={[1.1, 2.2, 0.05]} />
         <meshStandardMaterial color="#8B5A2B" />
       </mesh>
 
       {/* Door handle */}
-      <mesh position={[0.4, 1.1, obj.length / 2 + 0.1]}>
+      <mesh position={[0.4, 1.1, obj.length / 2 + 0.15]}>
         <sphereGeometry args={[0.06, 8, 8]} />
         <meshStandardMaterial color="#C0C0C0" metalness={0.8} roughness={0.2} />
       </mesh>
 
       {/* Windows - front */}
       {[-obj.width / 3, obj.width / 3].map((x, i) => (
-        <group key={`front-${i}`} position={[x, wallHeight / 2 + 0.3, obj.length / 2]}>
+        <group key={`front-${i}`} position={[x, wallHeight / 2 + 0.3, obj.length / 2 + 0.06]}>
           {/* Window frame */}
-          <mesh position={[0, 0, 0.02]}>
+          <mesh position={[0, 0, 0]}>
             <boxGeometry args={[1.2, 1.2, 0.08]} />
             <meshStandardMaterial color="#4a3728" />
           </mesh>
@@ -485,9 +485,9 @@ function House3D({ obj }) {
 
       {/* Windows - sides */}
       {[-1, 1].map((side) => (
-        <group key={`side-${side}`} position={[side * obj.width / 2, wallHeight / 2 + 0.3, 0]}>
+        <group key={`side-${side}`} position={[side * (obj.width / 2 + 0.06), wallHeight / 2 + 0.3, 0]}>
           {/* Window frame */}
-          <mesh position={[side * 0.02, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <mesh rotation={[0, Math.PI / 2, 0]}>
             <boxGeometry args={[1.2, 1.2, 0.08]} />
             <meshStandardMaterial color="#4a3728" />
           </mesh>
@@ -523,170 +523,694 @@ function ParkingSpace3D({ obj }) {
 
 // Eiffel Tower - Four legs with cross bracing
 function EiffelTower3D({ obj }) {
-  const legOffset = obj.width * 0.35
-  const legSize = obj.width * 0.12
+  const w = obj.width, l = obj.length
+  const iron = '#8B7355'
+  const ironDk = '#6B5344'
+  const plat = '#7A6345'
+  const floor1 = 57, floor2 = 115
+
+  // Leg sections: tapered cylinders tilted inward
+  const legs = [
+    { y0: 0, y1: 20, off0: 48, off1: 41, r0: 4, r1: 3.7 },
+    { y0: 20, y1: 40, off0: 41, off1: 33, r0: 3.7, r1: 3.4 },
+    { y0: 40, y1: 57, off0: 33, off1: 26, r0: 3.4, r1: 3 },
+    { y0: 57, y1: 78, off0: 26, off1: 17, r0: 3, r1: 2.7 },
+    { y0: 78, y1: 98, off0: 17, off1: 9, r0: 2.7, r1: 2.3 },
+    { y0: 98, y1: 115, off0: 9, off1: 5, r0: 2.3, r1: 2 },
+  ]
 
   return (
     <group>
-      {/* Base platform */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
+      {/* Ground esplanade */}
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[w, 0.1, l]} />
         <meshStandardMaterial color="#D4C4A8" />
       </mesh>
-      {/* Four corner legs */}
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
-        <mesh key={i} position={[dx * legOffset, 0.5, dz * legOffset]}>
-          <boxGeometry args={[legSize, 1, legSize]} />
-          <meshStandardMaterial color="#8B7355" />
-        </mesh>
+
+      {/* === 4 LEGS — tapered cylinders tilted inward === */}
+      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], li) => (
+        <group key={`leg${li}`}>
+          {legs.map((s, si) => {
+            const dy = s.y1 - s.y0
+            const dOff = s.off0 - s.off1
+            const segLen = Math.sqrt(dy * dy + 2 * dOff * dOff)
+            const tilt = Math.atan2(dOff, dy)
+            return (
+              <mesh
+                key={si}
+                position={[dx * (s.off0 + s.off1) / 2, (s.y0 + s.y1) / 2, dz * (s.off0 + s.off1) / 2]}
+                rotation={[-dz * tilt, 0, dx * tilt]}
+              >
+                <cylinderGeometry args={[s.r1, s.r0, segLen, 8]} />
+                <meshStandardMaterial color={iron} />
+              </mesh>
+            )
+          })}
+        </group>
       ))}
-      {/* Cross bracing (X pattern) */}
-      <mesh position={[0, 0.3, 0]} rotation={[0, Math.PI / 4, 0]}>
-        <boxGeometry args={[obj.width * 0.7, 0.2, 0.5]} />
-        <meshStandardMaterial color="#6B5344" />
+
+      {/* === HORIZONTAL CROSS-BRACES at 2 heights === */}
+      {[28, 82].map((y, bi) => {
+        const t = y / 115
+        const off = 48 * (1 - t) + 5 * t
+        return (
+          <group key={`xb${bi}`}>
+            <mesh position={[0, y, off]}><boxGeometry args={[off * 2, 1.5, 2]} /><meshStandardMaterial color={ironDk} /></mesh>
+            <mesh position={[0, y, -off]}><boxGeometry args={[off * 2, 1.5, 2]} /><meshStandardMaterial color={ironDk} /></mesh>
+            <mesh position={[off, y, 0]}><boxGeometry args={[2, 1.5, off * 2]} /><meshStandardMaterial color={ironDk} /></mesh>
+            <mesh position={[-off, y, 0]}><boxGeometry args={[2, 1.5, off * 2]} /><meshStandardMaterial color={ironDk} /></mesh>
+          </group>
+        )
+      })}
+
+      {/* === ARCHES under 1st floor (4 faces) === */}
+      {[
+        { ax: 'x', f: 1 },
+        { ax: 'x', f: -1 },
+        { ax: 'z', f: 1 },
+        { ax: 'z', f: -1 },
+      ].map(({ ax, f }, ai) => (
+        <group key={`ar${ai}`}>
+          {Array.from({ length: 12 }, (_, i) => {
+            const t = i / 11
+            const span = -26 + 52 * t
+            const ay = floor1 - 18 + 13 * Math.sin(Math.PI * t)
+            return ax === 'x' ? (
+              <mesh key={i} position={[span, ay, f * 26]} rotation={[0, 0, 0]}>
+                <cylinderGeometry args={[0.8, 0.8, 5.5, 6]} />
+                <meshStandardMaterial color={ironDk} />
+              </mesh>
+            ) : (
+              <mesh key={i} position={[f * 26, ay, span]} rotation={[0, 0, 0]}>
+                <cylinderGeometry args={[0.8, 0.8, 5.5, 6]} />
+                <meshStandardMaterial color={ironDk} />
+              </mesh>
+            )
+          })}
+        </group>
+      ))}
+
+      {/* === 1ST FLOOR PLATFORM === */}
+      <mesh position={[0, floor1, 0]}>
+        <boxGeometry args={[56, 2.5, 56]} />
+        <meshStandardMaterial color={plat} />
       </mesh>
-      <mesh position={[0, 0.3, 0]} rotation={[0, -Math.PI / 4, 0]}>
-        <boxGeometry args={[obj.width * 0.7, 0.2, 0.5]} />
-        <meshStandardMaterial color="#6B5344" />
+      <mesh position={[0, floor1 + 2, 0]}>
+        <boxGeometry args={[58, 1, 58]} />
+        <meshStandardMaterial color={ironDk} transparent opacity={0.25} />
       </mesh>
-      {/* Center column hint */}
-      <mesh position={[0, 1, 0]}>
-        <cylinderGeometry args={[1, 3, 2, 8]} />
-        <meshStandardMaterial color="#8B7355" />
+
+      {/* === 2ND FLOOR PLATFORM === */}
+      <mesh position={[0, floor2, 0]}>
+        <boxGeometry args={[18, 2, 18]} />
+        <meshStandardMaterial color={plat} />
+      </mesh>
+      <mesh position={[0, floor2 + 1.5, 0]}>
+        <boxGeometry args={[20, 0.8, 20]} />
+        <meshStandardMaterial color={ironDk} transparent opacity={0.25} />
+      </mesh>
+
+      {/* === UPPER TOWER — tapered cylinders === */}
+      <mesh position={[0, 145, 0]}>
+        <cylinderGeometry args={[3, 4, 60, 8]} />
+        <meshStandardMaterial color={iron} />
+      </mesh>
+      <mesh position={[0, 200, 0]}>
+        <cylinderGeometry args={[2.5, 3, 50, 8]} />
+        <meshStandardMaterial color={iron} />
+      </mesh>
+      <mesh position={[0, 250, 0]}>
+        <cylinderGeometry args={[1.5, 2.5, 50, 8]} />
+        <meshStandardMaterial color={iron} />
+      </mesh>
+      <mesh position={[0, 287, 0]}>
+        <cylinderGeometry args={[1, 1.5, 24, 8]} />
+        <meshStandardMaterial color={iron} />
+      </mesh>
+
+      {/* Upper tower horizontal rings */}
+      {[140, 170, 200, 230, 260].map((y, i) => {
+        const r = 4.5 - i * 0.6
+        return (
+          <mesh key={`ub${i}`} position={[0, y, 0]}>
+            <cylinderGeometry args={[r, r, 0.8, 12]} />
+            <meshStandardMaterial color={ironDk} />
+          </mesh>
+        )
+      })}
+
+      {/* Summit observation deck */}
+      <mesh position={[0, 276, 0]}>
+        <cylinderGeometry args={[3.5, 3.5, 1.5, 12]} />
+        <meshStandardMaterial color={plat} />
+      </mesh>
+
+      {/* Antenna / spire */}
+      <mesh position={[0, 312, 0]}>
+        <cylinderGeometry args={[0.3, 1.2, 24, 6]} />
+        <meshStandardMaterial color={ironDk} metalness={0.3} />
+      </mesh>
+
+      {/* Beacon light */}
+      <mesh position={[0, 325, 0]}>
+        <sphereGeometry args={[0.6, 8, 8]} />
+        <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.8} />
       </mesh>
     </group>
   )
 }
 
-// Statue of Liberty - Star-shaped base with pedestal
+// Statue of Liberty — Fort Wood, pedestal, robed figure with crown and torch
 function StatueOfLiberty3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const green = '#4A7C59'
+  const greenDk = '#3D5C4A'
+  const stone = '#B8AFA0'
+  const stoneLt = '#C8C0B0'
+  const fortH = 12, pedH = 28
+  const sBase = fortH + pedH  // statue starts at y=40
+  const sH = 46               // statue height
+
   return (
     <group>
-      {/* Outer platform */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial color="#A8C5A8" />
+      {/* Island ground */}
+      <mesh position={[0, 0.06, 0]}>
+        <cylinderGeometry args={[w / 2, w / 2 + 1, 0.1, 24]} />
+        <meshStandardMaterial color="#7A9A6A" />
       </mesh>
-      {/* Star-shaped fort (11-pointed) */}
-      <mesh position={[0, 0.3, 0]}>
-        <cylinderGeometry args={[obj.width * 0.4, obj.width * 0.45, 0.6, 11]} />
-        <meshStandardMaterial color="#4A7C59" />
+
+      {/* === STAR-SHAPED FORT WOOD (11-point) === */}
+      <mesh position={[0, fortH / 2, 0]}>
+        <cylinderGeometry args={[w * 0.4, w * 0.45, fortH, 11]} />
+        <meshStandardMaterial color="#8A8070" roughness={0.9} />
       </mesh>
-      {/* Pedestal base */}
-      <mesh position={[0, 0.8, 0]}>
-        <boxGeometry args={[obj.width * 0.25, 1, obj.width * 0.25]} />
-        <meshStandardMaterial color="#5A8C69" />
+      {/* Fort parapet walls */}
+      <mesh position={[0, fortH - 1, 0]}>
+        <cylinderGeometry args={[w * 0.44, w * 0.44, 2.5, 11, 1, true]} />
+        <meshStandardMaterial color={stone} side={2} />
       </mesh>
-      {/* Statue hint */}
-      <mesh position={[0, 1.8, 0]}>
-        <cylinderGeometry args={[1.5, 2, 1.5, 8]} />
-        <meshStandardMaterial color="#3D6B4A" />
+
+      {/* === PEDESTAL === */}
+      {/* Base plinth */}
+      <mesh position={[0, fortH + 2.5, 0]}>
+        <boxGeometry args={[18, 5, 18]} />
+        <meshStandardMaterial color={stone} />
+      </mesh>
+      {/* Main pedestal column — tapered */}
+      <mesh position={[0, fortH + pedH / 2, 0]}>
+        <cylinderGeometry args={[6.5, 9, pedH - 5, 4]} />
+        <meshStandardMaterial color={stoneLt} />
+      </mesh>
+      {/* Pedestal top cornice */}
+      <mesh position={[0, sBase - 1.5, 0]}>
+        <boxGeometry args={[15, 2, 15]} />
+        <meshStandardMaterial color={stoneLt} />
+      </mesh>
+      {/* Observation balcony */}
+      <mesh position={[0, sBase, 0]}>
+        <cylinderGeometry args={[8, 8, 1.5, 16]} />
+        <meshStandardMaterial color={stone} />
+      </mesh>
+
+      {/* === STATUE FIGURE === */}
+      {/* Flowing robes — tapered */}
+      <mesh position={[0, sBase + sH * 0.32, 0]}>
+        <cylinderGeometry args={[4.5, 7, sH * 0.64, 12]} />
+        <meshStandardMaterial color={green} />
+      </mesh>
+      {/* Upper torso */}
+      <mesh position={[0, sBase + sH * 0.68, 0]}>
+        <cylinderGeometry args={[3, 4.5, sH * 0.12, 10]} />
+        <meshStandardMaterial color={green} />
+      </mesh>
+      {/* Neck */}
+      <mesh position={[0, sBase + sH * 0.76, 0]}>
+        <cylinderGeometry args={[1.5, 2, 2, 8]} />
+        <meshStandardMaterial color={green} />
+      </mesh>
+      {/* Head */}
+      <mesh position={[0, sBase + sH * 0.82, 0]}>
+        <sphereGeometry args={[2.5, 12, 12]} />
+        <meshStandardMaterial color={green} />
+      </mesh>
+
+      {/* === CROWN — 7 rays === */}
+      {Array.from({ length: 7 }, (_, i) => {
+        const a = (Math.PI * 2 * i) / 7
+        const headY = sBase + sH * 0.82
+        const tilt = 0.35
+        return (
+          <mesh
+            key={`ray${i}`}
+            position={[Math.sin(a) * 3, headY + 3, Math.cos(a) * 3]}
+            rotation={[Math.cos(a) * tilt, 0, -Math.sin(a) * tilt]}
+          >
+            <boxGeometry args={[0.4, 4, 0.15]} />
+            <meshStandardMaterial color={greenDk} />
+          </mesh>
+        )
+      })}
+
+      {/* === RIGHT ARM — raised holding torch === */}
+      <mesh position={[3, sBase + sH * 0.78, 0]} rotation={[0, 0, -0.25]}>
+        <cylinderGeometry args={[1, 1.5, sH * 0.28, 8]} />
+        <meshStandardMaterial color={green} />
+      </mesh>
+      {/* Torch handle */}
+      <mesh position={[5.5, sBase + sH * 0.94, 0]}>
+        <cylinderGeometry args={[0.6, 0.9, 4, 6]} />
+        <meshStandardMaterial color={greenDk} />
+      </mesh>
+      {/* Torch flame — 24k gold */}
+      <mesh position={[5.5, sBase + sH + 2, 0]}>
+        <coneGeometry args={[1.3, 4, 8]} />
+        <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.6} />
+      </mesh>
+
+      {/* === LEFT ARM — holding tablet === */}
+      <mesh position={[-3, sBase + sH * 0.5, 1.5]} rotation={[0.15, 0, 0.25]}>
+        <cylinderGeometry args={[1.2, 1.5, sH * 0.15, 8]} />
+        <meshStandardMaterial color={green} />
+      </mesh>
+      {/* Tablet (tabula ansata) */}
+      <mesh position={[-4, sBase + sH * 0.45, 2.5]} rotation={[0.3, 0, 0.35]}>
+        <boxGeometry args={[1, 6, 4]} />
+        <meshStandardMaterial color={greenDk} />
       </mesh>
     </group>
   )
 }
 
-// Great Pyramid - Pyramid shape
+// Great Pyramid of Giza — truncated pyramid with block courses and queen's pyramids
 function GreatPyramid3D({ obj }) {
+  const w = obj.width // 230
+  const pyH = 138     // current height (capstone missing)
+  const baseR = w * 0.707  // circumradius for square base = w / sqrt(2)
+
   return (
     <group>
-      {/* Sand base */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width * 1.1, obj.length * 1.1]} />
+      {/* Desert sand base */}
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[w * 1.3, 0.1, w * 1.3]} />
         <meshStandardMaterial color="#E8D9B5" />
       </mesh>
-      {/* Pyramid */}
-      <mesh position={[0, 0, 0]} rotation={[0, Math.PI / 4, 0]}>
-        <coneGeometry args={[obj.width * 0.7, obj.width * 0.6, 4]} />
-        <meshStandardMaterial color="#D4A84B" />
+
+      {/* === MAIN PYRAMID — truncated (flat top, capstone lost) === */}
+      <mesh position={[0, pyH / 2, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <cylinderGeometry args={[2, baseR, pyH, 4]} />
+        <meshStandardMaterial color="#D4A84B" roughness={0.85} />
+      </mesh>
+
+      {/* Block course lines — horizontal rings suggesting stone layers */}
+      {[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].map((t, i) => {
+        const y = t * pyH
+        const r = baseR * (1 - t) + 2 * t  // interpolate from base to top
+        return (
+          <mesh key={`cl${i}`} position={[0, y, 0]} rotation={[0, Math.PI / 4, 0]}>
+            <cylinderGeometry args={[r * 0.98, r, 0.6, 4, 1, true]} />
+            <meshStandardMaterial color="#C49A3C" side={2} />
+          </mesh>
+        )
+      })}
+
+      {/* Remaining casing stones at base (lighter limestone) */}
+      <mesh position={[0, 3, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <cylinderGeometry args={[baseR * 0.96, baseR * 1.01, 6, 4, 1, true]} />
+        <meshStandardMaterial color="#E8DCC0" side={2} />
+      </mesh>
+
+      {/* === QUEEN'S PYRAMIDS (3 smaller ones) === */}
+      {[
+        { x: w * 0.45, z: w * 0.3, s: 0.18 },
+        { x: w * 0.45, z: 0, s: 0.15 },
+        { x: w * 0.45, z: -w * 0.3, s: 0.13 },
+      ].map((qp, i) => {
+        const qH = pyH * qp.s
+        const qR = baseR * qp.s
+        return (
+          <mesh key={`qp${i}`} position={[qp.x, qH / 2, qp.z]} rotation={[0, Math.PI / 4, 0]}>
+            <coneGeometry args={[qR, qH, 4]} />
+            <meshStandardMaterial color="#C9A040" roughness={0.9} />
+          </mesh>
+        )
+      })}
+
+      {/* Desert path / causeway hint */}
+      <mesh position={[-w * 0.3, 0.1, w * 0.45]}>
+        <boxGeometry args={[w * 0.5, 0.08, 4]} />
+        <meshStandardMaterial color="#D0C098" />
       </mesh>
     </group>
   )
 }
 
-// Taj Mahal - Square with minarets and dome
+// Taj Mahal — white marble mausoleum with dome, minarets, and gardens
 function TajMahal3D({ obj }) {
-  const minaretOffset = obj.width * 0.4
-  const minaretRadius = obj.width * 0.03
+  const w = obj.width, l = obj.length  // 57x57
+  const marble = '#F8F6F0'
+  const marbleDk = '#E0DDD5'
+  const red = '#B85C3A'
+  const platH = 7        // raised platform
+  const bldgH = 25       // main building
+  const bldgW = 30       // building width
+  const domeR = 10       // dome radius
+  const minOff = w * 0.43 // minaret offset from center
+  const minR = 1.5
+  const minH = 40
 
   return (
     <group>
-      {/* Platform */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial color="#F0EDE8" />
+      {/* Garden and reflecting pool area */}
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[w, 0.1, l]} />
+        <meshStandardMaterial color="#4A7A4A" />
       </mesh>
-      {/* Main building */}
-      <mesh position={[0, 0.5, 0]}>
-        <boxGeometry args={[obj.width * 0.7, 1, obj.length * 0.7]} />
-        <meshStandardMaterial color="#FFFFFF" />
+      {/* Reflecting pool / water channel */}
+      <mesh position={[0, 0.12, l * 0.2]}>
+        <boxGeometry args={[3, 0.06, l * 0.5]} />
+        <meshStandardMaterial color="#6BA4C9" metalness={0.3} roughness={0.1} />
       </mesh>
-      {/* Central dome */}
-      <mesh position={[0, 1.3, 0]}>
-        <sphereGeometry args={[obj.width * 0.15, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color="#FAFAFA" />
-      </mesh>
-      {/* Four minarets */}
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
-        <mesh key={i} position={[dx * minaretOffset, 0.8, dz * minaretOffset]}>
-          <cylinderGeometry args={[minaretRadius, minaretRadius * 1.2, 1.6, 8]} />
-          <meshStandardMaterial color="#F5F5F5" />
+      {/* Garden pathways */}
+      {[-1, 1].map((side, i) => (
+        <mesh key={`gp${i}`} position={[side * w * 0.2, 0.1, l * 0.15]}>
+          <boxGeometry args={[2, 0.06, l * 0.6]} />
+          <meshStandardMaterial color="#C9B896" />
         </mesh>
       ))}
+
+      {/* === RAISED MARBLE PLATFORM === */}
+      <mesh position={[0, platH / 2, -l * 0.15]}>
+        <boxGeometry args={[w * 0.75, platH, w * 0.6]} />
+        <meshStandardMaterial color={marbleDk} />
+      </mesh>
+
+      {/* === MAIN BUILDING === */}
+      <mesh position={[0, platH + bldgH / 2, -l * 0.15]}>
+        <boxGeometry args={[bldgW, bldgH, bldgW]} />
+        <meshStandardMaterial color={marble} />
+      </mesh>
+      {/* Arched recesses on 4 faces */}
+      {[
+        [0, 0, bldgW / 2 + 0.08, 0],
+        [0, 0, -bldgW / 2 - 0.08, 0],
+        [bldgW / 2 + 0.08, 0, 0, Math.PI / 2],
+        [-bldgW / 2 - 0.08, 0, 0, Math.PI / 2],
+      ].map(([dx, _, dz, ry], i) => (
+        <group key={`ar${i}`}>
+          {/* Large central arch (iwan) */}
+          <mesh position={[dx, platH + bldgH * 0.5, -l * 0.15 + dz]} rotation={[0, ry, 0]}>
+            <boxGeometry args={[10, bldgH * 0.7, 0.5]} />
+            <meshStandardMaterial color="#D0CCC5" />
+          </mesh>
+          {/* Arch top (half-cylinder hint) */}
+          <mesh position={[dx, platH + bldgH * 0.8, -l * 0.15 + dz]} rotation={[Math.PI / 2, 0, ry]}>
+            <cylinderGeometry args={[5, 5, 0.5, 12, 1, false, 0, Math.PI]} />
+            <meshStandardMaterial color="#D0CCC5" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === CENTRAL DOME === */}
+      {/* Dome drum (cylinder base) */}
+      <mesh position={[0, platH + bldgH + 2, -l * 0.15]}>
+        <cylinderGeometry args={[domeR + 0.5, domeR + 1, 4, 16]} />
+        <meshStandardMaterial color={marble} />
+      </mesh>
+      {/* Main dome (half sphere) */}
+      <mesh position={[0, platH + bldgH + 4, -l * 0.15]}>
+        <sphereGeometry args={[domeR, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color={marble} />
+      </mesh>
+      {/* Finial (spire on top of dome) */}
+      <mesh position={[0, platH + bldgH + 4 + domeR + 1.5, -l * 0.15]}>
+        <cylinderGeometry args={[0.2, 0.5, 3, 8]} />
+        <meshStandardMaterial color="#D4A84B" />
+      </mesh>
+
+      {/* Small corner domes (chattris) */}
+      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
+        <group key={`cd${i}`}>
+          <mesh position={[dx * bldgW * 0.42, platH + bldgH + 2, -l * 0.15 + dz * bldgW * 0.42]}>
+            <cylinderGeometry args={[2, 2.2, 3, 8]} />
+            <meshStandardMaterial color={marble} />
+          </mesh>
+          <mesh position={[dx * bldgW * 0.42, platH + bldgH + 4, -l * 0.15 + dz * bldgW * 0.42]}>
+            <sphereGeometry args={[2.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshStandardMaterial color={marble} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === FOUR MINARETS === */}
+      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
+        <group key={`min${i}`}>
+          {/* Minaret shaft */}
+          <mesh position={[dx * minOff, platH + minH / 2, -l * 0.15 + dz * minOff]}>
+            <cylinderGeometry args={[minR * 0.8, minR, minH, 10]} />
+            <meshStandardMaterial color={marble} />
+          </mesh>
+          {/* Minaret balconies */}
+          {[0.5, 0.7, 0.88].map((t, bi) => (
+            <mesh key={`mb${bi}`} position={[dx * minOff, platH + minH * t, -l * 0.15 + dz * minOff]}>
+              <cylinderGeometry args={[minR + 0.5, minR + 0.5, 0.6, 10]} />
+              <meshStandardMaterial color={marbleDk} />
+            </mesh>
+          ))}
+          {/* Minaret top dome */}
+          <mesh position={[dx * minOff, platH + minH + 1, -l * 0.15 + dz * minOff]}>
+            <sphereGeometry args={[minR * 0.9, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshStandardMaterial color={marble} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === ENTRY GATE (red sandstone) === */}
+      <mesh position={[0, 8, l * 0.35]}>
+        <boxGeometry args={[18, 16, 5]} />
+        <meshStandardMaterial color={red} />
+      </mesh>
+      <mesh position={[0, 14, l * 0.35]}>
+        <sphereGeometry args={[3, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color={marble} />
+      </mesh>
     </group>
   )
 }
 
-// Colosseum - Elliptical stadium
+// Colosseum — Elliptical amphitheater with arched tiers and arena floor
 function Colosseum3D({ obj }) {
-  // Colosseum is elliptical - use scale to create ellipse from circle
-  const scaleX = 1
-  const scaleZ = obj.length / obj.width
+  const w = obj.width, l = obj.length  // 156x189
+  const wallH = 48    // real height ~48m
+  const outerR = w / 2 // 78
+  const scaleZ = l / w  // 189/156 ≈ 1.21 (ellipse)
+  const tiers = 4       // 4 levels of arches
+  const stone = '#C9B896'
+  const stoneDk = '#A89878'
+  const arenaColor = '#E8D8B8'
 
   return (
-    <group scale={[scaleX, 1, scaleZ]}>
-      {/* Outer ellipse footprint */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <ringGeometry args={[obj.width * 0.35, obj.width * 0.5, 32]} />
-        <meshStandardMaterial color="#C9B896" side={2} />
+    <group scale={[1, 1, scaleZ]}>
+      {/* Ground */}
+      <mesh position={[0, 0.06, 0]}>
+        <cylinderGeometry args={[outerR + 5, outerR + 5, 0.1, 32]} />
+        <meshStandardMaterial color="#D4C8A8" />
       </mesh>
-      {/* Outer wall */}
-      <mesh position={[0, 0.5, 0]}>
-        <cylinderGeometry args={[obj.width * 0.48, obj.width * 0.5, 1, 32, 1, true]} />
-        <meshStandardMaterial color="#C9B896" side={2} />
+
+      {/* === OUTER WALL — 4 tiered levels === */}
+      {Array.from({ length: tiers }, (_, i) => {
+        const tierH = wallH / tiers
+        const y = i * tierH + tierH / 2
+        const rBot = outerR - i * 1.5
+        const rTop = outerR - (i + 1) * 1.5
+        return (
+          <mesh key={`tier${i}`} position={[0, y, 0]}>
+            <cylinderGeometry args={[rTop, rBot, tierH, 40, 1, true]} />
+            <meshStandardMaterial color={i < 3 ? stone : stoneDk} side={2} />
+          </mesh>
+        )
+      })}
+
+      {/* Tier separation bands (horizontal cornices) */}
+      {[0, 1, 2, 3].map((i) => {
+        const y = i * (wallH / tiers)
+        const r = outerR - i * 1.5
+        return (
+          <mesh key={`band${i}`} position={[0, y, 0]}>
+            <cylinderGeometry args={[r + 0.5, r + 0.5, 1.2, 40]} />
+            <meshStandardMaterial color={stoneDk} />
+          </mesh>
+        )
+      })}
+      {/* Top cornice */}
+      <mesh position={[0, wallH, 0]}>
+        <cylinderGeometry args={[outerR - 5.5, outerR - 5, 1.5, 40]} />
+        <meshStandardMaterial color={stoneDk} />
       </mesh>
-      {/* Inner arena floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
-        <circleGeometry args={[obj.width * 0.2, 32]} />
-        <meshStandardMaterial color="#E8D8B8" />
+
+      {/* Arch columns — vertical pillars around exterior (lower 3 tiers) */}
+      {Array.from({ length: 40 }, (_, i) => {
+        const a = (Math.PI * 2 * i) / 40
+        const x = Math.sin(a) * (outerR + 0.3)
+        const z = Math.cos(a) * (outerR + 0.3)
+        return (
+          <mesh key={`col${i}`} position={[x, wallH * 0.375, z]}>
+            <cylinderGeometry args={[0.8, 1, wallH * 0.75, 6]} />
+            <meshStandardMaterial color={stone} />
+          </mesh>
+        )
+      })}
+
+      {/* === INNER WALL === */}
+      <mesh position={[0, wallH * 0.4, 0]}>
+        <cylinderGeometry args={[outerR * 0.65, outerR * 0.7, wallH * 0.8, 32, 1, true]} />
+        <meshStandardMaterial color={stoneDk} side={2} />
+      </mesh>
+
+      {/* === ARENA FLOOR === */}
+      <mesh position={[0, 2, 0]}>
+        <cylinderGeometry args={[outerR * 0.45, outerR * 0.45, 0.3, 32]} />
+        <meshStandardMaterial color={arenaColor} />
+      </mesh>
+
+      {/* Hypogeum (underground structure visible) — cross pattern */}
+      <mesh position={[0, 1.5, 0]}>
+        <boxGeometry args={[outerR * 0.8, 0.8, 3]} />
+        <meshStandardMaterial color="#8A7860" />
+      </mesh>
+      <mesh position={[0, 1.5, 0]}>
+        <boxGeometry args={[3, 0.8, outerR * 0.8]} />
+        <meshStandardMaterial color="#8A7860" />
+      </mesh>
+
+      {/* Collapsed south wall section — partial wall */}
+      <mesh position={[outerR * 0.35, wallH * 0.6, -outerR * 0.6]} rotation={[0, 0.8, 0]}>
+        <boxGeometry args={[outerR * 0.4, wallH * 0.4, 4]} />
+        <meshStandardMaterial color={stone} />
       </mesh>
     </group>
   )
 }
 
-// Big Ben - Square tower with clock
+// Big Ben (Elizabeth Tower) — Gothic tower with clock faces and spire
 function BigBen3D({ obj }) {
+  const w = obj.width, l = obj.length  // 12x12
+  const towerSz = w * 0.7   // 8.4m tower width
+  const totalH = 96          // real height 96m
+  const clockH = 70          // clock level
+  const stone = '#C9B896'
+  const stoneDk = '#A89070'
+  const cream = '#E8E0D0'
+
   return (
     <group>
       {/* Ground area */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <planeGeometry args={[obj.width * 2, obj.length * 2]} />
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[w, 0.1, l]} />
         <meshStandardMaterial color="#D4D0C8" />
       </mesh>
-      {/* Tower base */}
-      <mesh position={[0, 1, 0]}>
-        <boxGeometry args={[obj.width * 0.8, 2, obj.length * 0.8]} />
-        <meshStandardMaterial color="#8B7355" />
+
+      {/* === TOWER BASE (lower 2/3) === */}
+      <mesh position={[0, clockH / 2, 0]}>
+        <boxGeometry args={[towerSz, clockH, towerSz]} />
+        <meshStandardMaterial color={stone} roughness={0.85} />
       </mesh>
-      {/* Clock face (one side) */}
-      <mesh position={[0, 1.5, obj.length * 0.41]}>
-        <circleGeometry args={[obj.width * 0.25, 32]} />
-        <meshStandardMaterial color="#F5F0E6" />
+
+      {/* Gothic vertical ribs on each face */}
+      {[
+        [towerSz / 2 + 0.06, 0],
+        [-towerSz / 2 - 0.06, 0],
+        [0, towerSz / 2 + 0.06],
+        [0, -towerSz / 2 - 0.06],
+      ].map(([dx, dz], i) => (
+        <group key={`ribs${i}`}>
+          {[-towerSz * 0.3, 0, towerSz * 0.3].map((offset, ri) => {
+            const px = dx !== 0 ? dx : offset
+            const pz = dz !== 0 ? dz : offset
+            return (
+              <mesh key={`rib${ri}`} position={[px, clockH / 2, pz]}>
+                <boxGeometry args={[dx !== 0 ? 0.3 : 0.5, clockH - 2, dz !== 0 ? 0.3 : 0.5]} />
+                <meshStandardMaterial color={stoneDk} />
+              </mesh>
+            )
+          })}
+        </group>
+      ))}
+
+      {/* Horizontal band details */}
+      {[15, 30, 45, 60].map((y, i) => (
+        <mesh key={`hb${i}`} position={[0, y, 0]}>
+          <boxGeometry args={[towerSz + 0.3, 0.8, towerSz + 0.3]} />
+          <meshStandardMaterial color={stoneDk} />
+        </mesh>
+      ))}
+
+      {/* === CLOCK SECTION === */}
+      <mesh position={[0, clockH + 4, 0]}>
+        <boxGeometry args={[towerSz + 1, 8, towerSz + 1]} />
+        <meshStandardMaterial color={cream} />
       </mesh>
-      {/* Spire hint */}
-      <mesh position={[0, 2.5, 0]}>
-        <coneGeometry args={[obj.width * 0.2, 1, 4]} />
-        <meshStandardMaterial color="#6B5344" />
+
+      {/* Clock faces — 4 sides */}
+      {[
+        [0, 0, towerSz / 2 + 0.58, 0],
+        [0, 0, -towerSz / 2 - 0.58, 0],
+        [towerSz / 2 + 0.58, 0, 0, Math.PI / 2],
+        [-towerSz / 2 - 0.58, 0, 0, Math.PI / 2],
+      ].map(([dx, _, dz, ry], i) => (
+        <group key={`clock${i}`}>
+          {/* Clock face background */}
+          <mesh position={[dx, clockH + 4, dz]} rotation={[0, ry || 0, 0]}>
+            <cylinderGeometry args={[3, 3, 0.3, 24]} />
+            <meshStandardMaterial color="#F5F0E6" />
+          </mesh>
+          {/* Clock rim */}
+          <mesh position={[dx, clockH + 4, dz]} rotation={[0, ry || 0, 0]}>
+            <cylinderGeometry args={[3.2, 3.2, 0.15, 24, 1, true]} />
+            <meshStandardMaterial color="#222222" side={2} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === BELFRY (above clock) === */}
+      <mesh position={[0, clockH + 11, 0]}>
+        <boxGeometry args={[towerSz + 0.5, 6, towerSz + 0.5]} />
+        <meshStandardMaterial color={stone} />
+      </mesh>
+      {/* Belfry openings (dark arches on each side) */}
+      {[
+        [0, towerSz / 2 + 0.34],
+        [0, -towerSz / 2 - 0.34],
+        [towerSz / 2 + 0.34, 0],
+        [-towerSz / 2 - 0.34, 0],
+      ].map(([dx, dz], i) => (
+        <mesh key={`bel${i}`} position={[dx, clockH + 11, dz]}>
+          <boxGeometry args={[dx !== 0 ? 0.4 : 3, 4, dz !== 0 ? 0.4 : 3]} />
+          <meshStandardMaterial color="#333333" />
+        </mesh>
+      ))}
+
+      {/* === PYRAMIDAL ROOF === */}
+      <mesh position={[0, clockH + 17, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <coneGeometry args={[towerSz * 0.7, 8, 4]} />
+        <meshStandardMaterial color="#5A6A5A" metalness={0.2} />
+      </mesh>
+
+      {/* === SPIRE === */}
+      <mesh position={[0, clockH + 24, 0]}>
+        <coneGeometry args={[1, 12, 8]} />
+        <meshStandardMaterial color="#5A6A5A" metalness={0.3} />
+      </mesh>
+
+      {/* Gold finial */}
+      <mesh position={[0, clockH + 30.5, 0]}>
+        <sphereGeometry args={[0.6, 8, 8]} />
+        <meshStandardMaterial color="#D4A84B" emissive="#D4A84B" emissiveIntensity={0.3} />
+      </mesh>
+
+      {/* === ATTACHED PARLIAMENT BUILDING (low wing) === */}
+      <mesh position={[w * 0.3, 8, 0]}>
+        <boxGeometry args={[w * 0.4, 16, l * 0.8]} />
+        <meshStandardMaterial color={stone} />
       </mesh>
     </group>
   )
@@ -698,27 +1222,231 @@ function BigBen3D({ obj }) {
 
 // 7-Eleven convenience store
 function SevenEleven3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const wallH = 3.5
+  const bd = l - 4       // building depth (13m for l=17)
+  const bz = -2          // building center shifted back
+  const fz = bz + bd / 2 // front face z (4.5 for l=17)
+  const canopyDepth = l / 2 - fz // 4m canopy area
+
   return (
     <group>
-      {/* Parking lot */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width * 1.5, obj.length * 1.5]} />
-        <meshStandardMaterial color="#4A4A4A" />
+      {/* Concrete sidewalk in front */}
+      <mesh position={[0, 0.06, fz + canopyDepth / 2]}>
+        <boxGeometry args={[w, 0.1, canopyDepth]} />
+        <meshStandardMaterial color="#B0B0B0" />
       </mesh>
-      {/* Building */}
-      <mesh position={[0, 1.5, 0]}>
-        <boxGeometry args={[obj.width, 3, obj.length]} />
-        <meshStandardMaterial color="#FFFFFF" />
+
+      {/* Main building body - white lower */}
+      <mesh position={[0, wallH * 0.35, bz]}>
+        <boxGeometry args={[w, wallH * 0.7, bd]} />
+        <meshStandardMaterial color="#F0EDE5" />
       </mesh>
-      {/* Roof/sign band - green */}
-      <mesh position={[0, 3.1, 0]}>
-        <boxGeometry args={[obj.width + 0.5, 0.5, obj.length + 0.5]} />
+      {/* Upper wall - 7-Eleven green */}
+      <mesh position={[0, wallH * 0.85, bz]}>
+        <boxGeometry args={[w, wallH * 0.3, bd]} />
         <meshStandardMaterial color="#00703C" />
       </mesh>
-      {/* Orange stripe */}
-      <mesh position={[0, 2.5, obj.length / 2 + 0.01]}>
-        <planeGeometry args={[obj.width, 0.8]} />
+
+      {/* Concrete base strip */}
+      <mesh position={[0, 0.2, bz]}>
+        <boxGeometry args={[w + 0.1, 0.4, bd + 0.1]} />
+        <meshStandardMaterial color="#A0A0A0" />
+      </mesh>
+
+      {/* Flat roof with overhang */}
+      <mesh position={[0, wallH + 0.1, bz]}>
+        <boxGeometry args={[w + 0.6, 0.2, bd + 0.6]} />
+        <meshStandardMaterial color="#C8C8C8" />
+      </mesh>
+
+      {/* === ICONIC STRIPE BAND (green-orange-red) on front === */}
+      <mesh position={[0, wallH - 0.55, fz + 0.06]}>
+        <boxGeometry args={[w + 0.1, 0.25, 0.1]} />
         <meshStandardMaterial color="#FF7E00" />
+      </mesh>
+      <mesh position={[0, wallH - 0.8, fz + 0.06]}>
+        <boxGeometry args={[w + 0.1, 0.2, 0.1]} />
+        <meshStandardMaterial color="#EE2737" />
+      </mesh>
+
+      {/* === FACADE SIGNAGE (matches logo: orange 7 top, red 7 stem, green ELEVEn, red square) === */}
+      {/* White sign background */}
+      <mesh position={[0, wallH - 0.1, fz + 0.07]}>
+        <boxGeometry args={[w * 0.5, 0.8, 0.08]} />
+        <meshStandardMaterial color="#FFFFFF" />
+      </mesh>
+      {/* "7" - orange horizontal top bar */}
+      <mesh position={[-w * 0.06, wallH + 0.12, fz + 0.12]}>
+        <boxGeometry args={[1.6, 0.28, 0.06]} />
+        <meshStandardMaterial color="#FF7E00" emissive="#FF7E00" emissiveIntensity={0.3} />
+      </mesh>
+      {/* "7" - red diagonal stem (approximated vertical) */}
+      <mesh position={[w * 0.01, wallH - 0.22, fz + 0.12]}>
+        <boxGeometry args={[0.3, 0.7, 0.06]} />
+        <meshStandardMaterial color="#EE2737" emissive="#EE2737" emissiveIntensity={0.3} />
+      </mesh>
+      {/* "ELEVEn" - green text bar */}
+      <mesh position={[w * 0.01, wallH - 0.42, fz + 0.12]}>
+        <boxGeometry args={[2.8, 0.22, 0.06]} />
+        <meshStandardMaterial color="#00703C" emissive="#00703C" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Red square below stem */}
+      <mesh position={[w * 0.01, wallH - 0.62, fz + 0.12]}>
+        <boxGeometry args={[0.3, 0.22, 0.06]} />
+        <meshStandardMaterial color="#EE2737" emissive="#EE2737" emissiveIntensity={0.3} />
+      </mesh>
+
+      {/* === POLE SIGN near entrance === */}
+      {/* Pole */}
+      <mesh position={[w * 0.4, 2.5, l / 2 - 0.5]}>
+        <cylinderGeometry args={[0.12, 0.12, 5, 8]} />
+        <meshStandardMaterial color="#666666" metalness={0.4} />
+      </mesh>
+      {/* Sign box on pole - white background */}
+      <mesh position={[w * 0.4, 4.8, l / 2 - 0.5]}>
+        <boxGeometry args={[2.5, 1.8, 0.4]} />
+        <meshStandardMaterial color="#FFFFFF" />
+      </mesh>
+      {/* Green border on sign */}
+      <mesh position={[w * 0.4, 4.8, l / 2 - 0.28]}>
+        <boxGeometry args={[2.6, 1.9, 0.06]} />
+        <meshStandardMaterial color="#00703C" />
+      </mesh>
+      {/* Pole sign inner white face */}
+      <mesh position={[w * 0.4, 4.8, l / 2 - 0.24]}>
+        <boxGeometry args={[2.3, 1.6, 0.06]} />
+        <meshStandardMaterial color="#FFFFFF" />
+      </mesh>
+      {/* Pole sign - orange "7" top bar */}
+      <mesh position={[w * 0.4 - 0.2, 5.25, l / 2 - 0.2]}>
+        <boxGeometry args={[1.1, 0.22, 0.08]} />
+        <meshStandardMaterial color="#FF7E00" emissive="#FF7E00" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Pole sign - red "7" stem */}
+      <mesh position={[w * 0.4, 4.9, l / 2 - 0.2]}>
+        <boxGeometry args={[0.22, 0.55, 0.08]} />
+        <meshStandardMaterial color="#EE2737" emissive="#EE2737" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Pole sign - green "ELEVEn" bar */}
+      <mesh position={[w * 0.4, 4.55, l / 2 - 0.2]}>
+        <boxGeometry args={[1.8, 0.18, 0.08]} />
+        <meshStandardMaterial color="#00703C" emissive="#00703C" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Pole sign - red square below */}
+      <mesh position={[w * 0.4, 4.35, l / 2 - 0.2]}>
+        <boxGeometry args={[0.22, 0.2, 0.08]} />
+        <meshStandardMaterial color="#EE2737" emissive="#EE2737" emissiveIntensity={0.4} />
+      </mesh>
+
+      {/* === STOREFRONT GLASS WINDOWS === */}
+      {/* Left glass section */}
+      <mesh position={[-w * 0.27, 1.3, fz + 0.06]}>
+        <boxGeometry args={[w * 0.35, 2.2, 0.08]} />
+        <meshStandardMaterial color="#88C8E8" transparent opacity={0.45} metalness={0.1} roughness={0.1} />
+      </mesh>
+      {/* Right glass section */}
+      <mesh position={[w * 0.27, 1.3, fz + 0.06]}>
+        <boxGeometry args={[w * 0.35, 2.2, 0.08]} />
+        <meshStandardMaterial color="#88C8E8" transparent opacity={0.45} metalness={0.1} roughness={0.1} />
+      </mesh>
+
+      {/* Window mullions (vertical dividers) */}
+      {[-w * 0.45, -w * 0.27, -w * 0.09, w * 0.09, w * 0.27, w * 0.45].map((x, i) => (
+        <mesh key={`m${i}`} position={[x, 1.3, fz + 0.11]}>
+          <boxGeometry args={[0.1, 2.2, 0.06]} />
+          <meshStandardMaterial color="#444444" />
+        </mesh>
+      ))}
+      {/* Horizontal bar across windows */}
+      <mesh position={[-w * 0.27, 1.8, fz + 0.11]}>
+        <boxGeometry args={[w * 0.36, 0.06, 0.06]} />
+        <meshStandardMaterial color="#444444" />
+      </mesh>
+      <mesh position={[w * 0.27, 1.8, fz + 0.11]}>
+        <boxGeometry args={[w * 0.36, 0.06, 0.06]} />
+        <meshStandardMaterial color="#444444" />
+      </mesh>
+
+      {/* === ENTRANCE DOOR === */}
+      {/* Door recess */}
+      <mesh position={[0, 1.2, fz + 0.06]}>
+        <boxGeometry args={[2.0, 2.4, 0.15]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+      {/* Double glass door panels */}
+      <mesh position={[-0.5, 1.3, fz + 0.15]}>
+        <boxGeometry args={[0.85, 2.1, 0.06]} />
+        <meshStandardMaterial color="#7AB8D8" transparent opacity={0.5} />
+      </mesh>
+      <mesh position={[0.5, 1.3, fz + 0.15]}>
+        <boxGeometry args={[0.85, 2.1, 0.06]} />
+        <meshStandardMaterial color="#7AB8D8" transparent opacity={0.5} />
+      </mesh>
+      {/* Door handles */}
+      <mesh position={[-0.12, 1.2, fz + 0.2]}>
+        <boxGeometry args={[0.06, 0.4, 0.06]} />
+        <meshStandardMaterial color="#888888" metalness={0.5} />
+      </mesh>
+      <mesh position={[0.12, 1.2, fz + 0.2]}>
+        <boxGeometry args={[0.06, 0.4, 0.06]} />
+        <meshStandardMaterial color="#888888" metalness={0.5} />
+      </mesh>
+
+      {/* === FRONT CANOPY (within footprint) === */}
+      <mesh position={[0, 3.2, fz + canopyDepth / 2]}>
+        <boxGeometry args={[w, 0.15, canopyDepth]} />
+        <meshStandardMaterial color="#F5F5F5" />
+      </mesh>
+      {/* Canopy edge trim - green */}
+      <mesh position={[0, 3.12, l / 2]}>
+        <boxGeometry args={[w, 0.08, 0.12]} />
+        <meshStandardMaterial color="#00703C" />
+      </mesh>
+      {/* Canopy underside green stripe */}
+      <mesh position={[0, 3.11, fz + canopyDepth / 2]}>
+        <boxGeometry args={[w - 0.5, 0.04, canopyDepth - 0.3]} />
+        <meshStandardMaterial color="#008C4A" />
+      </mesh>
+      {/* Canopy support poles */}
+      {[-w * 0.45, w * 0.45].map((x, i) => (
+        <mesh key={`pole${i}`} position={[x, 1.6, l / 2 - 0.5]}>
+          <cylinderGeometry args={[0.1, 0.1, 3.2, 8]} />
+          <meshStandardMaterial color="#888888" metalness={0.3} />
+        </mesh>
+      ))}
+
+      {/* === SIDE DETAILS === */}
+      {/* Green band wraps around sides */}
+      <mesh position={[-w / 2 - 0.06, wallH * 0.85, bz]}>
+        <boxGeometry args={[0.08, wallH * 0.3, bd]} />
+        <meshStandardMaterial color="#00703C" />
+      </mesh>
+      <mesh position={[w / 2 + 0.06, wallH * 0.85, bz]}>
+        <boxGeometry args={[0.08, wallH * 0.3, bd]} />
+        <meshStandardMaterial color="#00703C" />
+      </mesh>
+      {/* Side window - left */}
+      <mesh position={[-w / 2 - 0.06, 1.8, bz]}>
+        <boxGeometry args={[0.08, 1.2, 2]} />
+        <meshStandardMaterial color="#88C8E8" transparent opacity={0.4} />
+      </mesh>
+      {/* Side window - right */}
+      <mesh position={[w / 2 + 0.06, 1.8, bz]}>
+        <boxGeometry args={[0.08, 1.2, 2]} />
+        <meshStandardMaterial color="#88C8E8" transparent opacity={0.4} />
+      </mesh>
+
+      {/* === ROOF DETAILS === */}
+      {/* AC unit */}
+      <mesh position={[w * 0.25, wallH + 0.55, bz - bd * 0.2]}>
+        <boxGeometry args={[1.8, 0.7, 1.2]} />
+        <meshStandardMaterial color="#909090" metalness={0.3} roughness={0.6} />
+      </mesh>
+      {/* Roof vent */}
+      <mesh position={[-w * 0.2, wallH + 0.4, bz - bd * 0.25]}>
+        <boxGeometry args={[0.8, 0.5, 0.8]} />
+        <meshStandardMaterial color="#808080" metalness={0.3} roughness={0.6} />
       </mesh>
     </group>
   )
@@ -726,27 +1454,216 @@ function SevenEleven3D({ obj }) {
 
 // McDonald's restaurant
 function McDonalds3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const wallH = 4.0
+  const bd = l - 3        // building depth
+  const bz = -1.5         // building center shifted back
+  const fz = bz + bd / 2  // front face z
+  const brickH = 1.2      // dark brick base height
+
   return (
     <group>
-      {/* Parking lot */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width * 2, obj.length * 2]} />
-        <meshStandardMaterial color="#4A4A4A" />
+      {/* Concrete sidewalk */}
+      <mesh position={[0, 0.06, fz + 1.5]}>
+        <boxGeometry args={[w, 0.1, 3]} />
+        <meshStandardMaterial color="#B0B0B0" />
       </mesh>
-      {/* Main building */}
-      <mesh position={[0, 2, 0]}>
-        <boxGeometry args={[obj.width, 4, obj.length]} />
-        <meshStandardMaterial color="#DA291C" />
+
+      {/* === BUILDING BODY === */}
+      {/* Dark brick base */}
+      <mesh position={[0, brickH / 2, bz]}>
+        <boxGeometry args={[w, brickH, bd]} />
+        <meshStandardMaterial color="#3D2B1F" roughness={0.9} />
       </mesh>
-      {/* Golden roof section */}
-      <mesh position={[0, 4.2, 0]}>
-        <boxGeometry args={[obj.width + 1, 0.5, obj.length + 1]} />
+      {/* Upper walls - dark charcoal with panel look */}
+      <mesh position={[0, brickH + (wallH - brickH) / 2, bz]}>
+        <boxGeometry args={[w, wallH - brickH, bd]} />
+        <meshStandardMaterial color="#4A4A4A" roughness={0.7} />
+      </mesh>
+      {/* Horizontal panel lines on front upper wall */}
+      {[0, 0.5, 1.0, 1.5, 2.0].map((dy, i) => (
+        <mesh key={`fl${i}`} position={[0, brickH + 0.3 + dy, fz + 0.06]}>
+          <boxGeometry args={[w + 0.1, 0.04, 0.06]} />
+          <meshStandardMaterial color="#555555" />
+        </mesh>
+      ))}
+
+      {/* Flat roof / parapet */}
+      <mesh position={[0, wallH + 0.15, bz]}>
+        <boxGeometry args={[w + 0.4, 0.3, bd + 0.4]} />
+        <meshStandardMaterial color="#3A3A3A" />
+      </mesh>
+      {/* Roof cap */}
+      <mesh position={[0, wallH + 0.35, bz]}>
+        <boxGeometry args={[w + 0.6, 0.1, bd + 0.6]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* === WOOD-TONE VERTICAL ACCENT PANELS === */}
+      {/* Left corner accent */}
+      <mesh position={[-w / 2 + 0.4, wallH / 2, fz + 0.07]}>
+        <boxGeometry args={[0.8, wallH, 0.1]} />
+        <meshStandardMaterial color="#8B5E3C" roughness={0.8} />
+      </mesh>
+      {/* Vertical slat lines on left accent */}
+      {[-0.25, -0.1, 0.05, 0.2, 0.35].map((dx, i) => (
+        <mesh key={`la${i}`} position={[-w / 2 + 0.4 + dx, wallH / 2, fz + 0.13]}>
+          <boxGeometry args={[0.04, wallH - 0.2, 0.04]} />
+          <meshStandardMaterial color="#6B4226" />
+        </mesh>
+      ))}
+      {/* Right corner accent */}
+      <mesh position={[w / 2 - 0.4, wallH / 2, fz + 0.07]}>
+        <boxGeometry args={[0.8, wallH, 0.1]} />
+        <meshStandardMaterial color="#8B5E3C" roughness={0.8} />
+      </mesh>
+      {[-0.25, -0.1, 0.05, 0.2, 0.35].map((dx, i) => (
+        <mesh key={`ra${i}`} position={[w / 2 - 0.4 + dx, wallH / 2, fz + 0.13]}>
+          <boxGeometry args={[0.04, wallH - 0.2, 0.04]} />
+          <meshStandardMaterial color="#6B4226" />
+        </mesh>
+      ))}
+
+      {/* === LARGE GLASS STOREFRONT WINDOWS === */}
+      {/* Left window */}
+      <mesh position={[-w * 0.22, wallH * 0.45, fz + 0.06]}>
+        <boxGeometry args={[w * 0.28, wallH * 0.6, 0.08]} />
+        <meshStandardMaterial color="#5A7A8A" transparent opacity={0.5} metalness={0.2} roughness={0.1} />
+      </mesh>
+      {/* Center window */}
+      <mesh position={[0, wallH * 0.45, fz + 0.06]}>
+        <boxGeometry args={[w * 0.18, wallH * 0.6, 0.08]} />
+        <meshStandardMaterial color="#5A7A8A" transparent opacity={0.5} metalness={0.2} roughness={0.1} />
+      </mesh>
+      {/* Right window */}
+      <mesh position={[w * 0.22, wallH * 0.45, fz + 0.06]}>
+        <boxGeometry args={[w * 0.28, wallH * 0.6, 0.08]} />
+        <meshStandardMaterial color="#5A7A8A" transparent opacity={0.5} metalness={0.2} roughness={0.1} />
+      </mesh>
+      {/* Window frames - dark */}
+      {[-w * 0.36, -w * 0.08, w * 0.08, w * 0.36].map((x, i) => (
+        <mesh key={`wf${i}`} position={[x, wallH * 0.45, fz + 0.11]}>
+          <boxGeometry args={[0.12, wallH * 0.62, 0.06]} />
+          <meshStandardMaterial color="#222222" />
+        </mesh>
+      ))}
+      {/* Window top frame */}
+      <mesh position={[0, wallH * 0.77, fz + 0.11]}>
+        <boxGeometry args={[w * 0.75, 0.1, 0.06]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+      {/* Window bottom frame */}
+      <mesh position={[0, brickH + 0.05, fz + 0.11]}>
+        <boxGeometry args={[w * 0.75, 0.1, 0.06]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+
+      {/* === GOLDEN AWNINGS above windows === */}
+      <mesh position={[-w * 0.22, wallH * 0.8, fz + 0.3]}>
+        <boxGeometry args={[w * 0.3, 0.08, 0.5]} />
         <meshStandardMaterial color="#FFC72C" />
       </mesh>
-      {/* Drive-through lane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[obj.width * 0.7, 0.02, 0]}>
-        <planeGeometry args={[3, obj.length * 1.5]} />
-        <meshStandardMaterial color="#333333" />
+      <mesh position={[w * 0.22, wallH * 0.8, fz + 0.3]}>
+        <boxGeometry args={[w * 0.3, 0.08, 0.5]} />
+        <meshStandardMaterial color="#FFC72C" />
+      </mesh>
+
+      {/* === ENTRANCE DOOR === */}
+      <mesh position={[0, 1.3, fz + 0.06]}>
+        <boxGeometry args={[2.2, 2.6, 0.15]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+      <mesh position={[-0.5, 1.4, fz + 0.15]}>
+        <boxGeometry args={[0.9, 2.2, 0.06]} />
+        <meshStandardMaterial color="#5A7A8A" transparent opacity={0.5} />
+      </mesh>
+      <mesh position={[0.5, 1.4, fz + 0.15]}>
+        <boxGeometry args={[0.9, 2.2, 0.06]} />
+        <meshStandardMaterial color="#5A7A8A" transparent opacity={0.5} />
+      </mesh>
+      {/* Door handles */}
+      <mesh position={[-0.12, 1.3, fz + 0.2]}>
+        <boxGeometry args={[0.06, 0.5, 0.06]} />
+        <meshStandardMaterial color="#888888" metalness={0.5} />
+      </mesh>
+      <mesh position={[0.12, 1.3, fz + 0.2]}>
+        <boxGeometry args={[0.06, 0.5, 0.06]} />
+        <meshStandardMaterial color="#888888" metalness={0.5} />
+      </mesh>
+
+      {/* === BIG GOLDEN ARCHES "M" — on top of building === */}
+      {/* Legs start at roof top (4.35), arches curve above */}
+      {/* Left arch curve (12 segments) */}
+      {Array.from({length: 12}, (_, i) => {
+        const a = -Math.PI / 2 + (i + 0.5) * Math.PI / 12
+        return (
+          <mesh key={`la${i}`} position={[
+            -0.95 + 0.95 * Math.sin(a),
+            5.55 + 0.95 * Math.cos(a),
+            fz + 0.15
+          ]} rotation={[0, 0, a + Math.PI / 2]}>
+            <boxGeometry args={[0.35, 0.3, 0.15]} />
+            <meshStandardMaterial color="#FFC72C" emissive="#FFC72C" emissiveIntensity={0.6} />
+          </mesh>
+        )
+      })}
+      {/* Right arch curve (12 segments) */}
+      {Array.from({length: 12}, (_, i) => {
+        const a = -Math.PI / 2 + (i + 0.5) * Math.PI / 12
+        return (
+          <mesh key={`ra${i}`} position={[
+            0.95 + 0.95 * Math.sin(a),
+            5.55 + 0.95 * Math.cos(a),
+            fz + 0.15
+          ]} rotation={[0, 0, a + Math.PI / 2]}>
+            <boxGeometry args={[0.35, 0.3, 0.15]} />
+            <meshStandardMaterial color="#FFC72C" emissive="#FFC72C" emissiveIntensity={0.6} />
+          </mesh>
+        )
+      })}
+      {/* M straight legs — from roof (4.35) up to arch bottom (5.55) */}
+      {/* Far left leg */}
+      <mesh position={[-1.9, 4.95, fz + 0.15]}>
+        <boxGeometry args={[0.35, 1.2, 0.15]} />
+        <meshStandardMaterial color="#FFC72C" emissive="#FFC72C" emissiveIntensity={0.6} />
+      </mesh>
+      {/* Center inner legs (shared) */}
+      <mesh position={[0, 4.95, fz + 0.15]}>
+        <boxGeometry args={[0.35, 1.2, 0.15]} />
+        <meshStandardMaterial color="#FFC72C" emissive="#FFC72C" emissiveIntensity={0.6} />
+      </mesh>
+      {/* Far right leg */}
+      <mesh position={[1.9, 4.95, fz + 0.15]}>
+        <boxGeometry args={[0.35, 1.2, 0.15]} />
+        <meshStandardMaterial color="#FFC72C" emissive="#FFC72C" emissiveIntensity={0.6} />
+      </mesh>
+
+      {/* === SIDE DETAILS === */}
+      {/* Side windows - left */}
+      <mesh position={[-w / 2 - 0.06, wallH * 0.45, bz + bd * 0.15]}>
+        <boxGeometry args={[0.08, 1.5, 3]} />
+        <meshStandardMaterial color="#5A7A8A" transparent opacity={0.45} />
+      </mesh>
+      {/* Side windows - right */}
+      <mesh position={[w / 2 + 0.06, wallH * 0.45, bz + bd * 0.15]}>
+        <boxGeometry args={[0.08, 1.5, 3]} />
+        <meshStandardMaterial color="#5A7A8A" transparent opacity={0.45} />
+      </mesh>
+      {/* Drive-through window on left side */}
+      <mesh position={[-w / 2 - 0.06, 1.5, bz - bd * 0.15]}>
+        <boxGeometry args={[0.08, 1.0, 1.2]} />
+        <meshStandardMaterial color="#5A7A8A" transparent opacity={0.45} />
+      </mesh>
+      {/* Drive-through awning */}
+      <mesh position={[-w / 2 - 0.5, 2.2, bz - bd * 0.15]}>
+        <boxGeometry args={[1, 0.08, 2]} />
+        <meshStandardMaterial color="#FFC72C" />
+      </mesh>
+
+      {/* === ROOF DETAILS === */}
+      <mesh position={[w * 0.2, wallH + 0.65, bz - bd * 0.2]}>
+        <boxGeometry args={[2, 0.8, 1.5]} />
+        <meshStandardMaterial color="#666666" metalness={0.3} roughness={0.6} />
       </mesh>
     </group>
   )
@@ -754,36 +1671,168 @@ function McDonalds3D({ obj }) {
 
 // Gas Station with canopy
 function GasStation3D({ obj }) {
+  const w = obj.width, l = obj.length
+  // Layout: store at back, canopy + pumps in front
+  const storeW = 16, storeD = 10, storeH = 4.5
+  const storeZ = -l / 2 + storeD / 2 + 2  // near back edge
+  const canopyW = 28, canopyD = 16, canopyH = 5
+  const canopyZ = storeZ + storeD / 2 + canopyD / 2 + 3 // in front of store
+
   return (
     <group>
-      {/* Asphalt lot */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial color="#3A3A3A" />
+      {/* === CONCRETE FORECOURT === */}
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[w - 2, 0.1, l - 2]} />
+        <meshStandardMaterial color="#B8B8B8" />
       </mesh>
-      {/* Canopy */}
-      <mesh position={[-obj.width * 0.15, 4, 0]}>
-        <boxGeometry args={[obj.width * 0.5, 0.3, obj.length * 0.4]} />
-        <meshStandardMaterial color="#E0E0E0" />
+
+      {/* === CONVENIENCE STORE BUILDING === */}
+      {/* Brick base */}
+      <mesh position={[0, 1.0, storeZ]}>
+        <boxGeometry args={[storeW, 2.0, storeD]} />
+        <meshStandardMaterial color="#8B4513" roughness={0.9} />
       </mesh>
-      {/* Canopy pillars */}
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (
-        <mesh key={i} position={[-obj.width * 0.15 + dx * obj.width * 0.2, 2, dz * obj.length * 0.15]}>
-          <cylinderGeometry args={[0.3, 0.3, 4, 8]} />
-          <meshStandardMaterial color="#999999" />
+      {/* Upper walls */}
+      <mesh position={[0, storeH * 0.7, storeZ]}>
+        <boxGeometry args={[storeW, storeH * 0.45, storeD]} />
+        <meshStandardMaterial color="#E8E0D0" />
+      </mesh>
+      {/* Store roof */}
+      <mesh position={[0, storeH + 0.1, storeZ]}>
+        <boxGeometry args={[storeW + 0.8, 0.25, storeD + 0.8]} />
+        <meshStandardMaterial color="#555555" />
+      </mesh>
+      {/* Store front windows */}
+      {[-4, -1.5, 1.5, 4].map((dx, i) => (
+        <mesh key={`sw${i}`} position={[dx, 2.2, storeZ + storeD / 2 + 0.06]}>
+          <boxGeometry args={[2.2, 2.5, 0.08]} />
+          <meshStandardMaterial color="#6A9AB8" transparent opacity={0.5} metalness={0.2} roughness={0.1} />
         </mesh>
       ))}
-      {/* Fuel pumps */}
-      {[-1, 0, 1].map((offset, i) => (
-        <mesh key={i} position={[-obj.width * 0.15, 0.75, offset * obj.length * 0.1]}>
-          <boxGeometry args={[1, 1.5, 0.6]} />
-          <meshStandardMaterial color="#FF0000" />
+      {/* Window frames */}
+      {[-5.1, -2.6, -0.4, 0.4, 2.6, 5.1].map((dx, i) => (
+        <mesh key={`wf${i}`} position={[dx, 2.2, storeZ + storeD / 2 + 0.1]}>
+          <boxGeometry args={[0.1, 2.6, 0.06]} />
+          <meshStandardMaterial color="#333333" />
         </mesh>
       ))}
-      {/* Convenience store building */}
-      <mesh position={[obj.width * 0.3, 2, 0]}>
-        <boxGeometry args={[obj.width * 0.3, 4, obj.length * 0.4]} />
+      {/* Store entrance door */}
+      <mesh position={[0, 1.4, storeZ + storeD / 2 + 0.06]}>
+        <boxGeometry args={[2.0, 2.8, 0.12]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+      <mesh position={[0, 1.5, storeZ + storeD / 2 + 0.14]}>
+        <boxGeometry args={[1.6, 2.4, 0.06]} />
+        <meshStandardMaterial color="#6A9AB8" transparent opacity={0.5} />
+      </mesh>
+
+      {/* === FUEL CANOPY === */}
+      {/* Canopy roof */}
+      <mesh position={[0, canopyH, canopyZ]}>
+        <boxGeometry args={[canopyW, 0.4, canopyD]} />
+        <meshStandardMaterial color="#E8E8E8" />
+      </mesh>
+      {/* Canopy edge fascia band */}
+      <mesh position={[0, canopyH - 0.25, canopyZ]}>
+        <boxGeometry args={[canopyW + 0.2, 0.15, canopyD + 0.2]} />
+        <meshStandardMaterial color="#DD0000" />
+      </mesh>
+      {/* Canopy support columns (6 columns — 3 per side) */}
+      {[-canopyW * 0.35, 0, canopyW * 0.35].map((dx, i) => (
+        [-canopyD * 0.4, canopyD * 0.4].map((dz, j) => (
+          <mesh key={`col${i}${j}`} position={[dx, canopyH / 2, canopyZ + dz]}>
+            <boxGeometry args={[0.5, canopyH, 0.5]} />
+            <meshStandardMaterial color="#AAAAAA" metalness={0.3} />
+          </mesh>
+        ))
+      ))}
+
+      {/* === FUEL PUMP ISLANDS (3 islands, 2 pumps each) === */}
+      {[-canopyW * 0.3, 0, canopyW * 0.3].map((dx, i) => (
+        <group key={`island${i}`}>
+          {/* Island platform */}
+          <mesh position={[dx, 0.12, canopyZ]}>
+            <boxGeometry args={[1.8, 0.2, canopyD * 0.6]} />
+            <meshStandardMaterial color="#D0D000" />
+          </mesh>
+          {/* Two pumps per island */}
+          {[-canopyD * 0.15, canopyD * 0.15].map((dz, j) => (
+            <group key={`pump${i}${j}`}>
+              {/* Pump body */}
+              <mesh position={[dx, 1.0, canopyZ + dz]}>
+                <boxGeometry args={[0.8, 1.6, 0.5]} />
+                <meshStandardMaterial color="#E0E0E0" />
+              </mesh>
+              {/* Pump screen */}
+              <mesh position={[dx, 1.3, canopyZ + dz + 0.26]}>
+                <boxGeometry args={[0.5, 0.35, 0.06]} />
+                <meshStandardMaterial color="#111111" />
+              </mesh>
+              {/* Pump nozzle holder */}
+              <mesh position={[dx + 0.35, 0.9, canopyZ + dz]}>
+                <boxGeometry args={[0.15, 0.6, 0.12]} />
+                <meshStandardMaterial color="#333333" />
+              </mesh>
+              <mesh position={[dx - 0.35, 0.9, canopyZ + dz]}>
+                <boxGeometry args={[0.15, 0.6, 0.12]} />
+                <meshStandardMaterial color="#333333" />
+              </mesh>
+              {/* Pump top */}
+              <mesh position={[dx, 1.85, canopyZ + dz]}>
+                <boxGeometry args={[0.85, 0.1, 0.55]} />
+                <meshStandardMaterial color="#DD0000" />
+              </mesh>
+            </group>
+          ))}
+          {/* Bollards at island ends */}
+          <mesh position={[dx, 0.4, canopyZ - canopyD * 0.28]}>
+            <cylinderGeometry args={[0.15, 0.15, 0.7, 8]} />
+            <meshStandardMaterial color="#FFD700" />
+          </mesh>
+          <mesh position={[dx, 0.4, canopyZ + canopyD * 0.28]}>
+            <cylinderGeometry args={[0.15, 0.15, 0.7, 8]} />
+            <meshStandardMaterial color="#FFD700" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === PRICE SIGN POLE === */}
+      <mesh position={[w / 2 - 3, 4, l / 2 - 3]}>
+        <cylinderGeometry args={[0.2, 0.2, 8, 8]} />
+        <meshStandardMaterial color="#666666" metalness={0.4} />
+      </mesh>
+      {/* Price sign box */}
+      <mesh position={[w / 2 - 3, 7.5, l / 2 - 3]}>
+        <boxGeometry args={[3, 3.5, 0.5]} />
         <meshStandardMaterial color="#FFFFFF" />
+      </mesh>
+      {/* Sign brand strip */}
+      <mesh position={[w / 2 - 3, 8.8, l / 2 - 2.73]}>
+        <boxGeometry args={[2.8, 0.8, 0.08]} />
+        <meshStandardMaterial color="#DD0000" />
+      </mesh>
+      {/* Price rows */}
+      {[0, -0.7, -1.4].map((dy, i) => (
+        <mesh key={`pr${i}`} position={[w / 2 - 3, 8.0 + dy, l / 2 - 2.73]}>
+          <boxGeometry args={[2.5, 0.4, 0.08]} />
+          <meshStandardMaterial color="#111111" />
+        </mesh>
+      ))}
+
+      {/* === AIR/VACUUM STATION (side) === */}
+      <mesh position={[-w / 2 + 3, 0.6, storeZ]}>
+        <boxGeometry args={[1.2, 1.2, 0.8]} />
+        <meshStandardMaterial color="#4488CC" />
+      </mesh>
+      <mesh position={[-w / 2 + 3, 1.3, storeZ]}>
+        <boxGeometry args={[1.3, 0.15, 0.9]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* === DUMPSTER ENCLOSURE (back corner) === */}
+      <mesh position={[w / 2 - 3, 1.0, -l / 2 + 2]}>
+        <boxGeometry args={[3, 2, 2.5]} />
+        <meshStandardMaterial color="#556B2F" />
       </mesh>
     </group>
   )
@@ -791,55 +1840,329 @@ function GasStation3D({ obj }) {
 
 // Supermarket
 function Supermarket3D({ obj }) {
+  const w = obj.width, l = obj.length
+  // Layout: building at back, parking in front
+  const bldgW = w - 4, bldgD = l * 0.6, bldgH = 7
+  const bldgZ = -l / 2 + bldgD / 2 + 2 // shifted to back
+  const fz = bldgZ + bldgD / 2           // front face of building
+  const parkZ = fz + (l / 2 - fz) / 2    // parking lot center
+
   return (
     <group>
-      {/* Parking lot */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, obj.length * 0.4]}>
-        <planeGeometry args={[obj.width, obj.length * 0.6]} />
-        <meshStandardMaterial color="#4A4A4A" />
+      {/* === PARKING LOT === */}
+      <mesh position={[0, 0.06, parkZ]}>
+        <boxGeometry args={[w - 2, 0.1, l / 2 - fz - 1]} />
+        <meshStandardMaterial color="#555555" />
       </mesh>
-      {/* Main building */}
-      <mesh position={[0, 3, -obj.length * 0.1]}>
-        <boxGeometry args={[obj.width, 6, obj.length * 0.8]} />
-        <meshStandardMaterial color="#FFFFFF" />
+      {/* Parking lines (rows of white stripes) */}
+      {[-2, 2].map((rowZ, ri) => (
+        Array.from({length: 10}, (_, i) => (
+          <mesh key={`pl${ri}${i}`} position={[-w * 0.4 + i * (w * 0.8 / 9), 0.12, parkZ + rowZ]}>
+            <boxGeometry args={[0.12, 0.06, 2.5]} />
+            <meshStandardMaterial color="#FFFFFF" />
+          </mesh>
+        ))
+      ))}
+      {/* Sidewalk in front of store */}
+      <mesh position={[0, 0.08, fz + 1.5]}>
+        <boxGeometry args={[bldgW + 2, 0.12, 3]} />
+        <meshStandardMaterial color="#C0C0C0" />
       </mesh>
-      {/* Green accent band */}
-      <mesh position={[0, 6.1, -obj.length * 0.1]}>
-        <boxGeometry args={[obj.width + 1, 0.5, obj.length * 0.8 + 1]} />
+
+      {/* === MAIN BUILDING === */}
+      {/* Full building body — cream upper color */}
+      <mesh position={[0, bldgH / 2, bldgZ]}>
+        <boxGeometry args={[bldgW, bldgH, bldgD]} />
+        <meshStandardMaterial color="#E8E0D0" />
+      </mesh>
+      {/* Brick base wrap — slightly larger so it covers the lower portion */}
+      <mesh position={[0, 1.5, bldgZ]}>
+        <boxGeometry args={[bldgW + 0.1, 3.0, bldgD + 0.1]} />
+        <meshStandardMaterial color="#C8B89A" roughness={0.85} />
+      </mesh>
+      {/* Roof */}
+      <mesh position={[0, bldgH + 0.15, bldgZ]}>
+        <boxGeometry args={[bldgW + 1, 0.3, bldgD + 1]} />
+        <meshStandardMaterial color="#555555" />
+      </mesh>
+
+      {/* === FRONT FACADE DETAIL === */}
+      {/* Green brand band across top of front */}
+      <mesh position={[0, bldgH - 0.3, fz + 0.06]}>
+        <boxGeometry args={[bldgW + 0.1, 1.0, 0.12]} />
         <meshStandardMaterial color="#2E8B57" />
       </mesh>
-      {/* Entrance canopy */}
-      <mesh position={[0, 3.5, obj.length * 0.3]}>
-        <boxGeometry args={[obj.width * 0.3, 0.3, 3]} />
-        <meshStandardMaterial color="#E0E0E0" />
+      {/* Signage panel on green band */}
+      <mesh position={[0, bldgH - 0.3, fz + 0.14]}>
+        <boxGeometry args={[12, 0.6, 0.08]} />
+        <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.2} />
       </mesh>
+
+      {/* Large storefront windows */}
+      {[-bldgW * 0.35, -bldgW * 0.15, bldgW * 0.15, bldgW * 0.35].map((dx, i) => (
+        <mesh key={`win${i}`} position={[dx, 2.8, fz + 0.06]}>
+          <boxGeometry args={[bldgW * 0.16, 3.5, 0.08]} />
+          <meshStandardMaterial color="#6A9AB8" transparent opacity={0.45} metalness={0.2} roughness={0.1} />
+        </mesh>
+      ))}
+      {/* Window mullions */}
+      {[-bldgW * 0.43, -bldgW * 0.27, -bldgW * 0.07, bldgW * 0.07, bldgW * 0.27, bldgW * 0.43].map((dx, i) => (
+        <mesh key={`mul${i}`} position={[dx, 2.8, fz + 0.11]}>
+          <boxGeometry args={[0.15, 3.6, 0.06]} />
+          <meshStandardMaterial color="#444444" />
+        </mesh>
+      ))}
+      {/* Window bottom frame */}
+      <mesh position={[0, 0.95, fz + 0.11]}>
+        <boxGeometry args={[bldgW * 0.88, 0.12, 0.06]} />
+        <meshStandardMaterial color="#444444" />
+      </mesh>
+
+      {/* === ENTRANCE AREA (center) === */}
+      {/* Entrance recess */}
+      <mesh position={[0, 2.2, fz + 0.3]}>
+        <boxGeometry args={[6, 4.4, 0.6]} />
+        <meshStandardMaterial color="#3A3A3A" />
+      </mesh>
+      {/* Entrance glass doors */}
+      {[-1.2, 1.2].map((dx, i) => (
+        <mesh key={`door${i}`} position={[dx, 1.8, fz + 0.65]}>
+          <boxGeometry args={[2.0, 3.2, 0.06]} />
+          <meshStandardMaterial color="#6A9AB8" transparent opacity={0.5} />
+        </mesh>
+      ))}
+      {/* Entrance canopy */}
+      <mesh position={[0, 4.5, fz + 2.5]}>
+        <boxGeometry args={[10, 0.2, 5]} />
+        <meshStandardMaterial color="#E8E8E8" />
+      </mesh>
+      {/* Canopy edge — green */}
+      <mesh position={[0, 4.39, fz + 5]}>
+        <boxGeometry args={[10, 0.1, 0.15]} />
+        <meshStandardMaterial color="#2E8B57" />
+      </mesh>
+      {/* Canopy support columns */}
+      {[-4.5, 4.5].map((dx, i) => (
+        <mesh key={`ec${i}`} position={[dx, 2.3, fz + 4.5]}>
+          <cylinderGeometry args={[0.15, 0.15, 4.4, 8]} />
+          <meshStandardMaterial color="#888888" metalness={0.3} />
+        </mesh>
+      ))}
+
+      {/* === CART CORRAL (near entrance) === */}
+      {[-8, 8].map((dx, i) => (
+        <group key={`corral${i}`}>
+          <mesh position={[dx, 0.5, fz + 4]}>
+            <boxGeometry args={[3, 1.0, 1.5]} />
+            <meshStandardMaterial color="#888888" metalness={0.4} roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === LOADING DOCK (back of building) === */}
+      {/* Dock platform — pushed out from back wall */}
+      <mesh position={[bldgW * 0.25, 0.6, bldgZ - bldgD / 2 - 1.5]}>
+        <boxGeometry args={[12, 1.2, 3]} />
+        <meshStandardMaterial color="#999999" />
+      </mesh>
+      {/* Dock bay doors — offset 0.15 from back wall face */}
+      {[bldgW * 0.2, bldgW * 0.3].map((dx, i) => (
+        <mesh key={`dock${i}`} position={[dx, 2.5, bldgZ - bldgD / 2 - 0.15]}>
+          <boxGeometry args={[3.5, 3.8, 0.2]} />
+          <meshStandardMaterial color="#777777" metalness={0.3} />
+        </mesh>
+      ))}
+
+      {/* === ROOFTOP HVAC UNITS === */}
+      {[-bldgW * 0.25, 0, bldgW * 0.25].map((dx, i) => (
+        <mesh key={`hvac${i}`} position={[dx, bldgH + 0.7, bldgZ - bldgD * 0.15]}>
+          <boxGeometry args={[2.5, 1.0, 2]} />
+          <meshStandardMaterial color="#808080" metalness={0.3} roughness={0.6} />
+        </mesh>
+      ))}
     </group>
   )
 }
 
 // Starbucks coffee shop
 function Starbucks3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const wallH = 3.8
+  const bd = l - 3          // building depth
+  const bz = -1.5           // building center shifted back
+  const fz = bz + bd / 2    // front face z
+  const patioD = l / 2 - fz // patio area in front
+
   return (
     <group>
-      {/* Parking/patio area */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width * 1.5, obj.length * 1.5]} />
-        <meshStandardMaterial color="#4A4A4A" />
+      {/* === PATIO AREA === */}
+      <mesh position={[0, 0.06, fz + patioD / 2]}>
+        <boxGeometry args={[w, 0.1, patioD]} />
+        <meshStandardMaterial color="#B0A898" />
       </mesh>
-      {/* Main building */}
-      <mesh position={[0, 2, 0]}>
-        <boxGeometry args={[obj.width, 4, obj.length]} />
-        <meshStandardMaterial color="#1E3932" />
+      {/* Patio tables (2 small tables) */}
+      {[-2.5, 2.5].map((dx, i) => (
+        <group key={`pt${i}`}>
+          {/* Table top */}
+          <mesh position={[dx, 0.75, fz + patioD * 0.5]}>
+            <cylinderGeometry args={[0.5, 0.5, 0.06, 12]} />
+            <meshStandardMaterial color="#8B7355" />
+          </mesh>
+          {/* Table leg */}
+          <mesh position={[dx, 0.38, fz + patioD * 0.5]}>
+            <cylinderGeometry args={[0.06, 0.06, 0.7, 6]} />
+            <meshStandardMaterial color="#555555" metalness={0.4} />
+          </mesh>
+          {/* Chairs */}
+          {[-0.6, 0.6].map((cdz, ci) => (
+            <mesh key={`ch${i}${ci}`} position={[dx, 0.4, fz + patioD * 0.5 + cdz]}>
+              <boxGeometry args={[0.35, 0.8, 0.35]} />
+              <meshStandardMaterial color="#666666" />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* === MAIN BUILDING === */}
+      {/* Building body — warm cream */}
+      <mesh position={[0, wallH / 2, bz]}>
+        <boxGeometry args={[w, wallH, bd]} />
+        <meshStandardMaterial color="#E0D5C3" />
       </mesh>
-      {/* Green roof accent */}
-      <mesh position={[0, 4.1, 0]}>
-        <boxGeometry args={[obj.width + 0.5, 0.3, obj.length + 0.5]} />
+      {/* Green accent band along top — sits just above cream body */}
+      <mesh position={[0, wallH + 0.06, bz]}>
+        <boxGeometry args={[w + 0.02, 0.1, bd + 0.02]} />
         <meshStandardMaterial color="#00704A" />
       </mesh>
-      {/* Drive-through lane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[obj.width * 0.6, 0.02, 0]}>
-        <planeGeometry args={[2, obj.length * 1.3]} />
+
+      {/* Flat roof with slight overhang */}
+      <mesh position={[0, wallH + 0.1, bz]}>
+        <boxGeometry args={[w + 0.5, 0.2, bd + 0.5]} />
+        <meshStandardMaterial color="#2A2A2A" />
+      </mesh>
+
+      {/* === WOOD ACCENT PANELS === */}
+      {/* Warm wood vertical slat panel — left side of front */}
+      <mesh position={[-w / 2 + 0.8, wallH / 2, fz + 0.06]}>
+        <boxGeometry args={[1.5, wallH - 0.2, 0.1]} />
+        <meshStandardMaterial color="#A0714F" roughness={0.8} />
+      </mesh>
+      {/* Wood slat lines */}
+      {[-0.5, -0.25, 0, 0.25, 0.5].map((dx, i) => (
+        <mesh key={`wsl${i}`} position={[-w / 2 + 0.8 + dx, wallH / 2, fz + 0.12]}>
+          <boxGeometry args={[0.04, wallH - 0.4, 0.04]} />
+          <meshStandardMaterial color="#7A5535" />
+        </mesh>
+      ))}
+      {/* Wood panel — right side */}
+      <mesh position={[w / 2 - 0.8, wallH / 2, fz + 0.06]}>
+        <boxGeometry args={[1.5, wallH - 0.2, 0.1]} />
+        <meshStandardMaterial color="#A0714F" roughness={0.8} />
+      </mesh>
+      {[-0.5, -0.25, 0, 0.25, 0.5].map((dx, i) => (
+        <mesh key={`wsr${i}`} position={[w / 2 - 0.8 + dx, wallH / 2, fz + 0.12]}>
+          <boxGeometry args={[0.04, wallH - 0.4, 0.04]} />
+          <meshStandardMaterial color="#7A5535" />
+        </mesh>
+      ))}
+
+      {/* === LARGE GLASS STOREFRONT === */}
+      {/* Left glass section */}
+      <mesh position={[-w * 0.17, wallH * 0.45, fz + 0.06]}>
+        <boxGeometry args={[w * 0.3, wallH * 0.7, 0.08]} />
+        <meshStandardMaterial color="#5A8070" transparent opacity={0.45} metalness={0.2} roughness={0.1} />
+      </mesh>
+      {/* Right glass section */}
+      <mesh position={[w * 0.17, wallH * 0.45, fz + 0.06]}>
+        <boxGeometry args={[w * 0.3, wallH * 0.7, 0.08]} />
+        <meshStandardMaterial color="#5A8070" transparent opacity={0.45} metalness={0.2} roughness={0.1} />
+      </mesh>
+      {/* Window frames */}
+      {[-w * 0.32, -w * 0.02, w * 0.02, w * 0.32].map((dx, i) => (
+        <mesh key={`sf${i}`} position={[dx, wallH * 0.45, fz + 0.11]}>
+          <boxGeometry args={[0.1, wallH * 0.72, 0.06]} />
+          <meshStandardMaterial color="#222222" />
+        </mesh>
+      ))}
+      {/* Top frame */}
+      <mesh position={[0, wallH * 0.82, fz + 0.11]}>
+        <boxGeometry args={[w * 0.65, 0.08, 0.06]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+
+      {/* === ENTRANCE DOOR === */}
+      <mesh position={[0, 1.4, fz + 0.06]}>
+        <boxGeometry args={[1.8, 2.8, 0.12]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+      <mesh position={[0, 1.5, fz + 0.14]}>
+        <boxGeometry args={[1.5, 2.4, 0.06]} />
+        <meshStandardMaterial color="#5A8070" transparent opacity={0.5} />
+      </mesh>
+      {/* Door handle */}
+      <mesh position={[0.55, 1.4, fz + 0.2]}>
+        <boxGeometry args={[0.06, 0.4, 0.06]} />
+        <meshStandardMaterial color="#888888" metalness={0.5} />
+      </mesh>
+
+      {/* === STARBUCKS CIRCULAR LOGO ON ROOF === */}
+      {/* Pole mount */}
+      <mesh position={[0, wallH + 0.7, fz - 0.5]}>
+        <cylinderGeometry args={[0.06, 0.06, 1.2, 6]} />
+        <meshStandardMaterial color="#555555" metalness={0.4} />
+      </mesh>
+      {/* Outer green circle — on roof, facing front */}
+      <mesh position={[0, wallH + 1.3, fz - 0.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.9, 0.9, 0.1, 24]} />
+        <meshStandardMaterial color="#00704A" emissive="#00704A" emissiveIntensity={0.4} />
+      </mesh>
+      {/* White ring */}
+      <mesh position={[0, wallH + 1.3, fz - 0.44]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.72, 0.72, 0.06, 24]} />
+        <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Inner green circle */}
+      <mesh position={[0, wallH + 1.3, fz - 0.4]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.55, 0.55, 0.06, 24]} />
+        <meshStandardMaterial color="#00704A" emissive="#00704A" emissiveIntensity={0.3} />
+      </mesh>
+
+      {/* === DRIVE-THROUGH SIDE === */}
+      {/* Drive-through window — left side */}
+      <mesh position={[-w / 2 - 0.06, 1.5, bz + bd * 0.1]}>
+        <boxGeometry args={[0.08, 1.2, 1.5]} />
+        <meshStandardMaterial color="#5A8070" transparent opacity={0.45} />
+      </mesh>
+      {/* Drive-through menu board */}
+      <mesh position={[-w / 2 - 1.5, 1.5, bz - bd * 0.2]}>
+        <boxGeometry args={[0.15, 2.0, 1.5]} />
+        <meshStandardMaterial color="#00704A" />
+      </mesh>
+      <mesh position={[-w / 2 - 1.53, 1.6, bz - bd * 0.2]}>
+        <boxGeometry args={[0.08, 1.5, 1.2]} />
         <meshStandardMaterial color="#333333" />
+      </mesh>
+      {/* Menu board pole */}
+      <mesh position={[-w / 2 - 1.5, 0.3, bz - bd * 0.2]}>
+        <cylinderGeometry args={[0.08, 0.08, 0.6, 6]} />
+        <meshStandardMaterial color="#555555" metalness={0.3} />
+      </mesh>
+      {/* Drive-through awning */}
+      <mesh position={[-w / 2 - 0.5, 2.3, bz + bd * 0.1]}>
+        <boxGeometry args={[1.0, 0.08, 2.0]} />
+        <meshStandardMaterial color="#00704A" />
+      </mesh>
+
+      {/* === SIDE WINDOWS === */}
+      <mesh position={[w / 2 + 0.06, wallH * 0.45, bz + bd * 0.15]}>
+        <boxGeometry args={[0.08, 1.8, 3]} />
+        <meshStandardMaterial color="#5A8070" transparent opacity={0.4} />
+      </mesh>
+
+      {/* === ROOF DETAILS === */}
+      <mesh position={[w * 0.2, wallH + 0.45, bz - bd * 0.2]}>
+        <boxGeometry args={[1.2, 0.5, 0.8]} />
+        <meshStandardMaterial color="#777777" metalness={0.3} roughness={0.6} />
       </mesh>
     </group>
   )
@@ -847,27 +2170,230 @@ function Starbucks3D({ obj }) {
 
 // Walmart Supercenter
 function Walmart3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const wallH = 7
+  const bldgD = l * 0.6           // building depth ~78m
+  const bldgZ = -l / 2 + l * 0.7  // building shifted back, front face ~+0.05*l
+  const fz = bldgZ + bldgD / 2    // front face z
+  const bk = bldgZ - bldgD / 2    // back face z
+  const parkD = l / 2 - fz        // parking lot depth in front
+
   return (
     <group>
-      {/* Massive parking lot */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, obj.length * 0.3]}>
-        <planeGeometry args={[obj.width * 1.2, obj.length * 0.6]} />
-        <meshStandardMaterial color="#4A4A4A" />
+      {/* === PARKING LOT === */}
+      <mesh position={[0, 0.04, fz + parkD / 2]}>
+        <boxGeometry args={[w, 0.06, parkD]} />
+        <meshStandardMaterial color="#3A3A3A" />
       </mesh>
-      {/* Main building */}
-      <mesh position={[0, 4, -obj.length * 0.15]}>
-        <boxGeometry args={[obj.width, 8, obj.length * 0.7]} />
-        <meshStandardMaterial color="#FFFFFF" />
+      {/* Parking lines — rows */}
+      {[-2, -1, 0, 1, 2].map((row, ri) => {
+        const rz = fz + parkD * 0.2 + row * (parkD * 0.15)
+        return Array.from({ length: 18 }, (_, si) => {
+          const sx = -w * 0.42 + si * (w * 0.84 / 17)
+          return (
+            <mesh key={`pl${ri}${si}`} position={[sx, 0.08, rz]}>
+              <boxGeometry args={[0.15, 0.02, 2.5]} />
+              <meshStandardMaterial color="#CCCCCC" />
+            </mesh>
+          )
+        })
+      })}
+      {/* Cart corrals */}
+      {[-w * 0.2, w * 0.2].map((cx, i) => (
+        <mesh key={`cc${i}`} position={[cx, 0.4, fz + parkD * 0.4]}>
+          <boxGeometry args={[3, 0.8, 1.5]} />
+          <meshStandardMaterial color="#888888" metalness={0.3} />
+        </mesh>
+      ))}
+      {/* Light poles */}
+      {[-w * 0.35, -w * 0.1, w * 0.1, w * 0.35].map((px, i) => (
+        <group key={`lp${i}`}>
+          <mesh position={[px, 4, fz + parkD * 0.5]}>
+            <cylinderGeometry args={[0.12, 0.15, 8, 6]} />
+            <meshStandardMaterial color="#777777" metalness={0.3} />
+          </mesh>
+          <mesh position={[px, 8.2, fz + parkD * 0.5]}>
+            <boxGeometry args={[2, 0.3, 0.8]} />
+            <meshStandardMaterial color="#AAAAAA" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === MAIN BUILDING BODY === */}
+      {/* Cream/beige walls */}
+      <mesh position={[0, wallH / 2, bldgZ]}>
+        <boxGeometry args={[w, wallH, bldgD]} />
+        <meshStandardMaterial color="#E8E0D0" />
       </mesh>
-      {/* Blue roof/sign band */}
-      <mesh position={[0, 8.2, -obj.length * 0.15]}>
-        <boxGeometry args={[obj.width + 2, 0.5, obj.length * 0.7 + 2]} />
+      {/* Brown brick wainscot — lower 2m accent wrap */}
+      <mesh position={[0, 1, bldgZ]}>
+        <boxGeometry args={[w + 0.04, 2, bldgD + 0.04]} />
+        <meshStandardMaterial color="#8B7355" roughness={0.9} />
+      </mesh>
+
+      {/* === BLUE SIGN BAND (parapet) === */}
+      <mesh position={[0, wallH + 0.4, bldgZ]}>
+        <boxGeometry args={[w + 0.5, 0.8, bldgD + 0.5]} />
         <meshStandardMaterial color="#0071CE" />
       </mesh>
-      {/* Entrance area */}
-      <mesh position={[0, 4, obj.length * 0.2]}>
-        <boxGeometry args={[obj.width * 0.2, 8, 4]} />
+      {/* Flat roof */}
+      <mesh position={[0, wallH + 0.85, bldgZ]}>
+        <boxGeometry args={[w + 0.3, 0.1, bldgD + 0.3]} />
+        <meshStandardMaterial color="#555555" />
+      </mesh>
+
+      {/* === WALMART TEXT ON FRONT SIGN BAND === */}
+      {/* White letter blocks spelling W-A-L-M-A-R-T */}
+      {['W','A','L','M','A','R','T'].map((ch, i) => (
+        <mesh key={`wt${i}`} position={[-9 + i * 3, wallH + 0.4, fz + 0.3]}>
+          <boxGeometry args={[2, 0.5, 0.12]} />
+          <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.3} />
+        </mesh>
+      ))}
+
+      {/* === SPARK LOGO — rooftop sign === */}
+      {/* Pole mount */}
+      <mesh position={[15, wallH + 1.5, fz - 2]}>
+        <cylinderGeometry args={[0.15, 0.15, 2.2, 6]} />
+        <meshStandardMaterial color="#555555" metalness={0.4} />
+      </mesh>
+      {/* Spark — 3 rotated boxes forming 6-point starburst */}
+      {[0, Math.PI / 3, -Math.PI / 3].map((rot, i) => (
+        <mesh key={`sp${i}`} position={[15, wallH + 2.8, fz - 2]} rotation={[0, 0, rot]}>
+          <boxGeometry args={[0.6, 2.8, 0.15]} />
+          <meshStandardMaterial color="#FFC220" emissive="#FFC220" emissiveIntensity={0.5} />
+        </mesh>
+      ))}
+
+      {/* === ENTRANCE VESTIBULE — center === */}
+      {/* Vestibule structure */}
+      <mesh position={[0, wallH * 0.55, fz + 3]}>
+        <boxGeometry args={[20, wallH * 0.9, 6]} />
+        <meshStandardMaterial color="#E8E0D0" />
+      </mesh>
+      {/* Vestibule glass front */}
+      <mesh position={[0, wallH * 0.45, fz + 6.06]}>
+        <boxGeometry args={[18, wallH * 0.7, 0.12]} />
+        <meshStandardMaterial color="#6BA4C9" transparent opacity={0.4} metalness={0.2} roughness={0.1} />
+      </mesh>
+      {/* Vestibule glass frames */}
+      {[-9, -4.5, 0, 4.5, 9].map((dx, i) => (
+        <mesh key={`vf${i}`} position={[dx, wallH * 0.45, fz + 6.12]}>
+          <boxGeometry args={[0.15, wallH * 0.72, 0.08]} />
+          <meshStandardMaterial color="#333333" />
+        </mesh>
+      ))}
+      {/* Vestibule canopy */}
+      <mesh position={[0, wallH * 0.92, fz + 4.5]}>
+        <boxGeometry args={[22, 0.2, 9]} />
+        <meshStandardMaterial color="#DDDDDD" />
+      </mesh>
+      {/* Canopy blue edge trim */}
+      <mesh position={[0, wallH * 0.92, fz + 9.05]}>
+        <boxGeometry args={[22, 0.25, 0.1]} />
         <meshStandardMaterial color="#0071CE" />
+      </mesh>
+      {/* Canopy support columns */}
+      {[-9, -4.5, 4.5, 9].map((dx, i) => (
+        <mesh key={`cc${i}`} position={[dx, wallH * 0.45, fz + 8.5]}>
+          <boxGeometry args={[0.4, wallH * 0.9, 0.4]} />
+          <meshStandardMaterial color="#CCCCCC" metalness={0.2} />
+        </mesh>
+      ))}
+      {/* Entrance doors */}
+      {[-3, 3].map((dx, i) => (
+        <group key={`ed${i}`}>
+          <mesh position={[dx, 1.5, fz + 6.08]}>
+            <boxGeometry args={[2.5, 3, 0.15]} />
+            <meshStandardMaterial color="#333333" />
+          </mesh>
+          <mesh position={[dx, 1.6, fz + 6.16]}>
+            <boxGeometry args={[2.2, 2.5, 0.08]} />
+            <meshStandardMaterial color="#6BA4C9" transparent opacity={0.45} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* === GARDEN CENTER — right side === */}
+      {/* Open-air fenced area */}
+      <mesh position={[w / 2 - 8, 0.06, fz + 4]}>
+        <boxGeometry args={[16, 0.1, 8]} />
+        <meshStandardMaterial color="#7A9A6A" />
+      </mesh>
+      {/* Garden center fence — front */}
+      <mesh position={[w / 2 - 8, 1.2, fz + 8.06]}>
+        <boxGeometry args={[16, 2.4, 0.12]} />
+        <meshStandardMaterial color="#AAAAAA" transparent opacity={0.3} metalness={0.3} />
+      </mesh>
+      {/* Fence — side */}
+      <mesh position={[w / 2 - 0.06, 1.2, fz + 4]}>
+        <boxGeometry args={[0.12, 2.4, 8]} />
+        <meshStandardMaterial color="#AAAAAA" transparent opacity={0.3} metalness={0.3} />
+      </mesh>
+
+      {/* === LARGE GLASS STOREFRONT (front wall) === */}
+      {/* Glass sections flanking entrance */}
+      {[-1, 1].map((side, si) => (
+        <mesh key={`gf${si}`} position={[side * 22, wallH * 0.42, fz + 0.07]}>
+          <boxGeometry args={[18, wallH * 0.6, 0.12]} />
+          <meshStandardMaterial color="#6BA4C9" transparent opacity={0.35} metalness={0.2} roughness={0.1} />
+        </mesh>
+      ))}
+      {/* Window mullions */}
+      {[-34, -28, -22, -16, 16, 22, 28, 34].map((dx, i) => (
+        <mesh key={`wm${i}`} position={[dx, wallH * 0.42, fz + 0.14]}>
+          <boxGeometry args={[0.15, wallH * 0.62, 0.08]} />
+          <meshStandardMaterial color="#555555" />
+        </mesh>
+      ))}
+
+      {/* === SIDE DETAILS === */}
+      {/* Side windows — left */}
+      {[-2, -1, 0, 1, 2].map((row, i) => (
+        <mesh key={`sw${i}`} position={[-w / 2 - 0.07, wallH * 0.5, bldgZ + row * 12]}>
+          <boxGeometry args={[0.12, 2, 5]} />
+          <meshStandardMaterial color="#6BA4C9" transparent opacity={0.3} />
+        </mesh>
+      ))}
+
+      {/* === LOADING DOCKS — back === */}
+      {[-w * 0.3, -w * 0.1, w * 0.1, w * 0.3].map((dx, i) => (
+        <group key={`ld${i}`}>
+          {/* Dock door recess */}
+          <mesh position={[dx, 2.2, bk - 0.15]}>
+            <boxGeometry args={[4, 4.4, 0.2]} />
+            <meshStandardMaterial color="#444444" />
+          </mesh>
+          {/* Dock bumpers */}
+          <mesh position={[dx - 1.5, 1.5, bk - 0.3]}>
+            <boxGeometry args={[0.3, 0.6, 0.2]} />
+            <meshStandardMaterial color="#222222" />
+          </mesh>
+          <mesh position={[dx + 1.5, 1.5, bk - 0.3]}>
+            <boxGeometry args={[0.3, 0.6, 0.2]} />
+            <meshStandardMaterial color="#222222" />
+          </mesh>
+        </group>
+      ))}
+      {/* Loading dock platform */}
+      <mesh position={[0, 0.6, bk - 0.8]}>
+        <boxGeometry args={[w * 0.8, 1.2, 1.4]} />
+        <meshStandardMaterial color="#777777" />
+      </mesh>
+
+      {/* === ROOF DETAILS === */}
+      {/* HVAC units */}
+      {[[-w * 0.25, bldgZ - 10], [w * 0.15, bldgZ + 5], [-w * 0.05, bldgZ - 5], [w * 0.3, bldgZ - 15]].map(([rx, rz], i) => (
+        <mesh key={`hv${i}`} position={[rx, wallH + 1.3, rz]}>
+          <boxGeometry args={[3, 1.5, 2.5]} />
+          <meshStandardMaterial color="#888888" metalness={0.3} roughness={0.6} />
+        </mesh>
+      ))}
+
+      {/* === SIDEWALK around building === */}
+      <mesh position={[0, 0.08, fz + 1]}>
+        <boxGeometry args={[w + 4, 0.04, 2]} />
+        <meshStandardMaterial color="#C0B8A8" />
       </mesh>
     </group>
   )
@@ -875,167 +2401,169 @@ function Walmart3D({ obj }) {
 
 // Gaming buildings
 function PokemonCenter3D({ obj }) {
-  const wallHeight = 5
-  const roofHeight = 1.5
-  const z = obj.length * 0.501
+  const w = obj.width, l = obj.length  // 20, 25
+  const wallH = 5.5
+  const roofH = 1.8
+  const fz = l / 2
+  const orange = '#E87830'
+  const orangeDk = '#C06020'
+
   return (
     <group>
-      {/* Ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <planeGeometry args={[obj.width * 1.3, obj.length * 1.3]} />
-        <meshStandardMaterial color="#606080" />
+      {/* Ground — paved area */}
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[w * 1.3, 0.1, l * 1.3]} />
+        <meshStandardMaterial color="#707880" />
       </mesh>
 
-      {/* Main building body - white */}
-      <mesh position={[0, wallHeight / 2, 0]}>
-        <boxGeometry args={[obj.width, wallHeight, obj.length]} />
-        <meshStandardMaterial color="#E8E8E8" />
+      {/* === MAIN BUILDING — light gray walls === */}
+      <mesh position={[0, wallH / 2, 0]}>
+        <boxGeometry args={[w, wallH, l]} />
+        <meshStandardMaterial color="#E0E0E0" />
+      </mesh>
+      {/* Darker gray base strip */}
+      <mesh position={[0, 0.35, 0]}>
+        <boxGeometry args={[w + 0.04, 0.7, l + 0.04]} />
+        <meshStandardMaterial color="#A0A0A0" />
+      </mesh>
+      {/* White horizontal band at mid-height (floor separator) */}
+      <mesh position={[0, wallH * 0.52, 0]}>
+        <boxGeometry args={[w + 0.06, 0.25, l + 0.06]} />
+        <meshStandardMaterial color="#F5F5F5" />
       </mesh>
 
-      {/* Horizontal brick lines */}
-      {[0.8, 1.6, 2.4, 3.2, 4.0].map((y, i) => (
-        <mesh key={i} position={[0, y, z + 0.01]}>
-          <planeGeometry args={[obj.width, 0.08]} />
-          <meshStandardMaterial color="#D0D0D0" />
+      {/* === ORANGE ROOF === */}
+      <mesh position={[0, wallH + roofH / 2, 0]}>
+        <boxGeometry args={[w + 1.2, roofH, l + 1.2]} />
+        <meshStandardMaterial color={orange} />
+      </mesh>
+      {/* White border stripes on left and right of roof */}
+      <mesh position={[-w / 2 - 0.1, wallH + roofH / 2, 0]}>
+        <boxGeometry args={[0.6, roofH + 0.04, l + 1.3]} />
+        <meshStandardMaterial color="#F8F8F8" />
+      </mesh>
+      <mesh position={[w / 2 + 0.1, wallH + roofH / 2, 0]}>
+        <boxGeometry args={[0.6, roofH + 0.04, l + 1.3]} />
+        <meshStandardMaterial color="#F8F8F8" />
+      </mesh>
+      {/* Roof edge underline */}
+      <mesh position={[0, wallH + 0.06, 0]}>
+        <boxGeometry args={[w + 1.5, 0.1, l + 1.5]} />
+        <meshStandardMaterial color={orangeDk} />
+      </mesh>
+
+      {/* === POKÉBALL ON ROOF (front face) === */}
+      {/* White Pokéball circle on the orange roof front */}
+      <mesh position={[0, wallH + roofH / 2, fz + 0.65]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[2.5, 2.5, 0.12, 24]} />
+        <meshStandardMaterial color="#F8F8F8" />
+      </mesh>
+      {/* Red top half */}
+      <mesh position={[0, wallH + roofH / 2, fz + 0.72]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[2.1, 2.1, 0.08, 24, 1, false, Math.PI, Math.PI]} />
+        <meshStandardMaterial color="#CC3333" />
+      </mesh>
+      {/* White bottom half stays visible from background */}
+      {/* Black band */}
+      <mesh position={[0, wallH + roofH / 2, fz + 0.76]}>
+        <boxGeometry args={[4.4, 0.3, 0.06]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+      {/* Black lines flanking Pokéball (Gen 5 style) */}
+      <mesh position={[-4, wallH + roofH / 2, fz + 0.68]}>
+        <boxGeometry args={[3.5, 0.2, 0.08]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+      <mesh position={[4, wallH + roofH / 2, fz + 0.68]}>
+        <boxGeometry args={[3.5, 0.2, 0.08]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+      {/* Center button */}
+      <mesh position={[0, wallH + roofH / 2, fz + 0.8]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.5, 0.5, 0.08, 16]} />
+        <meshStandardMaterial color="#F8F8F8" emissive="#FFFFFF" emissiveIntensity={0.3} />
+      </mesh>
+
+      {/* === AUTOMATIC GLASS SLIDING DOORS === */}
+      {/* Door recess */}
+      <mesh position={[0, 1.6, fz + 0.07]}>
+        <boxGeometry args={[4, 3.2, 0.12]} />
+        <meshStandardMaterial color="#505050" />
+      </mesh>
+      {/* Left sliding door */}
+      <mesh position={[-0.9, 1.7, fz + 0.14]}>
+        <boxGeometry args={[1.6, 2.8, 0.06]} />
+        <meshStandardMaterial color="#5098C0" transparent opacity={0.5} metalness={0.15} roughness={0.1} />
+      </mesh>
+      {/* Right sliding door */}
+      <mesh position={[0.9, 1.7, fz + 0.14]}>
+        <boxGeometry args={[1.6, 2.8, 0.06]} />
+        <meshStandardMaterial color="#5098C0" transparent opacity={0.5} metalness={0.15} roughness={0.1} />
+      </mesh>
+      {/* Door sensor bar (above door) */}
+      <mesh position={[0, 3.3, fz + 0.15]}>
+        <boxGeometry args={[3.5, 0.2, 0.1]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* === 1ST FLOOR WINDOWS (flanking door) === */}
+      {[-w * 0.33, w * 0.33].map((wx, i) => (
+        <group key={`fw${i}`}>
+          <mesh position={[wx, 2.2, fz + 0.07]}>
+            <boxGeometry args={[2.8, 2.4, 0.12]} />
+            <meshStandardMaterial color="#5098C0" transparent opacity={0.45} metalness={0.15} roughness={0.1} />
+          </mesh>
+          {/* Window frame */}
+          {[-1.45, 0, 1.45].map((fd, fi) => (
+            <mesh key={`ff${fi}`} position={[wx + fd, 2.2, fz + 0.14]}>
+              <boxGeometry args={[0.1, 2.5, 0.06]} />
+              <meshStandardMaterial color="#505050" />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* === 2ND FLOOR WINDOWS === */}
+      {[-w * 0.33, -w * 0.12, w * 0.12, w * 0.33].map((wx, i) => (
+        <mesh key={`sw${i}`} position={[wx, wallH * 0.77, fz + 0.07]}>
+          <boxGeometry args={[1.8, 1.4, 0.12]} />
+          <meshStandardMaterial color="#5098C0" transparent opacity={0.4} />
         </mesh>
       ))}
 
-      {/* Corner pillars */}
-      <mesh position={[-obj.width * 0.48, wallHeight / 2, obj.length * 0.48]}>
-        <boxGeometry args={[0.8, wallHeight, 0.8]} />
-        <meshStandardMaterial color="#F0F0F0" />
+      {/* === SIDE WINDOWS === */}
+      {[-1, 1].map((side, i) => (
+        <group key={`sd${i}`}>
+          {[-l * 0.25, 0, l * 0.25].map((sz, si) => (
+            <mesh key={`sdw${si}`} position={[side * (w / 2 + 0.07), wallH * 0.45, sz]}>
+              <boxGeometry args={[0.12, 2, 2.5]} />
+              <meshStandardMaterial color="#5098C0" transparent opacity={0.35} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* === ENTRANCE ARROW SIGN (Gen 5 — electronic sign on right wall) === */}
+      <mesh position={[w / 2 + 0.08, 2.5, fz - 1]}>
+        <boxGeometry args={[0.12, 1.2, 0.8]} />
+        <meshStandardMaterial color="#333333" />
       </mesh>
-      <mesh position={[obj.width * 0.48, wallHeight / 2, obj.length * 0.48]}>
-        <boxGeometry args={[0.8, wallHeight, 0.8]} />
-        <meshStandardMaterial color="#F0F0F0" />
+      {/* Arrow indicator (green) */}
+      <mesh position={[w / 2 + 0.15, 2.5, fz - 1]}>
+        <boxGeometry args={[0.06, 0.4, 0.4]} />
+        <meshStandardMaterial color="#33CC33" emissive="#33CC33" emissiveIntensity={0.4} />
       </mesh>
 
-      {/* Red roof - main */}
-      <mesh position={[0, wallHeight + roofHeight / 2, 0]}>
-        <boxGeometry args={[obj.width + 1, roofHeight, obj.length + 1]} />
-        <meshStandardMaterial color="#B83030" />
+      {/* === BACK SERVICE AREA === */}
+      <mesh position={[0, 1.3, -fz - 0.07]}>
+        <boxGeometry args={[2, 2.6, 0.12]} />
+        <meshStandardMaterial color="#888888" />
       </mesh>
-      {/* Roof edge trim */}
-      <mesh position={[0, wallHeight + 0.1, 0]}>
-        <boxGeometry args={[obj.width + 1.2, 0.2, obj.length + 1.2]} />
-        <meshStandardMaterial color="#903030" />
+      {/* Roof HVAC */}
+      <mesh position={[w * 0.25, wallH + roofH + 0.5, -l * 0.2]}>
+        <boxGeometry args={[2, 0.8, 1.5]} />
+        <meshStandardMaterial color="#999999" metalness={0.3} />
       </mesh>
-
-      {/* Pokeball emblem - white frame/background */}
-      <mesh position={[0, wallHeight * 0.65, z + 0.02]}>
-        <circleGeometry args={[2.2, 32]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      {/* Pokeball outer ring */}
-      <mesh position={[0, wallHeight * 0.65, z + 0.03]}>
-        <ringGeometry args={[1.7, 2.0, 32]} />
-        <meshStandardMaterial color="#C03030" />
-      </mesh>
-      {/* Red top half */}
-      <mesh position={[0, wallHeight * 0.65, z + 0.04]}>
-        <circleGeometry args={[1.7, 32, 0, Math.PI]} />
-        <meshStandardMaterial color="#C03030" />
-      </mesh>
-      {/* White bottom half */}
-      <mesh position={[0, wallHeight * 0.65, z + 0.04]} rotation={[0, 0, Math.PI]}>
-        <circleGeometry args={[1.7, 32, 0, Math.PI]} />
-        <meshStandardMaterial color="#F8F8F8" />
-      </mesh>
-      {/* Center band */}
-      <mesh position={[0, wallHeight * 0.65, z + 0.05]}>
-        <planeGeometry args={[3.6, 0.35]} />
-        <meshStandardMaterial color="#E8E8E8" />
-      </mesh>
-      {/* Center button - outer */}
-      <mesh position={[0, wallHeight * 0.65, z + 0.06]}>
-        <circleGeometry args={[0.7, 24]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      {/* Center button - red inner */}
-      <mesh position={[0, wallHeight * 0.65, z + 0.07]}>
-        <circleGeometry args={[0.5, 24]} />
-        <meshStandardMaterial color="#C03030" />
-      </mesh>
-      {/* Center button - white dot */}
-      <mesh position={[0, wallHeight * 0.65, z + 0.08]}>
-        <circleGeometry args={[0.2, 16]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-
-      {/* Blue windows - left side */}
-      <mesh position={[-obj.width * 0.32, wallHeight * 0.55, z + 0.02]}>
-        <planeGeometry args={[1.2, 2.5]} />
-        <meshStandardMaterial color="#4080C0" />
-      </mesh>
-      <mesh position={[-obj.width * 0.2, wallHeight * 0.55, z + 0.02]}>
-        <planeGeometry args={[0.8, 2.5]} />
-        <meshStandardMaterial color="#4080C0" />
-      </mesh>
-      {/* Blue windows - right side */}
-      <mesh position={[obj.width * 0.32, wallHeight * 0.55, z + 0.02]}>
-        <planeGeometry args={[1.2, 2.5]} />
-        <meshStandardMaterial color="#4080C0" />
-      </mesh>
-      <mesh position={[obj.width * 0.2, wallHeight * 0.55, z + 0.02]}>
-        <planeGeometry args={[0.8, 2.5]} />
-        <meshStandardMaterial color="#4080C0" />
-      </mesh>
-
-      {/* Blue double doors */}
-      <mesh position={[-0.6, 1.4, z + 0.02]}>
-        <planeGeometry args={[1.1, 2.8]} />
-        <meshStandardMaterial color="#4080C0" />
-      </mesh>
-      <mesh position={[0.6, 1.4, z + 0.02]}>
-        <planeGeometry args={[1.1, 2.8]} />
-        <meshStandardMaterial color="#4080C0" />
-      </mesh>
-      {/* Door frame */}
-      <mesh position={[0, 1.4, z + 0.01]}>
-        <planeGeometry args={[2.6, 3.0]} />
-        <meshStandardMaterial color="#505050" />
-      </mesh>
-
-      {/* P.C signage - compact on left side */}
-      <group position={[-obj.width * 0.32, 1.8, z + 0.02]}>
-        {/* Letter P */}
-        <mesh position={[0, 0, 0]}>
-          <planeGeometry args={[0.2, 0.9]} />
-          <meshStandardMaterial color="#C03030" />
-        </mesh>
-        <mesh position={[0.2, 0.25, 0]}>
-          <planeGeometry args={[0.25, 0.2]} />
-          <meshStandardMaterial color="#C03030" />
-        </mesh>
-        <mesh position={[0.3, 0.15, 0]}>
-          <planeGeometry args={[0.15, 0.35]} />
-          <meshStandardMaterial color="#C03030" />
-        </mesh>
-        <mesh position={[0.2, 0.05, 0]}>
-          <planeGeometry args={[0.25, 0.2]} />
-          <meshStandardMaterial color="#C03030" />
-        </mesh>
-
-        {/* Dot */}
-        <mesh position={[0.55, -0.3, 0]}>
-          <circleGeometry args={[0.1, 8]} />
-          <meshStandardMaterial color="#C03030" />
-        </mesh>
-
-        {/* Letter C */}
-        <mesh position={[0.85, 0, 0]}>
-          <planeGeometry args={[0.2, 0.9]} />
-          <meshStandardMaterial color="#C03030" />
-        </mesh>
-        <mesh position={[1.05, 0.3, 0]}>
-          <planeGeometry args={[0.3, 0.2]} />
-          <meshStandardMaterial color="#C03030" />
-        </mesh>
-        <mesh position={[1.05, -0.3, 0]}>
-          <planeGeometry args={[0.3, 0.2]} />
-          <meshStandardMaterial color="#C03030" />
-        </mesh>
-      </group>
     </group>
   )
 }
@@ -1086,7 +2614,7 @@ function ACHouse3D({ obj }) {
   return (
     <group>
       {/* Grass patch */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
         <planeGeometry args={[obj.width * 1.5, obj.length * 1.5]} />
         <meshStandardMaterial color="#90EE90" />
       </mesh>
@@ -1159,7 +2687,7 @@ function ZeldaHouse3D({ obj }) {
   return (
     <group>
       {/* Grass base */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
         <planeGeometry args={[obj.width * 1.3, obj.length * 1.3]} />
         <meshStandardMaterial color="#228B22" />
       </mesh>
@@ -1202,7 +2730,7 @@ function SimsHouse3D({ obj }) {
   return (
     <group>
       {/* Lot/lawn */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
         <planeGeometry args={[obj.width * 1.4, obj.length * 1.4]} />
         <meshStandardMaterial color="#32CD32" />
       </mesh>
@@ -1298,14 +2826,15 @@ function StudioApartment3D({ obj }) {
         <meshStandardMaterial color="#FFFFFF" />
       </mesh>
 
-      {/* Side window */}
-      <mesh position={[obj.width * 0.501, 1.5, 0]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[1.2, 1.2]} />
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.7} />
-      </mesh>
-      <mesh position={[obj.width * 0.5, 1.5, 0]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[1.4, 1.4]} />
+      {/* Side window frame */}
+      <mesh position={[obj.width * 0.5 + 0.06, 1.5, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[1.4, 1.4, 0.08]} />
         <meshStandardMaterial color="#FFFFFF" />
+      </mesh>
+      {/* Side window glass */}
+      <mesh position={[obj.width * 0.5 + 0.11, 1.5, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[1.2, 1.2, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.7} />
       </mesh>
 
       {/* AC unit on side */}
@@ -1445,67 +2974,148 @@ function ShippingContainer3D({ obj }) {
 }
 
 function SchoolBus3D({ obj }) {
-  const busHeight = 2.5
+  const w = obj.width, l = obj.length
+  const bodyH = 2.2
+  const chassisH = 0.5
+  const baseY = chassisH + 0.3 // clearance above wheels
   return (
     <group>
+      {/* Chassis / undercarriage */}
+      <mesh position={[0, baseY, 0]}>
+        <boxGeometry args={[w * 0.85, chassisH, l * 0.95]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+
       {/* Main body */}
-      <mesh position={[0, busHeight / 2, 0]}>
-        <boxGeometry args={[obj.width, busHeight, obj.length]} />
+      <mesh position={[0, baseY + chassisH / 2 + bodyH / 2, 0]} castShadow>
+        <boxGeometry args={[w, bodyH, l]} />
         <meshStandardMaterial color="#F7B500" />
       </mesh>
-      {/* Black stripe */}
-      <mesh position={[0, busHeight * 0.35, obj.length * 0.501]}>
-        <planeGeometry args={[obj.width, 0.3]} />
+
+      {/* Roof */}
+      <mesh position={[0, baseY + chassisH / 2 + bodyH + 0.06, 0]} castShadow>
+        <boxGeometry args={[w + 0.05, 0.1, l + 0.05]} />
+        <meshStandardMaterial color="#E5A400" />
+      </mesh>
+
+      {/* Black bumper — front */}
+      <mesh position={[0, baseY + 0.1, l / 2 + 0.08]}>
+        <boxGeometry args={[w * 0.9, 0.3, 0.12]} />
         <meshStandardMaterial color="#1A1A1A" />
       </mesh>
-      {/* Windows */}
-      {[-0.35, -0.2, -0.05, 0.1, 0.25].map((offset, i) => (
-        <mesh key={i} position={[obj.width * 0.501, busHeight * 0.6, obj.length * offset]} rotation={[0, Math.PI / 2, 0]}>
-          <planeGeometry args={[1, 0.8]} />
-          <meshStandardMaterial color="#87CEEB" transparent opacity={0.7} />
+      {/* Black bumper — rear */}
+      <mesh position={[0, baseY + 0.1, -l / 2 - 0.08]}>
+        <boxGeometry args={[w * 0.9, 0.3, 0.12]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+
+      {/* Black stripe — right side */}
+      <mesh position={[w / 2 + 0.06, baseY + chassisH / 2 + bodyH * 0.35, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[l, 0.2, 0.06]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      {/* Black stripe — left side */}
+      <mesh position={[-w / 2 - 0.06, baseY + chassisH / 2 + bodyH * 0.35, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[l, 0.2, 0.06]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+
+      {/* Windows — right side */}
+      {[-0.38, -0.22, -0.06, 0.1, 0.26].map((offset, i) => (
+        <mesh key={`r${i}`} position={[w / 2 + 0.06, baseY + chassisH / 2 + bodyH * 0.65, l * offset]}
+          rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[0.9, 0.7, 0.06]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
         </mesh>
       ))}
-      {[-0.35, -0.2, -0.05, 0.1, 0.25].map((offset, i) => (
-        <mesh key={`l${i}`} position={[-obj.width * 0.501, busHeight * 0.6, obj.length * offset]} rotation={[0, -Math.PI / 2, 0]}>
-          <planeGeometry args={[1, 0.8]} />
-          <meshStandardMaterial color="#87CEEB" transparent opacity={0.7} />
+      {/* Windows — left side */}
+      {[-0.38, -0.22, -0.06, 0.1, 0.26].map((offset, i) => (
+        <mesh key={`l${i}`} position={[-w / 2 - 0.06, baseY + chassisH / 2 + bodyH * 0.65, l * offset]}
+          rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[0.9, 0.7, 0.06]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
         </mesh>
       ))}
+
       {/* Front windshield */}
-      <mesh position={[0, busHeight * 0.6, obj.length * 0.48]}>
-        <planeGeometry args={[obj.width * 0.8, 1]} />
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.7} />
+      <mesh position={[0, baseY + chassisH / 2 + bodyH * 0.6, l / 2 + 0.06]}>
+        <boxGeometry args={[w * 0.75, 0.9, 0.06]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
       </mesh>
-      {/* Wheels */}
-      <mesh position={[-obj.width * 0.4, 0.4, obj.length * 0.35]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.4, 0.4, 0.2, 16]} />
-        <meshStandardMaterial color="#1A1A1A" />
+      {/* Rear window */}
+      <mesh position={[0, baseY + chassisH / 2 + bodyH * 0.65, -l / 2 - 0.06]}>
+        <boxGeometry args={[w * 0.6, 0.7, 0.06]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
       </mesh>
-      <mesh position={[obj.width * 0.4, 0.4, obj.length * 0.35]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.4, 0.4, 0.2, 16]} />
-        <meshStandardMaterial color="#1A1A1A" />
-      </mesh>
-      <mesh position={[-obj.width * 0.4, 0.4, -obj.length * 0.35]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.4, 0.4, 0.2, 16]} />
-        <meshStandardMaterial color="#1A1A1A" />
-      </mesh>
-      <mesh position={[obj.width * 0.4, 0.4, -obj.length * 0.35]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.4, 0.4, 0.2, 16]} />
-        <meshStandardMaterial color="#1A1A1A" />
-      </mesh>
-      {/* Stop sign arm */}
-      <mesh position={[-obj.width * 0.55, busHeight * 0.5, obj.length * 0.2]}>
-        <boxGeometry args={[0.4, 0.4, 0.05]} />
-        <meshStandardMaterial color="#FF0000" />
-      </mesh>
+
       {/* Headlights */}
-      <mesh position={[-obj.width * 0.35, busHeight * 0.25, obj.length * 0.501]}>
-        <circleGeometry args={[0.15, 16]} />
-        <meshStandardMaterial color="#FFFFCC" />
+      <mesh position={[-w * 0.35, baseY + chassisH / 2 + bodyH * 0.2, l / 2 + 0.06]}>
+        <boxGeometry args={[0.25, 0.18, 0.06]} />
+        <meshStandardMaterial color="#FFFFAA" emissive="#FFFF88" emissiveIntensity={0.3} />
       </mesh>
-      <mesh position={[obj.width * 0.35, busHeight * 0.25, obj.length * 0.501]}>
-        <circleGeometry args={[0.15, 16]} />
-        <meshStandardMaterial color="#FFFFCC" />
+      <mesh position={[w * 0.35, baseY + chassisH / 2 + bodyH * 0.2, l / 2 + 0.06]}>
+        <boxGeometry args={[0.25, 0.18, 0.06]} />
+        <meshStandardMaterial color="#FFFFAA" emissive="#FFFF88" emissiveIntensity={0.3} />
+      </mesh>
+
+      {/* Tail lights */}
+      <mesh position={[-w * 0.38, baseY + chassisH / 2 + bodyH * 0.2, -l / 2 - 0.06]}>
+        <boxGeometry args={[0.2, 0.2, 0.06]} />
+        <meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[w * 0.38, baseY + chassisH / 2 + bodyH * 0.2, -l / 2 - 0.06]}>
+        <boxGeometry args={[0.2, 0.2, 0.06]} />
+        <meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} />
+      </mesh>
+
+      {/* Wheels — front */}
+      <mesh position={[-w * 0.45, 0.35, l * 0.35]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.35, 0.35, 0.15, 12]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+      <mesh position={[w * 0.45, 0.35, l * 0.35]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.35, 0.35, 0.15, 12]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+      {/* Wheels — rear */}
+      <mesh position={[-w * 0.45, 0.35, -l * 0.35]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.35, 0.35, 0.15, 12]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+      <mesh position={[w * 0.45, 0.35, -l * 0.35]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.35, 0.35, 0.15, 12]} />
+        <meshStandardMaterial color="#222222" />
+      </mesh>
+
+      {/* Door recess — dark opening on right side front */}
+      <mesh position={[w / 2 + 0.04, baseY + chassisH / 2 + bodyH * 0.35, l * 0.38]}
+        rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[1.0, bodyH * 0.8, 0.04]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      {/* Door panel left */}
+      <mesh position={[w / 2 + 0.07, baseY + chassisH / 2 + bodyH * 0.35, l * 0.38 + 0.28]}
+        rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[0.42, bodyH * 0.78, 0.04]} />
+        <meshStandardMaterial color="#2A2A2A" />
+      </mesh>
+      {/* Door panel right */}
+      <mesh position={[w / 2 + 0.07, baseY + chassisH / 2 + bodyH * 0.35, l * 0.38 - 0.28]}
+        rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[0.42, bodyH * 0.78, 0.04]} />
+        <meshStandardMaterial color="#2A2A2A" />
+      </mesh>
+      {/* Door glass — left */}
+      <mesh position={[w / 2 + 0.1, baseY + chassisH / 2 + bodyH * 0.58, l * 0.38 + 0.28]}
+        rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[0.34, bodyH * 0.4, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
+      </mesh>
+      {/* Door glass — right */}
+      <mesh position={[w / 2 + 0.1, baseY + chassisH / 2 + bodyH * 0.58, l * 0.38 - 0.28]}
+        rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[0.34, bodyH * 0.4, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
       </mesh>
     </group>
   )
@@ -1514,35 +3124,67 @@ function SchoolBus3D({ obj }) {
 function SwimmingPool3D({ obj }) {
   return (
     <group>
-      {/* Pool deck/surround */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-        <planeGeometry args={[obj.width + 4, obj.length + 4]} />
+      {/* Pool deck surround — raised concrete slab with hole for pool */}
+      {/* Left deck */}
+      <mesh position={[-(obj.width / 2 + 1), 0.15, 0]}>
+        <boxGeometry args={[2, 0.3, obj.length + 4]} />
         <meshStandardMaterial color="#D4C4A8" />
       </mesh>
-      {/* Pool water surface */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+      {/* Right deck */}
+      <mesh position={[(obj.width / 2 + 1), 0.15, 0]}>
+        <boxGeometry args={[2, 0.3, obj.length + 4]} />
+        <meshStandardMaterial color="#D4C4A8" />
+      </mesh>
+      {/* Back deck */}
+      <mesh position={[0, 0.15, -(obj.length / 2 + 1)]}>
+        <boxGeometry args={[obj.width, 0.3, 2]} />
+        <meshStandardMaterial color="#D4C4A8" />
+      </mesh>
+      {/* Front deck */}
+      <mesh position={[0, 0.15, (obj.length / 2 + 1)]}>
+        <boxGeometry args={[obj.width, 0.3, 2]} />
+        <meshStandardMaterial color="#D4C4A8" />
+      </mesh>
+
+      {/* Pool basin — light blue interior */}
+      <mesh position={[0, -0.75, 0]}>
+        <boxGeometry args={[obj.width, 1.5, obj.length]} />
+        <meshStandardMaterial color="#7CC4D6" />
+      </mesh>
+
+      {/* Water surface */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
         <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial color="#00CED1" transparent opacity={0.8} />
+        <meshStandardMaterial color="#2CB5D6" transparent opacity={0.7} />
       </mesh>
-      {/* Pool walls - slightly below ground */}
-      <mesh position={[0, -0.5, 0]}>
-        <boxGeometry args={[obj.width, 1, obj.length]} />
-        <meshStandardMaterial color="#4FA8C7" />
-      </mesh>
-      {/* Lane lines */}
-      {[-0.375, -0.25, -0.125, 0, 0.125, 0.25, 0.375].map((offset, i) => (
-        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[obj.width * offset, 0.03, 0]}>
-          <planeGeometry args={[0.15, obj.length * 0.95]} />
-          <meshStandardMaterial color="#1A1A1A" />
-        </mesh>
-      ))}
-      {/* Starting blocks */}
-      {[-0.375, -0.25, -0.125, 0, 0.125, 0.25, 0.375].map((offset, i) => (
-        <mesh key={i} position={[obj.width * offset, 0.3, obj.length * 0.52]}>
-          <boxGeometry args={[0.5, 0.6, 0.6]} />
-          <meshStandardMaterial color="#E8E8E8" />
-        </mesh>
-      ))}
+
+      {/* Lane lines — 8 lanes for Olympic pool */}
+      {Array.from({ length: 9 }, (_, i) => {
+        const x = -obj.width / 2 + (obj.width / 8) * i
+        return (
+          <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.09, 0]}>
+            <planeGeometry args={[0.1, obj.length * 0.95]} />
+            <meshStandardMaterial color="#ffffff" transparent opacity={0.6} />
+          </mesh>
+        )
+      })}
+
+      {/* Starting blocks at both ends */}
+      {Array.from({ length: 8 }, (_, i) => {
+        const x = -obj.width / 2 + (obj.width / 8) * (i + 0.5)
+        return (
+          <group key={i}>
+            <mesh position={[x, 0.4, obj.length / 2 + 0.1]}>
+              <boxGeometry args={[0.5, 0.5, 0.5]} />
+              <meshStandardMaterial color="#E0E0E0" />
+            </mesh>
+            <mesh position={[x, 0.4, -obj.length / 2 - 0.1]}>
+              <boxGeometry args={[0.5, 0.5, 0.5]} />
+              <meshStandardMaterial color="#E0E0E0" />
+            </mesh>
+          </group>
+        )
+      })}
     </group>
   )
 }
@@ -1595,6 +3237,669 @@ function KingSizeBed3D({ obj }) {
       <mesh position={[obj.width * 0.45, 0.08, -obj.length * 0.45]}>
         <boxGeometry args={[0.08, 0.16, 0.08]} />
         <meshStandardMaterial color="#5C3A1A" />
+      </mesh>
+    </group>
+  )
+}
+
+// Medium House — modern flat-roof design with two volumes
+function MediumHouse3D({ obj }) {
+  const w = obj.width, l = obj.length
+  return (
+    <group>
+      {/* Foundation slab */}
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[w + 1, 0.2, l + 1]} />
+        <meshStandardMaterial color="#A0A0A0" />
+      </mesh>
+
+      {/* Main volume — taller left block */}
+      <mesh position={[-w * 0.15, 2.8, 0]} castShadow>
+        <boxGeometry args={[w * 0.6, 5.6, l]} />
+        <meshStandardMaterial color="#F5F5F5" />
+      </mesh>
+      {/* Main roof slab */}
+      <mesh position={[-w * 0.15, 5.7, 0]} castShadow>
+        <boxGeometry args={[w * 0.6 + 0.5, 0.2, l + 0.3]} />
+        <meshStandardMaterial color="#404040" />
+      </mesh>
+
+      {/* Secondary volume — shorter right block */}
+      <mesh position={[w * 0.28, 2, 0]} castShadow>
+        <boxGeometry args={[w * 0.38, 4, l * 0.85]} />
+        <meshStandardMaterial color="#E8E0D0" />
+      </mesh>
+      {/* Secondary roof slab */}
+      <mesh position={[w * 0.28, 4.1, 0]} castShadow>
+        <boxGeometry args={[w * 0.38 + 0.4, 0.18, l * 0.85 + 0.3]} />
+        <meshStandardMaterial color="#404040" />
+      </mesh>
+
+      {/* Dark accent wall — front of main volume */}
+      <mesh position={[-w * 0.15, 2.8, l / 2 + 0.08]}>
+        <boxGeometry args={[w * 0.15, 5.6, 0.06]} />
+        <meshStandardMaterial color="#2C2C2C" />
+      </mesh>
+
+      {/* Front door — glass with dark frame */}
+      <mesh position={[-w * 0.02, 1.3, l / 2 + 0.08]}>
+        <boxGeometry args={[1.6, 2.6, 0.08]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      <mesh position={[-w * 0.02, 1.3, l / 2 + 0.13]}>
+        <boxGeometry args={[1.3, 2.3, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.4} />
+      </mesh>
+
+      {/* Floor-to-ceiling windows — main volume front */}
+      {[-w * 0.32, -w * 0.22].map((x, i) => (
+        <group key={`mw${i}`} position={[x, 2.8, l / 2 + 0.08]}>
+          <mesh>
+            <boxGeometry args={[0.08, 5.2, 0.06]} />
+            <meshStandardMaterial color="#1A1A1A" />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[-w * 0.27, 2.8, l / 2 + 0.12]}>
+        <boxGeometry args={[w * 0.12, 5.2, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.35} />
+      </mesh>
+
+      {/* Windows — secondary volume front (horizontal band) */}
+      <mesh position={[w * 0.28, 2.8, l * 0.85 / 2 + 0.08]}>
+        <boxGeometry args={[w * 0.28, 1.6, 0.08]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      <mesh position={[w * 0.28, 2.8, l * 0.85 / 2 + 0.13]}>
+        <boxGeometry args={[w * 0.25, 1.4, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.35} />
+      </mesh>
+
+      {/* Side windows — main volume */}
+      <mesh position={[-w * 0.45 - 0.08, 3.5, -l * 0.2]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[2.0, 2.0, 0.08]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      <mesh position={[-w * 0.45 - 0.13, 3.5, -l * 0.2]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[1.8, 1.8, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.35} />
+      </mesh>
+
+      {/* Wooden planter box at entrance */}
+      <mesh position={[-w * 0.15, 0.35, l / 2 + 0.8]}>
+        <boxGeometry args={[2.5, 0.5, 0.6]} />
+        <meshStandardMaterial color="#8B6F4E" />
+      </mesh>
+    </group>
+  )
+}
+
+// Large House — modern luxury with three volumes and garage
+function LargeHouse3D({ obj }) {
+  const w = obj.width, l = obj.length
+  return (
+    <group>
+      {/* Foundation slab */}
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[w + 1.5, 0.2, l + 1.5]} />
+        <meshStandardMaterial color="#A0A0A0" />
+      </mesh>
+
+      {/* Main volume — tall center block */}
+      <mesh position={[-w * 0.1, 3.5, -l * 0.1]} castShadow>
+        <boxGeometry args={[w * 0.5, 7, l * 0.6]} />
+        <meshStandardMaterial color="#F5F5F5" />
+      </mesh>
+      <mesh position={[-w * 0.1, 7.1, -l * 0.1]} castShadow>
+        <boxGeometry args={[w * 0.5 + 0.6, 0.2, l * 0.6 + 0.4]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* Left wing — lower living area */}
+      <mesh position={[-w * 0.38, 2, l * 0.2]} castShadow>
+        <boxGeometry args={[w * 0.3, 4, l * 0.5]} />
+        <meshStandardMaterial color="#E8E0D0" />
+      </mesh>
+      <mesh position={[-w * 0.38, 4.1, l * 0.2]} castShadow>
+        <boxGeometry args={[w * 0.3 + 0.5, 0.18, l * 0.5 + 0.4]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* Right wing — garage */}
+      <mesh position={[w * 0.3, 1.75, l * 0.15]} castShadow>
+        <boxGeometry args={[w * 0.35, 3.5, l * 0.45]} />
+        <meshStandardMaterial color="#E0E0E0" />
+      </mesh>
+      <mesh position={[w * 0.3, 3.6, l * 0.15]} castShadow>
+        <boxGeometry args={[w * 0.35 + 0.5, 0.18, l * 0.45 + 0.4]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* Garage door */}
+      <mesh position={[w * 0.3, 1.4, l * 0.15 + l * 0.225 + 0.08]}>
+        <boxGeometry args={[w * 0.25, 2.8, 0.08]} />
+        <meshStandardMaterial color="#2C2C2C" />
+      </mesh>
+      {/* Garage door panel lines */}
+      {[0.4, 1.0, 1.6, 2.2].map((y, i) => (
+        <mesh key={i} position={[w * 0.3, y, l * 0.15 + l * 0.225 + 0.13]}>
+          <boxGeometry args={[w * 0.25, 0.03, 0.02]} />
+          <meshStandardMaterial color="#404040" />
+        </mesh>
+      ))}
+
+      {/* Dark accent wall — main volume front */}
+      <mesh position={[-w * 0.1, 3.5, -l * 0.1 + l * 0.3 + 0.08]}>
+        <boxGeometry args={[w * 0.12, 7, 0.06]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+
+      {/* Front entry — recessed glass door */}
+      <mesh position={[-w * 0.1, 1.5, -l * 0.1 + l * 0.3 + 0.08]}>
+        <boxGeometry args={[2.0, 3.0, 0.1]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      <mesh position={[-w * 0.1, 1.5, -l * 0.1 + l * 0.3 + 0.14]}>
+        <boxGeometry args={[1.7, 2.7, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.35} />
+      </mesh>
+
+      {/* Floor-to-ceiling windows — main volume front */}
+      {[-w * 0.25, -w * 0.18].map((x, i) => (
+        <mesh key={`mv${i}`} position={[x, 3.5, -l * 0.1 + l * 0.3 + 0.08]}>
+          <boxGeometry args={[0.06, 6.5, 0.06]} />
+          <meshStandardMaterial color="#1A1A1A" />
+        </mesh>
+      ))}
+      <mesh position={[-w * 0.215, 3.5, -l * 0.1 + l * 0.3 + 0.12]}>
+        <boxGeometry args={[w * 0.1, 6.5, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.3} />
+      </mesh>
+
+      {/* Horizontal window — left wing front */}
+      <mesh position={[-w * 0.38, 2.5, l * 0.2 + l * 0.25 + 0.08]}>
+        <boxGeometry args={[w * 0.2, 2.0, 0.08]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      <mesh position={[-w * 0.38, 2.5, l * 0.2 + l * 0.25 + 0.13]}>
+        <boxGeometry args={[w * 0.18, 1.8, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.3} />
+      </mesh>
+
+      {/* Side windows — main volume left */}
+      <mesh position={[-w * 0.1 - w * 0.25 - 0.08, 4.0, -l * 0.15]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[2.5, 2.5, 0.08]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      <mesh position={[-w * 0.1 - w * 0.25 - 0.13, 4.0, -l * 0.15]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[2.3, 2.3, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.3} />
+      </mesh>
+
+      {/* Wooden deck at entrance */}
+      <mesh position={[-w * 0.1, 0.25, l * 0.2 + l * 0.3]}>
+        <boxGeometry args={[w * 0.4, 0.1, 2.5]} />
+        <meshStandardMaterial color="#8B6F4E" />
+      </mesh>
+
+      {/* Planter boxes */}
+      <mesh position={[-w * 0.32, 0.4, l * 0.2 + l * 0.3 + 0.8]}>
+        <boxGeometry args={[1.5, 0.6, 0.6]} />
+        <meshStandardMaterial color="#606060" />
+      </mesh>
+      <mesh position={[w * 0.1, 0.4, l * 0.2 + l * 0.3 + 0.8]}>
+        <boxGeometry args={[1.5, 0.6, 0.6]} />
+        <meshStandardMaterial color="#606060" />
+      </mesh>
+    </group>
+  )
+}
+
+// Shed — small wooden garden shed with pitched roof (same pattern as House)
+function Shed3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const wallH = 2.2
+  const roofH = 0.7
+  const roofAngle = Math.atan2(roofH, w / 2)
+  const roofSlope = Math.sqrt(roofH * roofH + (w / 2) * (w / 2))
+  return (
+    <group>
+      {/* Concrete pad */}
+      <mesh position={[0, 0.08, 0]}>
+        <boxGeometry args={[w + 0.3, 0.16, l + 0.3]} />
+        <meshStandardMaterial color="#909090" />
+      </mesh>
+
+      {/* Walls */}
+      <mesh position={[0, wallH / 2 + 0.16, 0]} castShadow>
+        <boxGeometry args={[w, wallH, l]} />
+        <meshStandardMaterial color="#A0522D" />
+      </mesh>
+
+      {/* Roof — left slope */}
+      <mesh position={[-w / 4, wallH + 0.16 + roofH / 2, 0]}
+        rotation={[0, 0, roofAngle]} castShadow>
+        <boxGeometry args={[roofSlope + 0.3, 0.14, l + 0.3]} />
+        <meshStandardMaterial color="#5C3310" />
+      </mesh>
+      {/* Roof — right slope */}
+      <mesh position={[w / 4, wallH + 0.16 + roofH / 2, 0]}
+        rotation={[0, 0, -roofAngle]} castShadow>
+        <boxGeometry args={[roofSlope + 0.3, 0.14, l + 0.3]} />
+        <meshStandardMaterial color="#5C3310" />
+      </mesh>
+      {/* Ridge cap */}
+      <mesh position={[0, wallH + 0.16 + roofH + 0.05, 0]}>
+        <boxGeometry args={[0.14, 0.1, l + 0.3]} />
+        <meshStandardMaterial color="#4A2A0A" />
+      </mesh>
+
+      {/* Gable fill — front */}
+      <mesh position={[0, wallH + 0.16, l / 2 + 0.01]}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={3}
+            array={new Float32Array([
+              -w / 2, 0, 0,
+              w / 2, 0, 0,
+              0, roofH, 0
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color="#A0522D" side={THREE.DoubleSide} />
+      </mesh>
+      {/* Gable fill — back */}
+      <mesh position={[0, wallH + 0.16, -l / 2 - 0.01]}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={3}
+            array={new Float32Array([
+              -w / 2, 0, 0,
+              w / 2, 0, 0,
+              0, roofH, 0
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color="#A0522D" side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Double doors — no gap, proud of wall face */}
+      <mesh position={[-0.34, 1.05, l / 2 + 0.1]}>
+        <boxGeometry args={[0.66, 1.8, 0.1]} />
+        <meshStandardMaterial color="#704214" />
+      </mesh>
+      <mesh position={[0.34, 1.05, l / 2 + 0.1]}>
+        <boxGeometry args={[0.66, 1.8, 0.1]} />
+        <meshStandardMaterial color="#7A4A1A" />
+      </mesh>
+      {/* Door handles */}
+      <mesh position={[-0.1, 1.05, l / 2 + 0.18]}>
+        <sphereGeometry args={[0.03, 6, 6]} />
+        <meshStandardMaterial color="#C0C0C0" metalness={0.8} />
+      </mesh>
+      <mesh position={[0.1, 1.05, l / 2 + 0.18]}>
+        <sphereGeometry args={[0.03, 6, 6]} />
+        <meshStandardMaterial color="#C0C0C0" metalness={0.8} />
+      </mesh>
+    </group>
+  )
+}
+
+// Garage — with roll-up door
+function Garage3D({ obj }) {
+  return (
+    <group>
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[obj.width + 0.2, 0.2, obj.length + 0.2]} />
+        <meshStandardMaterial color="#707070" />
+      </mesh>
+      {/* Walls */}
+      <mesh position={[0, 1.5, 0]} castShadow>
+        <boxGeometry args={[obj.width, 3, obj.length]} />
+        <meshStandardMaterial color="#D0D0D0" />
+      </mesh>
+      {/* Flat roof */}
+      <mesh position={[0, 3.1, 0]} castShadow>
+        <boxGeometry args={[obj.width + 0.2, 0.15, obj.length + 0.2]} />
+        <meshStandardMaterial color="#606060" />
+      </mesh>
+      {/* Roll-up door */}
+      <mesh position={[0, 1.3, obj.length / 2 + 0.08]}>
+        <boxGeometry args={[obj.width * 0.75, 2.6, 0.06]} />
+        <meshStandardMaterial color="#A0A0A0" />
+      </mesh>
+      {/* Door lines (horizontal panels) */}
+      {[0.3, 0.9, 1.5, 2.1].map((y, i) => (
+        <mesh key={i} position={[0, y, obj.length / 2 + 0.12]}>
+          <boxGeometry args={[obj.width * 0.75, 0.03, 0.02]} />
+          <meshStandardMaterial color="#888888" />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// Barn — red with gambrel-style roof (simplified as double-height box + steep top)
+function Barn3D({ obj }) {
+  const wallH = 4
+  return (
+    <group>
+      {/* Walls — classic red */}
+      <mesh position={[0, wallH / 2, 0]} castShadow>
+        <boxGeometry args={[obj.width, wallH, obj.length]} />
+        <meshStandardMaterial color="#8B0000" />
+      </mesh>
+      {/* Upper loft section */}
+      <mesh position={[0, wallH + 1, 0]} castShadow>
+        <boxGeometry args={[obj.width * 0.85, 2, obj.length]} />
+        <meshStandardMaterial color="#8B0000" />
+      </mesh>
+      {/* Roof ridge */}
+      <mesh position={[0, wallH + 2.2, 0]} castShadow>
+        <boxGeometry args={[obj.width * 0.4, 0.5, obj.length + 0.4]} />
+        <meshStandardMaterial color="#4A2A0A" />
+      </mesh>
+      {/* Roof slopes */}
+      <mesh position={[0, wallH + 2.1, 0]} castShadow>
+        <boxGeometry args={[obj.width + 0.4, 0.15, obj.length + 0.4]} />
+        <meshStandardMaterial color="#5C3310" />
+      </mesh>
+      {/* White trim */}
+      <mesh position={[0, wallH, obj.length / 2 + 0.08]}>
+        <boxGeometry args={[obj.width + 0.1, 0.15, 0.04]} />
+        <meshStandardMaterial color="#FFFFFF" />
+      </mesh>
+      {/* Barn door — large double door */}
+      <mesh position={[-0.7, 1.5, obj.length / 2 + 0.08]}>
+        <boxGeometry args={[1.4, 3, 0.06]} />
+        <meshStandardMaterial color="#6B3A1F" />
+      </mesh>
+      <mesh position={[0.7, 1.5, obj.length / 2 + 0.08]}>
+        <boxGeometry args={[1.4, 3, 0.06]} />
+        <meshStandardMaterial color="#704214" />
+      </mesh>
+      {/* Loft window */}
+      <mesh position={[0, wallH + 1, obj.length / 2 + 0.08]}>
+        <boxGeometry args={[1.0, 1.0, 0.06]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
+      </mesh>
+    </group>
+  )
+}
+
+// Workshop — industrial shed with pitched roof
+function Workshop3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const wallH = 3.2
+  const roofH = 0.8
+  const roofAngle = Math.atan2(roofH, w / 2)
+  const roofSlope = Math.sqrt(roofH * roofH + (w / 2) * (w / 2))
+  return (
+    <group>
+      {/* Concrete slab */}
+      <mesh position={[0, 0.08, 0]}>
+        <boxGeometry args={[w + 0.3, 0.16, l + 0.3]} />
+        <meshStandardMaterial color="#808080" />
+      </mesh>
+
+      {/* Walls */}
+      <mesh position={[0, wallH / 2 + 0.16, 0]} castShadow>
+        <boxGeometry args={[w, wallH, l]} />
+        <meshStandardMaterial color="#556B2F" />
+      </mesh>
+
+      {/* Pitched roof — left slope */}
+      <mesh position={[-w / 4, wallH + 0.16 + roofH / 2, 0]}
+        rotation={[0, 0, roofAngle]} castShadow>
+        <boxGeometry args={[roofSlope + 0.3, 0.12, l + 0.3]} />
+        <meshStandardMaterial color="#404040" metalness={0.4} roughness={0.6} />
+      </mesh>
+      {/* Pitched roof — right slope */}
+      <mesh position={[w / 4, wallH + 0.16 + roofH / 2, 0]}
+        rotation={[0, 0, -roofAngle]} castShadow>
+        <boxGeometry args={[roofSlope + 0.3, 0.12, l + 0.3]} />
+        <meshStandardMaterial color="#404040" metalness={0.4} roughness={0.6} />
+      </mesh>
+      {/* Ridge cap */}
+      <mesh position={[0, wallH + 0.16 + roofH + 0.04, 0]}>
+        <boxGeometry args={[0.12, 0.08, l + 0.3]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+
+      {/* Gable fill — front */}
+      <mesh position={[0, wallH + 0.16, l / 2 + 0.01]}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={3}
+            array={new Float32Array([
+              -w / 2, 0, 0,
+              w / 2, 0, 0,
+              0, roofH, 0
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color="#556B2F" side={THREE.DoubleSide} />
+      </mesh>
+      {/* Gable fill — back */}
+      <mesh position={[0, wallH + 0.16, -l / 2 - 0.01]}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={3}
+            array={new Float32Array([
+              -w / 2, 0, 0,
+              w / 2, 0, 0,
+              0, roofH, 0
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color="#556B2F" side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Large roll-up door */}
+      <mesh position={[0, 1.55, l / 2 + 0.1]}>
+        <boxGeometry args={[w * 0.6, 2.8, 0.1]} />
+        <meshStandardMaterial color="#3A3A3A" />
+      </mesh>
+      {/* Door panel lines */}
+      {[0.5, 1.1, 1.7, 2.3].map((y, i) => (
+        <mesh key={i} position={[0, y, l / 2 + 0.16]}>
+          <boxGeometry args={[w * 0.6, 0.03, 0.02]} />
+          <meshStandardMaterial color="#505050" />
+        </mesh>
+      ))}
+
+      {/* Side window — horizontal band */}
+      <mesh position={[w / 2 + 0.08, 2.5, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[l * 0.5, 0.8, 0.08]} />
+        <meshStandardMaterial color="#1A1A1A" />
+      </mesh>
+      <mesh position={[w / 2 + 0.13, 2.5, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[l * 0.45, 0.6, 0.02]} />
+        <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
+      </mesh>
+    </group>
+  )
+}
+
+// Greenhouse — transparent glass panels with frame
+function Greenhouse3D({ obj }) {
+  const h = 2.8
+  return (
+    <group>
+      {/* Base frame */}
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[obj.width, 0.2, obj.length]} />
+        <meshStandardMaterial color="#808080" />
+      </mesh>
+      {/* Glass walls — transparent green tint */}
+      <mesh position={[0, h / 2 + 0.2, 0]} castShadow>
+        <boxGeometry args={[obj.width, h, obj.length]} />
+        <meshStandardMaterial color="#98FB98" transparent opacity={0.35} />
+      </mesh>
+      {/* Frame edges — vertical posts */}
+      {[
+        [-obj.width / 2, 0, -obj.length / 2], [obj.width / 2, 0, -obj.length / 2],
+        [-obj.width / 2, 0, obj.length / 2], [obj.width / 2, 0, obj.length / 2],
+        [-obj.width / 2, 0, 0], [obj.width / 2, 0, 0],
+      ].map(([x, _, z], i) => (
+        <mesh key={i} position={[x, h / 2 + 0.2, z]}>
+          <boxGeometry args={[0.08, h, 0.08]} />
+          <meshStandardMaterial color="#E0E0E0" />
+        </mesh>
+      ))}
+      {/* Arched roof (approximated as slightly wider top box) */}
+      <mesh position={[0, h + 0.35, 0]} castShadow>
+        <boxGeometry args={[obj.width + 0.1, 0.3, obj.length + 0.1]} />
+        <meshStandardMaterial color="#98FB98" transparent opacity={0.3} />
+      </mesh>
+      {/* Roof ridge */}
+      <mesh position={[0, h + 0.55, 0]}>
+        <boxGeometry args={[0.06, 0.12, obj.length + 0.1]} />
+        <meshStandardMaterial color="#E0E0E0" />
+      </mesh>
+      {/* Door */}
+      <mesh position={[0, 1.1, obj.length / 2 + 0.08]}>
+        <boxGeometry args={[0.8, 2, 0.06]} />
+        <meshStandardMaterial color="#E0E0E0" />
+      </mesh>
+    </group>
+  )
+}
+
+// Gazebo — open structure with pitched roof and pillars
+function Gazebo3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const pillarH = 2.8
+  const roofH = 0.7
+  const roofAngle = Math.atan2(roofH, w / 2)
+  const roofSlope = Math.sqrt(roofH * roofH + (w / 2) * (w / 2))
+  return (
+    <group>
+      {/* Floor platform */}
+      <mesh position={[0, 0.12, 0]}>
+        <boxGeometry args={[w + 0.3, 0.24, l + 0.3]} />
+        <meshStandardMaterial color="#D2B48C" />
+      </mesh>
+
+      {/* 4 corner pillars */}
+      {[
+        [-w / 2 + 0.15, 0, -l / 2 + 0.15],
+        [w / 2 - 0.15, 0, -l / 2 + 0.15],
+        [-w / 2 + 0.15, 0, l / 2 - 0.15],
+        [w / 2 - 0.15, 0, l / 2 - 0.15],
+      ].map(([x, _, z], i) => (
+        <mesh key={i} position={[x, pillarH / 2 + 0.24, z]}>
+          <boxGeometry args={[0.12, pillarH, 0.12]} />
+          <meshStandardMaterial color="#F5F5DC" />
+        </mesh>
+      ))}
+
+      {/* Pitched roof — left slope */}
+      <mesh position={[-w / 4, pillarH + 0.24 + roofH / 2, 0]}
+        rotation={[0, 0, roofAngle]} castShadow>
+        <boxGeometry args={[roofSlope + 0.4, 0.1, l + 0.5]} />
+        <meshStandardMaterial color="#8B6F4E" />
+      </mesh>
+      {/* Pitched roof — right slope */}
+      <mesh position={[w / 4, pillarH + 0.24 + roofH / 2, 0]}
+        rotation={[0, 0, -roofAngle]} castShadow>
+        <boxGeometry args={[roofSlope + 0.4, 0.1, l + 0.5]} />
+        <meshStandardMaterial color="#8B6F4E" />
+      </mesh>
+      {/* Ridge cap */}
+      <mesh position={[0, pillarH + 0.24 + roofH + 0.03, 0]}>
+        <boxGeometry args={[0.12, 0.06, l + 0.5]} />
+        <meshStandardMaterial color="#6B4F3E" />
+      </mesh>
+
+      {/* Gable trim — front */}
+      <mesh position={[0, pillarH + 0.24, l / 2 + 0.26]}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={3}
+            array={new Float32Array([
+              -w / 2 - 0.2, 0, 0,
+              w / 2 + 0.2, 0, 0,
+              0, roofH, 0
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color="#C4A87C" side={THREE.DoubleSide} />
+      </mesh>
+      {/* Gable trim — back */}
+      <mesh position={[0, pillarH + 0.24, -l / 2 - 0.26]}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={3}
+            array={new Float32Array([
+              -w / 2 - 0.2, 0, 0,
+              w / 2 + 0.2, 0, 0,
+              0, roofH, 0
+            ])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <meshStandardMaterial color="#C4A87C" side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Low railing — front & back */}
+      <mesh position={[0, 0.55, -l / 2 + 0.15]}>
+        <boxGeometry args={[w - 0.3, 0.5, 0.06]} />
+        <meshStandardMaterial color="#F5F5DC" />
+      </mesh>
+      <mesh position={[0, 0.55, l / 2 - 0.15]}>
+        <boxGeometry args={[w - 0.3, 0.5, 0.06]} />
+        <meshStandardMaterial color="#F5F5DC" />
+      </mesh>
+      {/* Low railing — sides */}
+      <mesh position={[-w / 2 + 0.15, 0.55, 0]}>
+        <boxGeometry args={[0.06, 0.5, l - 0.3]} />
+        <meshStandardMaterial color="#F5F5DC" />
+      </mesh>
+      <mesh position={[w / 2 - 0.15, 0.55, 0]}>
+        <boxGeometry args={[0.06, 0.5, l - 0.3]} />
+        <meshStandardMaterial color="#F5F5DC" />
+      </mesh>
+    </group>
+  )
+}
+
+// Carport — open roof structure with pillars
+function Carport3D({ obj }) {
+  return (
+    <group>
+      {/* Concrete slab */}
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[obj.width + 0.2, 0.12, obj.length + 0.2]} />
+        <meshStandardMaterial color="#909090" />
+      </mesh>
+      {/* 4 metal pillars */}
+      {[
+        [-obj.width / 2 + 0.15, 0, -obj.length / 2 + 0.15],
+        [obj.width / 2 - 0.15, 0, -obj.length / 2 + 0.15],
+        [-obj.width / 2 + 0.15, 0, obj.length / 2 - 0.15],
+        [obj.width / 2 - 0.15, 0, obj.length / 2 - 0.15],
+      ].map(([x, _, z], i) => (
+        <mesh key={i} position={[x, 1.25, z]}>
+          <boxGeometry args={[0.08, 2.5, 0.08]} />
+          <meshStandardMaterial color="#606060" metalness={0.5} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* Flat metal roof */}
+      <mesh position={[0, 2.55, 0]} castShadow>
+        <boxGeometry args={[obj.width + 0.4, 0.08, obj.length + 0.3]} />
+        <meshStandardMaterial color="#505050" metalness={0.5} roughness={0.5} />
       </mesh>
     </group>
   )
@@ -1712,6 +4017,25 @@ function render3DModel(obj) {
       return <SimsHouse3D obj={obj} />
     case 'studioApartment':
       return <StudioApartment3D obj={obj} />
+    // Buildings
+    case 'mediumHouse':
+      return <MediumHouse3D obj={obj} />
+    case 'largeHouse':
+      return <LargeHouse3D obj={obj} />
+    case 'shed':
+      return <Shed3D obj={obj} />
+    case 'garage':
+      return <Garage3D obj={obj} />
+    case 'barn':
+      return <Barn3D obj={obj} />
+    case 'workshop':
+      return <Workshop3D obj={obj} />
+    case 'greenhouse':
+      return <Greenhouse3D obj={obj} />
+    case 'gazebo':
+      return <Gazebo3D obj={obj} />
+    case 'carport':
+      return <Carport3D obj={obj} />
     // Other objects
     case 'carSedan':
       return <CarSedan3D obj={obj} />

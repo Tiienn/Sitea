@@ -147,7 +147,6 @@ const COMPARISON_OBJECTS = [
   { id: 'zeldaHouse', name: "Link's House", width: 8, length: 10, color: '#228B22' },
   { id: 'simsHouse', name: 'Sims Starter Home', width: 10, length: 12, color: '#32CD32' },
   // Buildings (from structures)
-  { id: 'smallHouse', name: 'Small House', width: 8, length: 10, color: '#D2691E' },
   { id: 'mediumHouse', name: 'Medium House', width: 12, length: 15, color: '#CD853F' },
   { id: 'largeHouse', name: 'Large House', width: 15, length: 20, color: '#8B4513' },
   { id: 'shed', name: 'Shed', width: 3, length: 4, color: '#A0522D' },
@@ -161,7 +160,6 @@ const COMPARISON_OBJECTS = [
 
 const BUILDING_TYPES = [
   // Houses
-  { id: 'smallHouse', name: 'Small House', width: 8, length: 10, height: 5, color: '#D2691E', icon: 'smallHouse' },
   { id: 'mediumHouse', name: 'Medium House', width: 12, length: 15, height: 6, color: '#CD853F', icon: 'mediumHouse' },
   { id: 'largeHouse', name: 'Large House', width: 15, length: 20, height: 7, color: '#8B4513', icon: 'largeHouse' },
   // Outbuildings

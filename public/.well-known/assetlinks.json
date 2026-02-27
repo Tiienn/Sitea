@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "live.sitea.app",
+      "sha256_cert_fingerprints": [
+        "C5:68:7B:8C:19:67:71:3F:3F:34:C7:9A:3D:95:04:BE:51:70:A3:C5:10:5A:0A:94:06:41:0F:57:F2:78:3A:40"
+      ]
+    }
+  }
+]

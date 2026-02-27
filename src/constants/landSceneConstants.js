@@ -90,10 +90,10 @@ export const RUN_BOB_AMPLITUDE = 0.05
 export const RUN_CYCLE_SPEED = 12
 export const RUN_LEAN = 0.1
 
-// NPC color presets
+// NPC robot color presets
 export const NPC_COLORS = {
-  guide1: { body: '#cc6633', pants: '#4a4a4a' },
-  guide2: { body: '#339966', pants: '#3a3a3a' },
+  guide1: { body: '#4a90d9', bodyDark: '#3570b0', screen: '#1a2a40', eye: '#4ade80', accent: '#5bb8f5' },
+  guide2: { body: '#9b6dd7', bodyDark: '#7a50b0', screen: '#2a1a3a', eye: '#f0abfc', accent: '#c084fc' },
 }
 
 // Format dimension with unit

@@ -74,19 +74,25 @@ export function NPCCharacter({ id, position, rotation = 0, onClick, isActive, is
     }
   }, [selectedQuestion, isActive, npc.dialogs])
 
-  // Idle breathing animation + wave when hovered
+  const antennaRef = useRef()
+
+  // Idle hover animation
   useFrame((_, delta) => {
     timeRef.current += delta
     const t = timeRef.current
 
-    // Subtle breathing bob
-    const breathingBob = Math.sin(t * IDLE_BOB_SPEED * Math.PI * 2) * IDLE_BOB_AMPLITUDE
+    // Gentle floating bob
+    const floatBob = Math.sin(t * IDLE_BOB_SPEED * Math.PI * 2) * 0.03
 
     if (bodyRef.current) {
-      bodyRef.current.position.y = 0.75 + breathingBob
+      bodyRef.current.position.y = floatBob
     }
     if (headRef.current) {
-      headRef.current.position.y = 1.5 + breathingBob
+      headRef.current.position.y = 1.05 + floatBob
+    }
+    // Antenna wobble
+    if (antennaRef.current) {
+      antennaRef.current.rotation.z = Math.sin(t * 3) * 0.1
     }
   })
 
@@ -305,38 +311,117 @@ export function NPCCharacter({ id, position, rotation = 0, onClick, isActive, is
           </div>
         </Html>
       )}
-      {/* Body */}
-      <mesh ref={bodyRef} position={[0, 0.75, 0]} castShadow>
-        <capsuleGeometry args={[0.25, 0.7, 4, 8]} />
-        <meshStandardMaterial color={colors.body} />
-      </mesh>
+      {/* === Robot Body (animated by floating bob) === */}
+      <group ref={bodyRef} position={[0, 0, 0]}>
+        {/* Torso — rounded box */}
+        <mesh position={[0, 0.55, 0]} castShadow>
+          <boxGeometry args={[0.5, 0.55, 0.3]} />
+          <meshStandardMaterial color={colors.body} metalness={0.3} roughness={0.6} />
+        </mesh>
+        {/* Chest plate accent */}
+        <mesh position={[0, 0.58, 0.151]}>
+          <boxGeometry args={[0.3, 0.15, 0.01]} />
+          <meshStandardMaterial color={colors.accent} emissive={colors.accent} emissiveIntensity={0.2} />
+        </mesh>
 
-      {/* Head */}
-      <mesh ref={headRef} position={[0, 1.5, 0]} castShadow>
-        <sphereGeometry args={[0.2, 16, 16]} />
-        <meshStandardMaterial color="#ffcc99" />
-      </mesh>
+        {/* Left Arm */}
+        <mesh position={[-0.35, 0.55, 0]} castShadow>
+          <boxGeometry args={[0.12, 0.4, 0.14]} />
+          <meshStandardMaterial color={colors.bodyDark} metalness={0.3} roughness={0.6} />
+        </mesh>
+        {/* Left Hand — sphere */}
+        <mesh position={[-0.35, 0.3, 0]} castShadow>
+          <sphereGeometry args={[0.08, 8, 8]} />
+          <meshStandardMaterial color={colors.body} metalness={0.4} roughness={0.5} />
+        </mesh>
+        {/* Right Arm */}
+        <mesh position={[0.35, 0.55, 0]} castShadow>
+          <boxGeometry args={[0.12, 0.4, 0.14]} />
+          <meshStandardMaterial color={colors.bodyDark} metalness={0.3} roughness={0.6} />
+        </mesh>
+        {/* Right Hand — sphere */}
+        <mesh position={[0.35, 0.3, 0]} castShadow>
+          <sphereGeometry args={[0.08, 8, 8]} />
+          <meshStandardMaterial color={colors.body} metalness={0.4} roughness={0.5} />
+        </mesh>
 
-      {/* Left Leg */}
-      <mesh position={[-0.12, 0.1, 0]} castShadow>
-        <capsuleGeometry args={[0.1, 0.6, 4, 8]} />
-        <meshStandardMaterial color={colors.pants} />
-      </mesh>
-      {/* Right Leg */}
-      <mesh position={[0.12, 0.1, 0]} castShadow>
-        <capsuleGeometry args={[0.1, 0.6, 4, 8]} />
-        <meshStandardMaterial color={colors.pants} />
-      </mesh>
-      {/* Left Arm */}
-      <mesh position={[-0.35, 1.0, 0]} castShadow>
-        <capsuleGeometry args={[0.07, 0.5, 4, 8]} />
-        <meshStandardMaterial color={colors.body} />
-      </mesh>
-      {/* Right Arm */}
-      <mesh position={[0.35, 1.0, 0]} castShadow>
-        <capsuleGeometry args={[0.07, 0.5, 4, 8]} />
-        <meshStandardMaterial color={colors.body} />
-      </mesh>
+        {/* Left Leg */}
+        <mesh position={[-0.13, 0.13, 0]} castShadow>
+          <boxGeometry args={[0.14, 0.26, 0.16]} />
+          <meshStandardMaterial color={colors.bodyDark} metalness={0.3} roughness={0.6} />
+        </mesh>
+        {/* Right Leg */}
+        <mesh position={[0.13, 0.13, 0]} castShadow>
+          <boxGeometry args={[0.14, 0.26, 0.16]} />
+          <meshStandardMaterial color={colors.bodyDark} metalness={0.3} roughness={0.6} />
+        </mesh>
+        {/* Left Foot */}
+        <mesh position={[-0.13, -0.02, 0.04]} castShadow>
+          <boxGeometry args={[0.16, 0.06, 0.24]} />
+          <meshStandardMaterial color={colors.body} metalness={0.4} roughness={0.5} />
+        </mesh>
+        {/* Right Foot */}
+        <mesh position={[0.13, -0.02, 0.04]} castShadow>
+          <boxGeometry args={[0.16, 0.06, 0.24]} />
+          <meshStandardMaterial color={colors.body} metalness={0.4} roughness={0.5} />
+        </mesh>
+      </group>
+
+      {/* === Robot Head (animated by floating bob) === */}
+      <group ref={headRef} position={[0, 1.05, 0]}>
+        {/* Head box */}
+        <mesh castShadow>
+          <boxGeometry args={[0.44, 0.36, 0.32]} />
+          <meshStandardMaterial color={colors.body} metalness={0.3} roughness={0.6} />
+        </mesh>
+
+        {/* Face screen */}
+        <mesh position={[0, -0.02, 0.161]}>
+          <boxGeometry args={[0.36, 0.24, 0.01]} />
+          <meshStandardMaterial color={colors.screen} metalness={0.1} roughness={0.3} />
+        </mesh>
+
+        {/* Left Eye — glowing dot */}
+        <mesh position={[-0.08, 0.02, 0.17]}>
+          <boxGeometry args={[0.07, 0.07, 0.01]} />
+          <meshStandardMaterial color={colors.eye} emissive={colors.eye} emissiveIntensity={0.8} />
+        </mesh>
+        {/* Right Eye — glowing dot */}
+        <mesh position={[0.08, 0.02, 0.17]}>
+          <boxGeometry args={[0.07, 0.07, 0.01]} />
+          <meshStandardMaterial color={colors.eye} emissive={colors.eye} emissiveIntensity={0.8} />
+        </mesh>
+
+        {/* Smile — thin wide box */}
+        <mesh position={[0, -0.08, 0.17]}>
+          <boxGeometry args={[0.14, 0.025, 0.01]} />
+          <meshStandardMaterial color={colors.eye} emissive={colors.eye} emissiveIntensity={0.5} />
+        </mesh>
+
+        {/* Antenna */}
+        <group ref={antennaRef} position={[0, 0.18, 0]}>
+          {/* Antenna stick */}
+          <mesh position={[0, 0.1, 0]}>
+            <cylinderGeometry args={[0.015, 0.02, 0.2, 6]} />
+            <meshStandardMaterial color={colors.bodyDark} metalness={0.5} roughness={0.4} />
+          </mesh>
+          {/* Antenna tip — glowing ball */}
+          <mesh position={[0, 0.22, 0]}>
+            <sphereGeometry args={[0.04, 8, 8]} />
+            <meshStandardMaterial color={colors.eye} emissive={colors.eye} emissiveIntensity={1.0} />
+          </mesh>
+        </group>
+
+        {/* Ear panels */}
+        <mesh position={[-0.23, 0, 0]} castShadow>
+          <boxGeometry args={[0.04, 0.14, 0.14]} />
+          <meshStandardMaterial color={colors.bodyDark} metalness={0.4} roughness={0.5} />
+        </mesh>
+        <mesh position={[0.23, 0, 0]} castShadow>
+          <boxGeometry args={[0.04, 0.14, 0.14]} />
+          <meshStandardMaterial color={colors.bodyDark} metalness={0.4} roughness={0.5} />
+        </mesh>
+      </group>
     </group>
   )
 }

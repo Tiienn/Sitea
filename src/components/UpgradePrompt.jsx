@@ -48,7 +48,7 @@ export default function UpgradePrompt({
     setShowPricingModal(true)
   }
 
-  // Inline variant - small badge-like prompt
+  // Inline variant - small badge
   if (variant === 'inline') {
     return (
       <button
@@ -57,7 +57,7 @@ export default function UpgradePrompt({
           bg-gradient-to-r from-teal-500/20 to-cyan-500/20
           text-teal-400 border border-teal-500/30
           hover:from-teal-500/30 hover:to-cyan-500/30
-          hover:border-teal-500/50 transition-all ${className}`}
+          transition-all ${className}`}
       >
         Pro
       </button>

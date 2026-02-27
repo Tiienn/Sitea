@@ -1,57 +1,29 @@
-# AI Visualization (P5)
+# Redesign Gaming 3D Models
 
-## Plan
-
-### Step 1: Install OpenAI SDK
-- [x] `npm install openai`
-
-### Step 2: Create API endpoint — `api/ai-visualize.js`
-- [x] Copy auth pattern from `api/analyze-floor-plan.js`
-- [x] POST only, `maxDuration: 60`
-- [x] JWT auth + subscription check
-- [x] Takes `{ image, style }`, calls OpenAI gpt-image-1
-- [x] Returns `{ success: true, image: base64Result }`
-
-### Step 3: Add AI Render handler in `src/App.jsx`
-- [x] Add new state: `isGeneratingAI`, `aiRenderResult`, `showAiRenderModal`
-- [x] Add `handleAiVisualize` handler (requirePaid, capture canvas, call API)
-- [x] Pass new props to ExportPanel
-- [x] Add AI render result modal
-
-### Step 4: Add AI Render tab to `src/components/ExportPanel.jsx`
-- [x] Add 'airender' to SECTIONS with sparkles icon
-- [x] Add `aiStyle` state, style selector (4 styles)
-- [x] Add generate button with PRO badge + spinner
-- [x] Add preview area for result
-- [x] Add 2D mode warning
-
-### Step 5: Build verification
-- [x] `npm run build` passes
+## Tasks
+- [x] Redesign PokemonCenter3D to match Gen 4/5 game design
+- [x] Verify build passes
+- [ ] Redesign MinecraftHouse3D (7x7)
+- [ ] Redesign ACVillagerHouse3D (5x4)
+- [ ] Redesign Fortnite1x13D (5x5)
+- [ ] Redesign ZeldaHouse3D (8x10)
+- [ ] Redesign SimsStarterHome3D (10x12)
 
 ## Review
 
-### Changes Made
+### Pokémon Center (Gen 4/5 style)
+**`src/components/scene/ComparisonObjects.jsx`** — Replaced PokemonCenter3D
 
-**New file: `api/ai-visualize.js`**
-- Vercel serverless endpoint with same auth pattern as `analyze-floor-plan.js`
-- JWT Bearer token auth → Supabase user verification → subscription check
-- 4 style prompts (modern, traditional, minimalist, rustic)
-- Calls OpenAI `gpt-image-1` model via `images.edit()` with the captured 3D view
-- Returns base64 image result
+**Old**: Modern real-world store design (canopy, modern glass storefront, 3D rooftop Pokéball)
 
-**Modified: `src/App.jsx`**
-- Added `captureScreenshot` import (was only importing `captureAndDownload`)
-- Added `supabase` import from supabaseClient
-- 3 new state variables: `isGeneratingAI`, `aiRenderResult`, `showAiRenderModal`
-- New `handleAiVisualize` handler: captures canvas → converts to base64 → calls API → shows result
-- 4 new props passed to ExportPanel
-- New modal for viewing/downloading AI render result (dark overlay, centered image, download + close buttons)
-
-**Modified: `src/components/ExportPanel.jsx`**
-- Added 5th section 'airender' with sparkles icon (Heroicons outline)
-- 4 new props: `onAiVisualize`, `isGeneratingAI`, `aiRenderResult`, `onShowAiRender`
-- New `aiStyle` state (default: 'modern')
-- AI Render tab with: preview area (shows last result or placeholder), 2x2 style grid, generate button with PRO badge, time estimate hint, 2D mode warning
-
-### Remaining Manual Step
-- Add `OPENAI_API_KEY` to Vercel environment variables
+**New** — Gen 4/5 game-accurate Pokémon Center:
+- Light gray walls (#E0E0E0) with darker base strip and white floor separator band
+- Orange roof (#E87830) with darker trim, white border stripes on left/right sides (Gen 4 style)
+- Pokéball emblem on roof front face (red half-cylinder top + white circle background)
+- Black flanking lines beside Pokéball (Gen 5 detail)
+- Automatic glass sliding doors with dark frame and sensor bar
+- 1st floor windows flanking the door, 2nd floor smaller windows
+- Side windows on both walls
+- Electronic arrow entrance sign (green emissive, Gen 5 detail)
+- Back service door and roof HVAC unit
+- Zero planeGeometry — all z-fighting-safe
