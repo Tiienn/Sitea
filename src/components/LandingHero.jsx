@@ -1,31 +1,53 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
-const PRESETS = [
-  { label: '449 m²', sizeM2: 449 },
-  { label: '1,000 m²', sizeM2: 1000 },
-  { label: '5,000 m²', sizeM2: 5000 },
-  { label: '1 acre', sizeM2: 4047 },
-]
+const UNITS = ['sqm', 'sqft', 'acres']
+const UNIT_LABELS = { sqm: 'm²', sqft: 'ft²', acres: 'acres' }
+
+const toM2 = (val, unit) => {
+  if (unit === 'sqft') return val * 0.092903
+  if (unit === 'acres') return val * 4046.86
+  return val
+}
+
+const fromM2 = (m2, unit) => {
+  if (unit === 'sqft') return m2 / 0.092903
+  if (unit === 'acres') return m2 / 4046.86
+  return m2
+}
+
+const formatVal = (num, unit) => {
+  if (unit === 'acres') return parseFloat(num.toFixed(2)).toString()
+  return Math.round(num).toString()
+}
 
 export default function LandingHero({ onExplore }) {
   const [unit, setUnit] = useState('sqm')
-  const [inputValue, setInputValue] = useState('449')
+  const [inputValue, setInputValue] = useState('800')
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    // Autofocus with slight delay for animation
+    const t = setTimeout(() => inputRef.current?.focus(), 400)
+    return () => clearTimeout(t)
+  }, [])
 
   const getSizeM2 = () => {
-    const val = parseFloat(inputValue) || 449
-    return unit === 'sqft' ? val * 0.092903 : val
+    const val = parseFloat(inputValue) || 800
+    return toM2(val, unit)
   }
 
   const handleExplore = () => {
-    onExplore({ sizeM2: getSizeM2() })
+    onExplore({ sizeM2: getSizeM2(), unit })
   }
 
-  const handlePreset = (preset) => {
-    const displayVal = unit === 'sqft'
-      ? Math.round(preset.sizeM2 / 0.092903).toString()
-      : preset.sizeM2.toString()
-    setInputValue(displayVal)
-    onExplore({ sizeM2: preset.sizeM2 })
+  const cycleUnit = () => {
+    setUnit(prev => {
+      const nextIdx = (UNITS.indexOf(prev) + 1) % UNITS.length
+      const next = UNITS[nextIdx]
+      const currentM2 = toM2(parseFloat(inputValue) || 800, prev)
+      setInputValue(formatVal(fromM2(currentM2, next), next))
+      return next
+    })
   }
 
   const handleKeyDown = (e) => {
@@ -33,91 +55,118 @@ export default function LandingHero({ onExplore }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}>
-      <div className="panel-premium w-full max-w-md mx-4 p-8 flex flex-col gap-5 animate-fade-in-scale">
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center"
+      style={{ background: '#FAFAF8' }}
+    >
+      {/* Subtle grain texture */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+        }}
+      />
 
-        {/* Eyebrow */}
-        <p className="text-center text-xs font-medium tracking-widest uppercase"
-          style={{ color: 'var(--color-accent)' }}>
-          Free · No signup · No download
-        </p>
+      <div className="w-full max-w-lg mx-auto px-6 flex flex-col items-center"
+        style={{ animation: 'heroFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both' }}>
 
         {/* Headline */}
-        <div className="text-center space-y-2">
-          <h1 className="font-display font-bold text-3xl leading-tight"
-            style={{ color: 'var(--color-text-primary)' }}>
-            Can't picture how big<br />your land is?
-          </h1>
-          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            Type any size and walk through it at real scale — in seconds.
-          </p>
-        </div>
+        <h1
+          className="font-display font-bold text-center leading-[1.15] tracking-tight text-slate-800"
+          style={{ fontSize: 'clamp(1.75rem, 6vw, 2.5rem)', marginBottom: '16px' }}
+        >
+          You can't picture 800m².
+          <br />
+          <span className="text-slate-400">Neither could we.</span>
+        </h1>
 
-        {/* Input + unit toggle */}
-        <div className="flex gap-2">
-          <input
-            type="number"
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="449"
-            min="1"
-            className="flex-1 rounded-xl px-4 py-3 text-xl font-bold text-center outline-none border transition-all"
-            style={{
-              background: 'var(--color-bg-secondary)',
-              border: '1.5px solid var(--color-border)',
-              color: 'var(--color-text-primary)',
-            }}
-            autoFocus
-          />
+        {/* Subheadline */}
+        <p className="text-center text-slate-500 text-base leading-relaxed" style={{ marginBottom: '40px', maxWidth: '360px' }}>
+          Type in the size. See it at human scale.<br className="hidden sm:block" /> No signup needed.
+        </p>
+
+        {/* Input row */}
+        <div className="w-full flex gap-3" style={{ marginBottom: '20px', maxWidth: '340px' }}>
+          <div className="flex-1 relative">
+            <input
+              ref={inputRef}
+              type="number"
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="800"
+              min="1"
+              step="any"
+              className="w-full rounded-xl text-2xl font-bold text-center text-slate-800 outline-none transition-all"
+              style={{
+                background: '#fff',
+                border: '2px solid #e2e8f0',
+                padding: '14px 16px',
+              }}
+              onFocus={e => e.target.style.borderColor = '#14b8a6'}
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+            />
+          </div>
           <button
-            onClick={() => setUnit(u => u === 'sqm' ? 'sqft' : 'sqm')}
-            className="px-4 py-3 rounded-xl font-semibold text-sm transition-all border"
+            onClick={cycleUnit}
+            className="rounded-xl font-bold text-lg transition-all shrink-0 select-none"
             style={{
-              background: 'var(--color-bg-secondary)',
-              border: '1.5px solid var(--color-border)',
-              color: 'var(--color-text-secondary)',
+              background: '#fff',
+              border: '2px solid #e2e8f0',
+              color: '#64748b',
+              padding: '14px 20px',
+              minWidth: '76px',
             }}
           >
-            {unit === 'sqm' ? 'm²' : 'ft²'}
+            {UNIT_LABELS[unit]}
           </button>
         </div>
 
         {/* CTA */}
         <button
           onClick={handleExplore}
-          className="btn-primary w-full py-4 text-base font-bold flex items-center justify-center gap-2"
+          className="w-full rounded-xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+          style={{
+            background: '#14b8a6',
+            padding: '16px 24px',
+            maxWidth: '340px',
+            marginBottom: '32px',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#2dd4bf'}
+          onMouseLeave={e => e.currentTarget.style.background = '#14b8a6'}
         >
-          Explore in 3D
+          Show me
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
           </svg>
         </button>
 
-        {/* Presets */}
-        <div className="flex flex-wrap gap-2 justify-center">
-          {PRESETS.map(preset => (
-            <button
-              key={preset.label}
-              onClick={() => handlePreset(preset)}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all border"
-              style={{
-                background: 'var(--color-bg-secondary)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <p className="text-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          Used by people visualizing land before they build
+        {/* Muted footer */}
+        <p className="text-center text-slate-400 text-sm leading-relaxed" style={{ maxWidth: '320px' }}>
+          Used by people buying land, planning builds, and finally picturing the numbers.
         </p>
       </div>
+
+      <style>{`
+        @keyframes heroFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(16px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        /* Hide number input spinners */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
     </div>
   )
 }

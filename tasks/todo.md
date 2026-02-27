@@ -1,34 +1,62 @@
-# Simplified Onboarding — Landing Hero
+# New Entry Experience — Build Plan
 
-## Plan
+Based on `sitea-entry-brief.md`. This is a new front door — the 3D tools, payments, auth all stay as-is.
 
-Replace the complex FSM-based GuidedOnboarding with a dead-simple landing hero overlay that gets users to the "wow moment" in under 10 seconds.
+---
 
-### Tasks
+## Tasks (Build Priority Order)
 
-- [ ] **1. Create `src/components/LandingHero.jsx`**
-  - Fullscreen overlay with dark glass style (panel-premium, CSS vars)
-  - Headline: "Can't picture how big your land is?"
-  - Subline: "Type in any size and walk through it at real scale."
-  - Number input with sqm/sqft toggle
-  - Big "Explore in 3D" CTA button (btn-primary)
-  - Preset chips: 449 m² (standard plot), 1000 m², 3000 m², 1 acre
-  - Small text: "No signup. No download. Free forever."
-  - Calls `onExplore({ sizeM2 })` prop when user clicks Explore or a preset
-  - Follows DESIGN.md spacing/padding rules
+### Phase 1: Homepage
+- [x] **1. Rewrite LandingHero** — Light background, mobile-first, new copy
+  - Warm white (#FAFAF8) background, Outfit display font
+  - "You can't picture 800m². Neither could we."
+  - Pre-filled 800 input with m²/ft²/acres cycle toggle
+  - "Show me →" CTA, now passes `{ sizeM2, unit }`
 
-- [ ] **2. Modify `src/App.jsx`**
-  - Import LandingHero
-  - Show LandingHero when `!userHasLand && !isReadOnly` and fsmCompleted not set
-  - Change the FSM init useEffect: instead of `setGuidedStep(1)`, keep guidedStep at 0 — LandingHero takes over
-  - Add `handleLandingExplore({ sizeM2 })` handler that sets dimensions, marks land as user's, drops into first-person, enables basketball + tennis court comparisons
-  - Comparison IDs: `basketballCourt` and `tennisCourt` (camelCase)
+### Phase 2: Instant Visualization
+- [x] **2. Create PlotReveal component** — 2D top-down plot to scale
+  - SVG-based, instant rendering, no Three.js
+  - 7-object comparison library with auto-select (one smaller, one larger)
+  - Ratio text: "Your plot fits 1.9 basketball courts"
+  - Staggered entrance animations
 
-- [ ] **3. Update `index.html` meta tags**
-  - Title: "Sitea — Visualize Your Land in 3D"
-  - Description: "Can't picture how big 449 sqm is? Type any land size and walk through it at real scale. Free, no download, no signup."
-  - Update OG + Twitter tags to match
+- [x] **3. Comparison auto-select logic** — built into PlotReveal
 
-- [ ] **4. Build verification** — run `npm run build`
+### Phase 3: Share
+- [x] **4. Share image generation** — Canvas API, 1080x1080 PNG
+  - Plot to scale, size label, comparison text, sitea.live branding
 
-- [ ] **5. Run completion event**
+- [x] **5. Share button + link**
+  - Mobile: native share sheet with image file
+  - Desktop: copies URL to clipboard + downloads PNG
+  - Share URL: `?size=800` — auto-triggers reveal on load
+
+### Phase 4: 3D Handoff
+- [x] **6. "Start designing in 3D →" CTA** — passes plot size to existing 3D scene
+
+- [x] **7. App.jsx routing changes**
+  - `landingStep` state: 'hero' → 'reveal' → null
+  - `revealData` state: { sizeM2, unit }
+  - URL param handling for `?size=` shared links
+  - Back button: reveal → hero
+  - PlotReveal imported (not lazy — it's lightweight)
+
+### Phase 5: Polish
+- [x] **8. Unit toggle with acres** — built into LandingHero (3-state cycle)
+
+- [x] **9. Build verification** — `npm run build` passes
+
+---
+
+## Review
+
+**Files changed:**
+- `src/components/LandingHero.jsx` — Full rewrite. Light design, new copy, acres support.
+- `src/components/PlotReveal.jsx` — **NEW.** 2D SVG visualization + share + 3D handoff.
+- `src/App.jsx` — Added `landingStep`/`revealData` state, PlotReveal import, URL param handling, updated render flow.
+
+**Architecture:**
+- Flow: LandingHero (hero) → PlotReveal (reveal) → 3D scene (null)
+- Three.js doesn't load until user clicks "Start designing in 3D"
+- Share links (`?size=800`) skip the hero and go straight to reveal
+- Back button from reveal returns to hero with no state loss

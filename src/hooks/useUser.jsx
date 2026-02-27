@@ -10,9 +10,10 @@ export function UserProvider({ children }) {
   const [showPricingModal, setShowPricingModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [planType, setPlanType] = useState(null) // 'monthly' | 'lifetime' | null
-  const [hasUsedUpload, setHasUsedUpload] = useState(() => {
-    return localStorage.getItem('landVisualizerUploadUsed') === 'true'
+  const [uploadCount, setUploadCount] = useState(() => {
+    return parseInt(localStorage.getItem('landVisualizerUploadCount') || '0', 10)
   })
+  const hasUsedUpload = uploadCount > 0
   const [theme, setThemeState] = useState(() => {
     return localStorage.getItem('landVisualizerTheme') || 'dark'
   })
@@ -164,25 +165,31 @@ export function UserProvider({ children }) {
     return false
   }, [isPaidUser])
 
-  // Check if user can use upload (first time free, then Pro required)
+  // Upload limits by plan
+  const getUploadLimit = useCallback(() => {
+    if (!isPaidUser) return 1 // free: 1 upload
+    if (planType === 'homeowner') return 5 // homeowner: 5 uploads
+    return Infinity // monthly/lifetime: unlimited
+  }, [isPaidUser, planType])
+
+  const uploadsRemaining = Math.max(0, getUploadLimit() - uploadCount)
+
+  // Check if user can use upload
   // Returns true if allowed, false if blocked (shows pricing modal)
   const canUseUpload = useCallback(() => {
-    // Pro users always allowed
-    if (isPaidUser) return true
-    // First time free
-    if (!hasUsedUpload) return true
-    // Already used free trial, show pricing
+    if (uploadCount < getUploadLimit()) return true
     setShowPricingModal(true)
     return false
-  }, [isPaidUser, hasUsedUpload])
+  }, [uploadCount, getUploadLimit])
 
   // Mark upload as used (call after successful upload)
   const markUploadUsed = useCallback(() => {
-    if (!hasUsedUpload) {
-      setHasUsedUpload(true)
-      localStorage.setItem('landVisualizerUploadUsed', 'true')
-    }
-  }, [hasUsedUpload])
+    setUploadCount(prev => {
+      const next = prev + 1
+      localStorage.setItem('landVisualizerUploadCount', String(next))
+      return next
+    })
+  }, [])
 
   return (
     <UserContext.Provider value={{
@@ -202,6 +209,8 @@ export function UserProvider({ children }) {
       canUseUpload,
       markUploadUsed,
       hasUsedUpload,
+      uploadCount,
+      uploadsRemaining,
       refreshSubscription: checkSubscription,
       theme,
       setTheme
@@ -232,6 +241,8 @@ export function useUser() {
       canUseUpload: () => true,
       markUploadUsed: () => {},
       hasUsedUpload: false,
+      uploadCount: 0,
+      uploadsRemaining: 1,
       refreshSubscription: () => {},
       theme: 'dark',
       setTheme: () => {}
