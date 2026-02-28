@@ -5027,7 +5027,566 @@ function render3DModel(obj) {
       return <Gazebo3D obj={obj} />
     case 'carport':
       return <Carport3D obj={obj} />
-    // Other objects
+    
+// ============================================
+// GAMING 3D COMPONENTS
+// ============================================
+
+function GTAHouse3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const wallH = 4.5
+  const fz = l / 2
+  return (
+    <group>
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,-0.01,0]}>
+        <planeGeometry args={[w+6,l+6]} />
+        <meshStandardMaterial color='#8a8a72' />
+      </mesh>
+      {/* Driveway */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[w*0.3,0.01,fz+2]}>
+        <planeGeometry args={[w*0.45,4]} />
+        <meshStandardMaterial color='#5a5a5a' />
+      </mesh>
+      {/* Foundation */}
+      <mesh position={[0,0.2,0]}>
+        <boxGeometry args={[w,0.4,l]} />
+        <meshStandardMaterial color='#a0957a' />
+      </mesh>
+      {/* Main walls - warm stucco */}
+      <mesh position={[0,0.4+wallH/2,0]} castShadow>
+        <boxGeometry args={[w,wallH,l]} />
+        <meshStandardMaterial color='#d4c4a0' />
+      </mesh>
+      {/* Barrel tile roof - red-brown */}
+      {[0,1,2,3].map(i=>(
+        <mesh key={i} position={[0,0.4+wallH+0.3+i*0.45,0]}>
+          <boxGeometry args={[w+1.2-i*(w/4.2),0.42,l+0.6]} />
+          <meshStandardMaterial color={i%2===0?'#8B3A2A':'#6B2A1A'} />
+        </mesh>
+      ))}
+      {/* Attached garage */}
+      <mesh position={[w*0.35,0.4+1.8,-l*0.1]} castShadow>
+        <boxGeometry args={[w*0.38,3.6,l*0.5]} />
+        <meshStandardMaterial color='#c8b890' />
+      </mesh>
+      <mesh position={[w*0.35,0.4+3.7,-l*0.1]}>
+        <boxGeometry args={[w*0.38+0.4,0.18,l*0.5+0.4]} />
+        <meshStandardMaterial color='#6B2A1A' />
+      </mesh>
+      {/* Garage door */}
+      <mesh position={[w*0.35,0.4+1.5,l*0.15+0.06]}>
+        <boxGeometry args={[w*0.28,3,0.08]} />
+        <meshStandardMaterial color='#888' />
+      </mesh>
+      {[0.5,1.2,1.9,2.6].map((y,i)=>(
+        <mesh key={i} position={[w*0.35,0.4+y,l*0.15+0.12]}>
+          <boxGeometry args={[w*0.26,0.04,0.04]} />
+          <meshStandardMaterial color='#666' />
+        </mesh>
+      ))}
+      {/* Front door */}
+      <mesh position={[-w*0.1,0.4+1.4,fz+0.06]}>
+        <boxGeometry args={[1.2,2.8,0.1]} />
+        <meshStandardMaterial color='#3d2810' />
+      </mesh>
+      {/* Front windows */}
+      {[-w*0.32,w*0.1].map((x,i)=>(
+        <mesh key={i} position={[x,0.4+wallH*0.55,fz+0.06]}>
+          <boxGeometry args={[1.4,1.4,0.08]} />
+          <meshStandardMaterial color='#6a9ab8' transparent opacity={0.5} />
+        </mesh>
+      ))}
+      {/* Palm tree */}
+      <mesh position={[-w*0.5,1.5,fz+1]}>
+        <cylinderGeometry args={[0.1,0.15,3,8]} />
+        <meshStandardMaterial color='#7a5a30' />
+      </mesh>
+      <mesh position={[-w*0.5,3.2,fz+1]}>
+        <sphereGeometry args={[0.8,8,6]} />
+        <meshStandardMaterial color='#2d7a2d' />
+      </mesh>
+    </group>
+  )
+}
+
+function StardewFarm3D({ obj }) {
+  const w = obj.width, l = obj.length
+  return (
+    <group>
+      {/* Grass base */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0,0]}>
+        <planeGeometry args={[w+4,l+4]} />
+        <meshStandardMaterial color='#5a9a3a' />
+      </mesh>
+      {/* Plowed soil rows */}
+      {Array.from({length:8},(_,i)=>(
+        <mesh key={i} rotation={[-Math.PI/2,0,0]} position={[-w*0.3+i*(w*0.6/7),0.01,l*0.05]}>
+          <planeGeometry args={[w*0.06,l*0.55]} />
+          <meshStandardMaterial color='#6b4226' />
+        </mesh>
+      ))}
+      {/* Crop patches - green dots on rows */}
+      {Array.from({length:8},(_,i)=>
+        Array.from({length:5},(_,j)=>(
+          <mesh key={i*5+j} position={[-w*0.3+i*(w*0.6/7),0.08,-l*0.2+j*(l*0.5/4)]}>
+            <sphereGeometry args={[0.2,6,4]} />
+            <meshStandardMaterial color={['#2d8a2d','#3aaa3a','#1a6a1a','#4aba4a'][j%4]} />
+          </mesh>
+        ))
+      )}
+      {/* Small barn */}
+      <mesh position={[w*0.35,1.5,-l*0.32]} castShadow>
+        <boxGeometry args={[w*0.22,3,l*0.22]} />
+        <meshStandardMaterial color='#8B2020' />
+      </mesh>
+      {/* Barn roof */}
+      {[0,1,2].map(i=>(
+        <mesh key={i} position={[w*0.35,3.1+i*0.45,-l*0.32]}>
+          <boxGeometry args={[w*0.22+0.8-i*0.5,0.4,l*0.22+0.5]} />
+          <meshStandardMaterial color='#5a1010' />
+        </mesh>
+      ))}
+      {/* Barn door */}
+      <mesh position={[w*0.35,1.2,-l*0.32+l*0.11+0.06]}>
+        <boxGeometry args={[1.2,2.4,0.08]} />
+        <meshStandardMaterial color='#5a3010' />
+      </mesh>
+      {/* Farmhouse */}
+      <mesh position={[-w*0.32,1.5,l*0.3]} castShadow>
+        <boxGeometry args={[w*0.25,3,l*0.22]} />
+        <meshStandardMaterial color='#e8dcc8' />
+      </mesh>
+      {[0,1,2].map(i=>(
+        <mesh key={i} position={[-w*0.32,3.1+i*0.4,l*0.3]}>
+          <boxGeometry args={[w*0.25+0.8-i*0.5,0.38,l*0.22+0.5]} />
+          <meshStandardMaterial color='#8B4513' />
+        </mesh>
+      ))}
+      {/* Silo */}
+      <mesh position={[w*0.44,-0.5,-l*0.15]}>
+        <cylinderGeometry args={[0.8,0.8,5,12]} />
+        <meshStandardMaterial color='#c8c8b0' />
+      </mesh>
+      <mesh position={[w*0.44,2.6,-l*0.15]}>
+        <coneGeometry args={[0.85,1.2,12]} />
+        <meshStandardMaterial color='#888' />
+      </mesh>
+      {/* Fence */}
+      {Array.from({length:6},(_,i)=>(
+        <mesh key={i} position={[-w*0.5+i*(w*0.9/5),0.5,l*0.48]}>
+          <boxGeometry args={[0.12,1,0.12]} />
+          <meshStandardMaterial color='#a07040' />
+        </mesh>
+      ))}
+      <mesh position={[0,0.7,l*0.48]}>
+        <boxGeometry args={[w*0.9,0.08,0.1]} />
+        <meshStandardMaterial color='#a07040' />
+      </mesh>
+    </group>
+  )
+}
+
+function HaloWarthog3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const bodyH = 1.4, chassisH = 0.4
+  const baseY = chassisH+0.32
+  return (
+    <group>
+      {/* Chassis */}
+      <mesh position={[0,baseY,0]}>
+        <boxGeometry args={[w*0.8,chassisH,l*0.88]} />
+        <meshStandardMaterial color='#4a5a3a' />
+      </mesh>
+      {/* Main body - olive military green */}
+      <mesh position={[0,baseY+chassisH/2+bodyH*0.35,-l*0.05]} castShadow>
+        <boxGeometry args={[w,bodyH*0.7,l*0.65]} />
+        <meshStandardMaterial color='#5a6a4a' />
+      </mesh>
+      {/* Cab/windscreen area */}
+      <mesh position={[0,baseY+chassisH/2+bodyH*0.8,l*0.08]} castShadow>
+        <boxGeometry args={[w*0.85,bodyH*0.45,l*0.32]} />
+        <meshStandardMaterial color='#4a5a3a' />
+      </mesh>
+      {/* Windshield */}
+      <mesh position={[0,baseY+chassisH/2+bodyH*0.82,l*0.24]}>
+        <boxGeometry args={[w*0.72,bodyH*0.35,0.06]} />
+        <meshStandardMaterial color='#87ceeb' transparent opacity={0.45} />
+      </mesh>
+      {/* Roll cage bars */}
+      {[-w*0.38,w*0.38].map((x,i)=>(
+        <mesh key={i} position={[x,baseY+chassisH/2+bodyH*0.9,l*0.05]}>
+          <boxGeometry args={[0.08,bodyH*0.6,l*0.32]} />
+          <meshStandardMaterial color='#333' metalness={0.5} />
+        </mesh>
+      ))}
+      <mesh position={[0,baseY+chassisH/2+bodyH*1.2,l*0.05]}>
+        <boxGeometry args={[w*0.82,0.08,l*0.32]} />
+        <meshStandardMaterial color='#333' metalness={0.5} />
+      </mesh>
+      {/* Rear gun mount platform */}
+      <mesh position={[0,baseY+chassisH/2+bodyH*0.5,-l*0.3]}>
+        <boxGeometry args={[w*0.6,0.1,l*0.28]} />
+        <meshStandardMaterial color='#3a4a2a' />
+      </mesh>
+      {/* Gun barrel */}
+      <mesh position={[0,baseY+chassisH/2+bodyH*0.9,-l*0.3]} rotation={[0.3,0,0]}>
+        <cylinderGeometry args={[0.06,0.06,l*0.4,8]} />
+        <meshStandardMaterial color='#222' metalness={0.5} />
+      </mesh>
+      {/* Gun body */}
+      <mesh position={[0,baseY+chassisH/2+bodyH*0.75,-l*0.28]}>
+        <boxGeometry args={[0.3,0.28,0.5]} />
+        <meshStandardMaterial color='#2a2a2a' metalness={0.4} />
+      </mesh>
+      {/* Headlights */}
+      {[-w*0.3,w*0.3].map((x,i)=>(
+        <mesh key={i} position={[x,baseY+chassisH/2+bodyH*0.3,l*0.44]}>
+          <boxGeometry args={[0.25,0.2,0.06]} />
+          <meshStandardMaterial color='#ffffaa' emissive='#ffff88' emissiveIntensity={0.3} />
+        </mesh>
+      ))}
+      {/* 4 big knobby wheels */}
+      {[[-w*0.44,l*0.32],[w*0.44,l*0.32],[-w*0.44,-l*0.3],[w*0.44,-l*0.3]].map(([x,z],i)=>(
+        <group key={i}>
+          <mesh position={[x,0.32,z]} rotation={[0,0,Math.PI/2]}>
+            <cylinderGeometry args={[0.32,0.32,0.22,12]} />
+            <meshStandardMaterial color='#1a1a1a' />
+          </mesh>
+          <mesh position={[x,0.32,z]} rotation={[0,0,Math.PI/2]}>
+            <cylinderGeometry args={[0.18,0.18,0.24,8]} />
+            <meshStandardMaterial color='#444' metalness={0.4} />
+          </mesh>
+        </group>
+      ))}
+      {/* Front bumper */}
+      <mesh position={[0,baseY+0.1,l*0.46]}>
+        <boxGeometry args={[w*0.88,0.28,0.14]} />
+        <meshStandardMaterial color='#333' metalness={0.4} />
+      </mesh>
+    </group>
+  )
+}
+
+function AmongUsShip3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const hull = '#2a2a3a'
+  const hullLight = '#3a3a4a'
+  const vent = '#1a1a2a'
+  const glowG = '#00ff88'
+  const glowR = '#ff4444'
+  return (
+    <group>
+      {/* Main hull floor */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.05,0]}>
+        <planeGeometry args={[w,l]} />
+        <meshStandardMaterial color={hull} />
+      </mesh>
+      {/* Hull walls (low) */}
+      <mesh position={[0,0.3,0]}>
+        <boxGeometry args={[w,0.6,l]} />
+        <meshStandardMaterial color={hullLight} />
+      </mesh>
+      {/* Cafeteria - center rectangle */}
+      <mesh position={[0,0.35,l*0.1]}>
+        <boxGeometry args={[w*0.35,0.5,l*0.28]} />
+        <meshStandardMaterial color='#1a3a5a' />
+      </mesh>
+      <mesh position={[0,0.62,l*0.1]}>
+        <boxGeometry args={[w*0.37,0.08,l*0.3]} />
+        <meshStandardMaterial color='#2a4a6a' />
+      </mesh>
+      {/* Cafeteria table */}
+      <mesh position={[0,0.5,l*0.1]}>
+        <boxGeometry args={[w*0.18,0.06,l*0.12]} />
+        <meshStandardMaterial color='#8B6528' />
+      </mesh>
+      {/* Reactor - left circle */}
+      <mesh position={[-w*0.38,0.35,l*0.05]}>
+        <cylinderGeometry args={[l*0.12,l*0.12,0.5,16]} />
+        <meshStandardMaterial color='#1a2a4a' />
+      </mesh>
+      <mesh position={[-w*0.38,0.62,l*0.05]}>
+        <cylinderGeometry args={[l*0.1,l*0.1,0.08,16]} />
+        <meshStandardMaterial color={glowG} emissive={glowG} emissiveIntensity={0.5} />
+      </mesh>
+      {/* Reactor core */}
+      <mesh position={[-w*0.38,0.55,l*0.05]}>
+        <cylinderGeometry args={[l*0.05,l*0.05,0.2,12]} />
+        <meshStandardMaterial color='#00ffcc' emissive='#00ffcc' emissiveIntensity={0.6} />
+      </mesh>
+      {/* MedBay - right */}
+      <mesh position={[w*0.35,0.35,-l*0.1]}>
+        <boxGeometry args={[w*0.2,0.5,l*0.2]} />
+        <meshStandardMaterial color='#1a3a2a' />
+      </mesh>
+      {/* Medbay cross */}
+      <mesh position={[w*0.35,0.63,-l*0.1]}>
+        <boxGeometry args={[0.5,0.08,0.08]} />
+        <meshStandardMaterial color='#ff4444' emissive='#ff2222' emissiveIntensity={0.5} />
+      </mesh>
+      <mesh position={[w*0.35,0.63,-l*0.1]}>
+        <boxGeometry args={[0.08,0.08,0.5]} />
+        <meshStandardMaterial color='#ff4444' emissive='#ff2222' emissiveIntensity={0.5} />
+      </mesh>
+      {/* Electrical room - back */}
+      <mesh position={[w*0.2,0.35,-l*0.35]}>
+        <boxGeometry args={[w*0.28,0.5,l*0.18]} />
+        <meshStandardMaterial color='#3a2a1a' />
+      </mesh>
+      {/* Vents */}
+      {[[-w*0.1,l*0.35],[w*0.1,-l*0.3],[-w*0.3,-l*0.2]].map(([x,z],i)=>(
+        <group key={i}>
+          <mesh position={[x,0.32,z]}>
+            <boxGeometry args={[0.6,0.2,0.6]} />
+            <meshStandardMaterial color={vent} />
+          </mesh>
+          <mesh position={[x,0.42,z]}>
+            <boxGeometry args={[0.55,0.04,0.55]} />
+            <meshStandardMaterial color='#2a2a3a' />
+          </mesh>
+        </group>
+      ))}
+      {/* Emergency lights - red strip */}
+      {[-w*0.45,-w*0.15,w*0.15,w*0.45].map((x,i)=>(
+        <mesh key={i} position={[x,0.65,0]}>
+          <boxGeometry args={[0.12,0.12,l*0.9]} />
+          <meshStandardMaterial color={glowR} emissive={glowR} emissiveIntensity={0.4} />
+        </mesh>
+      ))}
+      {/* Navigation room - front */}
+      <mesh position={[0,0.35,l*0.36]}>
+        <boxGeometry args={[w*0.25,0.5,l*0.12]} />
+        <meshStandardMaterial color='#1a1a3a' />
+      </mesh>
+      {/* Nav screens */}
+      {[-0.8,0,0.8].map((x,i)=>(
+        <mesh key={i} position={[x,0.55,l*0.41]}>
+          <boxGeometry args={[0.4,0.3,0.06]} />
+          <meshStandardMaterial color='#0044ff' emissive='#0033cc' emissiveIntensity={0.4} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ============================================
+// OTHER 3D COMPONENTS
+// ============================================
+
+function OlympicTrack3D({ obj }) {
+  const w = obj.width, l = obj.length
+  return (
+    <group>
+      {/* Infield grass */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.02,0]}>
+        <planeGeometry args={[w*0.72,l*0.62]} />
+        <meshStandardMaterial color='#3a8a3a' />
+      </mesh>
+      {/* Track surface - reddish rubber */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.01,0]}>
+        <planeGeometry args={[w,l]} />
+        <meshStandardMaterial color='#c84820' />
+      </mesh>
+      {/* Lane lines - 8 lanes */}
+      {Array.from({length:9},(_,i)=>{
+        const t = i/8
+        const lw = w*0.14+t*(w*0.36)
+        const ll = l*0.3+t*(l*0.3)
+        return (
+          <group key={i}>
+            {/* Straight sides */}
+            <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.03,l*(0.3-t*0.15)]}>
+              <planeGeometry args={[lw*2,0.06]} />
+              <meshStandardMaterial color='#fff' />
+            </mesh>
+            <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.03,-l*(0.3-t*0.15)]}>
+              <planeGeometry args={[lw*2,0.06]} />
+              <meshStandardMaterial color='#fff' />
+            </mesh>
+          </group>
+        )
+      })}
+      {/* 100m straight highlighted */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.04,0]}>
+        <planeGeometry args={[w*0.06,l*0.54]} />
+        <meshStandardMaterial color='#e06010' />
+      </mesh>
+      {/* Finish line */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.05,-l*0.27]}>
+        <planeGeometry args={[w*0.82,0.12]} />
+        <meshStandardMaterial color='#fff' />
+      </mesh>
+      {/* Start line */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.05,l*0.27]}>
+        <planeGeometry args={[w*0.82,0.12]} />
+        <meshStandardMaterial color='#fff' />
+      </mesh>
+      {/* Long jump sand pit */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[w*0.42,0.04,l*0.1]}>
+        <planeGeometry args={[w*0.06,l*0.1]} />
+        <meshStandardMaterial color='#e8d090' />
+      </mesh>
+      {/* Scoreboard */}
+      <mesh position={[w*0.55,3,-l*0.3]}>
+        <boxGeometry args={[6,4,0.4]} />
+        <meshStandardMaterial color='#111' />
+      </mesh>
+      <mesh position={[w*0.55,3,-l*0.3+0.22]}>
+        <boxGeometry args={[5.5,3.5,0.1]} />
+        <meshStandardMaterial color='#0a0a2a' emissive='#0000ff' emissiveIntensity={0.1} />
+      </mesh>
+      {/* Scoreboard poles */}
+      {[-2,2].map((x,i)=>(
+        <mesh key={i} position={[w*0.55+x,1.2,-l*0.3]}>
+          <cylinderGeometry args={[0.15,0.15,2.4,8]} />
+          <meshStandardMaterial color='#666' metalness={0.4} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function Helipad3D({ obj }) {
+  const w = obj.width
+  return (
+    <group>
+      {/* Concrete pad */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.05,0]}>
+        <planeGeometry args={[w,w]} />
+        <meshStandardMaterial color='#707070' />
+      </mesh>
+      {/* Yellow border circle */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.06,0]}>
+        <ringGeometry args={[w*0.44,w*0.5,40]} />
+        <meshStandardMaterial color='#f5c842' />
+      </mesh>
+      {/* H marking - horizontal bar */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.07,0]}>
+        <planeGeometry args={[w*0.5,w*0.1]} />
+        <meshStandardMaterial color='#f5f5f5' />
+      </mesh>
+      {/* H marking - left vertical */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[-w*0.18,0.07,0]}>
+        <planeGeometry args={[w*0.1,w*0.48]} />
+        <meshStandardMaterial color='#f5f5f5' />
+      </mesh>
+      {/* H marking - right vertical */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[w*0.18,0.07,0]}>
+        <planeGeometry args={[w*0.1,w*0.48]} />
+        <meshStandardMaterial color='#f5f5f5' />
+      </mesh>
+      {/* Corner lights */}
+      {[[-1,-1],[-1,1],[1,-1],[1,1]].map(([sx,sz],i)=>(
+        <mesh key={i} position={[sx*w*0.44,0.12,sz*w*0.44]}>
+          <cylinderGeometry args={[0.15,0.15,0.2,8]} />
+          <meshStandardMaterial color='#ff8800' emissive='#ff6600' emissiveIntensity={0.6} />
+        </mesh>
+      ))}
+      {/* Wind sock pole */}
+      <mesh position={[w*0.45,1.5,w*0.45]}>
+        <cylinderGeometry args={[0.05,0.05,3,6]} />
+        <meshStandardMaterial color='#aaa' metalness={0.4} />
+      </mesh>
+      <mesh position={[w*0.45+0.4,3.1,w*0.45]} rotation={[0,0,-0.4]}>
+        <coneGeometry args={[0.15,0.8,8,1,true]} />
+        <meshStandardMaterial color='#ff8800' />
+      </mesh>
+    </group>
+  )
+}
+
+function RooftopTerrace3D({ obj }) {
+  const w = obj.width, l = obj.length
+  return (
+    <group>
+      {/* Wooden deck */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.08,0]}>
+        <planeGeometry args={[w,l]} />
+        <meshStandardMaterial color='#a07848' />
+      </mesh>
+      {/* Deck plank lines */}
+      {Array.from({length:10},(_,i)=>(
+        <mesh key={i} rotation={[-Math.PI/2,0,0]} position={[0,0.09,-l/2+i*(l/9)]}>
+          <planeGeometry args={[w,0.04]} />
+          <meshStandardMaterial color='#886030' />
+        </mesh>
+      ))}
+      {/* Pergola posts */}
+      {[[-w*0.35,-l*0.35],[-w*0.35,l*0.35],[w*0.35,-l*0.35],[w*0.35,l*0.35]].map(([x,z],i)=>(
+        <mesh key={i} position={[x,1.5,z]}>
+          <boxGeometry args={[0.12,3,0.12]} />
+          <meshStandardMaterial color='#f5f5f0' />
+        </mesh>
+      ))}
+      {/* Pergola beams - along length */}
+      {[-w*0.35,w*0.35].map((x,i)=>(
+        <mesh key={i} position={[x,3.02,0]}>
+          <boxGeometry args={[0.1,0.12,l*0.72]} />
+          <meshStandardMaterial color='#f5f5f0' />
+        </mesh>
+      ))}
+      {/* Pergola cross slats */}
+      {[-l*0.25,0,l*0.25].map((z,i)=>(
+        <mesh key={i} position={[0,3.1,z]}>
+          <boxGeometry args={[w*0.72,0.08,0.08]} />
+          <meshStandardMaterial color='#e8e8e0' />
+        </mesh>
+      ))}
+      {/* Sofa / seating */}
+      <mesh position={[-w*0.28,0.3,l*0.25]}>
+        <boxGeometry args={[w*0.3,0.35,l*0.12]} />
+        <meshStandardMaterial color='#607890' />
+      </mesh>
+      <mesh position={[-w*0.28,0.5,l*0.31]}>
+        <boxGeometry args={[w*0.3,0.4,0.08]} />
+        <meshStandardMaterial color='#506880' />
+      </mesh>
+      {/* Coffee table */}
+      <mesh position={[-w*0.28,0.28,l*0.15]}>
+        <boxGeometry args={[w*0.14,0.06,l*0.08]} />
+        <meshStandardMaterial color='#5a3820' />
+      </mesh>
+      {/* Planter boxes */}
+      {[-w*0.42,-w*0.42,w*0.42,w*0.42].map((x,i)=>(
+        <group key={i}>
+          <mesh position={[x,0.3,(-l*0.35+i*l*0.25)]}>
+            <boxGeometry args={[0.5,0.5,0.5]} />
+            <meshStandardMaterial color='#5a4030' />
+          </mesh>
+          <mesh position={[x,0.65,(-l*0.35+i*l*0.25)]}>
+            <sphereGeometry args={[0.28,8,6]} />
+            <meshStandardMaterial color='#2a6a2a' />
+          </mesh>
+        </group>
+      ))}
+      {/* String lights along pergola */}
+      {Array.from({length:6},(_,i)=>(
+        <mesh key={i} position={[-w*0.32+i*(w*0.64/5),3.0,l*0.35]}>
+          <sphereGeometry args={[0.04,4,4]} />
+          <meshStandardMaterial color='#ffee88' emissive='#ffcc44' emissiveIntensity={0.8} />
+        </mesh>
+      ))}
+      {/* Railing around perimeter */}
+      {[
+        [0,l/2+0.04,w,0.08],
+        [0,-l/2-0.04,w,0.08],
+        [w/2+0.04,0,0.08,l],
+        [-w/2-0.04,0,0.08,l]
+      ].map(([x,z,rw,rl],i)=>(
+        <mesh key={i} position={[x,0.55,z]}>
+          <boxGeometry args={[rw,0.06,rl]} />
+          <meshStandardMaterial color='#c0c0c0' metalness={0.4} />
+        </mesh>
+      ))}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.56,l/2+0.04]}>
+        <planeGeometry args={[w,0.5]} />
+        <meshStandardMaterial color='#c0c0c0' transparent opacity={0.25} metalness={0.3} />
+      </mesh>
+    </group>
+  )
+}
+
+// Other objects
     case 'carSedan':
       return <CarSedan3D obj={obj} />
     case 'shippingContainer':
@@ -5046,6 +5605,20 @@ function render3DModel(obj) {
       return <SwimmingPool3D obj={obj} />
     case 'kingSizeBed':
       return <KingSizeBed3D obj={obj} />
+    case 'gtaHouse':
+      return <GTAHouse3D obj={obj} />
+    case 'stardewFarm':
+      return <StardewFarm3D obj={obj} />
+    case 'haloWarthog':
+      return <HaloWarthog3D obj={obj} />
+    case 'amongUsShip':
+      return <AmongUsShip3D obj={obj} />
+    case 'olympicTrack':
+      return <OlympicTrack3D obj={obj} />
+    case 'helipad':
+      return <Helipad3D obj={obj} />
+    case 'rooftopTerrace':
+      return <RooftopTerrace3D obj={obj} />
     default:
       return <GenericComparison3D obj={obj} />
   }

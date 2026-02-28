@@ -135,6 +135,9 @@ const COMPARISON_OBJECTS = [
   // Other
   { id: 'parkingSpace', name: 'Parking Space', width: 2.5, length: 5, color: '#696969' },
   { id: 'kingSizeBed', name: 'King Size Bed', width: 2, length: 2.1, color: '#E8DCC8' },
+  { id: 'olympicTrack', name: 'Olympic Running Track', width: 84, length: 184, color: '#C84820' },
+  { id: 'helipad', name: 'Helipad', width: 24, length: 24, color: '#707070' },
+  { id: 'rooftopTerrace', name: 'Rooftop Terrace', width: 12, length: 8, color: '#A07848' },
   // Landmarks
   { id: 'eiffelTower', name: 'Eiffel Tower', width: 125, length: 125, color: '#8B7355' },
   { id: 'statueOfLiberty', name: 'Statue of Liberty', width: 47, length: 47, color: '#4A7C59' },
@@ -156,6 +159,10 @@ const COMPARISON_OBJECTS = [
   { id: 'fortnite1x1', name: 'Fortnite 1×1', width: 5, length: 5, color: '#5B7FDE' },
   { id: 'zeldaHouse', name: "Link's House", width: 8, length: 10, color: '#228B22' },
   { id: 'simsHouse', name: 'Sims Starter Home', width: 10, length: 12, color: '#32CD32' },
+  { id: 'gtaHouse', name: 'GTA Suburban House', width: 12, length: 15, color: '#D4C4A0' },
+  { id: 'stardewFarm', name: 'Stardew Valley Farm', width: 24, length: 24, color: '#5A9A3A' },
+  { id: 'haloWarthog', name: 'Halo Warthog', width: 2.5, length: 5.5, color: '#5A6A4A' },
+  { id: 'amongUsShip', name: 'Among Us — The Skeld', width: 30, length: 20, color: '#2A2A3A' },
   // Buildings (from structures)
   { id: 'mediumHouse', name: 'Medium House', width: 12, length: 15, color: '#CD853F' },
   { id: 'largeHouse', name: 'Large House', width: 15, length: 20, color: '#8B4513' },
