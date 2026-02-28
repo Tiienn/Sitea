@@ -4830,6 +4830,122 @@ function checkOverlap(bounds1, bounds2) {
   )
 }
 
+
+// ============================================
+// VEHICLE 3D COMPONENTS (new additions)
+// ============================================
+
+function FordF1503D({ obj }) {
+  const w = obj.width, l = obj.length
+  const bodyH = 1.0, cabH = 1.5, chassisY = 0.45
+  const blue = "#1A3A6A", blueDk = "#142D55", chrome = "#C8C8C8", black = "#1A1A1A"
+  const cabL = l * 0.45, bedL = l * 0.48
+  return (
+    <group>
+      <mesh position={[0, chassisY * 0.4, 0]}><boxGeometry args={[w * 0.85, 0.18, l * 0.9]} /><meshStandardMaterial color={black} /></mesh>
+      <mesh position={[0, chassisY + bodyH / 2, l * 0.12]} castShadow><boxGeometry args={[w, bodyH, cabL]} /><meshStandardMaterial color={blue} /></mesh>
+      <mesh position={[0, chassisY + bodyH + cabH / 2, l * 0.12]} castShadow><boxGeometry args={[w * 0.9, cabH, cabL * 0.75]} /><meshStandardMaterial color={blue} /></mesh>
+      <mesh position={[0, chassisY + bodyH / 2, -l * 0.27]} castShadow><boxGeometry args={[w, bodyH, bedL]} /><meshStandardMaterial color={blue} /></mesh>
+      <mesh position={[0, chassisY + 0.12, -l * 0.27]}><boxGeometry args={[w * 0.88, 0.08, bedL * 0.92]} /><meshStandardMaterial color={blueDk} /></mesh>
+      <mesh position={[0, chassisY + bodyH * 0.8, l * 0.42]} castShadow><boxGeometry args={[w, bodyH * 0.55, l * 0.12]} /><meshStandardMaterial color={blue} /></mesh>
+      <mesh position={[0, chassisY + bodyH * 0.5, l / 2 + 0.06]}><boxGeometry args={[w * 0.8, bodyH * 0.6, 0.1]} /><meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} /></mesh>
+      <mesh position={[0, chassisY + bodyH + cabH * 0.5, l * 0.32]} rotation={[0.25, 0, 0]}><boxGeometry args={[w * 0.85, cabH * 0.8, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.6} /></mesh>
+      <mesh position={[0, chassisY + bodyH + cabH * 0.5, -l * 0.08]} rotation={[-0.2, 0, 0]}><boxGeometry args={[w * 0.8, cabH * 0.65, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.6} /></mesh>
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.7, l / 2 + 0.07]}><boxGeometry args={[0.25, 0.18, 0.06]} /><meshStandardMaterial color="#FFFFAA" emissive="#FFFF88" emissiveIntensity={0.4} /></mesh>))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.7, -l / 2 - 0.06]}><boxGeometry args={[0.18, 0.22, 0.06]} /><meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} /></mesh>))}
+      <mesh position={[0, chassisY + 0.18, l / 2 + 0.1]}><boxGeometry args={[w + 0.1, 0.22, 0.15]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.4} /></mesh>
+      <mesh position={[0, chassisY + 0.18, -l / 2 - 0.1]}><boxGeometry args={[w + 0.1, 0.22, 0.15]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.4} /></mesh>
+      {[[-1, l * 0.32], [-1, -l * 0.32], [1, l * 0.32], [1, -l * 0.32]].map(([sx, sz], i) => (
+        <group key={i}>
+          <mesh position={[sx * (w * 0.5 + 0.12), 0.42, sz]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.42, 0.42, 0.22, 14]} /><meshStandardMaterial color={black} /></mesh>
+          <mesh position={[sx * (w * 0.5 + 0.22), 0.42, sz]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.28, 0.28, 0.06, 12]} /><meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} /></mesh>
+        </group>
+      ))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w * 0.48), chassisY - 0.05, 0]}><boxGeometry args={[0.08, 0.06, l * 0.55]} /><meshStandardMaterial color={chrome} metalness={0.5} /></mesh>))}
+    </group>
+  )
+}
+
+function SemiTruck3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const cabL = 6, trailerL = l - cabL - 1
+  const cabH = 4, trailerH = 2.8, chassisY = 0.55
+  const chrome = "#C0C0C0", black = "#111", cabColor = "#C8392B", trailerColor = "#F0F0F0"
+  return (
+    <group>
+      <mesh position={[0, chassisY + cabH / 2, (l / 2) - cabL / 2]} castShadow><boxGeometry args={[w, cabH, cabL]} /><meshStandardMaterial color={cabColor} /></mesh>
+      <mesh position={[0, chassisY + cabH + 0.6, (l / 2) - cabL * 0.4]}><boxGeometry args={[w * 0.95, 1.2, cabL * 0.6]} /><meshStandardMaterial color={cabColor} /></mesh>
+      <mesh position={[0, chassisY + cabH * 0.65, (l / 2) + 0.05]} rotation={[-0.1, 0, 0]}><boxGeometry args={[w * 0.8, cabH * 0.4, 0.1]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.55} /></mesh>
+      <mesh position={[0, chassisY + cabH * 0.25, (l / 2) + 0.07]}><boxGeometry args={[w * 0.85, cabH * 0.45, 0.12]} /><meshStandardMaterial color={chrome} metalness={0.7} roughness={0.2} /></mesh>
+      {[0.2, 0.4, 0.6, 0.8].map((t, i) => (<mesh key={i} position={[0, chassisY + cabH * 0.25 * t + 0.1, (l / 2) + 0.14]}><boxGeometry args={[w * 0.83, 0.06, 0.06]} /><meshStandardMaterial color={black} /></mesh>))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + cabH * 0.55, (l / 2) + 0.08]}><boxGeometry args={[0.35, 0.22, 0.07]} /><meshStandardMaterial color="#FFFFCC" emissive="#FFFF88" emissiveIntensity={0.5} /></mesh>))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w * 0.45), chassisY + cabH + 1.8, (l / 2) - cabL * 0.65]}><cylinderGeometry args={[0.12, 0.14, 3.5, 8]} /><meshStandardMaterial color={chrome} metalness={0.7} roughness={0.2} /></mesh>))}
+      <mesh position={[0, chassisY + 0.4, (l / 2) - cabL - 0.2]}><cylinderGeometry args={[0.5, 0.6, 0.3, 10]} /><meshStandardMaterial color="#555" metalness={0.4} /></mesh>
+      <mesh position={[0, chassisY + trailerH / 2, (l / 2) - cabL - 0.8 - trailerL / 2]} castShadow><boxGeometry args={[w, trailerH, trailerL]} /><meshStandardMaterial color={trailerColor} /></mesh>
+      <mesh position={[0, chassisY + trailerH / 2, -(l / 2) + 0.08]}><boxGeometry args={[w * 0.95, trailerH * 0.95, 0.1]} /><meshStandardMaterial color="#D8D8D8" /></mesh>
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w * 0.52), 0.5, (l / 2) - 1.5]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.5, 0.5, 0.2, 12]} /><meshStandardMaterial color={black} /></mesh>))}
+      {[-1, 1].map((s, i) => [-l * 0.08, -l * 0.14].map((z, j) => (<mesh key={i * 2 + j} position={[s * (w * 0.52), 0.5, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.5, 0.5, 0.38, 12]} /><meshStandardMaterial color={black} /></mesh>)))}
+      {[-1, 1].map((s, i) => [-l * 0.38, -l * 0.44].map((z, j) => (<mesh key={i * 2 + j} position={[s * (w * 0.52), 0.5, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.5, 0.5, 0.38, 12]} /><meshStandardMaterial color={black} /></mesh>)))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.35, 0.55, (l / 2) - cabL - 2]}><boxGeometry args={[0.12, 1.1, 0.12]} /><meshStandardMaterial color="#888" metalness={0.3} /></mesh>))}
+    </group>
+  )
+}
+
+function FireTruck3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const bodyH = 2.2, cabH = 1.4, chassisY = 0.5
+  const red = "#CC1111", redDk = "#AA0D0D", chrome = "#C8C8C8", black = "#1A1A1A", yellow = "#FFD700"
+  return (
+    <group>
+      <mesh position={[0, chassisY * 0.4, 0]}><boxGeometry args={[w * 0.8, 0.2, l * 0.9]} /><meshStandardMaterial color={black} /></mesh>
+      <mesh position={[0, chassisY + bodyH / 2, 0]} castShadow><boxGeometry args={[w, bodyH, l]} /><meshStandardMaterial color={red} /></mesh>
+      <mesh position={[0, chassisY + bodyH + cabH / 2, l * 0.32]} castShadow><boxGeometry args={[w * 0.95, cabH, l * 0.32]} /><meshStandardMaterial color={red} /></mesh>
+      <mesh position={[0, chassisY + bodyH + cabH * 0.55, l * 0.45]} rotation={[-0.15, 0, 0]}><boxGeometry args={[w * 0.82, cabH * 0.65, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.55} /></mesh>
+      <mesh position={[0, chassisY + bodyH + cabH + 0.12, l * 0.2]}><boxGeometry args={[w * 0.85, 0.18, l * 0.4]} /><meshStandardMaterial color={black} /></mesh>
+      {[-0.3, 0, 0.3].map((dz, i) => (<mesh key={i} position={[-w * 0.35, chassisY + bodyH + cabH + 0.25, l * 0.2 + dz]}><boxGeometry args={[0.15, 0.12, 0.18]} /><meshStandardMaterial color="#FF2222" emissive="#FF0000" emissiveIntensity={0.8} /></mesh>))}
+      {[-0.3, 0, 0.3].map((dz, i) => (<mesh key={i} position={[w * 0.35, chassisY + bodyH + cabH + 0.25, l * 0.2 + dz]}><boxGeometry args={[0.15, 0.12, 0.18]} /><meshStandardMaterial color="#2244FF" emissive="#0022FF" emissiveIntensity={0.8} /></mesh>))}
+      <mesh position={[0, chassisY + bodyH + 0.25, -l * 0.1]}><boxGeometry args={[w * 0.6, 0.35, l * 0.55]} /><meshStandardMaterial color="#888" metalness={0.4} roughness={0.5} /></mesh>
+      <mesh position={[0, chassisY + bodyH + 0.8, -l * 0.15]} rotation={[-0.3, 0, 0]}><boxGeometry args={[0.25, 0.2, l * 0.7]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.3} /></mesh>
+      {[-1, 1].map((s, i) => (<group key={i}>{[-0.25, 0, 0.25].map((dz, j) => (<mesh key={j} position={[s * (w / 2 + 0.02), chassisY + bodyH * 0.5, dz * l * 0.5]}><boxGeometry args={[0.04, bodyH * 0.55, l * 0.2]} /><meshStandardMaterial color={redDk} /></mesh>))}{[-0.25, 0, 0.25].map((dz, j) => (<mesh key={j + 3} position={[s * (w / 2 + 0.05), chassisY + bodyH * 0.4, dz * l * 0.5]}><boxGeometry args={[0.04, 0.06, 0.25]} /><meshStandardMaterial color={chrome} metalness={0.6} /></mesh>))}</group>))}
+      <mesh position={[0, chassisY + 0.2, l / 2 + 0.1]}><boxGeometry args={[w + 0.15, 0.28, 0.18]} /><meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} /></mesh>
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.6, l / 2 + 0.07]}><boxGeometry args={[0.28, 0.2, 0.07]} /><meshStandardMaterial color="#FFFFAA" emissive="#FFFF88" emissiveIntensity={0.4} /></mesh>))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w / 2 + 0.03), chassisY + bodyH * 0.35, 0]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[l, 0.12, 0.04]} /><meshStandardMaterial color={yellow} emissive={yellow} emissiveIntensity={0.2} /></mesh>))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.4, chassisY + bodyH * 0.6, -l / 2 - 0.06]}><boxGeometry args={[0.2, 0.2, 0.06]} /><meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} /></mesh>))}
+      <mesh position={[0, chassisY + 0.3, -l / 2 - 0.1]}><boxGeometry args={[w * 0.75, 0.5, 0.2]} /><meshStandardMaterial color={chrome} metalness={0.4} /></mesh>
+      {[l * 0.35, -l * 0.28].map((z, j) => [-1, 1].map((s, i) => (<group key={i * 2 + j}><mesh position={[s * (w * 0.52), 0.5, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.5, 0.5, 0.25, 14]} /><meshStandardMaterial color={black} /></mesh><mesh position={[s * (w * 0.52 + 0.13), 0.5, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.3, 0.3, 0.06, 12]} /><meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} /></mesh></group>)))}
+    </group>
+  )
+}
+
+function SUV3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const bodyH = 1.0, roofH = 0.9, chassisY = 0.48
+  const dark = "#1A2B1A", darkMid = "#243824", black = "#111", chrome = "#C0C0C0"
+  return (
+    <group>
+      <mesh position={[0, chassisY * 0.35, 0]}><boxGeometry args={[w * 0.82, 0.2, l * 0.88]} /><meshStandardMaterial color={black} /></mesh>
+      <mesh position={[0, chassisY + bodyH / 2, 0]} castShadow><boxGeometry args={[w, bodyH, l]} /><meshStandardMaterial color={dark} /></mesh>
+      <mesh position={[0, chassisY + bodyH + roofH / 2, -l * 0.04]} castShadow><boxGeometry args={[w * 0.93, roofH, l * 0.72]} /><meshStandardMaterial color={dark} /></mesh>
+      <mesh position={[0, chassisY + bodyH + roofH + 0.08, -l * 0.04]}><boxGeometry args={[w * 0.88, 0.05, l * 0.62]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.4} /></mesh>
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH + roofH + 0.14, -l * 0.04]}><boxGeometry args={[0.05, 0.14, l * 0.6]} /><meshStandardMaterial color={chrome} metalness={0.5} /></mesh>))}
+      <mesh position={[0, chassisY + bodyH + roofH * 0.55, l * 0.3]} rotation={[-0.25, 0, 0]}><boxGeometry args={[w * 0.84, roofH * 0.8, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.55} /></mesh>
+      <mesh position={[0, chassisY + bodyH + roofH * 0.55, -l * 0.38]} rotation={[0.2, 0, 0]}><boxGeometry args={[w * 0.8, roofH * 0.7, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.55} /></mesh>
+      {[-1, 1].map((s, i) => (<group key={i}><mesh position={[s * (w / 2 + 0.04), chassisY + bodyH + roofH * 0.5, l * 0.1]}><boxGeometry args={[0.08, roofH * 0.65, l * 0.28]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.5} /></mesh><mesh position={[s * (w / 2 + 0.04), chassisY + bodyH + roofH * 0.5, -l * 0.22]}><boxGeometry args={[0.08, roofH * 0.6, l * 0.2]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.5} /></mesh></group>))}
+      <mesh position={[0, chassisY + bodyH * 0.9, l * 0.42]}><boxGeometry args={[w, bodyH * 0.25, l * 0.15]} /><meshStandardMaterial color={darkMid} /></mesh>
+      <mesh position={[0, chassisY + bodyH * 0.4, l / 2 + 0.07]}><boxGeometry args={[w * 0.75, bodyH * 0.55, 0.1]} /><meshStandardMaterial color={black} /></mesh>
+      {[0.25, 0.5, 0.75].map((t, i) => (<mesh key={i} position={[0, chassisY + bodyH * 0.15 + bodyH * 0.55 * t, l / 2 + 0.13]}><boxGeometry args={[w * 0.73, 0.05, 0.05]} /><meshStandardMaterial color={chrome} metalness={0.6} /></mesh>))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.78, l / 2 + 0.07]}><boxGeometry args={[0.22, 0.14, 0.07]} /><meshStandardMaterial color="#FFFFCC" emissive="#FFFF99" emissiveIntensity={0.4} /></mesh>))}
+      <mesh position={[0, chassisY + 0.12, l / 2 + 0.12]}><boxGeometry args={[w + 0.2, 0.35, 0.2]} /><meshStandardMaterial color={dark} /></mesh>
+      <mesh position={[0, chassisY - 0.05, l / 2 + 0.12]}><boxGeometry args={[w * 0.7, 0.12, 0.2]} /><meshStandardMaterial color="#555" metalness={0.5} /></mesh>
+      <mesh position={[0, chassisY + 0.12, -l / 2 - 0.1]}><boxGeometry args={[w + 0.1, 0.28, 0.16]} /><meshStandardMaterial color={dark} /></mesh>
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.42, chassisY + bodyH * 0.6, -l / 2 - 0.06]}><boxGeometry args={[0.14, 0.3, 0.07]} /><meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} /></mesh>))}
+      {[l * 0.3, -l * 0.3].map((z, j) => [-1, 1].map((s, i) => (<group key={i * 2 + j}><mesh position={[s * (w * 0.52), 0.46, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.46, 0.46, 0.22, 14]} /><meshStandardMaterial color={black} roughness={0.9} /></mesh><mesh position={[s * (w * 0.52 + 0.11), 0.46, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.3, 0.3, 0.08, 10]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.3} /></mesh></group>)))}
+      {[l * 0.3, -l * 0.3].map((z, j) => [-1, 1].map((s, i) => (<mesh key={i * 2 + j} position={[s * (w / 2 + 0.06), chassisY + 0.3, z]}><boxGeometry args={[0.1, 0.35, 0.85]} /><meshStandardMaterial color={darkMid} /></mesh>)))}
+      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w * 0.52), chassisY - 0.1, 0]}><boxGeometry args={[0.08, 0.08, l * 0.45]} /><meshStandardMaterial color={black} metalness={0.3} /></mesh>))}
+    </group>
+  )
+}
+
 // Render the appropriate 3D model based on object id
 function render3DModel(obj) {
   switch (obj.id) {
@@ -4918,6 +5034,14 @@ function render3DModel(obj) {
       return <ShippingContainer3D obj={obj} />
     case 'schoolBus':
       return <SchoolBus3D obj={obj} />
+    case 'fordF150':
+      return <FordF1503D obj={obj} />
+    case 'semiTruck':
+      return <SemiTruck3D obj={obj} />
+    case 'fireTruck':
+      return <FireTruck3D obj={obj} />
+    case 'suv':
+      return <SUV3D obj={obj} />
     case 'swimmingPool':
       return <SwimmingPool3D obj={obj} />
     case 'kingSizeBed':

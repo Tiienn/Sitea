@@ -128,6 +128,10 @@ const COMPARISON_OBJECTS = [
   { id: 'carSedan', name: 'Car (Sedan)', width: 1.8, length: 4.5, color: '#8C8C8C' },
   { id: 'shippingContainer', name: 'Shipping Container', width: 2.44, length: 6.06, color: '#C75B39' },
   { id: 'schoolBus', name: 'School Bus', width: 2.6, length: 12, color: '#F7B500' },
+  { id: 'fordF150', name: 'Ford F-150 Pickup', width: 2.0, length: 6.0, color: '#1A3A6A' },
+  { id: 'semiTruck', name: 'Semi-Truck (18-Wheeler)', width: 3.0, length: 22.0, color: '#C8392B' },
+  { id: 'fireTruck', name: 'Fire Truck', width: 2.5, length: 12.0, color: '#CC1111' },
+  { id: 'suv', name: 'SUV (Land Cruiser)', width: 2.0, length: 5.0, color: '#1A2B1A' },
   // Other
   { id: 'parkingSpace', name: 'Parking Space', width: 2.5, length: 5, color: '#696969' },
   { id: 'kingSizeBed', name: 'King Size Bed', width: 2, length: 2.1, color: '#E8DCC8' },

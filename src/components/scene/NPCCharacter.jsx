@@ -335,11 +335,11 @@ export function NPCCharacter({ id, position, rotation = 0, onClick, isActive, is
         {/* Boot sole */}
         <mesh position={[-0.12, -0.075, 0.05]}>
           <boxGeometry args={[0.18, 0.02, 0.27]} />
-          <meshStandardMaterial color=#1a1a1a roughness={1} />
+          <meshStandardMaterial color='#1a1a1a' roughness={1} />
         </mesh>
         <mesh position={[0.12, -0.075, 0.05]}>
           <boxGeometry args={[0.18, 0.02, 0.27]} />
-          <meshStandardMaterial color=#1a1a1a roughness={1} />
+          <meshStandardMaterial color='#1a1a1a' roughness={1} />
         </mesh>
 
         {/* Shirt — light blue work shirt */}
@@ -355,7 +355,7 @@ export function NPCCharacter({ id, position, rotation = 0, onClick, isActive, is
         {/* Pen in pocket */}
         <mesh position={[-0.14, 0.73, 0.15]}>
           <cylinderGeometry args={[0.01, 0.01, 0.12, 5]} />
-          <meshStandardMaterial color=#FFD700 metalness={0.4} roughness={0.3} />
+          <meshStandardMaterial color='#FFD700' metalness={0.4} roughness={0.3} />
         </mesh>
 
         {/* Left arm — straight down */}
@@ -383,21 +383,21 @@ export function NPCCharacter({ id, position, rotation = 0, onClick, isActive, is
         {/* Blueprint roll under right arm */}
         <mesh position={[0.38, 0.52, 0]} rotation={[Math.PI / 2, 0, 0.2]}>
           <cylinderGeometry args={[0.05, 0.05, 0.32, 10]} />
-          <meshStandardMaterial color=#f5f0dc roughness={0.9} />
+          <meshStandardMaterial color='#f5f0dc' roughness={0.9} />
         </mesh>
         {/* Blueprint end caps */}
         <mesh position={[0.38, 0.52, 0.17]} rotation={[Math.PI / 2, 0, 0.2]}>
           <cylinderGeometry args={[0.055, 0.055, 0.02, 10]} />
-          <meshStandardMaterial color=#c8b870 roughness={0.6} />
+          <meshStandardMaterial color='#c8b870' roughness={0.6} />
         </mesh>
         <mesh position={[0.38, 0.52, -0.17]} rotation={[Math.PI / 2, 0, 0.2]}>
           <cylinderGeometry args={[0.055, 0.055, 0.02, 10]} />
-          <meshStandardMaterial color=#c8b870 roughness={0.6} />
+          <meshStandardMaterial color='#c8b870' roughness={0.6} />
         </mesh>
         {/* Blueprint rubber band */}
         <mesh position={[0.38, 0.52, 0]} rotation={[Math.PI / 2, 0, 0.2]}>
           <cylinderGeometry args={[0.056, 0.056, 0.06, 10, 1, true]} />
-          <meshStandardMaterial color=#c0392b roughness={0.6} />
+          <meshStandardMaterial color='#c0392b' roughness={0.6} />
         </mesh>
       </group>
 
@@ -418,12 +418,12 @@ export function NPCCharacter({ id, position, rotation = 0, onClick, isActive, is
         {/* Eyes — left */}
         <mesh position={[-0.08, 0.03, 0.2]}>
           <sphereGeometry args={[0.03, 8, 8]} />
-          <meshStandardMaterial color=#2c2c2c roughness={0.5} />
+          <meshStandardMaterial color='#2c2c2c' roughness={0.5} />
         </mesh>
         {/* Eyes — right */}
         <mesh position={[0.08, 0.03, 0.2]}>
           <sphereGeometry args={[0.03, 8, 8]} />
-          <meshStandardMaterial color=#2c2c2c roughness={0.5} />
+          <meshStandardMaterial color='#2c2c2c' roughness={0.5} />
         </mesh>
 
         {/* Eyebrows */}

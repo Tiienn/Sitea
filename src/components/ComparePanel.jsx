@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useUser } from '../hooks/useUser'
 
 // Free comparison objects (available to all users)
-const FREE_OBJECTS = ['house', 'carSedan', 'parkingSpace', 'soccerField', 'basketballCourt', 'tennisCourt', 'swimmingPool', 'boxingRing', 'volleyballCourt', 'footballField', 'padelCourt', 'eiffelTower', 'statueOfLiberty', 'greatPyramid', 'tajMahal', 'colosseum', 'bigBen', 'pokemonCenter', 'minecraftHouse', 'acHouse', 'fortnite1x1', 'zeldaHouse', 'simsHouse', 'mediumHouse', 'largeHouse', 'shed', 'garage', 'barn', 'workshop', 'greenhouse', 'gazebo', 'carport']
+const FREE_OBJECTS = ['house', 'carSedan', 'parkingSpace', 'soccerField', 'basketballCourt', 'tennisCourt', 'swimmingPool', 'boxingRing', 'volleyballCourt', 'footballField', 'padelCourt', 'eiffelTower', 'statueOfLiberty', 'greatPyramid', 'tajMahal', 'colosseum', 'bigBen', 'pokemonCenter', 'minecraftHouse', 'acHouse', 'fortnite1x1', 'zeldaHouse', 'simsHouse', 'mediumHouse', 'largeHouse', 'shed', 'garage', 'barn', 'workshop', 'greenhouse', 'gazebo', 'carport', 'fordF150', 'semiTruck', 'fireTruck', 'suv']
 
 // Calculate fit count and format for display
 function getFitInfo(landArea, objWidth, objLength) {
@@ -54,6 +54,10 @@ const OBJECT_CATEGORIES = {
   carSedan: 'vehicles',
   shippingContainer: 'vehicles',
   schoolBus: 'vehicles',
+  fordF150: 'vehicles',
+  semiTruck: 'vehicles',
+  fireTruck: 'vehicles',
+  suv: 'vehicles',
   parkingSpace: 'other',
   swimmingPool: 'sports',
   boxingRing: 'sports',
@@ -367,6 +371,71 @@ const Thumbnails = {
       <circle cx="31" cy="31" r="1.2" fill="#555" />
       {/* Ground shadow */}
       <ellipse cx="20" cy="35" rx="16" ry="1.5" fill="#333" opacity="0.3" />
+    </svg>
+  ),
+  fordF150: (
+    <svg viewBox="0 0 40 40" className="w-10 h-10">
+      <rect x="1" y="1" width="38" height="38" rx="3" fill="#4A4A48" />
+      <rect x="3" y="18" width="34" height="10" rx="2" fill="#1A3A6A" />
+      <rect x="8" y="14" width="16" height="6" rx="1" fill="#1A3A6A" />
+      <rect x="25" y="18" width="10" height="5" rx="1" fill="#142D55" />
+      <rect x="10" y="15" width="6" height="4" rx="0.5" fill="#87CEEB" />
+      <rect x="17" y="15" width="5" height="4" rx="0.5" fill="#87CEEB" />
+      <circle cx="11" cy="29" r="3.5" fill="#222" /><circle cx="11" cy="29" r="1.5" fill="#888" />
+      <circle cx="29" cy="29" r="3.5" fill="#222" /><circle cx="29" cy="29" r="1.5" fill="#888" />
+      <rect x="34" y="21" width="2" height="2" rx="0.3" fill="#FFFF88" />
+      <rect x="3" y="21" width="2" height="2" rx="0.3" fill="#CC3030" />
+      <rect x="3" y="17" width="34" height="2" fill="#C8C8C8" />
+    </svg>
+  ),
+  semiTruck: (
+    <svg viewBox="0 0 40 40" className="w-10 h-10">
+      <rect x="1" y="1" width="38" height="38" rx="3" fill="#4A4A48" />
+      <rect x="3" y="18" width="26" height="12" rx="1" fill="#F0F0F0" />
+      <rect x="29" y="12" width="8" height="18" rx="1" fill="#C8392B" />
+      <rect x="30" y="13" width="6" height="6" rx="0.5" fill="#87CEEB" />
+      <rect x="30" y="10" width="6" height="3" rx="0.5" fill="#C04020" />
+      <rect x="31" y="9" width="1.5" height="4" fill="#C0C0C0" />
+      <rect x="34" y="9" width="1.5" height="4" fill="#C0C0C0" />
+      <rect x="27" y="18" width="2" height="12" fill="#C8C8C8" />
+      <circle cx="8" cy="31" r="3" fill="#222" /><circle cx="8" cy="31" r="1.2" fill="#666" />
+      <circle cx="16" cy="31" r="3" fill="#222" /><circle cx="16" cy="31" r="1.2" fill="#666" />
+      <circle cx="33" cy="31" r="3" fill="#222" /><circle cx="33" cy="31" r="1.2" fill="#666" />
+    </svg>
+  ),
+  fireTruck: (
+    <svg viewBox="0 0 40 40" className="w-10 h-10">
+      <rect x="1" y="1" width="38" height="38" rx="3" fill="#4A4A48" />
+      <rect x="3" y="17" width="34" height="12" rx="1" fill="#CC1111" />
+      <rect x="3" y="13" width="12" height="6" rx="1" fill="#CC1111" />
+      <rect x="4" y="14" width="5" height="4" rx="0.5" fill="#87CEEB" />
+      <rect x="3" y="11" width="34" height="2.5" rx="0.5" fill="#1A1A1A" />
+      <rect x="5" y="10" width="3" height="1.5" fill="#FF2222" />
+      <rect x="9" y="10" width="3" height="1.5" fill="#2244FF" />
+      <rect x="13" y="10" width="3" height="1.5" fill="#FF2222" />
+      <rect x="3" y="15" width="34" height="1" fill="#FFD700" />
+      <rect x="35" y="20" width="2" height="2" rx="0.3" fill="#FFFFAA" />
+      <rect x="3" y="20" width="2" height="2" rx="0.3" fill="#FF3333" />
+      <rect x="8" y="13" width="24" height="3" rx="0.5" fill="#888" />
+      <circle cx="10" cy="30" r="3.5" fill="#222" /><circle cx="10" cy="30" r="1.5" fill="#666" />
+      <circle cx="30" cy="30" r="3.5" fill="#222" /><circle cx="30" cy="30" r="1.5" fill="#666" />
+    </svg>
+  ),
+  suv: (
+    <svg viewBox="0 0 40 40" className="w-10 h-10">
+      <rect x="1" y="1" width="38" height="38" rx="3" fill="#4A4A48" />
+      <rect x="3" y="20" width="34" height="10" rx="2" fill="#1A2B1A" />
+      <rect x="5" y="13" width="30" height="9" rx="2" fill="#1A2B1A" />
+      <rect x="7" y="14" width="10" height="6" rx="0.5" fill="#87CEEB" />
+      <rect x="18" y="14" width="8" height="6" rx="0.5" fill="#87CEEB" />
+      <rect x="3" y="11" width="34" height="3" rx="1" fill="#888" />
+      <rect x="5" y="10" width="30" height="2" rx="0.5" fill="#C0C0C0" />
+      <rect x="35" y="22" width="2" height="2" rx="0.3" fill="#FFFFAA" />
+      <rect x="3" y="22" width="2" height="2" rx="0.3" fill="#FF3333" />
+      <circle cx="10" cy="31" r="3.5" fill="#222" /><circle cx="10" cy="31" r="1.5" fill="#888" />
+      <circle cx="30" cy="31" r="3.5" fill="#222" /><circle cx="30" cy="31" r="1.5" fill="#888" />
+      <ellipse cx="10" cy="31" rx="5" ry="2" fill="none" stroke="#243824" strokeWidth="0.6" />
+      <ellipse cx="30" cy="31" rx="5" ry="2" fill="none" stroke="#243824" strokeWidth="0.6" />
     </svg>
   ),
   kingSizeBed: (
