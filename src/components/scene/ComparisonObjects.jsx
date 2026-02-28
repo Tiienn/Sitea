@@ -405,7 +405,7 @@ function BoxingRing3D({ obj }) {
   const texture = useBoxingRingTexture(obj.width, obj.length)
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.5, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.53, 0]}>
         <planeGeometry args={[obj.width + 1.2, obj.length + 1.2]} />
         <meshStandardMaterial map={texture} />
       </mesh>
@@ -5027,7 +5027,45 @@ function render3DModel(obj) {
       return <Gazebo3D obj={obj} />
     case 'carport':
       return <Carport3D obj={obj} />
-    
+    case 'gtaHouse':
+      return <GTAHouse3D obj={obj} />
+    case 'stardewFarm':
+      return <StardewFarm3D obj={obj} />
+    case 'haloWarthog':
+      return <HaloWarthog3D obj={obj} />
+    case 'amongUsShip':
+      return <AmongUsShip3D obj={obj} />
+    case 'olympicTrack':
+      return <OlympicTrack3D obj={obj} />
+    case 'helipad':
+      return <Helipad3D obj={obj} />
+    case 'rooftopTerrace':
+      return <RooftopTerrace3D obj={obj} />
+    // Vehicles
+    case 'carSedan':
+      return <CarSedan3D obj={obj} />
+    case 'shippingContainer':
+      return <ShippingContainer3D obj={obj} />
+    case 'schoolBus':
+      return <SchoolBus3D obj={obj} />
+    case 'fordF150':
+      return <FordF1503D obj={obj} />
+    case 'semiTruck':
+      return <SemiTruck3D obj={obj} />
+    case 'fireTruck':
+      return <FireTruck3D obj={obj} />
+    case 'suv':
+      return <SUV3D obj={obj} />
+    // Other
+    case 'swimmingPool':
+      return <SwimmingPool3D obj={obj} />
+    case 'kingSizeBed':
+      return <KingSizeBed3D obj={obj} />
+    default:
+      return <GenericComparison3D obj={obj} />
+  }
+}
+
 // ============================================
 // GAMING 3D COMPONENTS
 // ============================================
@@ -5043,7 +5081,7 @@ function GTAHouse3D({ obj }) {
         <meshStandardMaterial color='#8a8a72' />
       </mesh>
       {/* Driveway */}
-      <mesh rotation={[-Math.PI/2,0,0]} position={[w*0.3,0.01,fz+2]}>
+      <mesh rotation={[-Math.PI/2,0,0]} position={[w*0.3,0.05,fz+2]}>
         <planeGeometry args={[w*0.45,4]} />
         <meshStandardMaterial color='#5a5a5a' />
       </mesh>
@@ -5114,13 +5152,13 @@ function StardewFarm3D({ obj }) {
   return (
     <group>
       {/* Grass base */}
-      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0,0]}>
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,-0.05,0]}>
         <planeGeometry args={[w+4,l+4]} />
         <meshStandardMaterial color='#5a9a3a' />
       </mesh>
       {/* Plowed soil rows */}
       {Array.from({length:8},(_,i)=>(
-        <mesh key={i} rotation={[-Math.PI/2,0,0]} position={[-w*0.3+i*(w*0.6/7),0.01,l*0.05]}>
+        <mesh key={i} rotation={[-Math.PI/2,0,0]} position={[-w*0.3+i*(w*0.6/7),0.05,l*0.05]}>
           <planeGeometry args={[w*0.06,l*0.55]} />
           <meshStandardMaterial color='#6b4226' />
         </mesh>
@@ -5277,7 +5315,7 @@ function AmongUsShip3D({ obj }) {
   return (
     <group>
       {/* Main hull floor */}
-      <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.05,0]}>
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,-0.05,0]}>
         <planeGeometry args={[w,l]} />
         <meshStandardMaterial color={hull} />
       </mesh>
@@ -5287,11 +5325,11 @@ function AmongUsShip3D({ obj }) {
         <meshStandardMaterial color={hullLight} />
       </mesh>
       {/* Cafeteria - center rectangle */}
-      <mesh position={[0,0.35,l*0.1]}>
+      <mesh position={[0,0.38,l*0.1]}>
         <boxGeometry args={[w*0.35,0.5,l*0.28]} />
         <meshStandardMaterial color='#1a3a5a' />
       </mesh>
-      <mesh position={[0,0.62,l*0.1]}>
+      <mesh position={[0,0.65,l*0.1]}>
         <boxGeometry args={[w*0.37,0.08,l*0.3]} />
         <meshStandardMaterial color='#2a4a6a' />
       </mesh>
@@ -5301,46 +5339,46 @@ function AmongUsShip3D({ obj }) {
         <meshStandardMaterial color='#8B6528' />
       </mesh>
       {/* Reactor - left circle */}
-      <mesh position={[-w*0.38,0.35,l*0.05]}>
+      <mesh position={[-w*0.38,0.38,l*0.05]}>
         <cylinderGeometry args={[l*0.12,l*0.12,0.5,16]} />
         <meshStandardMaterial color='#1a2a4a' />
       </mesh>
-      <mesh position={[-w*0.38,0.62,l*0.05]}>
+      <mesh position={[-w*0.38,0.65,l*0.05]}>
         <cylinderGeometry args={[l*0.1,l*0.1,0.08,16]} />
         <meshStandardMaterial color={glowG} emissive={glowG} emissiveIntensity={0.5} />
       </mesh>
       {/* Reactor core */}
-      <mesh position={[-w*0.38,0.55,l*0.05]}>
+      <mesh position={[-w*0.38,0.58,l*0.05]}>
         <cylinderGeometry args={[l*0.05,l*0.05,0.2,12]} />
         <meshStandardMaterial color='#00ffcc' emissive='#00ffcc' emissiveIntensity={0.6} />
       </mesh>
       {/* MedBay - right */}
-      <mesh position={[w*0.35,0.35,-l*0.1]}>
+      <mesh position={[w*0.35,0.38,-l*0.1]}>
         <boxGeometry args={[w*0.2,0.5,l*0.2]} />
         <meshStandardMaterial color='#1a3a2a' />
       </mesh>
       {/* Medbay cross */}
-      <mesh position={[w*0.35,0.63,-l*0.1]}>
+      <mesh position={[w*0.35,0.66,-l*0.1]}>
         <boxGeometry args={[0.5,0.08,0.08]} />
         <meshStandardMaterial color='#ff4444' emissive='#ff2222' emissiveIntensity={0.5} />
       </mesh>
-      <mesh position={[w*0.35,0.63,-l*0.1]}>
+      <mesh position={[w*0.35,0.66,-l*0.1]}>
         <boxGeometry args={[0.08,0.08,0.5]} />
         <meshStandardMaterial color='#ff4444' emissive='#ff2222' emissiveIntensity={0.5} />
       </mesh>
       {/* Electrical room - back */}
-      <mesh position={[w*0.2,0.35,-l*0.35]}>
+      <mesh position={[w*0.2,0.38,-l*0.35]}>
         <boxGeometry args={[w*0.28,0.5,l*0.18]} />
         <meshStandardMaterial color='#3a2a1a' />
       </mesh>
       {/* Vents */}
       {[[-w*0.1,l*0.35],[w*0.1,-l*0.3],[-w*0.3,-l*0.2]].map(([x,z],i)=>(
         <group key={i}>
-          <mesh position={[x,0.32,z]}>
+          <mesh position={[x,0.65,z]}>
             <boxGeometry args={[0.6,0.2,0.6]} />
             <meshStandardMaterial color={vent} />
           </mesh>
-          <mesh position={[x,0.42,z]}>
+          <mesh position={[x,0.78,z]}>
             <boxGeometry args={[0.55,0.04,0.55]} />
             <meshStandardMaterial color='#2a2a3a' />
           </mesh>
@@ -5354,7 +5392,7 @@ function AmongUsShip3D({ obj }) {
         </mesh>
       ))}
       {/* Navigation room - front */}
-      <mesh position={[0,0.35,l*0.36]}>
+      <mesh position={[0,0.38,l*0.36]}>
         <boxGeometry args={[w*0.25,0.5,l*0.12]} />
         <meshStandardMaterial color='#1a1a3a' />
       </mesh>
@@ -5584,44 +5622,6 @@ function RooftopTerrace3D({ obj }) {
       </mesh>
     </group>
   )
-}
-
-// Other objects
-    case 'carSedan':
-      return <CarSedan3D obj={obj} />
-    case 'shippingContainer':
-      return <ShippingContainer3D obj={obj} />
-    case 'schoolBus':
-      return <SchoolBus3D obj={obj} />
-    case 'fordF150':
-      return <FordF1503D obj={obj} />
-    case 'semiTruck':
-      return <SemiTruck3D obj={obj} />
-    case 'fireTruck':
-      return <FireTruck3D obj={obj} />
-    case 'suv':
-      return <SUV3D obj={obj} />
-    case 'swimmingPool':
-      return <SwimmingPool3D obj={obj} />
-    case 'kingSizeBed':
-      return <KingSizeBed3D obj={obj} />
-    case 'gtaHouse':
-      return <GTAHouse3D obj={obj} />
-    case 'stardewFarm':
-      return <StardewFarm3D obj={obj} />
-    case 'haloWarthog':
-      return <HaloWarthog3D obj={obj} />
-    case 'amongUsShip':
-      return <AmongUsShip3D obj={obj} />
-    case 'olympicTrack':
-      return <OlympicTrack3D obj={obj} />
-    case 'helipad':
-      return <Helipad3D obj={obj} />
-    case 'rooftopTerrace':
-      return <RooftopTerrace3D obj={obj} />
-    default:
-      return <GenericComparison3D obj={obj} />
-  }
 }
 
 // Main ComparisonObject component
