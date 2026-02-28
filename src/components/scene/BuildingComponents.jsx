@@ -3,6 +3,7 @@ import { useThree } from '@react-three/fiber'
 import { Text, Billboard, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { formatDimension, formatDimensions } from '../../constants/landSceneConstants'
+import { getDragThreshold } from '../../utils/pointerUtils'
 import { computeEdgeLabelData, formatEdgeLength } from '../../utils/labels'
 
 /**
@@ -59,8 +60,20 @@ export function PlacedBuilding({ building, onDelete, onMove, onSelect, isSelecte
       document.body.style.cursor = 'default'
     }
     const handlePointerMove = (e) => {
+      if (!dragStartRef.current) return
+
+      // Check threshold before confirming drag
+      if (!dragStartRef.current.dragConfirmed) {
+        const dx = e.clientX - dragStartRef.current.clientX
+        const dy = e.clientY - dragStartRef.current.clientY
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        const threshold = getDragThreshold(dragStartRef.current.pointerType)
+        if (distance < threshold) return
+        dragStartRef.current.dragConfirmed = true
+      }
+
       const groundPos = raycastToGround(e.clientX, e.clientY)
-      if (groundPos && dragStartRef.current) {
+      if (groundPos) {
         const dx = groundPos.x - dragStartRef.current.x
         const dz = groundPos.z - dragStartRef.current.z
         setDragOffset({ x: dx, z: dz })
@@ -133,6 +146,9 @@ export function PlacedBuilding({ building, onDelete, onMove, onSelect, isSelecte
   const handlePointerOver = (e) => { e.stopPropagation(); setHovered(true) }
   const handlePointerOut = () => setHovered(false)
   const handlePointerDown = (e) => {
+    // No interaction in first-person mode
+    if (viewMode === 'firstPerson') return
+
     e.stopPropagation()
     if (!canEdit) return
 
@@ -145,10 +161,17 @@ export function PlacedBuilding({ building, onDelete, onMove, onSelect, isSelecte
     // Select first
     onSelect?.(building.id)
 
-    // If already selected, start drag
+    // If already selected, start drag tracking
     if (isSelected) {
       setIsDragging(true)
-      dragStartRef.current = { x: e.point.x, z: e.point.z }
+      dragStartRef.current = {
+        x: e.point.x,
+        z: e.point.z,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        pointerType: e.pointerType,
+        dragConfirmed: false
+      }
       originalPosRef.current = { x: position.x, z: position.z }
       document.body.style.cursor = 'grabbing'
     }

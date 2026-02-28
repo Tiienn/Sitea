@@ -88,6 +88,7 @@ import { RoomFloor } from './scene/RoomFloor'
 import { PlacedBuilding, BuildingPreview, SetbackZone, SnapIndicator, EdgeLabels } from './scene/BuildingComponents'
 import { PoolItem, FoundationItem, StairsItem, FurnitureItem } from './scene/PolygonRenderers'
 import { FURNITURE_ITEMS } from '../data/furnitureCatalog'
+import { getDragThreshold } from '../utils/pointerUtils'
 import { Component } from 'react'
 
 // Silent error boundary - renders nothing on error (used for optional components like player mesh)
@@ -406,6 +407,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
   // Building drag state
   const [isDraggingBuilding, setIsDraggingBuilding] = useState(false)
+  const buildingDragStartRef = useRef(null) // { clientX, clientY, pointerType, dragConfirmed }
 
   // Opening drag state (2D mode only) - { wallId, openingId, openingWidth }
   const [draggingOpening, setDraggingOpening] = useState(null)
@@ -1773,6 +1775,15 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
 
     // Building drag - move selected building while dragging
     if (isDraggingBuilding && selectedBuildingId && moveSelectedBuilding) {
+      // Check threshold before confirming drag
+      if (buildingDragStartRef.current && !buildingDragStartRef.current.dragConfirmed) {
+        const dx = e.clientX - buildingDragStartRef.current.clientX
+        const dy = e.clientY - buildingDragStartRef.current.clientY
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        const threshold = getDragThreshold(buildingDragStartRef.current.pointerType)
+        if (distance < threshold) return
+        buildingDragStartRef.current.dragConfirmed = true
+      }
       const pos = gridSnapEnabled
         ? { x: Math.round(point.x / gridSize) * gridSize, z: Math.round(point.z / gridSize) * gridSize }
         : { x: point.x, z: point.z }
@@ -3521,12 +3532,23 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           position={[building.position.x, 0, building.position.z]}
           rotation={[0, building.rotation || 0, 0]}
           onPointerDown={(e) => {
+            // No interaction in first-person mode
+            if (viewMode === 'firstPerson') return
             e.stopPropagation()
-            // Select building and start drag
+            // Select building and start drag tracking
             setSelectedBuildingId?.(building.id)
             setIsDraggingBuilding(true)
+            buildingDragStartRef.current = {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              pointerType: e.pointerType,
+              dragConfirmed: false
+            }
           }}
-          onPointerUp={() => setIsDraggingBuilding(false)}
+          onPointerUp={() => {
+            setIsDraggingBuilding(false)
+            buildingDragStartRef.current = null
+          }}
         >
           {building.walls.map((wall, wallIndex) => (
             <WallSegment

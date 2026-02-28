@@ -3,6 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber'
 import { Text, Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 import { formatDimension, FEET_PER_METER } from '../../constants/landSceneConstants'
+import { getDragThreshold } from '../../utils/pointerUtils'
 
 // Create textures for comparison objects
 function useSoccerFieldTexture(width, length) {
@@ -5632,7 +5633,6 @@ export function ComparisonObject({ obj, index, totalObjects, lengthUnit = 'm', p
   const [isHovered, setIsHovered] = useState(false)
   const [snapType, setSnapType] = useState('none') // 'none', 'edge', 'object', 'center'
   const dragStartRef = useRef(null)
-  const DRAG_THRESHOLD = 5
 
   // Default position: stagger objects so they don't stack
   const defaultX = (index - (totalObjects - 1) / 2) * 15
@@ -5751,6 +5751,9 @@ export function ComparisonObject({ obj, index, totalObjects, lengthUnit = 'm', p
   const handlePointerDown = useCallback((e) => {
     e.stopPropagation()
 
+    // No object interaction in first-person mode
+    if (viewMode === 'firstPerson') return
+
     // Select on click
     if (onSelect) {
       onSelect(obj.id)
@@ -5760,9 +5763,10 @@ export function ComparisonObject({ obj, index, totalObjects, lengthUnit = 'm', p
     dragStartRef.current = {
       clientX: e.clientX,
       clientY: e.clientY,
+      pointerType: e.pointerType,
       startPos: { ...currentPos }
     }
-  }, [obj.id, currentPos, onSelect])
+  }, [obj.id, currentPos, onSelect, viewMode])
 
   // Handle pointer move - drag
   const handlePointerMove = useCallback((e) => {
@@ -5773,7 +5777,10 @@ export function ComparisonObject({ obj, index, totalObjects, lengthUnit = 'm', p
     const dy = e.clientY - dragStartRef.current.clientY
     const distance = Math.sqrt(dx * dx + dy * dy)
 
-    if (distance > DRAG_THRESHOLD) {
+    // Use pointer-type-aware threshold
+    const threshold = getDragThreshold(dragStartRef.current.pointerType)
+
+    if (distance > threshold) {
       if (!isDragging) {
         setIsDragging(true)
         gl.domElement.style.cursor = 'grabbing'
@@ -5827,6 +5834,7 @@ export function ComparisonObject({ obj, index, totalObjects, lengthUnit = 'm', p
       rotation={[0, (rotation * Math.PI) / 180, 0]}
       onPointerDown={handlePointerDown}
       onPointerEnter={() => {
+        if (viewMode === 'firstPerson') return
         setIsHovered(true)
         gl.domElement.style.cursor = 'grab'
       }}

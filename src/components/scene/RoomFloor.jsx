@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { SQ_FEET_PER_SQ_METER } from '../../constants/landSceneConstants'
 import { findWallsForRoom, findConnectedWalls } from '../../utils/roomDetection'
 import { createFloorTexture } from '../../utils/textureGenerators'
+import { getDragThreshold } from '../../utils/pointerUtils'
 
 /**
  * RoomFloor - renders floor and area label for detected rooms
@@ -55,6 +56,10 @@ export function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUn
   const handlePointerDown = useCallback((e) => {
     // Only handle left mouse button (matching ComparisonObject pattern)
     if (e.button !== 0) return
+
+    // No object interaction in first-person mode
+    if (viewMode === 'firstPerson') return
+
     // When a drawing tool is active, forward click to ground handler
     if (isDrawingTool) {
       onDrawingClick?.(e)
@@ -94,23 +99,22 @@ export function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUn
     const roomWallIds = findWallsForRoom(room, walls)
     const wallIds = findConnectedWalls(roomWallIds, walls)
 
-    // Start drag
+    // Start drag tracking
     const point = raycastToGround(e.clientX, e.clientY)
     if (point) {
       dragStartRef.current = {
         mouseX: e.clientX,
         mouseY: e.clientY,
+        pointerType: e.pointerType,
         originalStartPoint: point, // Store original point for total offset calculation
         wallIds: wallIds
       }
       gl.domElement.style.cursor = 'grabbing'
     }
-  }, [isSelected, onSelect, raycastToGround, gl.domElement, room, walls, isDrawingTool, onDrawingClick, isRotateMode, onRotateStart])
+  }, [isSelected, onSelect, raycastToGround, gl.domElement, room, walls, isDrawingTool, onDrawingClick, isRotateMode, onRotateStart, viewMode])
 
   // Global pointer move/up for drag (like ComparisonObject)
   useEffect(() => {
-    const DRAG_THRESHOLD = 5
-
     const handlePointerMove = (e) => {
       if (!dragStartRef.current) return
 
@@ -118,7 +122,10 @@ export function RoomFloor({ room, isSelected, viewMode = 'firstPerson', lengthUn
       const dy = e.clientY - dragStartRef.current.mouseY
       const distance = Math.sqrt(dx * dx + dy * dy)
 
-      if (distance > DRAG_THRESHOLD) {
+      // Use pointer-type-aware threshold
+      const threshold = getDragThreshold(dragStartRef.current.pointerType)
+
+      if (distance > threshold) {
         setIsDragging(true)
         // Inline raycast to ground
         const rect = gl.domElement.getBoundingClientRect()
