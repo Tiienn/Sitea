@@ -117,6 +117,10 @@ const COMPARISON_OBJECTS = [
   { id: 'basketballCourt', name: 'Basketball Court', width: 15, length: 28, color: '#CD853F' },
   { id: 'tennisCourt', name: 'Tennis Court', width: 10.97, length: 23.77, color: '#4169E1' },
   { id: 'swimmingPool', name: 'Olympic Pool', width: 25, length: 50, color: '#00CED1' },
+  { id: 'boxingRing', name: 'Boxing Ring', width: 6.1, length: 6.1, color: '#C0392B' },
+  { id: 'volleyballCourt', name: 'Volleyball Court', width: 9, length: 18, color: '#E67E22' },
+  { id: 'footballField', name: 'Football Field (NFL)', width: 48.76, length: 109.73, color: '#2E7D32' },
+  { id: 'padelCourt', name: 'Padel Court', width: 10, length: 20, color: '#2196F3' },
   // Buildings
   { id: 'house', name: 'House (10m×10m)', width: 10, length: 10, color: '#8B4513' },
   { id: 'studioApartment', name: 'Studio Apartment', width: 6, length: 7, color: '#9CA3AF' },
@@ -124,9 +128,16 @@ const COMPARISON_OBJECTS = [
   { id: 'carSedan', name: 'Car (Sedan)', width: 1.8, length: 4.5, color: '#8C8C8C' },
   { id: 'shippingContainer', name: 'Shipping Container', width: 2.44, length: 6.06, color: '#C75B39' },
   { id: 'schoolBus', name: 'School Bus', width: 2.6, length: 12, color: '#F7B500' },
+  { id: 'fordF150', name: 'Ford F-150 Pickup', width: 2.0, length: 6.0, color: '#1A3A6A' },
+  { id: 'semiTruck', name: 'Semi-Truck (18-Wheeler)', width: 3.0, length: 22.0, color: '#C8392B' },
+  { id: 'fireTruck', name: 'Fire Truck', width: 2.5, length: 12.0, color: '#CC1111' },
+  { id: 'suv', name: 'SUV (Land Cruiser)', width: 2.0, length: 5.0, color: '#1A2B1A' },
   // Other
   { id: 'parkingSpace', name: 'Parking Space', width: 2.5, length: 5, color: '#696969' },
   { id: 'kingSizeBed', name: 'King Size Bed', width: 2, length: 2.1, color: '#E8DCC8' },
+  { id: 'olympicTrack', name: 'Olympic Running Track', width: 84, length: 184, color: '#C84820' },
+  { id: 'helipad', name: 'Helipad', width: 24, length: 24, color: '#707070' },
+  { id: 'rooftopTerrace', name: 'Rooftop Terrace', width: 12, length: 8, color: '#A07848' },
   // Landmarks
   { id: 'eiffelTower', name: 'Eiffel Tower', width: 125, length: 125, color: '#8B7355' },
   { id: 'statueOfLiberty', name: 'Statue of Liberty', width: 47, length: 47, color: '#4A7C59' },
@@ -148,6 +159,10 @@ const COMPARISON_OBJECTS = [
   { id: 'fortnite1x1', name: 'Fortnite 1×1', width: 5, length: 5, color: '#5B7FDE' },
   { id: 'zeldaHouse', name: "Link's House", width: 8, length: 10, color: '#228B22' },
   { id: 'simsHouse', name: 'Sims Starter Home', width: 10, length: 12, color: '#32CD32' },
+  { id: 'gtaHouse', name: 'GTA Suburban House', width: 12, length: 15, color: '#D4C4A0' },
+  { id: 'stardewFarm', name: 'Stardew Valley Farm', width: 24, length: 24, color: '#5A9A3A' },
+  { id: 'haloWarthog', name: 'Halo Warthog', width: 2.5, length: 5.5, color: '#5A6A4A' },
+  { id: 'amongUsShip', name: 'Among Us — The Skeld', width: 30, length: 20, color: '#2A2A3A' },
   // Buildings (from structures)
   { id: 'mediumHouse', name: 'Medium House', width: 12, length: 15, color: '#CD853F' },
   { id: 'largeHouse', name: 'Large House', width: 15, length: 20, color: '#8B4513' },

@@ -205,15 +205,6 @@ export default function Minimap({
         ctx.fillRect(-w / 2, -h / 2, w, h)
         ctx.strokeRect(-w / 2, -h / 2, w, h)
 
-        // Draw direction indicator (small triangle on "front" edge, pointing +Z in local space)
-        const indicatorSize = Math.min(w, h) * 0.25
-        ctx.fillStyle = '#ffffff'
-        ctx.beginPath()
-        ctx.moveTo(0, -h / 2 - 1) // Top center (front edge in Y-down canvas)
-        ctx.lineTo(-indicatorSize / 2, -h / 2 + indicatorSize)
-        ctx.lineTo(indicatorSize / 2, -h / 2 + indicatorSize)
-        ctx.closePath()
-        ctx.fill()
 
         ctx.restore()
       })
