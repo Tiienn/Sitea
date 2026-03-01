@@ -124,12 +124,16 @@ export default function LandingHero({ onExplore }) {
         {/* CTA */}
         <button
           onClick={handleExplore}
+          onTouchEnd={e => { e.preventDefault(); handleExplore(); }}
           className="w-full rounded-xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
           style={{
             background: '#14b8a6',
             padding: '16px 24px',
             maxWidth: '340px',
             marginBottom: '32px',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
+            cursor: 'pointer',
           }}
           onMouseEnter={e => e.currentTarget.style.background = '#2dd4bf'}
           onMouseLeave={e => e.currentTarget.style.background = '#14b8a6'}
