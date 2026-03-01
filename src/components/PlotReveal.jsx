@@ -159,6 +159,71 @@ function HouseDetail({ x, y, w, h, color }) {
   )
 }
 
+// ─── Average house floor plan: simple single-floor layout ───
+// Living/dining open plan, kitchen, master bed + ensuite, 2 bedrooms, 1 bathroom, doors
+function AvgHouseDetail({ x, y, w, h, color }) {
+  const sw = Math.max(w * 0.01, 0.1)
+  const dr = w * 0.08 // door swing radius
+  return (
+    <g opacity="0.45" fill="none" stroke={color} strokeWidth={sw}>
+      {/* === Horizontal split: top bedrooms (40%) | bottom living (60%) === */}
+      <line x1={x} y1={y + h * 0.4} x2={x + w} y2={y + h * 0.4} />
+
+      {/* === TOP: Bedrooms === */}
+      {/* Master bedroom (top-left, 55% width) */}
+      <line x1={x + w * 0.55} y1={y} x2={x + w * 0.55} y2={y + h * 0.4} />
+      {/* Bed */}
+      <rect x={x + w * 0.05} y={y + h * 0.05} width={w * 0.22} height={h * 0.13} rx={sw} strokeDasharray={`${sw * 3} ${sw * 3}`} />
+      {/* En-suite (bottom-left corner of master) */}
+      <line x1={x} y1={y + h * 0.24} x2={x + w * 0.22} y2={y + h * 0.24} />
+      <line x1={x + w * 0.22} y1={y + h * 0.24} x2={x + w * 0.22} y2={y + h * 0.4} />
+      {/* Toilet */}
+      <circle cx={x + w * 0.08} cy={y + h * 0.32} r={w * 0.018} />
+      {/* Shower tray */}
+      <rect x={x + w * 0.14} y={y + h * 0.28} width={w * 0.06} height={h * 0.08} rx={sw * 2} />
+      {/* En-suite door */}
+      <path d={`M ${x + w * 0.22} ${y + h * 0.24} A ${dr} ${dr} 0 0 1 ${x + w * 0.22 + dr} ${y + h * 0.24 + dr}`} strokeDasharray={`${sw * 2} ${sw * 2}`} />
+      {/* Master door */}
+      <path d={`M ${x + w * 0.38} ${y + h * 0.4} A ${dr} ${dr} 0 0 0 ${x + w * 0.38 + dr} ${y + h * 0.4 - dr}`} strokeDasharray={`${sw * 2} ${sw * 2}`} />
+
+      {/* Bedroom 2 (top-right upper) */}
+      <line x1={x + w * 0.55} y1={y + h * 0.2} x2={x + w} y2={y + h * 0.2} />
+      <rect x={x + w * 0.62} y={y + h * 0.04} width={w * 0.16} height={h * 0.1} rx={sw} strokeDasharray={`${sw * 3} ${sw * 3}`} />
+      {/* Door */}
+      <path d={`M ${x + w * 0.55} ${y + h * 0.14} A ${dr} ${dr} 0 0 1 ${x + w * 0.55 + dr} ${y + h * 0.14 + dr}`} strokeDasharray={`${sw * 2} ${sw * 2}`} />
+
+      {/* Bedroom 3 (top-right lower) */}
+      <rect x={x + w * 0.62} y={y + h * 0.24} width={w * 0.16} height={h * 0.1} rx={sw} strokeDasharray={`${sw * 3} ${sw * 3}`} />
+      {/* Door */}
+      <path d={`M ${x + w * 0.55} ${y + h * 0.34} A ${dr} ${dr} 0 0 1 ${x + w * 0.55 + dr} ${y + h * 0.34 + dr}`} strokeDasharray={`${sw * 2} ${sw * 2}`} />
+
+      {/* Bathroom (between bed 2 & 3, right wall) */}
+      <line x1={x + w * 0.82} y1={y + h * 0.2} x2={x + w * 0.82} y2={y + h * 0.4} />
+      <rect x={x + w * 0.85} y={y + h * 0.22} width={w * 0.06} height={h * 0.06} rx={sw * 3} />
+      <circle cx={x + w * 0.88} cy={y + h * 0.34} r={w * 0.018} />
+
+      {/* === BOTTOM: Living area === */}
+      {/* Kitchen (bottom-right) */}
+      <line x1={x + w * 0.6} y1={y + h * 0.4} x2={x + w * 0.6} y2={y + h} />
+      {/* Counter along right + bottom walls */}
+      <line x1={x + w * 0.94} y1={y + h * 0.44} x2={x + w * 0.94} y2={y + h * 0.94} />
+      <line x1={x + w * 0.64} y1={y + h * 0.94} x2={x + w * 0.94} y2={y + h * 0.94} />
+      {/* Sink */}
+      <circle cx={x + w * 0.78} cy={y + h * 0.94} r={w * 0.018} />
+
+      {/* Living + dining (bottom-left, open plan) */}
+      {/* Sofa */}
+      <rect x={x + w * 0.05} y={y + h * 0.7} width={w * 0.25} height={h * 0.08} rx={sw * 2} strokeDasharray={`${sw * 3} ${sw * 3}`} />
+      {/* Dining table */}
+      <rect x={x + w * 0.28} y={y + h * 0.48} width={w * 0.16} height={h * 0.1} rx={sw} strokeDasharray={`${sw * 3} ${sw * 3}`} />
+
+      {/* Front door (bottom-left wall) */}
+      <rect x={x + w * 0.18} y={y + h * 0.94} width={w * 0.1} height={h * 0.05} fill={color} fillOpacity="0.15" />
+      <path d={`M ${x + w * 0.18} ${y + h * 0.94} A ${dr} ${dr} 0 0 0 ${x + w * 0.18 + dr} ${y + h * 0.94 - dr}`} strokeDasharray={`${sw * 2} ${sw * 2}`} />
+    </g>
+  )
+}
+
 // ─── Share image via Canvas API — crops to content bounds ───
 async function generateShareImage(sizeM2, unit, ratioStr, svgEl, contentBounds) {
   const canvasW = 1080
@@ -487,7 +552,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
                     />
                     {/* Court / house detail */}
                     {comp.id === 'basketball' && <BasketballCourtDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
-                    {(comp.id === 'house' || comp.id === 'avghouse') && <HouseDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
+                    {comp.id === 'house' && <HouseDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
                     {/* Name */}
                     <text
                       x={cx + cw / 2} y={cy + ch + 3}
