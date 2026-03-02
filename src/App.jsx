@@ -56,6 +56,7 @@ import { detectRooms, findWallsForRoom } from './utils/roomDetection'
 import { buildScenePayload, createSharedScene, fetchSharedScene } from './services/shareScene'
 import { listProjects, countProjects, createProject, updateProject, renameProject, deleteProject, fetchProject } from './services/projectService'
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient'
+import { restoreScenePayload } from './utils/restoreScene'
 import {
   track,
   trackDefineClicked,
@@ -636,6 +637,14 @@ function App() {
 
   // Toast state for undo/redo feedback
   const [undoRedoToast, setUndoRedoToast] = useState(null)
+  const toastTimerRef = useRef(null)
+  const showToast = useCallback((msg, duration = 1500) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setUndoRedoToast(msg)
+    if (msg !== null && duration > 0) {
+      toastTimerRef.current = setTimeout(() => setUndoRedoToast(null), duration)
+    }
+  }, [])
   const [wallDrawingMode, setWallDrawingMode] = useState(false)
   const [wallDrawingPoints, setWallDrawingPoints] = useState([]) // Points being drawn
   const [openingPlacementMode, setOpeningPlacementMode] = useState('none') // 'none' | 'door' | 'window'
@@ -1112,24 +1121,19 @@ function App() {
         // If actively drawing points, undo the last point instead of undoing walls
         if (activeBuildTool === BUILD_TOOLS.POOL && poolPolygonPoints.length > 0) {
           setPoolPolygonPoints(prev => prev.slice(0, -1))
-          setUndoRedoToast('Point undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Point undone', 1500)
         } else if (activeBuildTool === BUILD_TOOLS.FOUNDATION && foundationPolygonPoints.length > 0) {
           setFoundationPolygonPoints(prev => prev.slice(0, -1))
-          setUndoRedoToast('Point undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Point undone', 1500)
         } else if (activeBuildTool === BUILD_TOOLS.POLYGON_ROOM && roomPolygonPoints.length > 0) {
           setRoomPolygonPoints(prev => prev.slice(0, -1))
-          setUndoRedoToast('Point undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Point undone', 1500)
         } else if ((activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE) && wallDrawingPoints.length > 0) {
           setWallDrawingPoints(prev => prev.slice(0, -1))
-          setUndoRedoToast('Point undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Point undone', 1500)
         } else if (canUndo) {
           undoWalls()
-          setUndoRedoToast('Undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Undone', 1500)
         }
       }
 
@@ -1138,16 +1142,14 @@ function App() {
         e.preventDefault()
         if (canRedo) {
           redoWalls()
-          setUndoRedoToast('Redone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Redone', 1500)
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault()
         if (canRedo) {
           redoWalls()
-          setUndoRedoToast('Redone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Redone', 1500)
         }
       }
 
@@ -1182,89 +1184,14 @@ function App() {
 
     const payload = result.payload
 
-    // Restore land
-    if (payload.land) {
-      setDimensions(payload.land.dimensions || { length: 20, width: 15 })
-      setShapeMode(payload.land.type === 'rectangle' ? 'rectangle' : 'polygon')
-      if (payload.land.vertices) {
-        setConfirmedPolygon(payload.land.vertices)
-        setPolygonPoints(payload.land.vertices)
-      }
+        const sceneSetters = {
+      setDimensions, setShapeMode, setConfirmedPolygon, setPolygonPoints,
+      setPlacedBuildings, setLengthUnit, setAreaUnit, setSetbacksEnabled,
+      setSetbackDistanceM, setLabels, setActiveComparisons, clearWallsHistory,
+      setPools, setFoundations, setStairs, setFurnitureItems,
+      setRoomLabels, setRoomStyles, setComparisonPositions, setComparisonRotations,
     }
-
-    // Restore buildings (map typeId back to full type object)
-    if (payload.buildings) {
-      const restoredBuildings = payload.buildings.map(b => {
-        const buildingType = BUILDING_TYPES.find(t => t.id === b.typeId)
-        return buildingType ? {
-          id: b.id,
-          type: buildingType,
-          position: { x: b.x, z: b.z },
-          rotationY: b.rotationY
-        } : null
-      }).filter(Boolean)
-      setPlacedBuildings(restoredBuildings)
-    }
-
-    // Restore settings
-    if (payload.settings) {
-      if (payload.settings.unitSystem) {
-        setLengthUnit(payload.settings.unitSystem.lengthUnit || 'm')
-        setAreaUnit(payload.settings.unitSystem.areaUnit || 'm²')
-      }
-      if (payload.settings.setbacksEnabled !== undefined) {
-        setSetbacksEnabled(payload.settings.setbacksEnabled)
-      }
-      if (payload.settings.setbackDistanceM !== undefined) {
-        setSetbackDistanceM(payload.settings.setbackDistanceM)
-      }
-      if (payload.settings.labels) {
-        setLabels(payload.settings.labels)
-      }
-    }
-
-    // Restore comparisons
-    if (payload.comparisons) {
-      const comparisons = {}
-      payload.comparisons.forEach(id => { comparisons[id] = true })
-      setActiveComparisons(comparisons)
-    }
-
-    // Restore walls with openings (backward compatible - old shares may not have walls)
-    if (payload.walls && Array.isArray(payload.walls)) {
-      const loadedWalls = payload.walls
-        .filter(w => w && w.start && w.end) // Validate structure
-        .map(wall => ({
-          id: wall.id || `wall-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          start: { x: wall.start.x, z: wall.start.z },
-          end: { x: wall.end.x, z: wall.end.z },
-          height: wall.height || 2.7,
-          thickness: wall.thickness || 0.15,
-          openings: (wall.openings || [])
-            .filter(o => o && o.type && typeof o.position === 'number')
-            .map(opening => ({
-              id: opening.id || `${opening.type}-${Date.now()}`,
-              type: opening.type,
-              position: opening.position,
-              width: opening.width,
-              height: opening.height,
-              sillHeight: opening.sillHeight || 0
-            }))
-        }))
-      clearWallsHistory(loadedWalls)
-    } else {
-      clearWallsHistory([]) // No walls in old shares
-    }
-
-    // Restore v2 fields (backward compatible — guards skip if absent)
-    if (payload.pools && Array.isArray(payload.pools)) setPools(payload.pools)
-    if (payload.foundations && Array.isArray(payload.foundations)) setFoundations(payload.foundations)
-    if (payload.stairs && Array.isArray(payload.stairs)) setStairs(payload.stairs)
-    if (payload.furniture && Array.isArray(payload.furniture)) setFurnitureItems(payload.furniture)
-    if (payload.roomLabels) setRoomLabels(payload.roomLabels)
-    if (payload.roomStyles) setRoomStyles(payload.roomStyles)
-    if (payload.comparisonPositions) setComparisonPositions(payload.comparisonPositions)
-    if (payload.comparisonRotations) setComparisonRotations(payload.comparisonRotations)
+    restoreScenePayload(payload, sceneSetters, BUILDING_TYPES)
 
     // Mark as user land (not example) and read-only
     setUserHasLand(true)
@@ -1283,81 +1210,14 @@ function App() {
     isLoadingProjectRef.current = true
     const payload = result.data.scene_json
 
-    // Restore land
-    if (payload.land) {
-      setDimensions(payload.land.dimensions || { length: 20, width: 15 })
-      setShapeMode(payload.land.type === 'rectangle' ? 'rectangle' : 'polygon')
-      if (payload.land.vertices) {
-        setConfirmedPolygon(payload.land.vertices)
-        setPolygonPoints(payload.land.vertices)
-      }
+        const sceneSetters = {
+      setDimensions, setShapeMode, setConfirmedPolygon, setPolygonPoints,
+      setPlacedBuildings, setLengthUnit, setAreaUnit, setSetbacksEnabled,
+      setSetbackDistanceM, setLabels, setActiveComparisons, clearWallsHistory,
+      setPools, setFoundations, setStairs, setFurnitureItems,
+      setRoomLabels, setRoomStyles, setComparisonPositions, setComparisonRotations,
     }
-
-    // Restore buildings
-    if (payload.buildings) {
-      const restoredBuildings = payload.buildings.map(b => {
-        const buildingType = BUILDING_TYPES.find(t => t.id === b.typeId)
-        return buildingType ? { id: b.id, type: buildingType, position: { x: b.x, z: b.z }, rotationY: b.rotationY } : null
-      }).filter(Boolean)
-      setPlacedBuildings(restoredBuildings)
-    }
-
-    // Restore settings
-    if (payload.settings) {
-      if (payload.settings.unitSystem) {
-        setLengthUnit(payload.settings.unitSystem.lengthUnit || 'm')
-        setAreaUnit(payload.settings.unitSystem.areaUnit || 'm²')
-      }
-      if (payload.settings.setbacksEnabled !== undefined) setSetbacksEnabled(payload.settings.setbacksEnabled)
-      if (payload.settings.setbackDistanceM !== undefined) setSetbackDistanceM(payload.settings.setbackDistanceM)
-      if (payload.settings.labels) setLabels(payload.settings.labels)
-    }
-
-    // Restore comparisons
-    if (payload.comparisons) {
-      const comparisons = {}
-      payload.comparisons.forEach(id => { comparisons[id] = true })
-      setActiveComparisons(comparisons)
-    }
-
-    // Restore walls
-    if (payload.walls && Array.isArray(payload.walls)) {
-      const loadedWalls = payload.walls
-        .filter(w => w && w.start && w.end)
-        .map(wall => ({
-          id: wall.id || `wall-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          start: { x: wall.start.x, z: wall.start.z },
-          end: { x: wall.end.x, z: wall.end.z },
-          height: wall.height || 2.7,
-          thickness: wall.thickness || 0.15,
-          openings: (wall.openings || [])
-            .filter(o => o && o.type && typeof o.position === 'number')
-            .map(opening => ({
-              id: opening.id || `${opening.type}-${Date.now()}`,
-              type: opening.type, position: opening.position,
-              width: opening.width, height: opening.height, sillHeight: opening.sillHeight || 0
-            }))
-        }))
-      clearWallsHistory(loadedWalls)
-    } else {
-      clearWallsHistory([])
-    }
-
-    // Restore v2 fields
-    if (payload.pools && Array.isArray(payload.pools)) setPools(payload.pools)
-    else setPools([])
-    if (payload.foundations && Array.isArray(payload.foundations)) setFoundations(payload.foundations)
-    else setFoundations([])
-    if (payload.stairs && Array.isArray(payload.stairs)) setStairs(payload.stairs)
-    else setStairs([])
-    if (payload.furniture && Array.isArray(payload.furniture)) setFurnitureItems(payload.furniture)
-    else setFurnitureItems([])
-    if (payload.roomLabels) setRoomLabels(payload.roomLabels)
-    else setRoomLabels({})
-    if (payload.roomStyles) setRoomStyles(payload.roomStyles)
-    else setRoomStyles({})
-    if (payload.comparisonPositions) setComparisonPositions(payload.comparisonPositions)
-    if (payload.comparisonRotations) setComparisonRotations(payload.comparisonRotations)
+    restoreScenePayload(payload, sceneSetters, BUILDING_TYPES)
 
     // Set project context (editable)
     setCurrentProjectId(result.data.id)
@@ -1514,6 +1374,12 @@ function App() {
     ? calculatePolygonArea(confirmedPolygon)
     : dimensions.length * dimensions.width
 
+  // Memoize coverage so we don't recompute on every render
+  const coverage = useMemo(
+    () => computeCoverage(placedBuildings, area),
+    [placedBuildings, area]
+  )
+
   const handleInputChange = (field, value) => {
     setInputValues(prev => ({ ...prev, [field]: value }))
   }
@@ -1585,7 +1451,7 @@ function App() {
     const newWalls = []
     for (let i = 0; i < points.length - 1; i++) {
       newWalls.push({
-        id: `wall-${Date.now()}-${i}`,
+        id: crypto.randomUUID(),
         start: { x: points[i].x, z: points[i].z },
         end: { x: points[i + 1].x, z: points[i + 1].z },
         height: isFence ? 1.0 : wallHeight, // Fences are 1.0m tall by default
@@ -1834,7 +1700,7 @@ function App() {
         // Duplicate wall with new ID and floor level
         newWalls.push({
           ...wall,
-          id: `wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: crypto.randomUUID(),
           floorLevel: newFloorLevel,
           openings: [] // New floors start without doors/windows
         })
@@ -1851,7 +1717,7 @@ function App() {
     const xs = points.map(p => p.x)
     const zs = points.map(p => p.z)
     const newPool = {
-      id: `pool-${Date.now()}`,
+      id: crypto.randomUUID(),
       points,
       depth: poolDepth,
       deckWidth: 0.8,
@@ -1877,7 +1743,7 @@ function App() {
     const xs = points.map(p => p.x)
     const zs = points.map(p => p.z)
     const newFoundation = {
-      id: `foundation-${Date.now()}`,
+      id: crypto.randomUUID(),
       points,
       height: foundationHeight,
       hasSteps: true,
@@ -1915,7 +1781,7 @@ function App() {
       const end = { x: position.x + (stairsWidth / 2 * turnDir) + (segmentLength * turnDir), z: position.z - segmentLength }
 
       newStairs = {
-        id: `stairs-${Date.now()}`,
+        id: crypto.randomUUID(),
         start,
         mid, // Landing center (first segment ends here)
         mid2, // Edge of landing (second segment starts here)
@@ -1934,7 +1800,7 @@ function App() {
       const end = { x: position.x, z: position.z - length }
 
       newStairs = {
-        id: `stairs-${Date.now()}`,
+        id: crypto.randomUUID(),
         start,
         end,
         bottomY: 0,
@@ -1961,7 +1827,7 @@ function App() {
   // Furniture callbacks
   const addFurniture = useCallback((catalogId, position) => {
     const newItem = {
-      id: `furniture-${Date.now()}`,
+      id: crypto.randomUUID(),
       catalogId,
       position: { x: position.x, z: position.z },
       rotation: 0,
@@ -2031,7 +1897,7 @@ function App() {
     if (!pendingFloorPlan) return
 
     const newBuilding = {
-      id: `building-${Date.now()}`,
+      id: crypto.randomUUID(),
       position: { x: position.x, z: position.z },
       rotation: buildingPreviewRotation,
       walls: pendingFloorPlan.walls,
@@ -2042,8 +1908,7 @@ function App() {
     setBuildings(prev => [...prev, newBuilding])
     setPendingFloorPlan(null)
     setFloorPlanPlacementMode(false)
-    setUndoRedoToast(`Placed building with ${newBuilding.stats.wallCount} walls`)
-    setTimeout(() => setUndoRedoToast(null), 3000)
+    showToast(`Placed building with ${newBuilding.stats.wallCount} walls`, 3000)
   }, [pendingFloorPlan, buildingPreviewRotation])
 
   // Cancel floor plan placement
@@ -2216,32 +2081,27 @@ function App() {
         floorLevel: w.floorLevel,
       }))
       setClipboard({ type: 'room', data: { walls: wallData } })
-      setUndoRedoToast('Room copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Room copied', 1500)
     } else if (selectedPoolId) {
       const pool = pools.find(p => p.id === selectedPoolId)
       if (!pool) return
       setClipboard({ type: 'pool', data: { ...pool, points: pool.points.map(p => ({ ...p })), center: { ...pool.center } } })
-      setUndoRedoToast('Pool copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Pool copied', 1500)
     } else if (selectedFoundationId) {
       const found = foundations.find(f => f.id === selectedFoundationId)
       if (!found) return
       setClipboard({ type: 'foundation', data: { ...found, points: found.points.map(p => ({ ...p })), center: { ...found.center } } })
-      setUndoRedoToast('Platform copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Platform copied', 1500)
     } else if (selectedStairsId) {
       const stair = stairs.find(s => s.id === selectedStairsId)
       if (!stair) return
       setClipboard({ type: 'stairs', data: { ...stair, start: { ...stair.start }, end: { ...stair.end }, mid: stair.mid ? { ...stair.mid } : undefined, mid2: stair.mid2 ? { ...stair.mid2 } : undefined } })
-      setUndoRedoToast('Stairs copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Stairs copied', 1500)
     } else if (selectedFurnitureId) {
       const fItem = furnitureItems.find(f => f.id === selectedFurnitureId)
       if (!fItem) return
       setClipboard({ type: 'furniture', data: { ...fItem, position: { ...fItem.position } } })
-      setUndoRedoToast('Furniture copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Furniture copied', 1500)
     }
   }, [selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, selectedFurnitureId, rooms, pools, foundations, stairs, furnitureItems, walls])
 
@@ -2251,47 +2111,43 @@ function App() {
     const OFFSET = 2
 
     if (clipboard.type === 'room') {
-      const ts = Date.now()
       const newWalls = clipboard.data.walls.map((w, i) => ({
         ...w,
-        id: `wall-${ts}-${i}`,
+        id: crypto.randomUUID(),
         start: { x: w.start.x + OFFSET, z: w.start.z + OFFSET },
         end: { x: w.end.x + OFFSET, z: w.end.z + OFFSET },
-        openings: (w.openings || []).map(o => ({ ...o, id: `opening-${ts}-${i}-${Math.random().toString(36).slice(2, 6)}` })),
+        openings: (w.openings || []).map(o => ({ ...o, id: crypto.randomUUID() })),
       }))
       pushWallsState([...walls, ...newWalls])
-      setUndoRedoToast('Room pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Room pasted', 1500)
     } else if (clipboard.type === 'pool') {
       const d = clipboard.data
       const newPool = {
         ...d,
-        id: `pool-${Date.now()}`,
+        id: crypto.randomUUID(),
         points: d.points.map(p => ({ x: p.x + OFFSET, z: p.z + OFFSET })),
         center: { x: d.center.x + OFFSET, z: d.center.z + OFFSET },
       }
       setPools(prev => [...prev, newPool])
       setSelectedPoolId(newPool.id)
-      setUndoRedoToast('Pool pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Pool pasted', 1500)
     } else if (clipboard.type === 'foundation') {
       const d = clipboard.data
       const newFoundation = {
         ...d,
-        id: `foundation-${Date.now()}`,
+        id: crypto.randomUUID(),
         points: d.points.map(p => ({ x: p.x + OFFSET, z: p.z + OFFSET })),
         center: { x: d.center.x + OFFSET, z: d.center.z + OFFSET },
       }
       setFoundations(prev => [...prev, newFoundation])
       setSelectedFoundationId(newFoundation.id)
-      setUndoRedoToast('Platform pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Platform pasted', 1500)
     } else if (clipboard.type === 'stairs') {
       const d = clipboard.data
       const offsetPt = (p) => p ? { x: p.x + OFFSET, z: p.z + OFFSET } : undefined
       const newStairs = {
         ...d,
-        id: `stairs-${Date.now()}`,
+        id: crypto.randomUUID(),
         start: offsetPt(d.start),
         end: offsetPt(d.end),
         mid: offsetPt(d.mid),
@@ -2299,19 +2155,17 @@ function App() {
       }
       setStairs(prev => [...prev, newStairs])
       setSelectedStairsId(newStairs.id)
-      setUndoRedoToast('Stairs pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Stairs pasted', 1500)
     } else if (clipboard.type === 'furniture') {
       const d = clipboard.data
       const newFurniture = {
         ...d,
-        id: `furniture-${Date.now()}`,
+        id: crypto.randomUUID(),
         position: { x: d.position.x + OFFSET, z: d.position.z + OFFSET },
       }
       setFurnitureItems(prev => [...prev, newFurniture])
       setSelectedFurnitureId(newFurniture.id)
-      setUndoRedoToast('Furniture pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Furniture pasted', 1500)
     }
   }, [clipboard, walls, pushWallsState])
 
@@ -2580,7 +2434,7 @@ function App() {
     }
 
     const newBuilding = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       type: buildingType,
       position: snappedPos,
       rotationY: finalRotation
@@ -2805,7 +2659,7 @@ function App() {
         wallCount: walls.length,
         roomCount: rooms.length,
         landArea: area,
-        buildingArea: computeCoverage(placedBuildings, area).coverageAreaM2,
+        buildingArea: coverage.coverageAreaM2,
         landPoints: currentPolygon || [],
         walls,
         rooms,
@@ -3474,8 +3328,8 @@ function App() {
           setGridSize={setGridSize}
           labels={labels}
           setLabels={setLabels}
-          coveragePercent={computeCoverage(placedBuildings, area).coveragePercent}
-          coverageAreaM2={computeCoverage(placedBuildings, area).coverageAreaM2}
+          coveragePercent={coverage.coveragePercent}
+          coverageAreaM2={coverage.coverageAreaM2}
           landArea={area}
           overlappingCount={overlappingBuildingIds.size}
           formatArea={formatArea}
@@ -3608,7 +3462,7 @@ function App() {
           onPdfExport={handlePdfExport}
           isExportingPdf={isExportingPdf}
           landArea={area}
-          buildingArea={computeCoverage(placedBuildings, area).coverageAreaM2}
+          buildingArea={coverage.coverageAreaM2}
           onAiVisualize={handleAiVisualize}
           isGeneratingAI={isGeneratingAI}
           aiRenderResult={aiRenderResult}
