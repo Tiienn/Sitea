@@ -270,7 +270,7 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
 
   // 2D CAD colors
   const landFillColor = is2D ? '#0a2020' : '#4a7c59'  // Dark teal in 2D, green in 3D
-  const borderColor = is2D ? '#00ffff' : '#ffffff'     // Cyan in 2D, white in 3D
+  const borderColor = is2D ? '#00ffff' : '#a8d4c2'     // Cyan in 2D, soft sage in 3D
 
   return (
     <group>

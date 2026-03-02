@@ -466,7 +466,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
 
           {/* Ratio text — updates on drag */}
           <p className="text-slate-500 text-sm text-center transition-all" style={{ marginBottom: '24px', animation: 'revealFade 0.5s 0.25s both' }}>
-            ≈ {ratio}
+            {ratio}
           </p>
 
           {/* SVG Visualization */}
