@@ -26,7 +26,8 @@ function autoSelect(sizeM2) {
 function getRatioText(sizeM2, comp) {
   const ratio = sizeM2 / comp.area
   if (ratio >= 1) return `Your plot fits ${ratio.toFixed(1)} ${comp.name}s`
-  return `Your plot is ${(ratio * 100).toFixed(0)}% of a ${comp.name}`
+  const article = /^[aeiou]/i.test(comp.name) ? 'an' : 'a'
+  return `Your plot is ${(ratio * 100).toFixed(0)}% of ${article} ${comp.name}`
 }
 
 function formatSize(sizeM2, unit) {

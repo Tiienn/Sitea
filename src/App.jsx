@@ -3824,7 +3824,7 @@ function App() {
                 </div>
                 <div className="text-left">
                   <p className="font-display font-bold text-lg leading-tight">{formatArea(area, areaUnit)}</p>
-                  <p className="text-[var(--color-text-secondary)] text-xs">Ready to plan</p>
+                  <p className="text-[var(--color-text-secondary)] text-xs">Tap Build to start designing</p>
                 </div>
                 <svg className={`w-4 h-4 text-[var(--color-text-secondary)] ml-2 transition-transform ${mobileCtaExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
@@ -3863,7 +3863,7 @@ function App() {
               </div>
               <div>
                 <h2 className="font-display font-semibold text-[15px] text-white leading-tight">Define Your Land</h2>
-                <p className="text-[var(--color-text-secondary)] text-xs mt-0.5">Ready to plan</p>
+                <p className="text-[var(--color-text-secondary)] text-xs mt-0.5">Tap Build to start designing</p>
               </div>
             </div>
             <div className="mb-4 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)]" style={{ padding: '10px 18px' }}>
