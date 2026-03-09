@@ -8,7 +8,7 @@ const COMPARISONS = [
   { id: 'basketball', name: 'Basketball court',   area: 420,   color: '#ef4444', w: 15,    h: 28    },
   { id: 'avghouse',   name: 'Average house',      area: 836,   color: '#8b5cf6', w: 22,    h: 38    },
   { id: 'football',   name: 'Football pitch',     area: 7140,  color: '#22c55e', w: 68,    h: 105   },
-  { id: 'block',      name: 'NYC city block',     area: 8000,  color: '#a855f7', w: 80,    h: 100   },
+  { id: 'walmart',    name: 'Walmart',            area: 16900, color: '#2563eb', w: 130,   h: 130   },
 ]
 
 function autoSelect(sizeM2) {
@@ -87,6 +87,110 @@ function BasketballCourtDetail({ x, y, w, h, color }) {
         <circle cx={cx} cy={y + h - basketDist} r={w * 0.016} />
         <circle cx={cx} cy={y + h - basketDist} r={threeR} />
       </g>
+    </g>
+  )
+}
+
+// ─── Parking space: top-down ───
+function ParkingDetail({ x, y, w, h, color }) {
+  const sw = Math.max(w * 0.025, 0.1)
+  const cx = x + w / 2
+  const cy = y + h / 2
+  return (
+    <g opacity="0.5" fill="none" stroke={color} strokeWidth={sw}>
+      {/* P letter */}
+      <text x={cx} y={cy + h * 0.08} textAnchor="middle" fontSize={h * 0.35} fontWeight="700" fontFamily="DM Sans, sans-serif" fill={color} fillOpacity="0.25" stroke="none">P</text>
+      {/* Divider lines (left and right border stripes) */}
+      <line x1={x + w * 0.05} y1={y} x2={x + w * 0.05} y2={y + h} strokeWidth={sw * 1.5} />
+      <line x1={x + w * 0.95} y1={y} x2={x + w * 0.95} y2={y + h} strokeWidth={sw * 1.5} />
+    </g>
+  )
+}
+
+// ─── Tennis court: top-down with all markings ───
+function TennisCourtDetail({ x, y, w, h, color }) {
+  const sw = Math.max(w * 0.012, 0.1)
+  const cx = x + w / 2
+  // Proportions: court 10.97m × 23.77m
+  const alleyW = w * 0.137  // 1.37/10.97 doubles alley each side
+  const serviceH = h * 0.279 // 6.4/23.77 service box depth from net
+  return (
+    <g opacity="0.5" fill="none" stroke={color} strokeWidth={sw}>
+      {/* Singles sidelines */}
+      <line x1={x + alleyW} y1={y} x2={x + alleyW} y2={y + h} />
+      <line x1={x + w - alleyW} y1={y} x2={x + w - alleyW} y2={y + h} />
+      {/* Net / halfway line */}
+      <line x1={x} y1={y + h / 2} x2={x + w} y2={y + h / 2} strokeWidth={sw * 1.5} />
+      {/* Service lines */}
+      <line x1={x + alleyW} y1={y + h / 2 - serviceH} x2={x + w - alleyW} y2={y + h / 2 - serviceH} />
+      <line x1={x + alleyW} y1={y + h / 2 + serviceH} x2={x + w - alleyW} y2={y + h / 2 + serviceH} />
+      {/* Center service line */}
+      <line x1={cx} y1={y + h / 2 - serviceH} x2={cx} y2={y + h / 2 + serviceH} />
+      {/* Center marks on baselines */}
+      <line x1={cx} y1={y} x2={cx} y2={y + h * 0.03} />
+      <line x1={cx} y1={y + h} x2={cx} y2={y + h - h * 0.03} />
+    </g>
+  )
+}
+
+// ─── Football/soccer pitch: top-down with markings ───
+function FootballPitchDetail({ x, y, w, h, color }) {
+  const sw = Math.max(w * 0.008, 0.1)
+  const cx = x + w / 2
+  const cy = y + h / 2
+  // Proportions: 68m × 105m
+  const penW = w * 0.588    // 40/68 penalty area width
+  const penH = h * 0.157    // 16.5/105 penalty area depth
+  const goalW = w * 0.265   // 18/68 goal area width
+  const goalH = h * 0.052   // 5.5/105 goal area depth
+  const centerR = w * 0.135 // 9.15/68 center circle radius
+  const penSpot = h * 0.105 // 11/105 penalty spot from goal line
+  const cornerR = w * 0.013 // ~0.9/68
+  return (
+    <g opacity="0.5" fill="none" stroke={color} strokeWidth={sw}>
+      {/* Halfway line */}
+      <line x1={x} y1={cy} x2={x + w} y2={cy} />
+      {/* Center circle + spot */}
+      <circle cx={cx} cy={cy} r={centerR} />
+      <circle cx={cx} cy={cy} r={sw} fill={color} />
+      {/* === Top half === */}
+      {/* Penalty area */}
+      <rect x={cx - penW / 2} y={y} width={penW} height={penH} />
+      {/* Goal area */}
+      <rect x={cx - goalW / 2} y={y} width={goalW} height={goalH} />
+      {/* Penalty spot */}
+      <circle cx={cx} cy={y + penSpot} r={sw} fill={color} />
+      {/* Penalty arc (outside penalty area) */}
+      <path d={`M ${cx - centerR * 0.7} ${y + penH} A ${centerR} ${centerR} 0 0 1 ${cx + centerR * 0.7} ${y + penH}`} />
+      {/* Corner arcs */}
+      <path d={`M ${x + cornerR} ${y} A ${cornerR} ${cornerR} 0 0 1 ${x} ${y + cornerR}`} />
+      <path d={`M ${x + w - cornerR} ${y} A ${cornerR} ${cornerR} 0 0 0 ${x + w} ${y + cornerR}`} />
+      {/* === Bottom half (mirrored) === */}
+      <rect x={cx - penW / 2} y={y + h - penH} width={penW} height={penH} />
+      <rect x={cx - goalW / 2} y={y + h - goalH} width={goalW} height={goalH} />
+      <circle cx={cx} cy={y + h - penSpot} r={sw} fill={color} />
+      <path d={`M ${cx - centerR * 0.7} ${y + h - penH} A ${centerR} ${centerR} 0 0 0 ${cx + centerR * 0.7} ${y + h - penH}`} />
+      <path d={`M ${x + cornerR} ${y + h} A ${cornerR} ${cornerR} 0 0 0 ${x} ${y + h - cornerR}`} />
+      <path d={`M ${x + w - cornerR} ${y + h} A ${cornerR} ${cornerR} 0 0 1 ${x + w} ${y + h - cornerR}`} />
+    </g>
+  )
+}
+
+// ─── Walmart: top-down building footprint ───
+function WalmartDetail({ x, y, w, h, color }) {
+  const sw = Math.max(w * 0.008, 0.1)
+  return (
+    <g opacity="0.5" fill="none" stroke={color} strokeWidth={sw}>
+      {/* Entrance vestibule (front center) */}
+      <rect x={x + w * 0.35} y={y + h * 0.88} width={w * 0.3} height={h * 0.12} fill={color} fillOpacity="0.08" />
+      {/* Internal grid lines (aisles) */}
+      {[0.2, 0.35, 0.5, 0.65, 0.8].map((pct, i) => (
+        <line key={i} x1={x + w * pct} y1={y + h * 0.05} x2={x + w * pct} y2={y + h * 0.82} opacity="0.4" />
+      ))}
+      {/* Back wall / loading dock */}
+      <line x1={x + w * 0.6} y1={y} x2={x + w * 0.85} y2={y} strokeWidth={sw * 2.5} opacity="0.3" />
+      {/* Walmart spark */}
+      <text x={x + w / 2} y={y + h * 0.55} textAnchor="middle" fontSize={h * 0.12} fontWeight="700" fontFamily="DM Sans, sans-serif" fill={color} fillOpacity="0.2" stroke="none">✱</text>
     </g>
   )
 }
@@ -432,7 +536,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
   }, [sizeM2, unit, ratio, displaySize, positions, comp0W, comp0H, comp1W, comp1H, plotDisplaySize])
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col" style={{ background: '#FAFAF8' }}>
+    <div className="fixed inset-0 z-[200] flex flex-col" style={{ background: '#FAFAF8', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {/* Grain */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{
@@ -443,8 +547,8 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
       {/* Back button */}
       <button
         onClick={onBack}
-        className="absolute top-5 left-5 z-10 flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-all py-2 px-4 rounded-lg"
-        style={{ animation: 'revealFade 0.5s 0.1s both' }}
+        className="absolute left-5 z-10 flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-all py-2 px-4 rounded-lg"
+        style={{ animation: 'revealFade 0.5s 0.1s both', top: '12px' }}
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -453,7 +557,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
       </button>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 overflow-hidden">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 overflow-y-auto min-h-0 py-4">
         <div className="w-full max-w-lg flex flex-col items-center">
 
           {/* Size label */}
@@ -551,9 +655,12 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
                       stroke={comp.color} strokeWidth={0.35}
                       rx={0.5}
                     />
-                    {/* Court / house detail */}
+                    {/* Detail overlays */}
+                    {comp.id === 'parking' && <ParkingDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
                     {comp.id === 'basketball' && <BasketballCourtDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
-                    {comp.id === 'house' && <HouseDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
+                    {comp.id === 'tennis' && <TennisCourtDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
+                    {comp.id === 'football' && <FootballPitchDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
+                    {comp.id === 'walmart' && <WalmartDetail x={cx} y={cy} w={cw} h={ch} color={comp.color} />}
                     {/* Name */}
                     <text
                       x={cx + cw / 2} y={cy + ch + 3}
