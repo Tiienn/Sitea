@@ -425,6 +425,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
   const svgRef = useRef(null)
   const scrollRef = useRef(null)
   const dragState = useRef(null)
+  const rafRef = useRef(null)
 
   const selected = useMemo(() => autoSelect(sizeM2), [sizeM2])
   const displaySize = useMemo(() => formatSize(sizeM2, unit), [sizeM2, unit])
@@ -484,15 +485,26 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
     if (!dragState.current) return
     const svgPt = getSvgPoint(e)
     if (!svgPt) return
-    const { index, offsetX, offsetY } = dragState.current
-    setPositions(prev => {
-      const next = [...prev]
-      next[index] = { x: svgPt.x - offsetX, y: svgPt.y - offsetY }
-      return next
-    })
+    // Store latest coords, let RAF do the actual state update
+    dragState.current.pendingX = svgPt.x - dragState.current.offsetX
+    dragState.current.pendingY = svgPt.y - dragState.current.offsetY
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        if (dragState.current) {
+          const { index, pendingX, pendingY } = dragState.current
+          setPositions(prev => {
+            const next = [...prev]
+            next[index] = { x: pendingX, y: pendingY }
+            return next
+          })
+        }
+        rafRef.current = null
+      })
+    }
   }, [getSvgPoint])
 
   const onPointerUp = useCallback(() => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
     dragState.current = null
     // Restore scroll after drag
     if (scrollRef.current) scrollRef.current.style.overflowY = 'auto'
