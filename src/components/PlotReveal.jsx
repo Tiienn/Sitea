@@ -544,34 +544,35 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
         }}
       />
 
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        className="absolute left-5 z-10 flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-all py-2 px-4 rounded-lg"
-        style={{ animation: 'revealFade 0.5s 0.1s both', top: '12px' }}
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-        </svg>
-        <span className="text-sm font-medium">Back</span>
-      </button>
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-start px-6 overflow-y-auto min-h-0 pt-16 pb-8">
-        <div className="w-full max-w-lg flex flex-col items-center">
-
-          {/* Size label */}
-          <div
-            className="font-display font-bold text-slate-800 tracking-tight text-center"
-            style={{ fontSize: 'clamp(1.5rem, 5vw, 2.25rem)', marginBottom: '8px', animation: 'revealFade 0.5s 0.15s both' }}
+      {/* Header — always visible, never scrolls */}
+      <div className="flex-shrink-0 flex flex-col items-center px-6 pt-2 pb-3" style={{ animation: 'revealFade 0.5s 0.1s both' }}>
+        <div className="w-full flex items-center mb-3">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-all py-2 pr-4 rounded-lg"
           >
-            {displaySize}
-          </div>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            <span className="text-sm font-medium">Back</span>
+          </button>
+        </div>
+        {/* Size label */}
+        <div
+          className="font-display font-bold text-slate-800 tracking-tight text-center"
+          style={{ fontSize: 'clamp(1.5rem, 5vw, 2.25rem)', marginBottom: '4px' }}
+        >
+          {displaySize}
+        </div>
+        {/* Ratio text */}
+        <p className="text-slate-500 text-sm text-center transition-all">
+          {ratio}
+        </p>
+      </div>
 
-          {/* Ratio text — updates on drag */}
-          <p className="text-slate-500 text-sm text-center transition-all" style={{ marginBottom: '24px', animation: 'revealFade 0.5s 0.25s both' }}>
-            {ratio}
-          </p>
+      {/* Scrollable middle — SVG visualization */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="w-full max-w-lg mx-auto flex flex-col items-center pb-6">
 
           {/* SVG Visualization */}
           <div
@@ -586,7 +587,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
             <svg
               viewBox={`0 0 ${svgW} ${svgH}`}
               className="w-full"
-              style={{ overflow: 'visible', touchAction: 'none' }}
+              style={{ overflow: 'visible', touchAction: 'pan-y' }}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerLeave={onPointerUp}
@@ -694,12 +695,16 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
             </svg>
           </div>
 
-          {/* Action buttons */}
-          <div className="w-full flex flex-col gap-3" style={{ maxWidth: '340px' }}>
+        </div>
+      </div>
+
+      {/* Footer buttons — always visible, never scrolls */}
+      <div className="flex-shrink-0 px-6 pt-3 pb-3 flex flex-col gap-3 items-center" style={{ borderTop: '1px solid #f1f5f9' }}>
+        <div className="w-full flex flex-col gap-3" style={{ maxWidth: '340px' }}>
             <button
               onClick={handleShare}
               className="w-full rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-              style={{ background: '#fff', border: '2px solid #e2e8f0', color: '#475569', padding: '14px 24px', animation: 'revealFade 0.5s 0.5s both' }}
+              style={{ background: '#fff', border: '2px solid #e2e8f0', color: '#475569', padding: '14px 24px' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#14b8a6'; e.currentTarget.style.color = '#14b8a6' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}
             >
@@ -723,7 +728,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
             <button
               onClick={onDesign3D}
               className="w-full rounded-xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-              style={{ background: '#14b8a6', padding: '16px 24px', animation: 'revealFade 0.5s 0.6s both' }}
+              style={{ background: '#14b8a6', padding: '16px 24px' }}
               onMouseEnter={e => e.currentTarget.style.background = '#2dd4bf'}
               onMouseLeave={e => e.currentTarget.style.background = '#14b8a6'}
             >
@@ -733,11 +738,6 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
               </svg>
             </button>
           </div>
-
-          <p className="text-slate-400 text-xs text-center mt-5" style={{ animation: 'revealFade 0.5s 0.7s both' }}>
-            Want to see what a house on this land could look like?
-          </p>
-        </div>
       </div>
 
       <style>{`
