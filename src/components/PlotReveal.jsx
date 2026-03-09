@@ -557,7 +557,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
       </button>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 overflow-y-auto min-h-0 py-4">
+      <div className="flex-1 flex flex-col items-center justify-start px-6 overflow-y-auto min-h-0 pt-16 pb-8">
         <div className="w-full max-w-lg flex flex-col items-center">
 
           {/* Size label */}
