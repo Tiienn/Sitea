@@ -594,7 +594,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
             >
               {/* ─── Plot (draggable) ─── */}
               <g
-                style={{ cursor: 'grab', animation: 'revealFade 0.4s 0.2s both' }}
+                style={{ cursor: 'grab', animation: 'revealFade 0.4s 0.2s both', touchAction: 'none' }}
                 onPointerDown={(e) => onPointerDown(e, 2)}
               >
                 {/* Grid lines */}
@@ -646,7 +646,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
                 return (
                   <g
                     key={comp.id}
-                    style={{ cursor: 'grab', animation: `revealFade 0.4s ${0.4 + i * 0.15}s both` }}
+                    style={{ cursor: 'grab', animation: `revealFade 0.4s ${0.4 + i * 0.15}s both`, touchAction: 'none' }}
                     onPointerDown={(e) => onPointerDown(e, i)}
                   >
                     {/* Fill */}
