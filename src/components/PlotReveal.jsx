@@ -423,6 +423,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
   const [copied, setCopied] = useState(false)
   const [focusedComp, setFocusedComp] = useState(null) // index of last-dragged comparison
   const svgRef = useRef(null)
+  const scrollRef = useRef(null)
   const dragState = useRef(null)
 
   const selected = useMemo(() => autoSelect(sizeM2), [sizeM2])
@@ -474,7 +475,8 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
     if (!svgPt) return
     dragState.current = { index, offsetX: svgPt.x - positions[index].x, offsetY: svgPt.y - positions[index].y }
     e.currentTarget.setPointerCapture(e.pointerId)
-    // Update focused comparison when dragging a comparison (index 0 or 1)
+    // Lock scroll while dragging
+    if (scrollRef.current) scrollRef.current.style.overflowY = 'hidden'
     if (index < 2) setFocusedComp(index)
   }, [positions, getSvgPoint])
 
@@ -492,6 +494,8 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
 
   const onPointerUp = useCallback(() => {
     dragState.current = null
+    // Restore scroll after drag
+    if (scrollRef.current) scrollRef.current.style.overflowY = 'auto'
   }, [])
 
   const handleShare = useCallback(async () => {
@@ -571,7 +575,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
       </div>
 
       {/* Scrollable middle — SVG visualization */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 px-6" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="w-full max-w-lg mx-auto flex flex-col items-center pb-6">
 
           {/* SVG Visualization */}
@@ -587,7 +591,7 @@ export default function PlotReveal({ sizeM2, unit = 'sqm', onDesign3D, onBack })
             <svg
               viewBox={`0 0 ${svgW} ${svgH}`}
               className="w-full"
-              style={{ overflow: 'visible', touchAction: 'pan-y' }}
+              style={{ overflow: 'visible', touchAction: 'none' }}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerLeave={onPointerUp}
