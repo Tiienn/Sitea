@@ -100,20 +100,21 @@ Image size: ${imgW} x ${imgH} pixels
   return hints;
 }
 
-const SYSTEM_PROMPT = `You are an architectural floor plan wall detector. Your ONLY job is to extract STRUCTURAL ELEMENTS: walls, doors, windows, and stairs.
+const SYSTEM_PROMPT = `You are a precise architectural floor plan parser. Your ONLY job is to extract STRUCTURAL ELEMENTS: walls, doors, windows, and stairs — with pixel-accurate coordinates.
 
 CRITICAL RULES:
-1. You must COMPLETELY IGNORE all furniture and fixtures
-2. You must COMPLETELY IGNORE dimension lines and measurement annotations
-3. If you detect furniture or dimension lines as walls, you have FAILED
+1. COMPLETELY IGNORE all furniture, fixtures, appliances, and room labels
+2. COMPLETELY IGNORE dimension lines and measurement annotations (thin lines with numbers)
+3. For EVERY wall you output, follow the actual drawn ink in the image — do not infer or estimate
+4. Rate your confidence (0.0–1.0) for each wall: 1.0 = clearly a structural wall, 0.0 = uncertain
 
 COORDINATE SYSTEM:
 - Origin (0,0) = TOP-LEFT of image
 - X increases RIGHT
 - Y increases DOWN
-- All values in PIXELS
+- All values in PIXELS — measure from the actual image
 
-OUTPUT: Pure JSON only. No markdown, no explanations.`;
+OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -148,7 +149,7 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Active subscription required' });
   }
 
-  const { image } = req.body;
+  const { image, knownWidthMeters } = req.body;
 
   if (!image) {
     return res.status(400).json({ error: 'Image is required' });
@@ -192,95 +193,95 @@ export default async function handler(req, res) {
           },
           {
             type: 'text',
-            text: `Extract structural elements from this floor plan.
+            text: `Extract all structural elements from this floor plan image with pixel-precise coordinates.
 ${cvHints}
 ═══════════════════════════════════════════════════════════════
-CRITICAL: DIMENSION LINES ARE NOT WALLS!
+WHAT TO IGNORE (NEVER detect these as walls):
 ═══════════════════════════════════════════════════════════════
-
-DIMENSION LINES (IGNORE — never detect as walls):
-❌ Thin lines with NUMBERS next to them (e.g., "2900", "4580", "5.37m")
-❌ Lines with small ARROWS or TICKS at both ends
-❌ Lines positioned OUTSIDE the floor plan pointing to edges
-❌ Any line where you can see a measurement number nearby
-
-═══════════════════════════════════════════════════════════════
-1. WALLS — Trace the CENTERLINE of each wall band
-═══════════════════════════════════════════════════════════════
-
-Walls are THICK bands (drawn as two parallel lines with fill between them).
-Your job: place start/end at the CENTER of each wall band (midway between the two edges).
-
-HOW TO TRACE:
-• Each wall is a STRAIGHT segment from one corner/junction to the next
-• At CORNERS (L-shape): two walls meet — both must share the EXACT same {x,y} endpoint
-• At T-JUNCTIONS: the joining wall's endpoint must exactly match a point on the through-wall
-• At CROSS-JUNCTIONS: walls share the same intersection point
-• NEVER leave gaps between walls that should connect — if two walls meet, their endpoints must be IDENTICAL pixel coordinates
-
-EXTERIOR vs INTERIOR:
-• EXTERIOR walls (isExterior: true): ALL walls that form the OUTERMOST perimeter of the building. This includes walls around balconies, extensions, bay windows, and any protruding sections — if it has walls and is part of the building, include it. Trace the FULL perimeter as a CLOSED loop (last wall's end = first wall's start). The building shape may be L-shaped, U-shaped, or complex — trace the entire outline.
-• INTERIOR walls (isExterior: false): walls INSIDE the building that divide it into rooms. Each must connect to at least one exterior wall or another interior wall.
-
-THICKNESS:
-• Measure the pixel distance between the two parallel edges of the wall band
-• Exterior walls are typically thicker than interior walls
-
-WALL VALIDATION:
-✓ Every wall connects to at least ONE other wall
-✓ Exterior walls form a closed loop
-✓ No floating/disconnected segments
-✗ Lines with numbers nearby are NOT walls — they are dimension annotations
+❌ Thin lines with NUMBERS beside them → dimension annotations
+❌ Lines with arrows/ticks at both ends → dimension lines
+❌ Lines OUTSIDE the floor plan boundary → scale bars / annotations
+❌ Any line thinner than the thinnest real wall → probably furniture edge or hatch
+❌ Furniture outlines: beds, sofas, tables, bathtubs, toilets, kitchen counters
 
 ═══════════════════════════════════════════════════════════════
-2. DOORS — Openings in walls with swing arcs
+STEP 1 — IDENTIFY JUNCTION POINTS (do this FIRST, mentally)
 ═══════════════════════════════════════════════════════════════
+Before tracing any wall, scan the entire image and locate every point where:
+• Two walls meet at a corner (L-junction)
+• One wall meets the side of another (T-junction)
+• Two walls cross each other (X-junction)
+• A wall ends freely (dead end)
 
-VISUAL IDENTIFICATION:
-• SINGLE door: quarter-circle ARC touching a wall, with a straight line from the hinge point. The ARC RADIUS equals the door width.
-• DOUBLE door: TWO quarter-circle arcs facing each other, forming a butterfly/M shape
-• SLIDING door: two overlapping rectangles or parallel lines with an arrow, OR a gap in the wall with parallel guide lines
-
-FOR EACH DOOR, REPORT:
-• center: the pixel {x,y} at the MIDPOINT of the door opening along the wall. This should be ON the wall line, centered in the gap where the door is.
-• width: the RADIUS of the door swing arc in PIXELS. This is how wide the door opening is. Measure the arc radius or the gap in the wall. A standard door arc is typically 50-100 pixels in a typical floor plan image. Do NOT return small values like 10-30 — measure carefully.
-• wallIndex: the 0-based INDEX into the walls array for the wall this door is in
-• rotation: the angle in DEGREES (0, 90, 180, or 270) that the door arc faces:
-  - 0° = arc swings to the RIGHT and DOWN from hinge
-  - 90° = arc swings DOWN and to the LEFT
-  - 180° = arc swings to the LEFT and UP
-  - 270° = arc swings UP and to the RIGHT
-  Look at which direction the arc curves in the image to determine rotation.
-• doorType: "single", "double", or "sliding"
+These junction points are the START and END coordinates of every wall segment.
+Mark them in your mind with precise pixel coordinates before proceeding.
 
 ═══════════════════════════════════════════════════════════════
-3. WINDOWS — Parallel lines crossing through walls
+STEP 2 — TRACE EACH WALL SEGMENT
 ═══════════════════════════════════════════════════════════════
+A wall is a THICK BAND drawn as two parallel lines with solid fill between them.
+Your job: place start/end at the CENTERLINE of that band (halfway between the two edges).
 
-VISUAL IDENTIFICATION:
-• Two or three SHORT parallel lines that cross PERPENDICULAR to a wall
-• Sometimes shown as a thin rectangle or double-line symbol ON a wall
-• Often on exterior walls but can also appear on interior walls
+For each wall segment (junction-to-junction):
+• start: pixel {x,y} of one junction
+• end: pixel {x,y} of the next junction along the same wall
+• thickness: pixel distance between the two parallel edges of the wall band
+• isExterior: true if this wall forms the outer building perimeter
+• confidence: 0.0–1.0 — how certain are you this is a structural wall?
+  - 1.0 = thick, clearly drawn wall connecting two junctions
+  - 0.7 = probably a wall but could be a partition
+  - 0.3 = uncertain — might be furniture or annotation
+  - Only include walls with confidence ≥ 0.4
 
-FOR EACH WINDOW, REPORT:
-• center: the CENTER of the window along the wall (in pixels)
-• width: the width of the window in PIXELS (measure along the wall direction)
-• wallIndex: the 0-based INDEX into the walls array for the wall this window is on
+CONNECTIVITY RULES (must be satisfied):
+✓ Walls sharing a junction must have IDENTICAL pixel coordinates at that junction
+✓ Exterior walls must form a CLOSED LOOP (last wall end = first wall start)
+✓ Every interior wall must connect (at both ends) to another wall or exterior wall
+✓ NO gaps between walls that visually touch in the image
+
+EXTERIOR (isExterior: true): the outermost building perimeter including any bay windows, extensions, balconies
+INTERIOR (isExterior: false): internal partition walls dividing rooms
 
 ═══════════════════════════════════════════════════════════════
-4. OTHER ELEMENTS
+STEP 3 — DOORS
 ═══════════════════════════════════════════════════════════════
+• SINGLE door: quarter-circle arc + straight line from hinge. Arc radius = door width.
+• DOUBLE door: two arcs facing each other (butterfly shape)
+• SLIDING: two overlapping rectangles / parallel lines with arrow
 
-ROOMS: Identify each labeled room. Report its name (from the label text), center point, and labeled area if shown (e.g. "12.5 m²").
-
-STAIRS: Parallel step lines with direction arrow. Report center and direction.
-
-IGNORE: furniture, fixtures, bathroom fittings, kitchen appliances, text labels (except room names), north arrows, hatching.
+For each door:
+• center: pixel {x,y} at the midpoint of the opening (ON the wall centerline)
+• width: arc radius in pixels (measure carefully — typically 60–120px in standard plans)
+• wallIndex: 0-based index into the walls array
+• rotation: 0 / 90 / 180 / 270 — which direction the arc swings
+• doorType: "single" | "double" | "sliding"
 
 ═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT
+STEP 4 — WINDOWS
 ═══════════════════════════════════════════════════════════════
+Two or three short parallel lines crossing perpendicular through a wall.
+• center: pixel {x,y} at the center of the window symbol
+• width: window width in pixels (measure along the wall)
+• wallIndex: 0-based index into the walls array
 
+═══════════════════════════════════════════════════════════════
+STEP 5 — SCALE CALIBRATION
+═══════════════════════════════════════════════════════════════
+${knownWidthMeters
+  ? `✅ USER-PROVIDED SCALE: The user has measured this floor plan and confirmed the real-world width is ${knownWidthMeters} meters.
+Use the imageSize.width from the image to calculate:
+  pixelsPerMeter = imageSize.width / ${knownWidthMeters}
+Report this exact value with confidence: 1.0 and source: "user_provided".`
+  : `Estimate pixelsPerMeter using this priority order:
+1. Dimension label in image (e.g. "5000" near a line = 5000mm): pixelsPerMeter = linePixels / realMeters
+2. Standard door width (0.9m): pixelsPerMeter = doorArcRadius / 0.9
+3. Standard interior wall thickness (0.1m): pixelsPerMeter = wallThicknessPixels / 0.1
+4. If none available, estimate from overall building size (typical house = 8–15m wide)
+Report your confidence (0.0–1.0) and source.`}
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT — return ONLY this JSON, nothing else:
+═══════════════════════════════════════════════════════════════
 {
   "success": true,
   "imageSize": { "width": NUMBER, "height": NUMBER },
@@ -289,7 +290,8 @@ OUTPUT FORMAT
       "start": { "x": NUMBER, "y": NUMBER },
       "end": { "x": NUMBER, "y": NUMBER },
       "thickness": NUMBER,
-      "isExterior": BOOLEAN
+      "isExterior": BOOLEAN,
+      "confidence": NUMBER
     }
   ],
   "doors": [
@@ -324,24 +326,11 @@ OUTPUT FORMAT
   "scale": {
     "pixelsPerMeter": NUMBER,
     "confidence": NUMBER,
-    "source": "dimension_label" | "door_width" | "estimated"
+    "source": "user_provided" | "dimension_label" | "door_width" | "wall_thickness" | "estimated"
   },
   "overallShape": "rectangular" | "L-shaped" | "U-shaped" | "complex",
   "totalArea": { "value": NUMBER, "unit": "m²" } | null
-}
-
-═══════════════════════════════════════════════════════════════
-FINAL CHECKLIST:
-═══════════════════════════════════════════════════════════════
-
-□ Did I trace wall CENTERLINES (not edges)?
-□ Do walls that meet share the EXACT same endpoint coordinates?
-□ Do exterior walls form a CLOSED loop?
-□ Did I set wallIndex on every door and window?
-□ Did I set rotation (0/90/180/270) on every door based on the arc direction?
-□ Did I ignore dimension lines (lines with numbers)?
-
-Return ONLY the JSON object, nothing else.`
+}`
           }
         ]
       }]
@@ -370,13 +359,25 @@ Return ONLY the JSON object, nothing else.`
     result.stairs = result.stairs || [];
     result.scale = result.scale || { pixelsPerMeter: 50, confidence: 0.5, source: 'estimated' };
 
-    // Post-process walls
-    result.walls = result.walls.map((wall, i) => ({
-      start: wall.start || { x: 0, y: 0 },
-      end: wall.end || { x: 0, y: 0 },
-      thickness: wall.thickness || 15,
-      isExterior: wall.isExterior ?? (i < 6)
-    }));
+    // Post-process walls — filter out low-confidence detections
+    result.walls = result.walls
+      .filter(wall => (wall.confidence ?? 1.0) >= 0.4)
+      .map((wall, i) => ({
+        start: wall.start || { x: 0, y: 0 },
+        end: wall.end || { x: 0, y: 0 },
+        thickness: wall.thickness || 15,
+        isExterior: wall.isExterior ?? (i < 6),
+        confidence: wall.confidence ?? 1.0,
+      }));
+
+    // If knownWidthMeters was provided, override scale with exact calculation
+    if (knownWidthMeters && result.imageSize?.width) {
+      result.scale = {
+        pixelsPerMeter: result.imageSize.width / knownWidthMeters,
+        confidence: 1.0,
+        source: 'user_provided',
+      };
+    }
 
     // Add stairs to rooms if detected
     if (result.stairs && result.stairs.length > 0) {
@@ -389,13 +390,21 @@ Return ONLY the JSON object, nothing else.`
       });
     }
 
+    const avgConfidence = result.walls.length
+      ? (result.walls.reduce((s, w) => s + (w.confidence ?? 1), 0) / result.walls.length).toFixed(2)
+      : 'n/a';
+
     console.log('[FloorPlan API] Analysis:', {
       walls: result.walls.length,
+      avgWallConfidence: avgConfidence,
       doors: result.doors.length,
       windows: result.windows.length,
       rooms: result.rooms.length,
       stairs: result.stairs?.length || 0,
       shape: result.overallShape,
+      scaleSource: result.scale?.source,
+      pixelsPerMeter: result.scale?.pixelsPerMeter?.toFixed(1),
+      knownWidthUsed: !!knownWidthMeters,
       cvHintsUsed: cvHints.length > 0,
       roboflowDetections: roboflowData ? roboflowData.predictions?.length || 0 : 'skipped',
     });

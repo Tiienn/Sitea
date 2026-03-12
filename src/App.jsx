@@ -43,6 +43,9 @@ import FencePropertiesPanel from './components/FencePropertiesPanel'
 import PoolPropertiesPanel from './components/PoolPropertiesPanel'
 import FoundationPropertiesPanel from './components/FoundationPropertiesPanel'
 import StairsPropertiesPanel from './components/StairsPropertiesPanel'
+import AIChatButton from './components/AIChatButton'
+import AIChatPanel from './components/AIChatPanel'
+import { useAIChat } from './hooks/useAIChat'
 
 // Import constants from LandScene (these are re-exported)
 import { CAMERA_MODE, DEFAULT_TP_DISTANCE, ORBIT_START_DISTANCE, QUALITY } from './constants/landSceneConstants'
@@ -808,6 +811,7 @@ function App() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
   const [aiRenderResult, setAiRenderResult] = useState(null)
   const [showAiRenderModal, setShowAiRenderModal] = useState(false)
+  const [showAIChat, setShowAIChat] = useState(false)
   const canvasRef = useRef(null)
   const sceneRef = useRef(null)
 
@@ -1891,6 +1895,13 @@ function App() {
     // Show instruction
     setUndoRedoToast('Click on land to place building • R to rotate • ESC to cancel')
   }, [])
+
+  // AI Chat hook
+  const aiChat = useAIChat({
+    addWallFromPoints, addFurniture, deleteFurniture, clearAllWalls,
+    setFurnitureItems, walls, rooms, furnitureItems, roomLabels, setRoomLabels,
+    onFloorPlanGenerated: handleFloorPlanGenerated,
+  })
 
   // Place the pending floor plan as a building
   const placeFloorPlanBuilding = useCallback((position) => {
@@ -3005,7 +3016,7 @@ function App() {
           onCancel={() => setIsDefiningLand(false)}
           onDetectedFloorPlan={(imageData) => {
             setIsDefiningLand(false)
-            setFloorPlanImageForGenerator(imageData)
+            setFloorPlanImageForGenerator({ image: imageData, scaleHint: null })
             setShowFloorPlanGenerator(true)
           }}
           lengthUnit={lengthUnit}
@@ -3295,7 +3306,7 @@ function App() {
           isActive={activePanel === 'land'}
           onDetectedFloorPlan={(imageData) => {
             // Floor plan analysis - upload gating handled in modal
-            setFloorPlanImageForGenerator(imageData)
+            setFloorPlanImageForGenerator({ image: imageData, scaleHint: null })
             setShowFloorPlanGenerator(true)
           }}
         />
@@ -3386,7 +3397,7 @@ function App() {
           }}
           onOpenFloorPlanGenerator={(imageData) => {
             // Floor plan analysis - upload gating handled in modal
-            setFloorPlanImageForGenerator(imageData)
+            setFloorPlanImageForGenerator({ image: imageData, scaleHint: null })
             setShowFloorPlanGenerator(true)
           }}
           // Sims 4-style features
@@ -4311,9 +4322,9 @@ function App() {
               setUploadedImage(imageData)
               setActivePanel('land') // Switch to land panel
             }}
-            onUploadForFloorPlan={(imageData) => {
+            onUploadForFloorPlan={(imageData, scaleHint) => {
               // Floor plan analysis - upload gating handled in modal
-              setFloorPlanImageForGenerator(imageData)
+              setFloorPlanImageForGenerator({ image: imageData, scaleHint })
               setShowFloorPlanGenerator(true)
             }}
           />
@@ -4324,13 +4335,15 @@ function App() {
       {showFloorPlanGenerator && floorPlanImageForGenerator && (
         <Suspense fallback={<LoadingFallback />}>
           <FloorPlanGeneratorModal
-            image={floorPlanImageForGenerator}
+            image={floorPlanImageForGenerator?.image ?? floorPlanImageForGenerator}
+            scaleHint={floorPlanImageForGenerator?.scaleHint ?? null}
             onGenerate={handleFloorPlanGenerated}
             onCancel={() => {
               setShowFloorPlanGenerator(false)
               setFloorPlanImageForGenerator(null)
             }}
-            isPaidUser={true}
+            onUpgrade={() => setShowPricingModal(true)}
+            isPaidUser={isPaidUser}
           />
         </Suspense>
       )}
@@ -4476,6 +4489,22 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* AI Chat */}
+      <AIChatButton
+        onClick={() => setShowAIChat(true)}
+        visible={isPaidUser && !isReadOnly && userHasLand && !showAIChat && !isGuidedMode && !isDefiningLand}
+      />
+      {showAIChat && (
+        <AIChatPanel
+          messages={aiChat.messages}
+          isLoading={aiChat.isLoading}
+          error={aiChat.error}
+          onSend={aiChat.sendMessage}
+          onClear={aiChat.clearChat}
+          onClose={() => setShowAIChat(false)}
+        />
       )}
 
       {showPricingModal && (

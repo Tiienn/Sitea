@@ -1022,8 +1022,10 @@ function DetectionOverlay({
 
 export default function FloorPlanGeneratorModal({
   image,
+  scaleHint = null,
   onGenerate,
   onCancel,
+  onUpgrade,
   isPaidUser = true,
 }) {
   const [status, setStatus] = useState('analyzing'); // 'analyzing' | 'calibrating' | 'preview' | 'error' | 'upgrade'
@@ -1591,7 +1593,10 @@ export default function FloorPlanGeneratorModal({
             'Content-Type': 'application/json',
             ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` }),
           },
-          body: JSON.stringify({ image: base64 }),
+          body: JSON.stringify({
+            image: base64,
+            ...(scaleHint?.knownWidthMeters && { knownWidthMeters: scaleHint.knownWidthMeters }),
+          }),
         });
 
         data = await response.json();
@@ -1634,17 +1639,12 @@ export default function FloorPlanGeneratorModal({
 
       // Use AI's scale if available (handle both new and old schema)
       if (data.scale?.pixelsPerMeter && data.scale.pixelsPerMeter > 0) {
-        // New schema: pixelsPerMeter
-        setSettings(s => ({
-          ...s,
-          scale: 1 / data.scale.pixelsPerMeter
-        }));
+        setSettings(s => ({ ...s, scale: 1 / data.scale.pixelsPerMeter }));
+        if (data.scale.source === 'user_provided') {
+          setWarning(null); // Clear any warnings — scale is exact
+        }
       } else if (data.scale?.estimatedMetersPerPixel) {
-        // Old schema: estimatedMetersPerPixel
-        setSettings(s => ({
-          ...s,
-          scale: data.scale.estimatedMetersPerPixel
-        }));
+        setSettings(s => ({ ...s, scale: data.scale.estimatedMetersPerPixel }));
       }
 
       setStatus('calibrating');
@@ -2593,13 +2593,15 @@ export default function FloorPlanGeneratorModal({
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={onCancel}
-                  className="px-6 py-2 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]"
+                  className="bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)] font-medium transition-colors"
+                  style={{ padding: '12px 24px' }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={analyzeFloorPlan}
-                  className="px-6 py-2 bg-[var(--color-accent)] hover:opacity-90 rounded-lg text-[var(--color-bg-primary)]"
+                  className="bg-[var(--color-accent)] hover:opacity-90 rounded-lg text-[var(--color-bg-primary)] font-medium transition-colors"
+                  style={{ padding: '12px 24px' }}
                 >
                   Try Again
                 </button>
@@ -2632,13 +2634,15 @@ export default function FloorPlanGeneratorModal({
               <div className="flex gap-4">
                 <button
                   onClick={onCancel}
-                  className="px-8 py-3 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] font-medium transition-colors"
+                  className="bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] font-medium transition-colors"
+                  style={{ padding: '12px 32px' }}
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => window.location.href = '/pricing'}
-                  className="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-xl text-white font-medium transition-all shadow-lg shadow-amber-500/20"
+                  onClick={() => { onCancel?.(); onUpgrade?.(); }}
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-xl text-white font-medium transition-all shadow-lg shadow-amber-500/20"
+                  style={{ padding: '12px 32px' }}
                 >
                   Upgrade to Pro
                 </button>

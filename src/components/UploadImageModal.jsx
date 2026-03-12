@@ -9,25 +9,48 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
   const { isPaidUser, planType, canUseUpload, markUploadUsed, hasUsedUpload, uploadCount, uploadsRemaining, setShowPricingModal } = useUser()
   const [isDragging, setIsDragging] = useState(false)
   const [preview, setPreview] = useState(null)
-  const [step, setStep] = useState('promise') // 'promise' | 'upload' | 'preview' | 'analyzing' | 'confirm'
+  const [step, setStep] = useState('promise') // 'promise' | 'upload' | 'preview' | 'analyzing' | 'confirm' | 'scale'
   const [detection, setDetection] = useState(null) // { type, confidence, method }
   const [error, setError] = useState(null)
+  const [pendingFloorPlan, setPendingFloorPlan] = useState(null) // imageData waiting for scale input
+  const [scaleValue, setScaleValue] = useState('')
+  const [scaleUnit, setScaleUnit] = useState('meters')
   const fileInputRef = useRef(null)
 
   // Route to the appropriate mode
   const routeToMode = (type, imageData) => {
-    // Mark upload as used (consumes free trial)
-    markUploadUsed()
-
     if (type === 'site-plan') {
+      markUploadUsed()
       onUploadForLand(imageData)
+      onClose()
     } else {
-      onUploadForFloorPlan(imageData)
+      // Floor plan — collect scale hint first
+      setPendingFloorPlan(imageData)
+      setStep('scale')
+    }
+  }
+
+  const confirmFloorPlan = (knownWidthMeters = null) => {
+    if (isPaidUser) {
+      markUploadUsed()
+      onUploadForFloorPlan(pendingFloorPlan, knownWidthMeters ? { knownWidthMeters } : null)
+    } else {
+      onUploadForFloorPlan(pendingFloorPlan, knownWidthMeters ? { knownWidthMeters } : null)
     }
     onClose()
   }
 
-  const handleFile = (f) => {
+  const handleScaleSubmit = () => {
+    const val = parseFloat(scaleValue)
+    if (!scaleValue || isNaN(val) || val <= 0) {
+      confirmFloorPlan(null) // skip
+      return
+    }
+    const meters = scaleUnit === 'feet' ? val * 0.3048 : val
+    confirmFloorPlan(meters)
+  }
+
+  const handleFile = async (f) => {
     if (!f) return
 
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
@@ -84,6 +107,9 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
     setStep('promise')
     setDetection(null)
     setError(null)
+    setPendingFloorPlan(null)
+    setScaleValue('')
+    setScaleUnit('meters')
   }
 
   const handleClose = () => {
@@ -167,9 +193,9 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                       <span className="text-green-400">Your first upload is free</span>
                     )}
                   </p>
-                ) : planType === 'homeowner' ? (
+                ) : (planType === 'homeowner' || planType === 'monthly') ? (
                   <p className="mt-2 text-xs text-teal-400">
-                    {uploadCount} of 5 uploads used
+                    {uploadCount} of {uploadCount + uploadsRemaining} uploads used
                   </p>
                 ) : null}
               </div>
@@ -268,8 +294,8 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                 <div className="text-center">
                   <p className="text-white font-medium mb-2">Ready to generate your 3D walkthrough</p>
                   <p className="text-[var(--color-text-muted)] text-sm mb-4">
-                    {isPaidUser && planType === 'homeowner'
-                      ? "You've used all 5 uploads on the Homeowner plan. Upgrade for unlimited."
+                    {isPaidUser
+                      ? `You've used all uploads on the ${planType === 'monthly' ? 'Monthly Pro' : 'Homeowner'} plan. Upgrade for more.`
                       : "You've used your free upload. Upgrade to continue."}
                   </p>
                   <button
@@ -378,6 +404,66 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
             </div>
           )}
 
+          {/* ─── Scale calibration step ─── */}
+          {step === 'scale' && (
+            <div>
+              <div className="text-center mb-5">
+                <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-[var(--color-accent)]/10 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-[var(--color-accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5h18M3 12h18M3 16.5h18" />
+                  </svg>
+                </div>
+                <h2 className="text-white font-semibold text-lg mb-1">What's the real-world width?</h2>
+                <p className="text-[var(--color-text-muted)] text-sm">
+                  Enter the total width of this floor plan for accurate 3D scale. You can skip and adjust later.
+                </p>
+              </div>
+
+              {/* Preview thumbnail */}
+              {pendingFloorPlan && (
+                <div className="w-24 h-24 mx-auto mb-4 rounded-lg overflow-hidden border border-white/10">
+                  <img src={pendingFloorPlan} alt="Floor plan" className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              {/* Width input */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="number"
+                  value={scaleValue}
+                  onChange={e => setScaleValue(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleScaleSubmit()}
+                  placeholder="e.g. 12"
+                  min="0.1"
+                  step="0.1"
+                  className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[var(--color-accent)]"
+                  autoFocus
+                />
+                <select
+                  value={scaleUnit}
+                  onChange={e => setScaleUnit(e.target.value)}
+                  className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-white rounded-lg px-3 py-3 text-sm focus:outline-none focus:border-[var(--color-accent)]"
+                >
+                  <option value="meters">meters</option>
+                  <option value="feet">feet</option>
+                </select>
+              </div>
+
+              <button
+                onClick={handleScaleSubmit}
+                className="w-full py-3 bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold rounded-lg transition-colors mb-3"
+              >
+                Generate 3D Walkthrough →
+              </button>
+              <button
+                onClick={() => confirmFloorPlan(null)}
+                className="w-full py-2 text-[var(--color-text-muted)] text-sm hover:text-white transition-colors"
+              >
+                Skip — I'll adjust scale manually
+              </button>
+            </div>
+          )}
+
         </div>
 
         {/* Help Text */}
@@ -386,6 +472,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
           {step === 'upload' && 'We\'ll automatically detect if this is a site plan or floor plan'}
           {step === 'preview' && 'Your image is ready for analysis'}
           {step === 'promise' && 'Works with photos, screenshots, and scanned plans'}
+          {step === 'scale' && 'Optional — helps get room sizes right in the 3D model'}
         </p>
 
       </div>
