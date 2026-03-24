@@ -22,8 +22,10 @@ async function preprocessImage(base64Image) {
       .sharpen({ sigma: 1.5, m1: 1.0, m2: 0.5 })
       // Binarize — pure black/white, removes gradients and shadows
       .threshold(140)
-      // NOTE: .trim() removed — it changes image dimensions, causing coordinate
-      // mismatch between original and preprocessed images in the dual-image pipeline
+      // Morphological thin-line suppression: blur softens thin lines (1-3px furniture),
+      // re-threshold removes them while keeping thick wall bands (10-20px)
+      .blur(2)
+      .threshold(180)
       .png()
       .toBuffer();
 
@@ -233,30 +235,31 @@ Use these as STRONG hints:
   return hints;
 }
 
-const SYSTEM_PROMPT = `You are a precise architectural floor plan parser. Your ONLY job is to extract STRUCTURAL ELEMENTS: walls, doors, and stairs — with pixel-accurate coordinates.
+const SYSTEM_PROMPT = `You are a precise architectural floor plan parser. Extract STRUCTURAL ELEMENTS: walls, doors, and stairs.
 
 You are given TWO versions of the same floor plan:
-- Image 1 (ORIGINAL): Full detail — use this to see fine lines, door arcs, room labels, thin partition walls, and dimension text. Measure all pixel coordinates from this image.
-- Image 2 (PREPROCESSED): Black/white enhanced — use this to confirm wall locations and see structure more clearly when the original is noisy or low-contrast.
-Always cross-reference BOTH images. If you see a wall in the preprocessed image, verify it in the original. If you see a thin wall or door arc in the original that was lost in preprocessing, INCLUDE it.
+- Image 1 (ORIGINAL): Full detail — door arcs, room labels, thin partition walls, dimension text.
+- Image 2 (PREPROCESSED): Black/white — thick wall bands are prominent, thin furniture lines removed. Use this to confirm wall locations.
+Cross-reference BOTH images. Include walls visible in either image.
 
 CRITICAL RULES:
-1. COMPLETELY IGNORE all furniture, fixtures, appliances, and room labels
-2. COMPLETELY IGNORE dimension lines and measurement annotations (thin lines with numbers)
-3. For EVERY wall you output, follow the actual drawn ink in the image — do not infer or estimate
-4. Rate your confidence (0.0–1.0) for each wall: 1.0 = clearly a structural wall, 0.0 = uncertain
-5. FIND ALL WALLS — typical houses have 15–40 wall segments. If you found fewer than 12, you are likely missing interior partition walls. Go back and look harder.
-6. Every labeled room (bedroom, kitchen, bathroom, etc.) MUST be enclosed by walls on all sides. If a room has no wall separating it from an adjacent room, you missed a wall.
-7. STAIRS are NOT rooms. Stairs appear as parallel diagonal lines (tread pattern). Output them ONLY in the "stairs" array, NEVER in the "rooms" array.
-8. OUTDOOR SPACES (terraces, balconies, covered terraces, patios, decks) are NOT enclosed by walls. Do NOT draw walls around outdoor areas. Dashed lines, thin lines, or boundary markings around outdoor spaces are NOT structural walls. Only detect the BUILDING WALL that separates the interior from the outdoor space.
-9. ROOM-COUNT CROSS-CHECK: Before outputting, count every distinct room you can identify in the original image. For N rooms, you need AT LEAST N-1 interior walls. If you have fewer, you are missing partition walls — look again at the original image for thin lines between rooms.
-10. WALL CONNECTIVITY: Every interior wall must connect to another wall or exterior wall at BOTH endpoints. If a wall endpoint is floating in space, extend it to the nearest wall it should connect to. Walls at T-junctions and L-junctions must share EXACT coordinates at the junction point.
+1. IGNORE all furniture, fixtures, appliances, and room labels
+2. IGNORE dimension lines and measurement annotations
+3. For EVERY wall, follow the actual drawn line — do not infer or estimate
+4. Confidence (0.0–1.0) for each wall: 1.0 = clearly structural, 0.4 = uncertain minimum
+5. FIND ALL WALLS — typical houses have 15–40 wall segments. If fewer than 12, look harder for interior partitions.
+6. Every room MUST be enclosed by walls. If two rooms are adjacent, there MUST be a wall between them.
+7. STAIRS are NOT rooms — output in "stairs" array only.
+8. OUTDOOR SPACES (terraces, balconies) are NOT enclosed by walls. Only detect the building wall bordering them.
+9. ROOM-COUNT CROSS-CHECK: For N rooms, need at least N-1 interior walls.
+10. WALL CONNECTIVITY: Every interior wall must connect at BOTH endpoints. Junctions share EXACT coordinates.
 
-COORDINATE SYSTEM:
-- Origin (0,0) = TOP-LEFT of image
-- X increases RIGHT
-- Y increases DOWN
-- All values in PIXELS — measure from the ORIGINAL image (Image 1)
+COORDINATE SYSTEM — FRACTIONAL (0.0 to 1.0):
+- All x values are fractions of image WIDTH (0.0 = left edge, 1.0 = right edge)
+- All y values are fractions of image HEIGHT (0.0 = top edge, 1.0 = bottom edge)
+- Thickness is a fraction of image width
+- Door/window width is a fraction of image width
+- Example: a wall from top-left quarter to center = start: {x: 0.25, y: 0.25}, end: {x: 0.5, y: 0.5}
 
 OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`;
 
@@ -266,22 +269,19 @@ async function twoPassAnalysis(anthropic, processedImage, originalImage, origina
   // PASS 1: Extract exterior shell only — send both images
   const pass1Response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 8192,
-    thinking: { type: 'enabled', budget_tokens: 10000 },
+    max_tokens: 4096,
+    temperature: 0,
     system: `You are a precise architectural floor plan parser. Extract ONLY the EXTERIOR PERIMETER walls — the outermost building boundary.
 IGNORE all interior partition walls, furniture, fixtures, and annotations.
-You are given TWO versions of the same floor plan:
-- Image 1 (ORIGINAL): Full detail — use this to see fine lines, door arcs, room labels, and thin walls
-- Image 2 (PREPROCESSED): Black/white enhanced — use this to see wall structure more clearly
-Use BOTH images together for the most accurate detection. Measure pixel coordinates from what you see in the image.
-COORDINATE SYSTEM: Origin (0,0) = TOP-LEFT. X increases RIGHT, Y increases DOWN. All values in PIXELS.
+You are given TWO images: Image 1 (ORIGINAL) for detail, Image 2 (PREPROCESSED) for wall structure clarity.
+COORDINATE SYSTEM — FRACTIONAL (0.0 to 1.0): x = fraction of image width, y = fraction of image height. Thickness = fraction of image width.
 OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`,
     messages: [{
       role: 'user',
       content: [
         {
           type: 'text',
-          text: 'Image 1 — ORIGINAL (use for detail and pixel measurements):',
+          text: 'Image 1 — ORIGINAL:',
         },
         {
           type: 'image',
@@ -289,7 +289,7 @@ OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`,
         },
         {
           type: 'text',
-          text: 'Image 2 — PREPROCESSED (use for wall structure clarity):',
+          text: 'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
         },
         {
           type: 'image',
@@ -300,14 +300,13 @@ OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`,
           text: `Extract ONLY the EXTERIOR PERIMETER walls from this floor plan.
 ${cvHints}
 Trace the outermost building boundary as wall segments (junction-to-junction).
-Each wall: centerline start/end coordinates, thickness, confidence.
+All coordinates as FRACTIONS (0.0–1.0) of image width/height. Thickness as fraction of image width.
 The exterior walls must form a CLOSED LOOP.
 
 Return JSON:
 {
-  "imageSize": { "width": NUMBER, "height": NUMBER },
   "walls": [
-    { "start": { "x": NUMBER, "y": NUMBER }, "end": { "x": NUMBER, "y": NUMBER }, "thickness": NUMBER, "confidence": NUMBER }
+    { "start": { "x": 0.0-1.0, "y": 0.0-1.0 }, "end": { "x": 0.0-1.0, "y": 0.0-1.0 }, "thickness": 0.0-1.0, "confidence": 0.0-1.0 }
   ],
   "overallShape": "rectangular" | "L-shaped" | "U-shaped" | "complex"
 }`
@@ -332,27 +331,23 @@ Return JSON:
 
   console.log(`[FloorPlan] Pass 1: ${pass1Result.walls.length} exterior walls detected`);
 
-  // Format exterior walls for Pass 2
+  // Format exterior walls for Pass 2 (fractional coords)
   const exteriorWallsDesc = pass1Result.walls.map((w, i) =>
-    `  Wall ${i}: (${Math.round(w.start.x)},${Math.round(w.start.y)}) → (${Math.round(w.end.x)},${Math.round(w.end.y)}), thickness=${Math.round(w.thickness)}`
+    `  Wall ${i}: (${w.start.x.toFixed(3)},${w.start.y.toFixed(3)}) → (${w.end.x.toFixed(3)},${w.end.y.toFixed(3)}), thickness=${w.thickness.toFixed(4)}`
   ).join('\n');
 
   // PASS 2: Find interior partitions, doors, rooms, stairs using exterior as context
-  const scaleSection = knownWidthMeters
-    ? `✅ USER-PROVIDED SCALE: Real-world width = ${knownWidthMeters} meters. pixelsPerMeter = imageWidth / ${knownWidthMeters}. Report confidence: 1.0, source: "user_provided".`
-    : `Estimate pixelsPerMeter from: 1) Dimension labels in image, 2) Standard door width (0.9m), 3) Wall thickness (0.1m), 4) Overall building size.`;
-
   const pass2Response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 16384,
-    thinking: { type: 'enabled', budget_tokens: 16000 },
+    max_tokens: 4096,
+    temperature: 0,
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
       content: [
         {
           type: 'text',
-          text: 'Image 1 — ORIGINAL (use for fine details: door arcs, thin partition walls, room labels, dimension text):',
+          text: 'Image 1 — ORIGINAL:',
         },
         {
           type: 'image',
@@ -360,7 +355,7 @@ Return JSON:
         },
         {
           type: 'text',
-          text: 'Image 2 — PREPROCESSED (use for wall structure clarity):',
+          text: 'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
         },
         {
           type: 'image',
@@ -368,7 +363,7 @@ Return JSON:
         },
         {
           type: 'text',
-          text: `The EXTERIOR PERIMETER walls have already been detected:
+          text: `The EXTERIOR PERIMETER walls have already been detected (fractional coords):
 ${exteriorWallsDesc}
 
 Now find ALL INTERIOR elements:
@@ -376,20 +371,20 @@ Now find ALL INTERIOR elements:
 2. ALL doors (single, double, sliding)
 3. ALL rooms (name + center)
 4. ALL stairs
-5. Scale calibration
 ${dimensionHints}${formatRoomHints(roomHints)}
-IMPORTANT: Do NOT re-detect exterior walls — they are provided above. Focus ONLY on interior walls, doors, rooms, stairs, and scale.
+IMPORTANT: Do NOT re-detect exterior walls — include them from above as-is with isExterior: true. Focus on interior walls, doors, rooms, stairs.
 Every room must be bounded by walls. If two rooms are adjacent, there MUST be a wall between them.
 
-Return the COMPLETE floor plan JSON (including the exterior walls from above as-is with isExterior: true):
+ALL coordinates as FRACTIONS (0.0–1.0) of image width/height.
+
+Return JSON:
 {
   "success": true,
-  "imageSize": { "width": NUMBER, "height": NUMBER },
-  "walls": [ ... all walls (exterior from above + your new interior walls) ... ],
-  "doors": [ { "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": N, "doorType": "single"|"double"|"sliding" } ],
-  "rooms": [ { "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null } ],
-  "stairs": [ { "center": {"x":N,"y":N}, "direction": "up"|"down"|"unknown" } ],
-  "scale": { "pixelsPerMeter": NUMBER, "confidence": NUMBER, "source": STRING },
+  "walls": [ { "start": {"x":0.0-1.0,"y":0.0-1.0}, "end": {"x":0.0-1.0,"y":0.0-1.0}, "thickness": FRACTION, "isExterior": BOOLEAN, "confidence": 0.0-1.0 } ],
+  "doors": [ { "center": {"x":0.0-1.0,"y":0.0-1.0}, "width": FRACTION, "wallIndex": N, "rotation": N, "doorType": "single"|"double"|"sliding" } ],
+  "rooms": [ { "name": STRING, "center": {"x":0.0-1.0,"y":0.0-1.0}, "labeledArea": NUMBER|null } ],
+  "stairs": [ { "center": {"x":0.0-1.0,"y":0.0-1.0}, "direction": "up"|"down"|"unknown" } ],
+  "scale": { "estimatedBuildingWidthMeters": NUMBER, "confidence": 0.0-1.0, "source": STRING },
   "overallShape": "${pass1Result.overallShape || 'rectangular'}",
   "totalArea": { "value": NUMBER, "unit": "m²" } | null
 }`
@@ -501,15 +496,15 @@ export default async function handler(req, res) {
       console.log('[FloorPlan] Using single-pass analysis');
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 16384,
-        thinking: { type: 'enabled', budget_tokens: 16000 },
+        max_tokens: 4096,
+        temperature: 0,
         system: SYSTEM_PROMPT,
         messages: [{
           role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Image 1 — ORIGINAL (use for fine details: door arcs, thin partition walls, room labels):',
+              text: 'Image 1 — ORIGINAL:',
             },
             {
               type: 'image',
@@ -517,7 +512,7 @@ export default async function handler(req, res) {
             },
             {
               type: 'text',
-              text: 'Image 2 — PREPROCESSED (use for wall structure clarity):',
+              text: 'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
             },
             {
               type: 'image',
@@ -525,142 +520,18 @@ export default async function handler(req, res) {
             },
             {
               type: 'text',
-              text: `Extract all structural elements from this floor plan image with pixel-precise coordinates.
-Use Image 1 (original) for fine details and pixel measurements. Use Image 2 (preprocessed) to confirm wall structure.
+              text: `Extract all structural elements from this floor plan.
 ${cvHints}${dimensionHints}${formatRoomHints(roomHints)}
-═══════════════════════════════════════════════════════════════
-WHAT TO IGNORE (NEVER detect these as walls):
-═══════════════════════════════════════════════════════════════
-❌ Thin lines with NUMBERS beside them → dimension annotations
-❌ Lines with arrows/ticks at both ends → dimension lines
-❌ Lines OUTSIDE the floor plan boundary → scale bars / annotations
-❌ Any line thinner than the thinnest real wall → probably furniture edge or hatch
-❌ Furniture outlines: beds, sofas, tables, bathtubs, toilets, kitchen counters
+ALL coordinates as FRACTIONS (0.0–1.0) of image width/height. Thickness and door width as fractions of image width.
 
-═══════════════════════════════════════════════════════════════
-STEP 1 — IDENTIFY JUNCTION POINTS (do this FIRST, mentally)
-═══════════════════════════════════════════════════════════════
-Before tracing any wall, scan the entire image and locate every point where:
-• Two walls meet at a corner (L-junction)
-• One wall meets the side of another (T-junction)
-• Two walls cross each other (X-junction)
-• A wall ends freely (dead end)
-
-These junction points are the START and END coordinates of every wall segment.
-Mark them in your mind with precise pixel coordinates before proceeding.
-
-═══════════════════════════════════════════════════════════════
-STEP 2 — TRACE EACH WALL SEGMENT
-═══════════════════════════════════════════════════════════════
-A wall is a THICK BAND drawn as two parallel lines with solid fill between them.
-Your job: place start/end at the CENTERLINE of that band (halfway between the two edges).
-
-For each wall segment (junction-to-junction):
-• start: pixel {x,y} of one junction
-• end: pixel {x,y} of the next junction along the same wall
-• thickness: pixel distance between the two parallel edges of the wall band
-• isExterior: true if this wall forms the outer building perimeter
-• confidence: 0.0–1.0 — how certain are you this is a structural wall?
-  - 1.0 = thick, clearly drawn wall connecting two junctions
-  - 0.7 = probably a wall but could be a partition
-  - 0.3 = uncertain — might be furniture or annotation
-  - Only include walls with confidence ≥ 0.4
-
-CONNECTIVITY RULES (must be satisfied):
-✓ Walls sharing a junction must have IDENTICAL pixel coordinates at that junction
-✓ Exterior walls must form a CLOSED LOOP (last wall end = first wall start)
-✓ Every interior wall must connect (at both ends) to another wall or exterior wall
-✓ NO gaps between walls that visually touch in the image
-
-EXTERIOR (isExterior: true): the outermost building perimeter including any bay windows, extensions, balconies
-INTERIOR (isExterior: false): internal partition walls dividing rooms
-
-═══════════════════════════════════════════════════════════════
-STEP 3 — DOORS
-═══════════════════════════════════════════════════════════════
-• SINGLE door: quarter-circle arc + straight line from hinge. Arc radius = door width.
-• DOUBLE door: two arcs facing each other (butterfly shape)
-• SLIDING: two overlapping rectangles / parallel lines with arrow
-
-For each door:
-• center: pixel {x,y} at the midpoint of the opening (ON the wall centerline)
-• width: arc radius in pixels (measure carefully — typically 60–120px in standard plans)
-• wallIndex: 0-based index into the walls array
-• rotation: 0 / 90 / 180 / 270 — which direction the arc swings
-• doorType: "single" | "double" | "sliding"
-
-═══════════════════════════════════════════════════════════════
-STEP 4 — SCALE CALIBRATION
-═══════════════════════════════════════════════════════════════
-${knownWidthMeters
-  ? `✅ USER-PROVIDED SCALE: The user has measured this floor plan and confirmed the real-world width is ${knownWidthMeters} meters.
-Use the imageSize.width from the image to calculate:
-  pixelsPerMeter = imageSize.width / ${knownWidthMeters}
-Report this exact value with confidence: 1.0 and source: "user_provided".`
-  : `Estimate pixelsPerMeter using this priority order:
-1. Dimension label in image (e.g. "5000" near a line = 5000mm): pixelsPerMeter = linePixels / realMeters
-2. Standard door width (0.9m): pixelsPerMeter = doorArcRadius / 0.9
-3. Standard interior wall thickness (0.1m): pixelsPerMeter = wallThicknessPixels / 0.1
-4. If none available, estimate from overall building size (typical house = 8–15m wide)
-Report your confidence (0.0–1.0) and source.`}
-
-═══════════════════════════════════════════════════════════════
-STEP 5 — COMPLETENESS CHECK (do this BEFORE outputting JSON)
-═══════════════════════════════════════════════════════════════
-Before finalizing, verify:
-1. Count the rooms visible in the floor plan. Each room must be bounded by walls on ALL sides.
-2. If Room A and Room B are visibly separate spaces, there MUST be a wall between them.
-3. Typical floor plans have: 4 exterior walls (minimum) + 1-2 interior walls PER room.
-   A 3-bedroom house typically has 20-35 wall segments. If you have fewer than 15, re-examine.
-4. Look for interior walls you may have missed — especially:
-   • Walls between bedrooms
-   • Walls separating bathrooms from hallways
-   • Kitchen partition walls
-   • Short wall stubs at doorway openings
-5. Check that exterior walls form a CLOSED perimeter with no gaps.
-
-═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT — return ONLY this JSON, nothing else:
-═══════════════════════════════════════════════════════════════
+Return JSON:
 {
   "success": true,
-  "imageSize": { "width": NUMBER, "height": NUMBER },
-  "walls": [
-    {
-      "start": { "x": NUMBER, "y": NUMBER },
-      "end": { "x": NUMBER, "y": NUMBER },
-      "thickness": NUMBER,
-      "isExterior": BOOLEAN,
-      "confidence": NUMBER
-    }
-  ],
-  "doors": [
-    {
-      "center": { "x": NUMBER, "y": NUMBER },
-      "width": NUMBER,
-      "wallIndex": NUMBER,
-      "rotation": NUMBER,
-      "doorType": "single" | "double" | "sliding"
-    }
-  ],
-  "rooms": [
-    {
-      "name": STRING,
-      "center": { "x": NUMBER, "y": NUMBER },
-      "labeledArea": NUMBER | null
-    }
-  ],
-  "stairs": [
-    {
-      "center": { "x": NUMBER, "y": NUMBER },
-      "direction": "up" | "down" | "unknown"
-    }
-  ],
-  "scale": {
-    "pixelsPerMeter": NUMBER,
-    "confidence": NUMBER,
-    "source": "user_provided" | "dimension_label" | "door_width" | "wall_thickness" | "estimated"
-  },
+  "walls": [ { "start": {"x":0.0-1.0,"y":0.0-1.0}, "end": {"x":0.0-1.0,"y":0.0-1.0}, "thickness": FRACTION, "isExterior": BOOLEAN, "confidence": 0.0-1.0 } ],
+  "doors": [ { "center": {"x":0.0-1.0,"y":0.0-1.0}, "width": FRACTION, "wallIndex": N, "rotation": N, "doorType": "single"|"double"|"sliding" } ],
+  "rooms": [ { "name": STRING, "center": {"x":0.0-1.0,"y":0.0-1.0}, "labeledArea": NUMBER|null } ],
+  "stairs": [ { "center": {"x":0.0-1.0,"y":0.0-1.0}, "direction": "up"|"down"|"unknown" } ],
+  "scale": { "estimatedBuildingWidthMeters": NUMBER, "confidence": 0.0-1.0, "source": STRING },
   "overallShape": "rectangular" | "L-shaped" | "U-shaped" | "complex",
   "totalArea": { "value": NUMBER, "unit": "m²" } | null
 }`
@@ -693,72 +564,49 @@ OUTPUT FORMAT — return ONLY this JSON, nothing else:
     result.stairs = result.stairs || [];
     result.scale = result.scale || { pixelsPerMeter: 50, confidence: 0.5, source: 'estimated' };
 
-    // Rescale coordinates: Claude's vision model works at an internal resolution
-    // that differs from the actual image. We detect this by comparing Claude's
-    // reported imageSize OR the bounding box of detected walls against actual dimensions.
-    if (result.walls && result.walls.length > 0) {
-      // Method 1: Use Claude's reported imageSize
-      const reportedW = result.imageSize?.width || 0;
-      const reportedH = result.imageSize?.height || 0;
+    // Convert fractional coordinates (0.0–1.0) to actual pixel coordinates
+    result.imageSize = { width: actualWidth, height: actualHeight };
+    (result.walls || []).forEach(wall => {
+      if (wall.start) { wall.start.x *= actualWidth; wall.start.y *= actualHeight; }
+      if (wall.end) { wall.end.x *= actualWidth; wall.end.y *= actualHeight; }
+      if (wall.thickness) wall.thickness *= actualWidth;
+    });
+    (result.doors || []).forEach(door => {
+      if (door.center) { door.center.x *= actualWidth; door.center.y *= actualHeight; }
+      if (door.width) door.width *= actualWidth;
+    });
+    (result.rooms || []).forEach(room => {
+      if (room.center) { room.center.x *= actualWidth; room.center.y *= actualHeight; }
+    });
+    (result.stairs || []).forEach(stair => {
+      if (stair.center) { stair.center.x *= actualWidth; stair.center.y *= actualHeight; }
+    });
 
-      // Method 2: Compute bounding box of all detected coordinates
-      let maxX = 0, maxY = 0;
-      result.walls.forEach(wall => {
-        if (wall.start) { maxX = Math.max(maxX, wall.start.x); maxY = Math.max(maxY, wall.start.y); }
-        if (wall.end) { maxX = Math.max(maxX, wall.end.x); maxY = Math.max(maxY, wall.end.y); }
+    // Convert scale: Claude reports estimatedBuildingWidthMeters, compute pixelsPerMeter
+    if (result.scale?.estimatedBuildingWidthMeters) {
+      // Find the building's pixel width from exterior walls
+      let minWx = Infinity, maxWx = 0;
+      (result.walls || []).filter(w => w.isExterior).forEach(w => {
+        if (w.start) { minWx = Math.min(minWx, w.start.x); maxWx = Math.max(maxWx, w.start.x); }
+        if (w.end) { minWx = Math.min(minWx, w.end.x); maxWx = Math.max(maxWx, w.end.x); }
       });
-      (result.doors || []).forEach(door => {
-        if (door.center) { maxX = Math.max(maxX, door.center.x); maxY = Math.max(maxY, door.center.y); }
-      });
-
-      // Use reported size if available, otherwise estimate from bounding box (add 5% margin)
-      const coordSpaceW = reportedW > 0 ? reportedW : maxX * 1.05;
-      const coordSpaceH = reportedH > 0 ? reportedH : maxY * 1.05;
-
-      const scaleX = actualWidth / coordSpaceW;
-      const scaleY = actualHeight / coordSpaceH;
-
-      // Also check if bounding box suggests even smaller coordinate space than reported
-      // (Claude might report correct imageSize but use smaller coordinates)
-      const bboxScaleX = maxX > 0 ? actualWidth / (maxX * 1.1) : scaleX;
-      const bboxScaleY = maxY > 0 ? actualHeight / (maxY * 1.1) : scaleY;
-
-      // If bounding box suggests walls only cover <60% of image, use bbox-based scaling
-      const bboxCoverageX = maxX / actualWidth;
-      const bboxCoverageY = maxY / actualHeight;
-      const usesBboxScale = bboxCoverageX < 0.6 || bboxCoverageY < 0.6;
-
-      const finalScaleX = usesBboxScale ? bboxScaleX : scaleX;
-      const finalScaleY = usesBboxScale ? bboxScaleY : scaleY;
-      const needsRescale = Math.abs(finalScaleX - 1) > 0.08 || Math.abs(finalScaleY - 1) > 0.08;
-
-      if (needsRescale) {
-        console.log(`[FloorPlan] Rescaling: reported=${reportedW}x${reportedH}, bbox=${maxX.toFixed(0)}x${maxY.toFixed(0)}, actual=${actualWidth}x${actualHeight}, scale=${finalScaleX.toFixed(2)}x${finalScaleY.toFixed(2)}, method=${usesBboxScale ? 'bbox' : 'reported'}`);
-
-        // Scale all coordinates
-        (result.walls || []).forEach(wall => {
-          if (wall.start) { wall.start.x *= finalScaleX; wall.start.y *= finalScaleY; }
-          if (wall.end) { wall.end.x *= finalScaleX; wall.end.y *= finalScaleY; }
-          if (wall.thickness) wall.thickness *= Math.max(finalScaleX, finalScaleY);
-        });
-        (result.doors || []).forEach(door => {
-          if (door.center) { door.center.x *= finalScaleX; door.center.y *= finalScaleY; }
-          if (door.width) door.width *= Math.max(finalScaleX, finalScaleY);
-        });
-        (result.rooms || []).forEach(room => {
-          if (room.center) { room.center.x *= finalScaleX; room.center.y *= finalScaleY; }
-        });
-        (result.stairs || []).forEach(stair => {
-          if (stair.center) { stair.center.x *= finalScaleX; stair.center.y *= finalScaleY; }
-        });
-        if (result.scale?.pixelsPerMeter) {
-          result.scale.pixelsPerMeter *= Math.max(finalScaleX, finalScaleY);
-        }
+      const buildingPixelWidth = maxWx - minWx;
+      if (buildingPixelWidth > 0) {
+        result.scale = {
+          pixelsPerMeter: buildingPixelWidth / result.scale.estimatedBuildingWidthMeters,
+          confidence: result.scale.confidence || 0.5,
+          source: result.scale.source || 'estimated',
+        };
       }
-
-      // Always set imageSize to actual dimensions
-      result.imageSize = { width: actualWidth, height: actualHeight };
+    } else if (result.scale?.pixelsPerMeter) {
+      // Legacy: if Claude still reports pixelsPerMeter, scale it
+      result.scale.pixelsPerMeter *= actualWidth;
     }
+    if (!result.scale) {
+      result.scale = { pixelsPerMeter: actualWidth / 15, confidence: 0.3, source: 'estimated' };
+    }
+
+    console.log(`[FloorPlan] Converted fractional → pixel coords (${actualWidth}x${actualHeight})`);
 
     // Post-process walls — filter out low-confidence detections
     result.walls = result.walls
