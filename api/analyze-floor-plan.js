@@ -693,47 +693,70 @@ OUTPUT FORMAT — return ONLY this JSON, nothing else:
     result.stairs = result.stairs || [];
     result.scale = result.scale || { pixelsPerMeter: 50, confidence: 0.5, source: 'estimated' };
 
-    // Rescale coordinates if Claude reported a different image size than the actual
-    // Claude's vision model internally downscales images, so its coordinates may be
-    // in a smaller space (e.g., 768px) than the actual image (e.g., 2000px)
-    const reportedW = result.imageSize?.width || actualWidth;
-    const reportedH = result.imageSize?.height || actualHeight;
-    const scaleX = actualWidth / reportedW;
-    const scaleY = actualHeight / reportedH;
-    const needsRescale = Math.abs(scaleX - 1) > 0.05 || Math.abs(scaleY - 1) > 0.05;
+    // Rescale coordinates: Claude's vision model works at an internal resolution
+    // that differs from the actual image. We detect this by comparing Claude's
+    // reported imageSize OR the bounding box of detected walls against actual dimensions.
+    if (result.walls && result.walls.length > 0) {
+      // Method 1: Use Claude's reported imageSize
+      const reportedW = result.imageSize?.width || 0;
+      const reportedH = result.imageSize?.height || 0;
 
-    if (needsRescale) {
-      console.log(`[FloorPlan] Rescaling coordinates: Claude reported ${reportedW}x${reportedH}, actual ${actualWidth}x${actualHeight} (scale ${scaleX.toFixed(2)}x${scaleY.toFixed(2)})`);
-
-      // Scale walls
-      (result.walls || []).forEach(wall => {
-        if (wall.start) { wall.start.x *= scaleX; wall.start.y *= scaleY; }
-        if (wall.end) { wall.end.x *= scaleX; wall.end.y *= scaleY; }
-        if (wall.thickness) wall.thickness *= Math.max(scaleX, scaleY);
+      // Method 2: Compute bounding box of all detected coordinates
+      let maxX = 0, maxY = 0;
+      result.walls.forEach(wall => {
+        if (wall.start) { maxX = Math.max(maxX, wall.start.x); maxY = Math.max(maxY, wall.start.y); }
+        if (wall.end) { maxX = Math.max(maxX, wall.end.x); maxY = Math.max(maxY, wall.end.y); }
       });
-
-      // Scale doors
       (result.doors || []).forEach(door => {
-        if (door.center) { door.center.x *= scaleX; door.center.y *= scaleY; }
-        if (door.width) door.width *= Math.max(scaleX, scaleY);
+        if (door.center) { maxX = Math.max(maxX, door.center.x); maxY = Math.max(maxY, door.center.y); }
       });
 
-      // Scale rooms
-      (result.rooms || []).forEach(room => {
-        if (room.center) { room.center.x *= scaleX; room.center.y *= scaleY; }
-      });
+      // Use reported size if available, otherwise estimate from bounding box (add 5% margin)
+      const coordSpaceW = reportedW > 0 ? reportedW : maxX * 1.05;
+      const coordSpaceH = reportedH > 0 ? reportedH : maxY * 1.05;
 
-      // Scale stairs
-      (result.stairs || []).forEach(stair => {
-        if (stair.center) { stair.center.x *= scaleX; stair.center.y *= scaleY; }
-      });
+      const scaleX = actualWidth / coordSpaceW;
+      const scaleY = actualHeight / coordSpaceH;
 
-      // Scale pixelsPerMeter
-      if (result.scale?.pixelsPerMeter) {
-        result.scale.pixelsPerMeter *= Math.max(scaleX, scaleY);
+      // Also check if bounding box suggests even smaller coordinate space than reported
+      // (Claude might report correct imageSize but use smaller coordinates)
+      const bboxScaleX = maxX > 0 ? actualWidth / (maxX * 1.1) : scaleX;
+      const bboxScaleY = maxY > 0 ? actualHeight / (maxY * 1.1) : scaleY;
+
+      // If bounding box suggests walls only cover <60% of image, use bbox-based scaling
+      const bboxCoverageX = maxX / actualWidth;
+      const bboxCoverageY = maxY / actualHeight;
+      const usesBboxScale = bboxCoverageX < 0.6 || bboxCoverageY < 0.6;
+
+      const finalScaleX = usesBboxScale ? bboxScaleX : scaleX;
+      const finalScaleY = usesBboxScale ? bboxScaleY : scaleY;
+      const needsRescale = Math.abs(finalScaleX - 1) > 0.08 || Math.abs(finalScaleY - 1) > 0.08;
+
+      if (needsRescale) {
+        console.log(`[FloorPlan] Rescaling: reported=${reportedW}x${reportedH}, bbox=${maxX.toFixed(0)}x${maxY.toFixed(0)}, actual=${actualWidth}x${actualHeight}, scale=${finalScaleX.toFixed(2)}x${finalScaleY.toFixed(2)}, method=${usesBboxScale ? 'bbox' : 'reported'}`);
+
+        // Scale all coordinates
+        (result.walls || []).forEach(wall => {
+          if (wall.start) { wall.start.x *= finalScaleX; wall.start.y *= finalScaleY; }
+          if (wall.end) { wall.end.x *= finalScaleX; wall.end.y *= finalScaleY; }
+          if (wall.thickness) wall.thickness *= Math.max(finalScaleX, finalScaleY);
+        });
+        (result.doors || []).forEach(door => {
+          if (door.center) { door.center.x *= finalScaleX; door.center.y *= finalScaleY; }
+          if (door.width) door.width *= Math.max(finalScaleX, finalScaleY);
+        });
+        (result.rooms || []).forEach(room => {
+          if (room.center) { room.center.x *= finalScaleX; room.center.y *= finalScaleY; }
+        });
+        (result.stairs || []).forEach(stair => {
+          if (stair.center) { stair.center.x *= finalScaleX; stair.center.y *= finalScaleY; }
+        });
+        if (result.scale?.pixelsPerMeter) {
+          result.scale.pixelsPerMeter *= Math.max(finalScaleX, finalScaleY);
+        }
       }
 
-      // Update imageSize to actual
+      // Always set imageSize to actual dimensions
       result.imageSize = { width: actualWidth, height: actualHeight };
     }
 
