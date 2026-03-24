@@ -22,8 +22,8 @@ async function preprocessImage(base64Image) {
       .sharpen({ sigma: 1.5, m1: 1.0, m2: 0.5 })
       // Binarize — pure black/white, removes gradients and shadows
       .threshold(140)
-      // Trim whitespace/margins — auto-crop to the floor plan content
-      .trim({ threshold: 20 })
+      // NOTE: .trim() removed — it changes image dimensions, causing coordinate
+      // mismatch between original and preprocessed images in the dual-image pipeline
       .png()
       .toBuffer();
 
