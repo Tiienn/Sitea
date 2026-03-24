@@ -273,8 +273,7 @@ IGNORE all interior partition walls, furniture, fixtures, and annotations.
 You are given TWO versions of the same floor plan:
 - Image 1 (ORIGINAL): Full detail — use this to see fine lines, door arcs, room labels, and thin walls
 - Image 2 (PREPROCESSED): Black/white enhanced — use this to see wall structure more clearly
-Use BOTH images together for the most accurate detection.
-IMPORTANT: The actual image dimensions are ${actualWidth}x${actualHeight} pixels. Report imageSize as {"width":${actualWidth},"height":${actualHeight}}. All coordinates must be in this pixel space (0 to ${actualWidth} for X, 0 to ${actualHeight} for Y).
+Use BOTH images together for the most accurate detection. Measure pixel coordinates from what you see in the image.
 COORDINATE SYSTEM: Origin (0,0) = TOP-LEFT. X increases RIGHT, Y increases DOWN. All values in PIXELS.
 OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`,
     messages: [{
@@ -369,9 +368,7 @@ Return JSON:
         },
         {
           type: 'text',
-          text: `IMPORTANT: The actual image dimensions are ${actualWidth}x${actualHeight} pixels. Report imageSize as {"width":${actualWidth},"height":${actualHeight}}. All coordinates must be in this pixel space.
-
-The EXTERIOR PERIMETER walls have already been detected:
+          text: `The EXTERIOR PERIMETER walls have already been detected:
 ${exteriorWallsDesc}
 
 Now find ALL INTERIOR elements:
@@ -529,7 +526,6 @@ export default async function handler(req, res) {
             {
               type: 'text',
               text: `Extract all structural elements from this floor plan image with pixel-precise coordinates.
-IMPORTANT: The actual image dimensions are ${actualWidth}x${actualHeight} pixels. Report imageSize as {"width":${actualWidth},"height":${actualHeight}}. All coordinates must be in this pixel space (0 to ${actualWidth} for X, 0 to ${actualHeight} for Y).
 Use Image 1 (original) for fine details and pixel measurements. Use Image 2 (preprocessed) to confirm wall structure.
 ${cvHints}${dimensionHints}${formatRoomHints(roomHints)}
 ═══════════════════════════════════════════════════════════════
