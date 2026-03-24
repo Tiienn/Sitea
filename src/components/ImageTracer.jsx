@@ -22,6 +22,7 @@ export default function ImageTracer({
   const [draggingScaleIndex, setDraggingScaleIndex] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
+  const [boundaryClosed, setBoundaryClosed] = useState(false)
   const [autoDetecting, setAutoDetecting] = useState(false)
   const [autoDetectError, setAutoDetectError] = useState(null)
 
@@ -495,11 +496,10 @@ export default function ImageTracer({
         return prev
       })
     } else if (scale) {
-      // Check if clicking near an edge to insert a point there
-      if (points.length >= 3) {
+      // After user clicks "Done", only allow inserting on edges
+      if (boundaryClosed) {
         const edgeIdx = findNearEdge(canvasX, canvasY)
         if (edgeIdx >= 0) {
-          // Delay insertion so double-click can cancel it
           clickTimeoutRef.current = setTimeout(() => {
             clickTimeoutRef.current = null
             pushPointsHistory()
@@ -510,7 +510,7 @@ export default function ImageTracer({
             })
           }, 250)
         }
-        return // Boundary complete — only insert on edges, don't append
+        return
       }
       // Append point (boundary not yet complete)
       pushPointsHistory()
@@ -840,7 +840,7 @@ export default function ImageTracer({
 
   const handleComplete = () => {
     if (points.length < 3 || !scale) return
-    // Show summary instead of completing immediately
+    setBoundaryClosed(true)
     setShowSummary(true)
   }
 
@@ -853,6 +853,7 @@ export default function ImageTracer({
 
   // Go back to editing from summary
   const handleBackToEdit = () => {
+    setBoundaryClosed(false)
     setShowSummary(false)
   }
 
@@ -864,6 +865,7 @@ export default function ImageTracer({
     setZoom(1)
     setPan({ x: 0, y: 0 })
     setPointsHistory([])
+    setBoundaryClosed(false)
     onClear?.()
   }
 

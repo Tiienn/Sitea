@@ -143,7 +143,11 @@
       "WebFetch(domain:www.teoalida.com)",
       "WebFetch(domain:gamerant.com)",
       "WebFetch(domain:www.simsnetwork.com)",
-      "WebFetch(domain:snootysims.com)"
+      "WebFetch(domain:snootysims.com)",
+      "Bash(find /Users/tien/projects/sitea/src -name \"*Virtual*\" -o -name \"*Joystick*\" 2>/dev/null | head -10)",
+      "Bash(printenv)",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_wait_for"
     ],
     "deny": [],
     "ask": []

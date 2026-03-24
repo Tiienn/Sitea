@@ -168,8 +168,9 @@ export function UserProvider({ children }) {
   // Upload limits by plan
   const getUploadLimit = useCallback(() => {
     if (!isPaidUser) return 1 // free: 1 upload
-    if (planType === 'homeowner') return 5 // homeowner: 5 uploads
-    return Infinity // monthly/lifetime: unlimited
+    if (planType === 'monthly') return 3 // monthly: 3 uploads
+    if (planType === 'homeowner') return 10 // homeowner: 10 uploads
+    return Infinity // lifetime: unlimited
   }, [isPaidUser, planType])
 
   const uploadsRemaining = Math.max(0, getUploadLimit() - uploadCount)

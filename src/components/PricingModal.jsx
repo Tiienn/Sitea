@@ -15,9 +15,9 @@ const paypalOptions = {
  * PricingModal - Premium pricing display with PayPal payment integration
  *
  * Pricing:
- * - Monthly Pro: $9.99/month subscription
- * - Homeowner: $29 one-time payment (MOST POPULAR)
- * - Lifetime: $149 one-time payment
+ * - Monthly Pro: $9.99/month subscription (3 uploads)
+ * - Homeowner: $29 one-time payment (10 uploads, MOST POPULAR)
+ * - Lifetime: $149 one-time payment (unlimited uploads)
  */
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -175,17 +175,18 @@ export default function PricingModal({ onClose, onSuccess }) {
 
   const features = {
     homeowner: [
-      { icon: 'home', text: '5 floor plan uploads' },
+      { icon: 'home', text: '10 floor plan uploads' },
       { icon: 'sparkles', text: 'AI detects walls, doors & windows automatically' },
       { icon: 'share', text: 'Share your walkthrough with family' },
       { icon: 'download', text: 'Export images & 3D models' },
     ],
     monthly: [
-      { icon: 'infinity', text: 'Unlimited floor plan uploads' },
+      { icon: 'home', text: '3 floor plan uploads' },
       { icon: 'sun', text: 'Day & night visualization' },
       { icon: 'refresh', text: 'Cancel anytime' },
     ],
     lifetime: [
+      { icon: 'infinity', text: 'Unlimited floor plan uploads' },
       { icon: 'crown', text: 'Pay once, own forever' },
       { icon: 'rocket', text: 'All future features included' },
     ]
@@ -422,7 +423,6 @@ export default function PricingModal({ onClose, onSuccess }) {
               title="Monthly Pro"
               accentColor="emerald"
               featureList={features.monthly}
-              inheritNote="Everything in Homeowner, plus:"
               paypalContent={
                 <div className="mt-4 animate-fadeIn">
                   <PayPalButtons
@@ -470,7 +470,7 @@ export default function PricingModal({ onClose, onSuccess }) {
               badgeColor="amber"
               accentColor="amber"
               featureList={features.lifetime}
-              inheritNote="Everything in Monthly Pro, plus:"
+              inheritNote="Everything in Homeowner, plus:"
               paypalContent={
                 <div className="mt-4 animate-fadeIn">
                   <PayPalButtons

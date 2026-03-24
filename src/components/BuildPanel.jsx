@@ -378,18 +378,12 @@ export default function BuildPanel({
   }
 
   // Handle file upload — go to preview instead of auto-analyzing
-  const handleFileUpload = (file) => {
+  const handleFileUpload = async (file) => {
     if (!file) return
 
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
     if (!validTypes.includes(file.type)) {
-      alert('Please upload a PNG, JPG, or PDF file')
-      return
-    }
-
-    // PDF not yet supported
-    if (file.type === 'application/pdf') {
-      alert('PDF support coming soon. Please use PNG or JPG for now.')
+      alert('Please upload a PNG or JPG file')
       return
     }
 
@@ -549,7 +543,7 @@ export default function BuildPanel({
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/jpg,application/pdf"
+                        accept="image/png,image/jpeg,image/jpg"
                         onChange={(e) => handleFileUpload(e.target.files?.[0])}
                         className="hidden"
                       />

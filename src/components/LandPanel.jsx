@@ -85,7 +85,7 @@ export default function LandPanel({
   isActive,
   onDetectedFloorPlan, // Called when floor plan is detected
 }) {
-  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload } = useUser()
+  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload, uploadsRemaining } = useUser()
   const [activeSection, setActiveSection] = useState('rectangle')
   const [localDimensions, setLocalDimensions] = useState({
     length: dimensions.length,
@@ -171,60 +171,67 @@ export default function LandPanel({
       return
     }
 
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
     if (!validTypes.includes(file.type)) {
-      alert('Please upload a PNG, JPG, or PDF file')
-      return
-    }
-
-    // PDF not yet supported
-    if (file.type === 'application/pdf') {
-      alert('PDF support coming soon. Please use PNG or JPG for now.')
+      alert('Please upload a PNG or JPG file')
       return
     }
 
     const reader = new FileReader()
     reader.onload = async (e) => {
       const imageData = e.target.result
-      setPendingImage(imageData)
-      setIsAnalyzing(true)
-
-      try {
-        const result = await analyzeImage(imageData, isPaidUser)
-
-        if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
-          // High confidence - auto-route
-          markUploadUsed() // Consume free trial
-          if (result.type === 'site-plan') {
-            setUploadedImage(imageData)
-          } else {
-            onDetectedFloorPlan?.(imageData)
-          }
-          setPendingImage(null)
-        } else {
-          // Low confidence - show confirmation
-          setDetectedType(result.type)
-          setShowConfirm(true)
-        }
-      } catch (err) {
-        console.error('Analysis failed:', err)
-        // Fallback: assume site plan (we're in Land panel)
-        markUploadUsed() // Consume free trial
-        setUploadedImage(imageData)
-        setPendingImage(null)
-      }
-
-      setIsAnalyzing(false)
+      processUploadedImage(imageData)
     }
     reader.readAsDataURL(file)
   }
 
+  // Process an image data URL (shared by image and PDF paths)
+  const processUploadedImage = async (imageData) => {
+    setPendingImage(imageData)
+    setIsAnalyzing(true)
+
+    try {
+      const result = await analyzeImage(imageData, isPaidUser)
+
+      if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
+        // High confidence - auto-route
+        if (result.type === 'site-plan') {
+          markUploadUsed()
+          setUploadedImage(imageData)
+        } else if (isPaidUser) {
+          markUploadUsed()
+          onDetectedFloorPlan?.(imageData)
+        } else {
+          // Free user detected floor plan — don't consume upload, route to upgrade
+          onDetectedFloorPlan?.(imageData)
+        }
+        setPendingImage(null)
+      } else {
+        // Low confidence - show confirmation
+        setDetectedType(result.type)
+        setShowConfirm(true)
+      }
+    } catch (err) {
+      console.error('Analysis failed:', err)
+      // Fallback: assume site plan (we're in Land panel)
+      markUploadUsed() // Consume free trial
+      setUploadedImage(imageData)
+      setPendingImage(null)
+    }
+
+    setIsAnalyzing(false)
+  }
+
   // Confirm detected type (for low confidence)
   const confirmType = (type) => {
-    markUploadUsed() // Consume free trial
     if (type === 'site-plan') {
+      markUploadUsed()
       setUploadedImage(pendingImage)
+    } else if (isPaidUser) {
+      markUploadUsed()
+      onDetectedFloorPlan?.(pendingImage)
     } else {
+      // Free user chose floor plan — don't consume upload
       onDetectedFloorPlan?.(pendingImage)
     }
     setShowConfirm(false)
@@ -504,7 +511,7 @@ export default function LandPanel({
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/jpg,application/pdf"
+                        accept="image/png,image/jpeg,image/jpg"
                         onChange={(e) => handleFileUpload(e.target.files?.[0])}
                         className="hidden"
                       />
@@ -518,6 +525,9 @@ export default function LandPanel({
                           {isDragging ? 'Drop your file here' : 'Upload your plan'}
                         </p>
                         <p className="text-[var(--color-text-muted)] text-xs">PNG, JPG, or PDF</p>
+                        {!isPaidUser && hasUsedUpload && (
+                          <p className="text-amber-400 text-xs mt-2">Upgrade to Pro to upload more</p>
+                        )}
                       </div>
                     </div>
 

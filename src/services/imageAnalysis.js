@@ -128,11 +128,10 @@ export async function detectSitePlanBoundary(imageBase64) {
  * @returns {Promise<{ type: 'site-plan' | 'floor-plan', confidence: number, method: string }>}
  */
 export async function analyzeImage(imageBase64, isPaidUser = false) {
-  if (isPaidUser) {
-    return analyzeWithAI(imageBase64)
-  } else {
-    return analyzeWithHeuristics(imageBase64)
-  }
+  // Always use heuristics for plan type detection (site-plan vs floor-plan).
+  // The /api/analyze-plan endpoint does not exist; AI endpoints are for
+  // processing plans, not classifying type.
+  return analyzeWithHeuristics(imageBase64)
 }
 
 /**
