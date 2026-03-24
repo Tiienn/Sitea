@@ -262,7 +262,7 @@ OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`;
 
 // --- Two-pass Claude analysis for better completeness ---
 
-async function twoPassAnalysis(anthropic, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters) {
+async function twoPassAnalysis(anthropic, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, actualWidth, actualHeight) {
   // PASS 1: Extract exterior shell only — send both images
   const pass1Response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -273,7 +273,8 @@ IGNORE all interior partition walls, furniture, fixtures, and annotations.
 You are given TWO versions of the same floor plan:
 - Image 1 (ORIGINAL): Full detail — use this to see fine lines, door arcs, room labels, and thin walls
 - Image 2 (PREPROCESSED): Black/white enhanced — use this to see wall structure more clearly
-Use BOTH images together for the most accurate detection. Measure pixel coordinates from Image 1 (the original).
+Use BOTH images together for the most accurate detection.
+IMPORTANT: The actual image dimensions are ${actualWidth}x${actualHeight} pixels. Report imageSize as {"width":${actualWidth},"height":${actualHeight}}. All coordinates must be in this pixel space (0 to ${actualWidth} for X, 0 to ${actualHeight} for Y).
 COORDINATE SYSTEM: Origin (0,0) = TOP-LEFT. X increases RIGHT, Y increases DOWN. All values in PIXELS.
 OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`,
     messages: [{
@@ -368,7 +369,9 @@ Return JSON:
         },
         {
           type: 'text',
-          text: `The EXTERIOR PERIMETER walls have already been detected:
+          text: `IMPORTANT: The actual image dimensions are ${actualWidth}x${actualHeight} pixels. Report imageSize as {"width":${actualWidth},"height":${actualHeight}}. All coordinates must be in this pixel space.
+
+The EXTERIOR PERIMETER walls have already been detected:
 ${exteriorWallsDesc}
 
 Now find ALL INTERIOR elements:
@@ -465,7 +468,14 @@ export default async function handler(req, res) {
   };
   const originalMediaType = detectMediaType(image);
 
-  // Preprocess image for better detection (grayscale, sharpen, binarize, trim)
+  // Get actual image dimensions before any processing
+  const inputBuffer = Buffer.from(image, 'base64');
+  const imageMeta = await sharp(inputBuffer).metadata();
+  const actualWidth = imageMeta.width;
+  const actualHeight = imageMeta.height;
+  console.log(`[FloorPlan] Actual image dimensions: ${actualWidth}x${actualHeight}`);
+
+  // Preprocess image for better detection (grayscale, sharpen, binarize)
   const processedImage = await preprocessImage(image);
 
   // After preprocessing, image is always PNG
@@ -487,7 +497,7 @@ export default async function handler(req, res) {
 
     // Try two-pass analysis first (exterior shell → interior partitions)
     // Falls back to single-pass if two-pass fails
-    let result = await twoPassAnalysis(anthropic, processedImage, image, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters);
+    let result = await twoPassAnalysis(anthropic, processedImage, image, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, actualWidth, actualHeight);
 
     if (!result) {
       // Single-pass fallback
@@ -519,6 +529,7 @@ export default async function handler(req, res) {
             {
               type: 'text',
               text: `Extract all structural elements from this floor plan image with pixel-precise coordinates.
+IMPORTANT: The actual image dimensions are ${actualWidth}x${actualHeight} pixels. Report imageSize as {"width":${actualWidth},"height":${actualHeight}}. All coordinates must be in this pixel space (0 to ${actualWidth} for X, 0 to ${actualHeight} for Y).
 Use Image 1 (original) for fine details and pixel measurements. Use Image 2 (preprocessed) to confirm wall structure.
 ${cvHints}${dimensionHints}${formatRoomHints(roomHints)}
 ═══════════════════════════════════════════════════════════════
@@ -685,6 +696,50 @@ OUTPUT FORMAT — return ONLY this JSON, nothing else:
     result.rooms = result.rooms || [];
     result.stairs = result.stairs || [];
     result.scale = result.scale || { pixelsPerMeter: 50, confidence: 0.5, source: 'estimated' };
+
+    // Rescale coordinates if Claude reported a different image size than the actual
+    // Claude's vision model internally downscales images, so its coordinates may be
+    // in a smaller space (e.g., 768px) than the actual image (e.g., 2000px)
+    const reportedW = result.imageSize?.width || actualWidth;
+    const reportedH = result.imageSize?.height || actualHeight;
+    const scaleX = actualWidth / reportedW;
+    const scaleY = actualHeight / reportedH;
+    const needsRescale = Math.abs(scaleX - 1) > 0.05 || Math.abs(scaleY - 1) > 0.05;
+
+    if (needsRescale) {
+      console.log(`[FloorPlan] Rescaling coordinates: Claude reported ${reportedW}x${reportedH}, actual ${actualWidth}x${actualHeight} (scale ${scaleX.toFixed(2)}x${scaleY.toFixed(2)})`);
+
+      // Scale walls
+      (result.walls || []).forEach(wall => {
+        if (wall.start) { wall.start.x *= scaleX; wall.start.y *= scaleY; }
+        if (wall.end) { wall.end.x *= scaleX; wall.end.y *= scaleY; }
+        if (wall.thickness) wall.thickness *= Math.max(scaleX, scaleY);
+      });
+
+      // Scale doors
+      (result.doors || []).forEach(door => {
+        if (door.center) { door.center.x *= scaleX; door.center.y *= scaleY; }
+        if (door.width) door.width *= Math.max(scaleX, scaleY);
+      });
+
+      // Scale rooms
+      (result.rooms || []).forEach(room => {
+        if (room.center) { room.center.x *= scaleX; room.center.y *= scaleY; }
+      });
+
+      // Scale stairs
+      (result.stairs || []).forEach(stair => {
+        if (stair.center) { stair.center.x *= scaleX; stair.center.y *= scaleY; }
+      });
+
+      // Scale pixelsPerMeter
+      if (result.scale?.pixelsPerMeter) {
+        result.scale.pixelsPerMeter *= Math.max(scaleX, scaleY);
+      }
+
+      // Update imageSize to actual
+      result.imageSize = { width: actualWidth, height: actualHeight };
+    }
 
     // Post-process walls — filter out low-confidence detections
     result.walls = result.walls
