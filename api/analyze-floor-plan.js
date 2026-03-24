@@ -235,6 +235,11 @@ Use these as STRONG hints:
 
 const SYSTEM_PROMPT = `You are a precise architectural floor plan parser. Your ONLY job is to extract STRUCTURAL ELEMENTS: walls, doors, and stairs — with pixel-accurate coordinates.
 
+You are given TWO versions of the same floor plan:
+- Image 1 (ORIGINAL): Full detail — use this to see fine lines, door arcs, room labels, thin partition walls, and dimension text. Measure all pixel coordinates from this image.
+- Image 2 (PREPROCESSED): Black/white enhanced — use this to confirm wall locations and see structure more clearly when the original is noisy or low-contrast.
+Always cross-reference BOTH images. If you see a wall in the preprocessed image, verify it in the original. If you see a thin wall or door arc in the original that was lost in preprocessing, INCLUDE it.
+
 CRITICAL RULES:
 1. COMPLETELY IGNORE all furniture, fixtures, appliances, and room labels
 2. COMPLETELY IGNORE dimension lines and measurement annotations (thin lines with numbers)
@@ -244,30 +249,48 @@ CRITICAL RULES:
 6. Every labeled room (bedroom, kitchen, bathroom, etc.) MUST be enclosed by walls on all sides. If a room has no wall separating it from an adjacent room, you missed a wall.
 7. STAIRS are NOT rooms. Stairs appear as parallel diagonal lines (tread pattern). Output them ONLY in the "stairs" array, NEVER in the "rooms" array.
 8. OUTDOOR SPACES (terraces, balconies, covered terraces, patios, decks) are NOT enclosed by walls. Do NOT draw walls around outdoor areas. Dashed lines, thin lines, or boundary markings around outdoor spaces are NOT structural walls. Only detect the BUILDING WALL that separates the interior from the outdoor space.
+9. ROOM-COUNT CROSS-CHECK: Before outputting, count every distinct room you can identify in the original image. For N rooms, you need AT LEAST N-1 interior walls. If you have fewer, you are missing partition walls — look again at the original image for thin lines between rooms.
+10. WALL CONNECTIVITY: Every interior wall must connect to another wall or exterior wall at BOTH endpoints. If a wall endpoint is floating in space, extend it to the nearest wall it should connect to. Walls at T-junctions and L-junctions must share EXACT coordinates at the junction point.
 
 COORDINATE SYSTEM:
 - Origin (0,0) = TOP-LEFT of image
 - X increases RIGHT
 - Y increases DOWN
-- All values in PIXELS — measure from the actual image
+- All values in PIXELS — measure from the ORIGINAL image (Image 1)
 
 OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`;
 
 // --- Two-pass Claude analysis for better completeness ---
 
-async function twoPassAnalysis(anthropic, processedImage, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters) {
-  // PASS 1: Extract exterior shell only
+async function twoPassAnalysis(anthropic, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters) {
+  // PASS 1: Extract exterior shell only — send both images
   const pass1Response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 8192,
-    thinking: { type: 'enabled', budget_tokens: 5000 },
+    thinking: { type: 'enabled', budget_tokens: 10000 },
     system: `You are a precise architectural floor plan parser. Extract ONLY the EXTERIOR PERIMETER walls — the outermost building boundary.
 IGNORE all interior partition walls, furniture, fixtures, and annotations.
+You are given TWO versions of the same floor plan:
+- Image 1 (ORIGINAL): Full detail — use this to see fine lines, door arcs, room labels, and thin walls
+- Image 2 (PREPROCESSED): Black/white enhanced — use this to see wall structure more clearly
+Use BOTH images together for the most accurate detection. Measure pixel coordinates from Image 1 (the original).
 COORDINATE SYSTEM: Origin (0,0) = TOP-LEFT. X increases RIGHT, Y increases DOWN. All values in PIXELS.
 OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`,
     messages: [{
       role: 'user',
       content: [
+        {
+          type: 'text',
+          text: 'Image 1 — ORIGINAL (use for detail and pixel measurements):',
+        },
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: originalMediaType, data: originalImage },
+        },
+        {
+          type: 'text',
+          text: 'Image 2 — PREPROCESSED (use for wall structure clarity):',
+        },
         {
           type: 'image',
           source: { type: 'base64', media_type: mediaType, data: processedImage },
@@ -322,11 +345,23 @@ Return JSON:
   const pass2Response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 16384,
-    thinking: { type: 'enabled', budget_tokens: 8000 },
+    thinking: { type: 'enabled', budget_tokens: 16000 },
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
       content: [
+        {
+          type: 'text',
+          text: 'Image 1 — ORIGINAL (use for fine details: door arcs, thin partition walls, room labels, dimension text):',
+        },
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: originalMediaType, data: originalImage },
+        },
+        {
+          type: 'text',
+          text: 'Image 2 — PREPROCESSED (use for wall structure clarity):',
+        },
         {
           type: 'image',
           source: { type: 'base64', media_type: mediaType, data: processedImage },
@@ -452,7 +487,7 @@ export default async function handler(req, res) {
 
     // Try two-pass analysis first (exterior shell → interior partitions)
     // Falls back to single-pass if two-pass fails
-    let result = await twoPassAnalysis(anthropic, processedImage, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters);
+    let result = await twoPassAnalysis(anthropic, processedImage, image, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters);
 
     if (!result) {
       // Single-pass fallback
@@ -460,11 +495,23 @@ export default async function handler(req, res) {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 16384,
-        thinking: { type: 'enabled', budget_tokens: 10000 },
+        thinking: { type: 'enabled', budget_tokens: 16000 },
         system: SYSTEM_PROMPT,
         messages: [{
           role: 'user',
           content: [
+            {
+              type: 'text',
+              text: 'Image 1 — ORIGINAL (use for fine details: door arcs, thin partition walls, room labels):',
+            },
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: originalMediaType, data: image },
+            },
+            {
+              type: 'text',
+              text: 'Image 2 — PREPROCESSED (use for wall structure clarity):',
+            },
             {
               type: 'image',
               source: { type: 'base64', media_type: mediaType, data: processedImage },
@@ -472,6 +519,7 @@ export default async function handler(req, res) {
             {
               type: 'text',
               text: `Extract all structural elements from this floor plan image with pixel-precise coordinates.
+Use Image 1 (original) for fine details and pixel measurements. Use Image 2 (preprocessed) to confirm wall structure.
 ${cvHints}${dimensionHints}${formatRoomHints(roomHints)}
 ═══════════════════════════════════════════════════════════════
 WHAT TO IGNORE (NEVER detect these as walls):
@@ -649,8 +697,8 @@ OUTPUT FORMAT — return ONLY this JSON, nothing else:
         confidence: wall.confidence ?? 1.0,
       }));
 
-    // Snap nearby wall endpoints together (within 5px) for better connectivity
-    const SNAP_THRESHOLD = 5;
+    // Snap nearby wall endpoints together (within 12px) for better connectivity
+    const SNAP_THRESHOLD = 12;
     const allEndpoints = [];
     result.walls.forEach((wall, i) => {
       allEndpoints.push({ wallIdx: i, key: 'start', pt: wall.start });
@@ -667,6 +715,88 @@ OUTPUT FORMAT — return ONLY this JSON, nothing else:
           const my = Math.round((a.y + b.y) / 2);
           result.walls[allEndpoints[i].wallIdx][allEndpoints[i].key] = { x: mx, y: my };
           result.walls[allEndpoints[j].wallIdx][allEndpoints[j].key] = { x: mx, y: my };
+        }
+      }
+    }
+
+    // Wall connectivity validation: extend disconnected endpoints to nearest wall line
+    const CONNECT_THRESHOLD = 15; // px — max distance to extend an endpoint to connect
+    const wallCount = result.walls.length;
+    for (let i = 0; i < wallCount; i++) {
+      const wall = result.walls[i];
+      for (const endKey of ['start', 'end']) {
+        const pt = wall[endKey];
+        // Check if this endpoint is already connected to another wall's endpoint
+        let connected = false;
+        for (let j = 0; j < wallCount; j++) {
+          if (j === i) continue;
+          const other = result.walls[j];
+          if (Math.hypot(pt.x - other.start.x, pt.y - other.start.y) < 1 ||
+              Math.hypot(pt.x - other.end.x, pt.y - other.end.y) < 1) {
+            connected = true;
+            break;
+          }
+        }
+        if (connected) continue;
+
+        // Not connected — find nearest wall LINE (not endpoint) to snap to
+        let bestDist = CONNECT_THRESHOLD;
+        let bestProj = null;
+        for (let j = 0; j < wallCount; j++) {
+          if (j === i) continue;
+          const other = result.walls[j];
+          const dx = other.end.x - other.start.x;
+          const dy = other.end.y - other.start.y;
+          const lenSq = dx * dx + dy * dy;
+          if (lenSq === 0) continue;
+          const t = Math.max(0, Math.min(1,
+            ((pt.x - other.start.x) * dx + (pt.y - other.start.y) * dy) / lenSq
+          ));
+          const projX = other.start.x + t * dx;
+          const projY = other.start.y + t * dy;
+          const dist = Math.hypot(pt.x - projX, pt.y - projY);
+          // Only snap to middle of wall (not near endpoints, which are handled by endpoint snap)
+          if (dist < bestDist && t > 0.05 && t < 0.95) {
+            bestDist = dist;
+            bestProj = { x: Math.round(projX), y: Math.round(projY) };
+          }
+        }
+        if (bestProj) {
+          result.walls[i][endKey] = bestProj;
+          console.log(`[FloorPlan] Connected wall ${i} ${endKey} to nearest wall line (${bestDist.toFixed(1)}px)`);
+        }
+      }
+    }
+
+    // Close exterior wall loop if small gap exists
+    const exteriorWalls = result.walls.filter(w => w.isExterior);
+    if (exteriorWalls.length >= 3) {
+      // Find the two exterior endpoints that are farthest from any other exterior endpoint
+      // (these are the gap endpoints if the loop isn't closed)
+      const extEndpoints = [];
+      exteriorWalls.forEach((w, i) => {
+        extEndpoints.push({ pt: w.start, wallIdx: result.walls.indexOf(w), key: 'start' });
+        extEndpoints.push({ pt: w.end, wallIdx: result.walls.indexOf(w), key: 'end' });
+      });
+      // Find endpoints that appear only once (not shared with another wall)
+      const unmatched = extEndpoints.filter(ep => {
+        const matches = extEndpoints.filter(other =>
+          other !== ep && Math.hypot(ep.pt.x - other.pt.x, ep.pt.y - other.pt.y) < 2
+        );
+        return matches.length === 0;
+      });
+      // If exactly 2 unmatched endpoints and they're close, snap them together
+      if (unmatched.length === 2) {
+        const gap = Math.hypot(
+          unmatched[0].pt.x - unmatched[1].pt.x,
+          unmatched[0].pt.y - unmatched[1].pt.y
+        );
+        if (gap > 0 && gap < 20) {
+          const mx = Math.round((unmatched[0].pt.x + unmatched[1].pt.x) / 2);
+          const my = Math.round((unmatched[0].pt.y + unmatched[1].pt.y) / 2);
+          result.walls[unmatched[0].wallIdx][unmatched[0].key] = { x: mx, y: my };
+          result.walls[unmatched[1].wallIdx][unmatched[1].key] = { x: mx, y: my };
+          console.log(`[FloorPlan] Closed exterior wall loop gap (${gap.toFixed(1)}px)`);
         }
       }
     }

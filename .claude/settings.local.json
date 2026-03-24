@@ -147,7 +147,8 @@
       "Bash(find /Users/tien/projects/sitea/src -name \"*Virtual*\" -o -name \"*Joystick*\" 2>/dev/null | head -10)",
       "Bash(printenv)",
       "mcp__plugin_playwright_playwright__browser_snapshot",
-      "mcp__plugin_playwright_playwright__browser_wait_for"
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "Bash(find /Users/tien/projects/sitea -type f \\\\\\(-name *floor* -o -name *plan* -o -name *wall* -o -name *room* -o -name *trace* -o -name *analysis* \\\\\\))"
     ],
     "deny": [],
     "ask": []
