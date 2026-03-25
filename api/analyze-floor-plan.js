@@ -11,8 +11,8 @@ export const config = {
 
 // --- Image preprocessing for better AI detection ---
 
-// Standard resolution for Claude input — we control this so we know exact scale factor
-const CLAUDE_INPUT_MAX = 1500;
+// Standard resolution for Gemini input — we control this so we know exact scale factor
+const GEMINI_INPUT_MAX = 1500;
 
 async function preprocessImage(base64Image) {
   try {
@@ -36,19 +36,19 @@ async function preprocessImage(base64Image) {
   }
 }
 
-// Resize image to standard resolution for Claude input
-async function resizeForClaude(base64Image) {
+// Resize image to standard resolution for Gemini input
+async function resizeForGemini(base64Image) {
   try {
     const inputBuffer = Buffer.from(base64Image, 'base64');
     const meta = await sharp(inputBuffer).metadata();
     const { width, height } = meta;
 
     // Skip if already small enough
-    if (width <= CLAUDE_INPUT_MAX && height <= CLAUDE_INPUT_MAX) {
+    if (width <= GEMINI_INPUT_MAX && height <= GEMINI_INPUT_MAX) {
       return { base64: base64Image, width, height };
     }
 
-    const scale = CLAUDE_INPUT_MAX / Math.max(width, height);
+    const scale = GEMINI_INPUT_MAX / Math.max(width, height);
     const newW = Math.round(width * scale);
     const newH = Math.round(height * scale);
 
@@ -281,17 +281,17 @@ COORDINATE SYSTEM:
 
 OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`;
 
-// --- Two-pass Claude analysis for better completeness ---
+// --- Two-pass Gemini analysis for better completeness ---
 
-async function twoPassAnalysis(genai, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, claudeW, claudeH) {
-  const model = genai.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06' });
+async function twoPassAnalysis(genai, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, geminiW, geminiH) {
+  const model = genai.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06', generationConfig: { temperature: 0 } });
 
   // PASS 1: Extract exterior shell only — send both images
   const pass1Response = await model.generateContent([
     `You are a precise architectural floor plan parser. Extract ONLY the EXTERIOR PERIMETER walls — the outermost building boundary.
 IGNORE all interior partition walls, furniture, fixtures, and annotations.
 You are given TWO images: Image 1 (ORIGINAL) for detail, Image 2 (PREPROCESSED) for wall structure clarity.
-The image is ${claudeW}x${claudeH} pixels. All coordinates in PIXELS within this space.
+The image is ${geminiW}x${geminiH} pixels. All coordinates in PIXELS within this space.
 OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.
 
 Image 1 — ORIGINAL:`,
@@ -299,14 +299,14 @@ Image 1 — ORIGINAL:`,
     'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
     { inlineData: { mimeType: mediaType, data: processedImage } },
     `Extract ONLY the EXTERIOR PERIMETER walls from this floor plan.
-The image is ${claudeW}x${claudeH} pixels. All coordinates in PIXELS.
+The image is ${geminiW}x${geminiH} pixels. All coordinates in PIXELS.
 ${cvHints}
 Trace the outermost building boundary as wall segments (junction-to-junction).
 The exterior walls must form a CLOSED LOOP.
 
 Return JSON:
 {
-  "imageSize": { "width": ${claudeW}, "height": ${claudeH} },
+  "imageSize": { "width": ${geminiW}, "height": ${geminiH} },
   "walls": [
     { "start": { "x": NUMBER, "y": NUMBER }, "end": { "x": NUMBER, "y": NUMBER }, "thickness": NUMBER, "confidence": NUMBER }
   ],
@@ -353,12 +353,12 @@ Now find ALL INTERIOR elements:
 ${dimensionHints}${formatRoomHints(roomHints)}
 IMPORTANT: Do NOT re-detect exterior walls — include them from above as-is with isExterior: true. Focus on interior walls, doors, rooms, stairs.
 Every room must be bounded by walls. If two rooms are adjacent, there MUST be a wall between them.
-The image is ${claudeW}x${claudeH} pixels. All coordinates in PIXELS.
+The image is ${geminiW}x${geminiH} pixels. All coordinates in PIXELS.
 
 Return JSON:
 {
   "success": true,
-  "imageSize": { "width": ${claudeW}, "height": ${claudeH} },
+  "imageSize": { "width": ${geminiW}, "height": ${geminiH} },
   "walls": [ { "start": {"x":N,"y":N}, "end": {"x":N,"y":N}, "thickness": N, "isExterior": BOOLEAN, "confidence": 0.0-1.0 } ],
   "doors": [ { "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": N, "doorType": "single"|"double"|"sliding" } ],
   "rooms": [ { "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null } ],
@@ -443,15 +443,15 @@ export default async function handler(req, res) {
   const actualHeight = imageMeta.height;
   console.log(`[FloorPlan] Actual image dimensions: ${actualWidth}x${actualHeight}`);
 
-  // Resize both images to standard resolution for Claude (we control the input = deterministic scaling)
-  const { base64: resizedOriginal, width: claudeW, height: claudeH } = await resizeForClaude(image);
+  // Resize both images to standard resolution for Gemini (we control the input = deterministic scaling)
+  const { base64: resizedOriginal, width: geminiW, height: geminiH } = await resizeForGemini(image);
   const processedImage = await preprocessImage(resizedOriginal);
-  const resizedOriginalMediaType = 'image/png'; // resizeForClaude outputs PNG
+  const resizedOriginalMediaType = 'image/png'; // resizeForGemini outputs PNG
 
-  // Scale factor to convert Claude's pixel coords back to actual image coords
-  const coordScaleX = actualWidth / claudeW;
-  const coordScaleY = actualHeight / claudeH;
-  console.log(`[FloorPlan] Claude input: ${claudeW}x${claudeH}, scale factor: ${coordScaleX.toFixed(2)}x${coordScaleY.toFixed(2)}`);
+  // Scale factor to convert Gemini's pixel coords back to actual image coords
+  const coordScaleX = actualWidth / geminiW;
+  const coordScaleY = actualHeight / geminiH;
+  console.log(`[FloorPlan] Gemini input: ${geminiW}x${geminiH}, scale factor: ${coordScaleX.toFixed(2)}x${coordScaleY.toFixed(2)}`);
 
   // After preprocessing, image is always PNG
   const mediaType = 'image/png';
@@ -470,12 +470,12 @@ export default async function handler(req, res) {
 
     // Try two-pass analysis first (exterior shell → interior partitions)
     // Falls back to single-pass if two-pass fails
-    let result = await twoPassAnalysis(genai, processedImage, resizedOriginal, resizedOriginalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, claudeW, claudeH);
+    let result = await twoPassAnalysis(genai, processedImage, resizedOriginal, resizedOriginalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, geminiW, geminiH);
 
     if (!result) {
       // Single-pass fallback
       console.log('[FloorPlan] Using single-pass analysis');
-      const model = genai.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06' });
+      const model = genai.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06', generationConfig: { temperature: 0 } });
       const response = await model.generateContent([
         SYSTEM_PROMPT,
         'Image 1 — ORIGINAL:',
@@ -483,13 +483,13 @@ export default async function handler(req, res) {
         'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
         { inlineData: { mimeType: mediaType, data: processedImage } },
         `Extract all structural elements from this floor plan with pixel-precise coordinates.
-The image is ${claudeW}x${claudeH} pixels. All coordinates in PIXELS.
+The image is ${geminiW}x${geminiH} pixels. All coordinates in PIXELS.
 ${cvHints}${dimensionHints}${formatRoomHints(roomHints)}
 
 Return JSON:
 {
   "success": true,
-  "imageSize": { "width": ${claudeW}, "height": ${claudeH} },
+  "imageSize": { "width": ${geminiW}, "height": ${geminiH} },
   "walls": [ { "start": {"x":N,"y":N}, "end": {"x":N,"y":N}, "thickness": N, "isExterior": BOOLEAN, "confidence": 0.0-1.0 } ],
   "doors": [ { "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": N, "doorType": "single"|"double"|"sliding" } ],
   "rooms": [ { "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null } ],
@@ -523,8 +523,8 @@ Return JSON:
     result.stairs = result.stairs || [];
     result.scale = result.scale || { pixelsPerMeter: 50, confidence: 0.5, source: 'estimated' };
 
-    // Rescale coordinates from Claude's input resolution to actual image dimensions
-    // This is deterministic: we resized the input to claudeW x claudeH, so we know exact scale
+    // Rescale coordinates from Gemini's input resolution to actual image dimensions
+    // This is deterministic: we resized the input to geminiW x geminiH, so we know exact scale
     result.imageSize = { width: actualWidth, height: actualHeight };
     if (coordScaleX !== 1 || coordScaleY !== 1) {
       (result.walls || []).forEach(wall => {
@@ -545,7 +545,7 @@ Return JSON:
       if (result.scale?.pixelsPerMeter) {
         result.scale.pixelsPerMeter *= Math.max(coordScaleX, coordScaleY);
       }
-      console.log(`[FloorPlan] Rescaled coords: ${claudeW}x${claudeH} → ${actualWidth}x${actualHeight} (${coordScaleX.toFixed(2)}x)`);
+      console.log(`[FloorPlan] Rescaled coords: ${geminiW}x${geminiH} → ${actualWidth}x${actualHeight} (${coordScaleX.toFixed(2)}x)`);
     }
 
     // Post-process walls — filter out low-confidence detections
@@ -730,11 +730,11 @@ Return JSON:
       }
     }
 
-    // Multi-model validation: Cross-check Roboflow predictions against Claude walls
-    // Add any Roboflow-detected walls that Claude missed
+    // Multi-model validation: Cross-check Roboflow predictions against Gemini walls
+    // Add any Roboflow-detected walls that Gemini missed
     if (roboflowData?.predictions?.length > 0 && result.walls.length > 0) {
       const roboWalls = roboflowData.predictions.filter(p => p.class === 'wall');
-      const MATCH_THRESHOLD = 30; // pixels — how close a Roboflow wall center must be to a Claude wall
+      const MATCH_THRESHOLD = 30; // pixels — how close a Roboflow wall center must be to a Gemini wall
 
       let addedCount = 0;
       for (const rw of roboWalls) {
@@ -752,10 +752,10 @@ Return JSON:
           : { x: rw.x, y: rw.y + halfH };
         const rwMid = { x: rw.x, y: rw.y };
 
-        // Check if any Claude wall is near this Roboflow wall's midpoint
+        // Check if any Gemini wall is near this Roboflow wall's midpoint
         let matched = false;
         for (const cw of result.walls) {
-          // Distance from Roboflow midpoint to Claude wall segment
+          // Distance from Roboflow midpoint to Gemini wall segment
           const dx = cw.end.x - cw.start.x;
           const dy = cw.end.y - cw.start.y;
           const lenSq = dx * dx + dy * dy;
@@ -773,13 +773,13 @@ Return JSON:
           }
         }
 
-        // Roboflow found a wall that Claude missed → add it with lower confidence
+        // Roboflow found a wall that Gemini missed → add it with lower confidence
         if (!matched) {
           result.walls.push({
             start: { x: Math.round(rwStart.x), y: Math.round(rwStart.y) },
             end: { x: Math.round(rwEnd.x), y: Math.round(rwEnd.y) },
             thickness: Math.round(isHorizontal ? rw.height : rw.width),
-            isExterior: false, // Assume interior since Claude likely got exterior
+            isExterior: false, // Assume interior since Gemini likely got exterior
             confidence: Math.min(rw.confidence * 0.7, 0.6), // Cap at 0.6 — these are unverified
           });
           addedCount++;
@@ -787,7 +787,7 @@ Return JSON:
       }
 
       if (addedCount > 0) {
-        console.log(`[FloorPlan] Multi-model validation: added ${addedCount} Roboflow walls missed by Claude`);
+        console.log(`[FloorPlan] Multi-model validation: added ${addedCount} Roboflow walls missed by Gemini`);
       }
     }
 
@@ -800,7 +800,7 @@ Return JSON:
       };
     }
 
-    // If OCR found dimensions and Claude's scale source isn't user_provided or dimension_label,
+    // If OCR found dimensions and Gemini's scale source isn't user_provided or dimension_label,
     // validate/improve the scale using OCR data
     if (!knownWidthMeters && ocrDimensions.length > 0 && result.scale?.source !== 'dimension_label') {
       const withPixels = ocrDimensions.filter(d => d.pixelLength && d.pixelLength > 20);
@@ -808,7 +808,7 @@ Return JSON:
         // Use the dimension with the longest pixel line (most reliable measurement)
         const best = withPixels.reduce((a, b) => (b.pixelLength > a.pixelLength) ? b : a);
         const ocrPixelsPerMeter = best.pixelLength / best.meters;
-        // Only override if Claude's estimate is significantly different (>30% off)
+        // Only override if Gemini's estimate is significantly different (>30% off)
         const currentPPM = result.scale?.pixelsPerMeter || 50;
         const diff = Math.abs(ocrPixelsPerMeter - currentPPM) / currentPPM;
         if (diff > 0.3) {
