@@ -255,6 +255,299 @@ Use these as STRONG hints:
   return hints;
 }
 
+// ============================================================
+// NEW PIPELINE: Gemini Image Gen → CV Extraction → Semantic Info
+// ============================================================
+
+// Step 1: Ask Gemini to generate a clean walls-only diagram
+async function generateCleanDiagram(base64Image, mediaType, apiKey) {
+  console.log('[FloorPlan] Step 1: Generating clean walls-only diagram via Gemini...');
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inlineData: { mimeType: mediaType, data: base64Image } },
+            { text: `Look at this architectural floor plan. Generate a NEW clean image that shows ONLY the structural walls.
+
+Rules for the generated image:
+- WHITE background
+- BLACK thick lines for ALL walls (exterior and interior partition walls)
+- Exterior walls should be THICKER than interior walls
+- Follow the EXACT same layout, proportions, and positions as the original
+- Do NOT include: furniture, appliances, fixtures, dimension labels, text, room names, door arcs, window symbols, hatching, or any annotations
+- Do NOT include: dimension lines, arrows, measurement text
+- Make walls as STRAIGHT horizontal or vertical lines (no wobble)
+- Every room must be fully enclosed by walls
+- The output should look like a simple black line drawing of just the wall structure` }
+          ]
+        }],
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.text();
+    console.warn('[FloorPlan] Gemini image gen failed:', response.status, err);
+    return null;
+  }
+
+  const data = await response.json();
+  const candidate = data.candidates?.[0];
+  if (!candidate?.content?.parts) {
+    console.warn('[FloorPlan] No image in Gemini response');
+    return null;
+  }
+
+  const imagePart = candidate.content.parts.find(p => p.inlineData);
+  if (!imagePart) {
+    console.warn('[FloorPlan] No inlineData in response parts');
+    return null;
+  }
+
+  console.log('[FloorPlan] Step 1 complete: clean diagram generated');
+  return imagePart.inlineData.data; // base64 PNG
+}
+
+// Step 2: Extract wall coordinates from clean image using computer vision
+async function extractWallsFromCleanImage(cleanImageBase64) {
+  console.log('[FloorPlan] Step 2: Extracting walls via CV...');
+
+  // Binarize: black pixels = wall, white = empty
+  const { data: pixels, info } = await sharp(Buffer.from(cleanImageBase64, 'base64'))
+    .grayscale()
+    .threshold(128)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const W = info.width;
+  const H = info.height;
+  const isWall = (x, y) => x >= 0 && x < W && y >= 0 && y < H && pixels[y * W + x] === 0;
+
+  // --- Scan for horizontal wall segments ---
+  // For each row, find continuous runs of black pixels
+  const hRuns = [];
+  for (let y = 0; y < H; y++) {
+    let start = -1;
+    for (let x = 0; x <= W; x++) {
+      const black = x < W && isWall(x, y);
+      if (black && start === -1) start = x;
+      if (!black && start !== -1) {
+        if (x - start > 15) hRuns.push({ y, x1: start, x2: x - 1 });
+        start = -1;
+      }
+    }
+  }
+
+  // Group vertically adjacent runs with similar x-extent into horizontal wall bands
+  const hWalls = [];
+  const hUsed = new Set();
+  for (let i = 0; i < hRuns.length; i++) {
+    if (hUsed.has(i)) continue;
+    const group = [hRuns[i]];
+    hUsed.add(i);
+
+    for (let j = i + 1; j < hRuns.length; j++) {
+      if (hUsed.has(j)) continue;
+      const run = hRuns[j];
+      const lastRun = group[group.length - 1];
+      if (run.y > lastRun.y + 3) break; // vertical gap too large
+      if (run.y <= lastRun.y) continue;
+      if (Math.abs(run.x1 - hRuns[i].x1) < 8 && Math.abs(run.x2 - hRuns[i].x2) < 8) {
+        group.push(run);
+        hUsed.add(j);
+      }
+    }
+
+    const minY = group[0].y;
+    const maxY = group[group.length - 1].y;
+    const avgX1 = Math.round(group.reduce((s, r) => s + r.x1, 0) / group.length);
+    const avgX2 = Math.round(group.reduce((s, r) => s + r.x2, 0) / group.length);
+    const thickness = maxY - minY + 1;
+    const length = avgX2 - avgX1;
+
+    // Only keep if wider than tall (horizontal wall)
+    if (length > thickness * 2 && length > 25) {
+      const centerY = Math.round((minY + maxY) / 2);
+      hWalls.push({
+        start: { x: avgX1, y: centerY },
+        end: { x: avgX2, y: centerY },
+        thickness,
+        isExterior: false,
+        confidence: 0.9,
+      });
+    }
+  }
+
+  // --- Scan for vertical wall segments ---
+  const vRuns = [];
+  for (let x = 0; x < W; x++) {
+    let start = -1;
+    for (let y = 0; y <= H; y++) {
+      const black = y < H && isWall(x, y);
+      if (black && start === -1) start = y;
+      if (!black && start !== -1) {
+        if (y - start > 15) vRuns.push({ x, y1: start, y2: y - 1 });
+        start = -1;
+      }
+    }
+  }
+
+  // Group horizontally adjacent runs with similar y-extent into vertical wall bands
+  const vWalls = [];
+  const vUsed = new Set();
+  // Sort by x for sequential grouping
+  vRuns.sort((a, b) => a.x - b.x || a.y1 - b.y1);
+  for (let i = 0; i < vRuns.length; i++) {
+    if (vUsed.has(i)) continue;
+    const group = [vRuns[i]];
+    vUsed.add(i);
+
+    for (let j = i + 1; j < vRuns.length; j++) {
+      if (vUsed.has(j)) continue;
+      const run = vRuns[j];
+      const firstRun = vRuns[i];
+      if (run.x > group[group.length - 1].x + 3) break;
+      if (run.x <= group[group.length - 1].x) continue;
+      if (Math.abs(run.y1 - firstRun.y1) < 8 && Math.abs(run.y2 - firstRun.y2) < 8) {
+        group.push(run);
+        vUsed.add(j);
+      }
+    }
+
+    const minX = group[0].x;
+    const maxX = group[group.length - 1].x;
+    const avgY1 = Math.round(group.reduce((s, r) => s + r.y1, 0) / group.length);
+    const avgY2 = Math.round(group.reduce((s, r) => s + r.y2, 0) / group.length);
+    const thickness = maxX - minX + 1;
+    const length = avgY2 - avgY1;
+
+    if (length > thickness * 2 && length > 25) {
+      const centerX = Math.round((minX + maxX) / 2);
+      vWalls.push({
+        start: { x: centerX, y: avgY1 },
+        end: { x: centerX, y: avgY2 },
+        thickness,
+        isExterior: false,
+        confidence: 0.9,
+      });
+    }
+  }
+
+  const allWalls = [...hWalls, ...vWalls];
+
+  // Classify exterior walls: walls closest to the image boundary
+  if (allWalls.length > 0) {
+    // Find bounding box of all walls
+    let allMinX = Infinity, allMaxX = 0, allMinY = Infinity, allMaxY = 0;
+    allWalls.forEach(w => {
+      allMinX = Math.min(allMinX, w.start.x, w.end.x);
+      allMaxX = Math.max(allMaxX, w.start.x, w.end.x);
+      allMinY = Math.min(allMinY, w.start.y, w.end.y);
+      allMaxY = Math.max(allMaxY, w.start.y, w.end.y);
+    });
+    const margin = Math.max(W, H) * 0.05; // 5% margin
+
+    allWalls.forEach(w => {
+      const midX = (w.start.x + w.end.x) / 2;
+      const midY = (w.start.y + w.end.y) / 2;
+      // A wall is exterior if it's near the outermost boundary of all walls
+      const nearEdge =
+        Math.abs(w.start.x - allMinX) < margin || Math.abs(w.end.x - allMaxX) < margin ||
+        Math.abs(w.start.y - allMinY) < margin || Math.abs(w.end.y - allMaxY) < margin ||
+        Math.abs(midX - allMinX) < margin || Math.abs(midX - allMaxX) < margin ||
+        Math.abs(midY - allMinY) < margin || Math.abs(midY - allMaxY) < margin;
+      w.isExterior = nearEdge;
+    });
+  }
+
+  console.log(`[FloorPlan] Step 2 complete: ${hWalls.length} horizontal + ${vWalls.length} vertical = ${allWalls.length} walls extracted`);
+  return { walls: allWalls, imageWidth: W, imageHeight: H };
+}
+
+// Step 3: Extract semantic info (doors, rooms, stairs, scale) from original image
+async function extractSemanticsFromOriginal(genai, base64Image, mediaType, walls, knownWidthMeters, dimensionHints, roomHints, geminiW, geminiH) {
+  console.log('[FloorPlan] Step 3: Extracting semantic info (doors, rooms, scale)...');
+
+  const model = genai.getGenerativeModel({
+    model: 'gemini-2.5-pro-preview-05-06',
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: 8000 },
+    },
+  });
+
+  // Format wall positions so Gemini can snap doors to them
+  const wallSummary = walls.slice(0, 40).map((w, i) =>
+    `  Wall ${i}: (${w.start.x},${w.start.y})→(${w.end.x},${w.end.y}) ${w.isExterior ? 'EXTERIOR' : 'interior'}`
+  ).join('\n');
+
+  const scaleHint = knownWidthMeters
+    ? `The building width is ${knownWidthMeters} meters.`
+    : `Estimate the building width in meters from dimension labels or standard door width (0.9m).`;
+
+  const response = await model.generateContent([
+    { inlineData: { mimeType: mediaType, data: base64Image } },
+    `This floor plan image is ${geminiW}x${geminiH} pixels. Walls have already been extracted by computer vision:
+${wallSummary}
+
+Your job: extract ONLY semantic information — doors, rooms, stairs, and scale. Do NOT extract walls.
+
+For DOORS:
+- Find door symbols (quarter-circle arcs, double arcs, sliding markers)
+- Report their center position as pixel coordinates ON the nearest wall from the list above
+- wallIndex = the wall number from the list above that the door is ON
+
+For ROOMS:
+- Name each room (Living Room, Bedroom, Kitchen, etc.)
+- Report center position as pixel coordinates
+- Include labeledArea in m² if printed in the image
+
+For STAIRS:
+- Find stair symbols (parallel diagonal lines)
+- Report center position
+
+For SCALE:
+${scaleHint}
+${dimensionHints}
+${formatRoomHints(roomHints)}
+
+Return JSON:
+{
+  "doors": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": 0, "doorType": "single"|"double"|"sliding" }],
+  "rooms": [{ "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null }],
+  "stairs": [{ "center": {"x":N,"y":N}, "direction": "up"|"down"|"unknown" }],
+  "scale": { "pixelsPerMeter": NUMBER, "confidence": NUMBER, "source": STRING },
+  "overallShape": "rectangular"|"L-shaped"|"U-shaped"|"complex",
+  "totalArea": { "value": NUMBER, "unit": "m²" } | null
+}`
+  ]);
+
+  const text = response.response.text();
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    result = match ? JSON.parse(match[0]) : {};
+  }
+
+  console.log(`[FloorPlan] Step 3 complete: ${result.doors?.length || 0} doors, ${result.rooms?.length || 0} rooms`);
+  return result;
+}
+
+// ============================================================
+// LEGACY: Two-pass analysis (kept as fallback if image gen fails)
+// ============================================================
+
 const SYSTEM_PROMPT = `You are a precise architectural floor plan parser. Extract STRUCTURAL ELEMENTS: walls, doors, and stairs with pixel-accurate coordinates.
 
 You are given TWO versions of the same floor plan:
@@ -491,82 +784,91 @@ export default async function handler(req, res) {
     const cvHints = formatRoboflowHints(roboflowData);
     const dimensionHints = knownWidthMeters ? '' : formatDimensionHints(ocrDimensions);
 
-    // Try two-pass analysis first (exterior shell → interior partitions)
-    // Falls back to single-pass if two-pass fails
-    let result = await twoPassAnalysis(genai, processedImage, resizedOriginal, resizedOriginalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, geminiW, geminiH);
+    // ============================================================
+    // NEW PIPELINE: Gemini Image Gen → CV → Semantics
+    // Falls back to legacy two-pass if image gen fails
+    // ============================================================
+    let result;
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!result) {
-      // Single-pass fallback
-      console.log('[FloorPlan] Using single-pass analysis');
-      const fallbackModel = genai.getGenerativeModel({
-        model: 'gemini-2.5-pro-preview-05-06',
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 16000 },
-        },
-      });
-      const response = await fallbackModel.generateContent([
-        SYSTEM_PROMPT,
-        'Image 1 — ORIGINAL:',
-        { inlineData: { mimeType: resizedOriginalMediaType, data: resizedOriginal } },
-        'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
-        { inlineData: { mimeType: mediaType, data: processedImage } },
-        `Extract all structural elements from this floor plan with pixel-precise coordinates.
-The image is ${geminiW}x${geminiH} pixels. All coordinates in PIXELS.
-${cvHints}${dimensionHints}${formatRoomHints(roomHints)}
+    // Step 1: Generate clean walls-only diagram
+    const cleanDiagram = await generateCleanDiagram(resizedOriginal, resizedOriginalMediaType, apiKey);
 
-Return JSON:
-{
-  "success": true,
-  "imageSize": { "width": ${geminiW}, "height": ${geminiH} },
-  "walls": [ { "start": {"x":N,"y":N}, "end": {"x":N,"y":N}, "thickness": N, "isExterior": BOOLEAN, "confidence": 0.0-1.0 } ],
-  "doors": [ { "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": N, "doorType": "single"|"double"|"sliding" } ],
-  "rooms": [ { "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null } ],
-  "stairs": [ { "center": {"x":N,"y":N}, "direction": "up"|"down"|"unknown" } ],
-  "scale": { "pixelsPerMeter": NUMBER, "confidence": NUMBER, "source": STRING },
-  "overallShape": "rectangular" | "L-shaped" | "U-shaped" | "complex",
-  "totalArea": { "value": NUMBER, "unit": "m²" } | null
-}`,
-      ]);
+    if (cleanDiagram) {
+      // Step 2: Extract wall coordinates from clean image via CV
+      const cvResult = await extractWallsFromCleanImage(cleanDiagram);
 
-      const content = response.response.text();
-
-      try {
-        result = JSON.parse(content);
-      } catch {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          result = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('No valid JSON found in response');
+      if (cvResult.walls.length >= 4) {
+        // Scale CV coordinates from generated image space to resized input space
+        // (generated image may be different size than our resized input)
+        const cvScaleX = geminiW / cvResult.imageWidth;
+        const cvScaleY = geminiH / cvResult.imageHeight;
+        if (Math.abs(cvScaleX - 1) > 0.05 || Math.abs(cvScaleY - 1) > 0.05) {
+          cvResult.walls.forEach(w => {
+            w.start.x *= cvScaleX; w.start.y *= cvScaleY;
+            w.end.x *= cvScaleX; w.end.y *= cvScaleY;
+            w.thickness *= Math.max(cvScaleX, cvScaleY);
+          });
+          console.log(`[FloorPlan] Scaled CV coords: ${cvResult.imageWidth}x${cvResult.imageHeight} → ${geminiW}x${geminiH}`);
         }
+
+        // Step 3: Extract semantic info from original image
+        const semantics = await extractSemanticsFromOriginal(
+          genai, resizedOriginal, resizedOriginalMediaType,
+          cvResult.walls, knownWidthMeters, dimensionHints, roomHints, geminiW, geminiH
+        );
+
+        // Combine CV walls + semantic info
+        result = {
+          success: true,
+          imageSize: { width: geminiW, height: geminiH },
+          walls: cvResult.walls,
+          doors: semantics.doors || [],
+          windows: [],
+          rooms: semantics.rooms || [],
+          stairs: semantics.stairs || [],
+          scale: semantics.scale || { pixelsPerMeter: geminiW / 15, confidence: 0.3, source: 'estimated' },
+          overallShape: semantics.overallShape || 'rectangular',
+          totalArea: semantics.totalArea || null,
+        };
+
+        console.log(`[FloorPlan] New pipeline success: ${result.walls.length} walls (CV), ${result.doors.length} doors, ${result.rooms.length} rooms`);
+      } else {
+        console.warn(`[FloorPlan] CV extracted only ${cvResult.walls.length} walls, falling back to legacy`);
       }
+    }
+
+    // Fallback: legacy two-pass LLM analysis
+    if (!result) {
+      console.log('[FloorPlan] Falling back to legacy two-pass analysis');
+      result = await twoPassAnalysis(genai, processedImage, resizedOriginal, resizedOriginalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, geminiW, geminiH);
+    }
+    if (!result) {
+      throw new Error('All analysis methods failed');
     }
 
     // Ensure required fields
     result.success = true;
     result.walls = result.walls || [];
     result.doors = result.doors || [];
-    result.windows = []; // Windows removed from detection
+    result.windows = result.windows || [];
     result.rooms = result.rooms || [];
     result.stairs = result.stairs || [];
     result.scale = result.scale || { pixelsPerMeter: 50, confidence: 0.5, source: 'estimated' };
 
-    // Rescale coordinates from Gemini's input resolution to actual image dimensions
-    // This is deterministic: we resized the input to geminiW x geminiH, so we know exact scale
+    // Rescale coordinates from Gemini input resolution to actual image dimensions
     result.imageSize = { width: actualWidth, height: actualHeight };
     if (coordScaleX !== 1 || coordScaleY !== 1) {
-      (result.walls || []).forEach(wall => {
+      (result.walls).forEach(wall => {
         if (wall.start) { wall.start.x *= coordScaleX; wall.start.y *= coordScaleY; }
         if (wall.end) { wall.end.x *= coordScaleX; wall.end.y *= coordScaleY; }
         if (wall.thickness) wall.thickness *= Math.max(coordScaleX, coordScaleY);
       });
-      (result.doors || []).forEach(door => {
+      (result.doors).forEach(door => {
         if (door.center) { door.center.x *= coordScaleX; door.center.y *= coordScaleY; }
         if (door.width) door.width *= Math.max(coordScaleX, coordScaleY);
       });
-      (result.rooms || []).forEach(room => {
+      (result.rooms).forEach(room => {
         if (room.center) { room.center.x *= coordScaleX; room.center.y *= coordScaleY; }
       });
       (result.stairs || []).forEach(stair => {
@@ -575,7 +877,7 @@ Return JSON:
       if (result.scale?.pixelsPerMeter) {
         result.scale.pixelsPerMeter *= Math.max(coordScaleX, coordScaleY);
       }
-      console.log(`[FloorPlan] Rescaled coords: ${geminiW}x${geminiH} → ${actualWidth}x${actualHeight} (${coordScaleX.toFixed(2)}x)`);
+      console.log(`[FloorPlan] Rescaled: ${geminiW}x${geminiH} → ${actualWidth}x${actualHeight} (${coordScaleX.toFixed(2)}x)`);
     }
 
     // Post-process walls — filter out low-confidence detections

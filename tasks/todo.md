@@ -1,30 +1,65 @@
-# Floor Plan Analysis — Phase 3: Determinism & Coordinate Accuracy
+# Floor Plan Analysis — Phase 4: Gemini Image Gen + CV Extraction
 
-## Goal
-Eliminate coordinate mismatch, make results deterministic, reduce furniture false positives.
+## Architecture
+
+**Current (broken):** Floor plan → LLM outputs pixel coordinates → render
+**New:** Floor plan → Gemini generates clean walls-only image → CV extracts coordinates → render
+
+### Why this works
+- Gemini is great at **understanding** floor plans (which lines are walls vs furniture)
+- Gemini is bad at outputting **precise pixel coordinates**
+- Traditional CV is great at **measuring precise coordinates** from clean images
+- By combining them, each does what it's good at
+
+## Pipeline
+
+```
+[User uploads floor plan]
+         ↓
+[Step 1] Gemini 2.0 Flash generates a clean diagram:
+         thick black walls on white background, no furniture/text
+         ↓
+[Step 2] CV extracts wall coordinates from the clean image:
+         binarize → scan rows/cols → find wall segments → merge
+         ↓
+[Step 3] Gemini 2.5 Pro extracts semantic info (doors, rooms, scale)
+         from the ORIGINAL image — positions snapped to nearest wall
+         ↓
+[Step 4] Post-processing: snap, connect, validate
+         ↓
+[Return JSON with walls, doors, rooms]
+```
 
 ## Plan
 
-- [x] **1. Fractional coordinates (0.0–1.0) in prompts**
-  - All prompts request coords as fractions of image width/height
-  - Server-side: multiply by actual dimensions after parsing
-  - Deleted entire ~60-line rescaling heuristic block
-  - Scale: Claude reports `estimatedBuildingWidthMeters`, server computes `pixelsPerMeter`
+- [ ] **1. Add `generateCleanDiagram()` function**
+  - Send original floor plan to Gemini with image generation
+  - Prompt: "Redraw showing ONLY structural walls as thick black lines on white"
+  - Model: `gemini-2.0-flash-exp` with `responseModalities: ['IMAGE']`
+  - Returns clean PNG base64
 
-- [x] **2. `temperature: 0` + drop extended thinking**
-  - Removed `thinking: { type: 'enabled', budget_tokens: ... }` from all 3 Claude calls
-  - Added `temperature: 0` to all 3 Claude calls
-  - Reduced `max_tokens` from 8192/16384 → 4096
+- [ ] **2. Add `extractWallsFromCleanImage()` function**
+  - Binarize the generated image with sharp
+  - Get raw pixel buffer
+  - Scan rows for horizontal wall segments (black runs > 20px)
+  - Scan columns for vertical wall segments (black runs > 20px)
+  - Merge adjacent runs into wall segments with start/end/thickness
+  - Classify exterior (longest perimeter walls) vs interior
+  - Returns walls array
 
-- [x] **3. Morphological thin-line suppression in preprocessImage()**
-  - After binarize(140): blur(2) + re-threshold(180)
-  - Thin furniture lines (1-3px) vanish, thick wall bands (10-20px) survive
+- [ ] **3. Add `extractSemanticsFromOriginal()` function**
+  - Send ORIGINAL floor plan to Gemini 2.5 Pro
+  - Ask for doors, rooms, stairs, scale ONLY (no wall coordinates)
+  - Snap door positions to nearest extracted wall
+  - Returns doors, rooms, stairs, scale
+
+- [ ] **4. Update handler to use new pipeline**
+  - Replace two-pass analysis with: diagram gen → CV extract → semantics
+  - Keep existing post-processing (snap, connect, terrace removal)
+  - Keep OCR and Roboflow as supplementary data
+
+## Files to Edit
+- `api/analyze-floor-plan.js` — all changes
 
 ## Review
-
-All changes in `api/analyze-floor-plan.js`:
-1. **Fractional coords** — prompts request 0.0–1.0 fractions, server converts to pixels via `x * actualWidth`. Eliminates coordinate space mismatch permanently.
-2. **Determinism** — `temperature: 0`, no extended thinking, `max_tokens: 4096`. Same image → same result.
-3. **Furniture suppression** — preprocessed image runs blur(2)+threshold(180) after binarization. Thin lines vanish, wall bands survive. Claude sees walls-only in Image 2.
-4. **Simplified post-processing** — removed 60 lines of bbox/rescaling heuristics. Fraction-to-pixel is 15 lines of straightforward multiplication.
-5. **Scale handling** — Claude reports `estimatedBuildingWidthMeters`, server computes pixelsPerMeter from exterior wall pixel span. OCR and knownWidth overrides still work.
+_(to be filled after implementation)_
