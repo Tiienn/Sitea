@@ -273,6 +273,11 @@ CRITICAL RULES:
 8. OUTDOOR SPACES (terraces, balconies) are NOT enclosed by walls.
 9. ROOM-COUNT CROSS-CHECK: For N rooms, need at least N-1 interior walls.
 10. WALL CONNECTIVITY: Every interior wall connects at BOTH endpoints. Junctions share EXACT pixel coordinates.
+11. COORDINATE PRECISION: Report wall endpoints to the nearest WHOLE PIXEL. No decimals.
+12. WALL ALIGNMENT: Horizontal walls must have identical Y values for start and end. Vertical walls must have identical X values. Diagonal walls are rare — only use if clearly visible.
+13. CORNER JUNCTIONS: When walls meet at a corner, BOTH walls must share the EXACT same pixel coordinate at the junction point.
+14. MINIMUM WALL LENGTH: Ignore any wall segment shorter than 20 pixels — these are noise.
+15. WALL THICKNESS: Report thickness as a whole number. Exterior walls: 15–25px typical. Interior walls: 8–15px typical.
 
 COORDINATE SYSTEM:
 - Origin (0,0) = TOP-LEFT of image
@@ -284,10 +289,27 @@ OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`;
 // --- Two-pass Gemini analysis for better completeness ---
 
 async function twoPassAnalysis(genai, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, geminiW, geminiH) {
-  const model = genai.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06', generationConfig: { temperature: 0 } });
+  // Pass 1: lighter thinking budget for exterior-only detection
+  const modelPass1 = genai.getGenerativeModel({
+    model: 'gemini-2.5-pro-preview-05-06',
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: 8000 },
+    },
+  });
+  // Pass 2: higher thinking budget for full interior analysis
+  const modelPass2 = genai.getGenerativeModel({
+    model: 'gemini-2.5-pro-preview-05-06',
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: 16000 },
+    },
+  });
 
   // PASS 1: Extract exterior shell only — send both images
-  const pass1Response = await model.generateContent([
+  const pass1Response = await modelPass1.generateContent([
     `You are a precise architectural floor plan parser. Extract ONLY the EXTERIOR PERIMETER walls — the outermost building boundary.
 IGNORE all interior partition walls, furniture, fixtures, and annotations.
 You are given TWO images: Image 1 (ORIGINAL) for detail, Image 2 (PREPROCESSED) for wall structure clarity.
@@ -336,7 +358,7 @@ Return JSON:
   ).join('\n');
 
   // PASS 2: Find interior partitions, doors, rooms, stairs using exterior as context
-  const pass2Response = await model.generateContent([
+  const pass2Response = await modelPass2.generateContent([
     SYSTEM_PROMPT,
     'Image 1 — ORIGINAL:',
     { inlineData: { mimeType: originalMediaType, data: originalImage } },
@@ -351,7 +373,8 @@ Now find ALL INTERIOR elements:
 3. ALL rooms (name + center)
 4. ALL stairs
 ${dimensionHints}${formatRoomHints(roomHints)}
-IMPORTANT: Do NOT re-detect exterior walls — include them from above as-is with isExterior: true. Focus on interior walls, doors, rooms, stairs.
+IMPORTANT: The exterior walls are already detected. Copy them EXACTLY into your output with isExterior: true — do not move, adjust, or re-detect them. Your job is ONLY interior elements.
+When interior walls meet exterior walls, their endpoints must SNAP to the nearest exterior wall coordinate.
 Every room must be bounded by walls. If two rooms are adjacent, there MUST be a wall between them.
 The image is ${geminiW}x${geminiH} pixels. All coordinates in PIXELS.
 
@@ -475,8 +498,15 @@ export default async function handler(req, res) {
     if (!result) {
       // Single-pass fallback
       console.log('[FloorPlan] Using single-pass analysis');
-      const model = genai.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06', generationConfig: { temperature: 0 } });
-      const response = await model.generateContent([
+      const fallbackModel = genai.getGenerativeModel({
+        model: 'gemini-2.5-pro-preview-05-06',
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingBudget: 16000 },
+        },
+      });
+      const response = await fallbackModel.generateContent([
         SYSTEM_PROMPT,
         'Image 1 — ORIGINAL:',
         { inlineData: { mimeType: resizedOriginalMediaType, data: resizedOriginal } },
@@ -560,7 +590,7 @@ Return JSON:
       }));
 
     // Snap nearby wall endpoints together (within 12px) for better connectivity
-    const SNAP_THRESHOLD = 12;
+    const SNAP_THRESHOLD = 20; // More aggressive snapping for Gemini's slightly looser coords
     const allEndpoints = [];
     result.walls.forEach((wall, i) => {
       allEndpoints.push({ wallIdx: i, key: 'start', pt: wall.start });
@@ -582,7 +612,7 @@ Return JSON:
     }
 
     // Wall connectivity validation: extend disconnected endpoints to nearest wall line
-    const CONNECT_THRESHOLD = 15; // px — max distance to extend an endpoint to connect
+    const CONNECT_THRESHOLD = 25; // px — more aggressive for Gemini's looser coords
     const wallCount = result.walls.length;
     for (let i = 0; i < wallCount; i++) {
       const wall = result.walls[i];
