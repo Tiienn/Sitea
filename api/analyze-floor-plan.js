@@ -1,7 +1,7 @@
 // api/analyze-floor-plan.js (Vercel serverless function)
-// v3: Strict furniture exclusion, focus on structural elements only
+// v4: Gemini-powered analysis (switched from Anthropic)
 
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 
@@ -102,23 +102,17 @@ async function callRoboflow(base64Image) {
   }
 }
 
-// --- OCR: Extract dimension labels from floor plan using Claude Haiku ---
+// --- OCR: Extract dimension labels from floor plan using Gemini Flash ---
 
-async function extractDimensionLabels(base64Image, mediaType, anthropic) {
+async function extractDimensionLabels(base64Image, mediaType, genai) {
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mediaType, data: base64Image },
-          },
-          {
-            type: 'text',
-            text: `Look at this floor plan image. Find ALL dimension/measurement labels printed on it.
+    const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const response = await model.generateContent([
+      {
+        inlineData: { mimeType: mediaType, data: base64Image },
+      },
+      `Look at this floor plan image. Find ALL dimension/measurement labels printed on it.
 These are numbers with units like "3500", "3500mm", "12ft", "4.2m", "2100", etc.
 They usually appear next to lines with arrows or tick marks at both ends.
 
@@ -129,12 +123,9 @@ Each object: { "value": number, "unit": "mm"|"m"|"cm"|"ft"|"in"|"unknown", "pixe
 - pixelLength: approximate pixel length of the dimension line if visible, otherwise null
 
 If no dimension labels found, return an empty array: []`,
-          },
-        ],
-      }],
-    });
+    ]);
 
-    const text = response.content[0]?.text || '[]';
+    const text = response.response.text() || '[]';
     let dimensions;
     try {
       dimensions = JSON.parse(text);
@@ -292,39 +283,22 @@ OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`;
 
 // --- Two-pass Claude analysis for better completeness ---
 
-async function twoPassAnalysis(anthropic, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, claudeW, claudeH) {
+async function twoPassAnalysis(genai, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, claudeW, claudeH) {
+  const model = genai.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06' });
+
   // PASS 1: Extract exterior shell only — send both images
-  const pass1Response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 8192,
-    thinking: { type: 'enabled', budget_tokens: 10000 },
-    system: `You are a precise architectural floor plan parser. Extract ONLY the EXTERIOR PERIMETER walls — the outermost building boundary.
+  const pass1Response = await model.generateContent([
+    `You are a precise architectural floor plan parser. Extract ONLY the EXTERIOR PERIMETER walls — the outermost building boundary.
 IGNORE all interior partition walls, furniture, fixtures, and annotations.
 You are given TWO images: Image 1 (ORIGINAL) for detail, Image 2 (PREPROCESSED) for wall structure clarity.
 The image is ${claudeW}x${claudeH} pixels. All coordinates in PIXELS within this space.
-OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`,
-    messages: [{
-      role: 'user',
-      content: [
-        {
-          type: 'text',
-          text: 'Image 1 — ORIGINAL:',
-        },
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: originalMediaType, data: originalImage },
-        },
-        {
-          type: 'text',
-          text: 'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
-        },
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: mediaType, data: processedImage },
-        },
-        {
-          type: 'text',
-          text: `Extract ONLY the EXTERIOR PERIMETER walls from this floor plan.
+OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.
+
+Image 1 — ORIGINAL:`,
+    { inlineData: { mimeType: originalMediaType, data: originalImage } },
+    'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
+    { inlineData: { mimeType: mediaType, data: processedImage } },
+    `Extract ONLY the EXTERIOR PERIMETER walls from this floor plan.
 The image is ${claudeW}x${claudeH} pixels. All coordinates in PIXELS.
 ${cvHints}
 Trace the outermost building boundary as wall segments (junction-to-junction).
@@ -337,13 +311,10 @@ Return JSON:
     { "start": { "x": NUMBER, "y": NUMBER }, "end": { "x": NUMBER, "y": NUMBER }, "thickness": NUMBER, "confidence": NUMBER }
   ],
   "overallShape": "rectangular" | "L-shaped" | "U-shaped" | "complex"
-}`
-        }
-      ]
-    }]
-  });
+}`,
+  ]);
 
-  const pass1Text = (pass1Response.content.find(b => b.type === 'text') || pass1Response.content[0]).text;
+  const pass1Text = pass1Response.response.text();
   let pass1Result;
   try {
     pass1Result = JSON.parse(pass1Text);
@@ -365,33 +336,13 @@ Return JSON:
   ).join('\n');
 
   // PASS 2: Find interior partitions, doors, rooms, stairs using exterior as context
-  const pass2Response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 16384,
-    thinking: { type: 'enabled', budget_tokens: 16000 },
-    system: SYSTEM_PROMPT,
-    messages: [{
-      role: 'user',
-      content: [
-        {
-          type: 'text',
-          text: 'Image 1 — ORIGINAL:',
-        },
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: originalMediaType, data: originalImage },
-        },
-        {
-          type: 'text',
-          text: 'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
-        },
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: mediaType, data: processedImage },
-        },
-        {
-          type: 'text',
-          text: `The EXTERIOR PERIMETER walls have already been detected (fractional coords):
+  const pass2Response = await model.generateContent([
+    SYSTEM_PROMPT,
+    'Image 1 — ORIGINAL:',
+    { inlineData: { mimeType: originalMediaType, data: originalImage } },
+    'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
+    { inlineData: { mimeType: mediaType, data: processedImage } },
+    `The EXTERIOR PERIMETER walls have already been detected (fractional coords):
 ${exteriorWallsDesc}
 
 Now find ALL INTERIOR elements:
@@ -415,13 +366,10 @@ Return JSON:
   "scale": { "pixelsPerMeter": NUMBER, "confidence": NUMBER, "source": STRING },
   "overallShape": "${pass1Result.overallShape || 'rectangular'}",
   "totalArea": { "value": NUMBER, "unit": "m²" } | null
-}`
-        }
-      ]
-    }]
-  });
+}`,
+  ]);
 
-  const pass2Text = (pass2Response.content.find(b => b.type === 'text') || pass2Response.content[0]).text;
+  const pass2Text = pass2Response.response.text();
   let pass2Result;
   try {
     pass2Result = JSON.parse(pass2Text);
@@ -508,15 +456,13 @@ export default async function handler(req, res) {
   // After preprocessing, image is always PNG
   const mediaType = 'image/png';
 
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
+  const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
   try {
     // Run OCR (on original image — text is readable before binarization),
     // Roboflow (on preprocessed image) in parallel
     const [ocrDimensions, roboflowData] = await Promise.all([
-      knownWidthMeters ? [] : extractDimensionLabels(image, originalMediaType, anthropic),
+      knownWidthMeters ? [] : extractDimensionLabels(image, originalMediaType, genai),
       callRoboflow(processedImage),
     ]);
     const cvHints = formatRoboflowHints(roboflowData);
@@ -524,38 +470,19 @@ export default async function handler(req, res) {
 
     // Try two-pass analysis first (exterior shell → interior partitions)
     // Falls back to single-pass if two-pass fails
-    let result = await twoPassAnalysis(anthropic, processedImage, resizedOriginal, resizedOriginalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, claudeW, claudeH);
+    let result = await twoPassAnalysis(genai, processedImage, resizedOriginal, resizedOriginalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, claudeW, claudeH);
 
     if (!result) {
       // Single-pass fallback
       console.log('[FloorPlan] Using single-pass analysis');
-      const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 16384,
-        thinking: { type: 'enabled', budget_tokens: 16000 },
-        system: SYSTEM_PROMPT,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Image 1 — ORIGINAL:',
-            },
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: resizedOriginalMediaType, data: resizedOriginal },
-            },
-            {
-              type: 'text',
-              text: 'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
-            },
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType, data: processedImage },
-            },
-            {
-              type: 'text',
-              text: `Extract all structural elements from this floor plan with pixel-precise coordinates.
+      const model = genai.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06' });
+      const response = await model.generateContent([
+        SYSTEM_PROMPT,
+        'Image 1 — ORIGINAL:',
+        { inlineData: { mimeType: resizedOriginalMediaType, data: resizedOriginal } },
+        'Image 2 — PREPROCESSED (thick walls prominent, thin furniture lines removed):',
+        { inlineData: { mimeType: mediaType, data: processedImage } },
+        `Extract all structural elements from this floor plan with pixel-precise coordinates.
 The image is ${claudeW}x${claudeH} pixels. All coordinates in PIXELS.
 ${cvHints}${dimensionHints}${formatRoomHints(roomHints)}
 
@@ -570,14 +497,10 @@ Return JSON:
   "scale": { "pixelsPerMeter": NUMBER, "confidence": NUMBER, "source": STRING },
   "overallShape": "rectangular" | "L-shaped" | "U-shaped" | "complex",
   "totalArea": { "value": NUMBER, "unit": "m²" } | null
-}`
-            }
-          ]
-        }]
-      });
+}`,
+      ]);
 
-      const textBlock = response.content.find(block => block.type === 'text');
-      const content = textBlock?.text || response.content[0].text;
+      const content = response.response.text();
 
       try {
         result = JSON.parse(content);
