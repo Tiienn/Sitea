@@ -525,7 +525,7 @@ async function extractSemanticsFromOriginal(genai, base64Image, mediaType, walls
   console.log('[FloorPlan] Step 3: Extracting semantic info (doors, rooms, scale)...');
 
   const model = genai.getGenerativeModel({
-    model: 'gemini-2.5-pro',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0,
       responseMimeType: 'application/json',
@@ -632,7 +632,7 @@ OUTPUT: Pure JSON only. No markdown, no explanations, no code fences.`;
 async function twoPassAnalysis(genai, processedImage, originalImage, originalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, geminiW, geminiH) {
   // Pass 1: lighter thinking budget for exterior-only detection
   const modelPass1 = genai.getGenerativeModel({
-    model: 'gemini-2.5-pro',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0,
       responseMimeType: 'application/json',
@@ -641,7 +641,7 @@ async function twoPassAnalysis(genai, processedImage, originalImage, originalMed
   });
   // Pass 2: higher thinking budget for full interior analysis
   const modelPass2 = genai.getGenerativeModel({
-    model: 'gemini-2.5-pro',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0,
       responseMimeType: 'application/json',
