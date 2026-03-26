@@ -106,7 +106,7 @@ async function callRoboflow(base64Image) {
 
 async function extractDimensionLabels(base64Image, mediaType, genai) {
   try {
-    const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash', generationConfig: { temperature: 0 } });
 
     const response = await model.generateContent([
       {
@@ -288,6 +288,7 @@ Rules for the generated image:
         }],
         generationConfig: {
           responseModalities: ['IMAGE'],
+          temperature: 0,
         }
       })
     }
