@@ -366,17 +366,29 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     };
   });
 
+  // Convert stairs
+  const stairs = (aiData.stairs || []).map((stair, index) => {
+    const center = toWorld(stair.center.x, stair.center.y);
+    return {
+      id: `stair-generated-${Date.now()}-${index}`,
+      center,
+      direction: stair.direction || 'unknown',
+    };
+  });
+
   const warnings = validateAiResults(aiData);
 
   return {
     walls,
     rooms,
+    stairs,
     warnings,
     stats: {
       wallCount: walls.length,
       doorCount: walls.reduce((sum, w) => sum + w.openings.filter(o => o.type === 'door').length, 0),
       windowCount: walls.reduce((sum, w) => sum + w.openings.filter(o => o.type === 'window').length, 0),
       roomCount: rooms.length,
+      stairCount: stairs.length,
     }
   };
 }

@@ -2674,6 +2674,7 @@ export default function FloorPlanGeneratorModal({
                 <FloorPlanPreview3D
                   walls={previewData.walls}
                   rooms={previewData.rooms}
+                  stairs={previewData.stairs}
                 />
               </div>
 
