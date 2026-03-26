@@ -87,10 +87,18 @@ export default function FloorPlanPreview3D({ walls, rooms, stairs = [] }) {
           position={[bounds.centerX, 0, bounds.centerZ]}
         />
 
-        {/* Room floors */}
-        {rooms.map((room, i) => (
-          <RoomFloor key={`floor-${i}`} room={room} />
-        ))}
+        {/* Building floor — single plane covering entire footprint */}
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[bounds.centerX, 0.005, bounds.centerZ]}
+          receiveShadow
+        >
+          <planeGeometry args={[
+            (bounds.maxX - bounds.minX) + 0.5,
+            (bounds.maxZ - bounds.minZ) + 0.5
+          ]} />
+          <meshStandardMaterial color="#C8B898" roughness={0.6} metalness={0.02} />
+        </mesh>
 
         {/* Room furniture */}
         {rooms.map((room, i) => (
@@ -373,58 +381,6 @@ function RoomFurniture({ room }) {
   }
 
   return null;
-}
-
-// ─── Room Floor ────────────────────────────────────────────────────────────────
-
-const ROOM_FLOOR_STYLES = {
-  kitchen:   { color: '#D4C5A9', roughness: 0.4 },
-  bathroom:  { color: '#C4CCD0', roughness: 0.3 },
-  toilet:    { color: '#C4CCD0', roughness: 0.3 },
-  wc:        { color: '#C4CCD0', roughness: 0.3 },
-  laundry:   { color: '#B8C4C8', roughness: 0.4 },
-  living:    { color: '#A0784C', roughness: 0.6 },
-  lounge:    { color: '#A0784C', roughness: 0.6 },
-  dining:    { color: '#A0784C', roughness: 0.6 },
-  family:    { color: '#A0784C', roughness: 0.6 },
-  bedroom:   { color: '#8B8B7A', roughness: 0.9 },
-  master:    { color: '#8B8B7A', roughness: 0.9 },
-  garage:    { color: '#808080', roughness: 0.5 },
-  storage:   { color: '#808080', roughness: 0.5 },
-  hallway:   { color: '#B8A88A', roughness: 0.5 },
-  corridor:  { color: '#B8A88A', roughness: 0.5 },
-  entry:     { color: '#B8A88A', roughness: 0.5 },
-  foyer:     { color: '#B8A88A', roughness: 0.5 },
-  default:   { color: '#C0B090', roughness: 0.5 },
-};
-
-function getRoomFloorStyle(roomName) {
-  const name = (roomName || '').toLowerCase();
-  for (const [key, style] of Object.entries(ROOM_FLOOR_STYLES)) {
-    if (key !== 'default' && name.includes(key)) return style;
-  }
-  return ROOM_FLOOR_STYLES.default;
-}
-
-function RoomFloor({ room }) {
-  const area = room.area || 12;
-  const side = Math.sqrt(area);
-  const style = getRoomFloorStyle(room.name);
-
-  return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[room.center.x, 0.01, room.center.z]}
-      receiveShadow
-    >
-      <planeGeometry args={[side, side]} />
-      <meshStandardMaterial
-        color={style.color}
-        roughness={style.roughness}
-        metalness={0.05}
-      />
-    </mesh>
-  );
 }
 
 // ─── Wall with Openings ────────────────────────────────────────────────────────
