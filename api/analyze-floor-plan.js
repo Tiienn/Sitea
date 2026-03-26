@@ -316,18 +316,22 @@ Rules for the generated image:
   return imagePart.inlineData.data; // base64 PNG
 }
 
-// Step 2: Extract wall coordinates from clean image using Connected Components + PCA Line Fitting
+// Step 2: Extract wall coordinates from clean image using row/column run-linking
 //
-// Why this is better than row/col pixel scanning:
-//   - Treats each wall as ONE connected blob (no fragmentation)
-//   - PCA finds the true axis regardless of aliasing or slight skew
-//   - Naturally measures wall thickness
-//   - Handles diagonal walls (not just H/V)
-//   - Axis-snapping for near-horizontal/vertical walls gives pixel-perfect alignment
+// Approach: scan each row for horizontal runs, link adjacent rows into wall bands.
+// Same for columns → vertical walls.
+//
+// Why NOT connected components + PCA:
+//   Wall junctions (T, L, X shapes) merge crossing walls into one blob.
+//   PCA on a cross/T shape gives a diagonal axis → not usable.
+//
+// Why this works:
+//   Horizontal scan ignores vertical walls (they're thin columns, not wide rows).
+//   Vertical scan ignores horizontal walls (thin rows, not tall columns).
+//   Each pass sees walls cleanly because orthogonal walls are too narrow to register.
 async function extractWallsFromCleanImage(cleanImageBase64) {
-  console.log('[FloorPlan] Step 2: Extracting walls via Connected Components + PCA...');
+  console.log('[FloorPlan] Step 2: Extracting walls via run-link scan...');
 
-  // Binarize: 0 = wall (black), 255 = empty (white)
   const { data: pixels, info } = await sharp(Buffer.from(cleanImageBase64, 'base64'))
     .grayscale()
     .threshold(128)
@@ -337,197 +341,163 @@ async function extractWallsFromCleanImage(cleanImageBase64) {
   const W = info.width;
   const H = info.height;
 
-  // ─── 1. Connected Components via iterative BFS (scanline-optimized) ──────────
-  // labels[i] = component id for pixel i (-1 = unlabeled, -2 = white/background)
-  const labels = new Int32Array(W * H).fill(-1);
-  const componentSizes = [];   // pixel count per component
-  const componentBounds = [];  // bounding box per component
+  const MIN_RUN   = 12;   // min horizontal/vertical run length (filters cross-section noise)
+  const MIN_WALL  = 25;   // min wall segment length to keep
+  const MAX_GAP   = 4;    // max row/col gap to bridge (anti-aliasing, slight unevenness)
+  const MIN_ROWS  = 2;    // min number of rows in a wall band (rejects 1-pixel noise)
 
-  // Mark white pixels upfront so we skip them in BFS
-  for (let i = 0; i < pixels.length; i++) {
-    if (pixels[i] !== 0) labels[i] = -2; // background
+  // ─── Helper: overlap fraction of two runs ────────────────────────────────────
+  function overlapFrac(a1, a2, b1, b2) {
+    const overlap = Math.min(a2, b2) - Math.max(a1, b1);
+    const shorter = Math.min(a2 - a1, b2 - b1);
+    return shorter > 0 ? overlap / shorter : 0;
   }
 
-  // BFS with index-pointer queue (avoids O(n²) from array.shift)
-  const bfsQueue = new Int32Array(W * H);
-  let numComponents = 0;
-
-  for (let seed = 0; seed < pixels.length; seed++) {
-    if (labels[seed] !== -1) continue; // already labeled or background
-
-    const compId = numComponents++;
-    let head = 0, tail = 0;
-    bfsQueue[tail++] = seed;
-    labels[seed] = compId;
-
-    let size = 0;
-    let minX = W, maxX = 0, minY = H, maxY = 0;
-
-    while (head < tail) {
-      const idx = bfsQueue[head++];
-      const px = idx % W;
-      const py = (idx - px) / W;
-      size++;
-      if (px < minX) minX = px;
-      if (px > maxX) maxX = px;
-      if (py < minY) minY = py;
-      if (py > maxY) maxY = py;
-
-      // 4-connected neighbors
-      const neighbors = [
-        idx - 1,        // left
-        idx + 1,        // right
-        idx - W,        // up
-        idx + W,        // down
-      ];
-      for (const n of neighbors) {
-        if (n < 0 || n >= pixels.length) continue;
-        if (labels[n] !== -1) continue;
-        // Boundary check for left/right wrap
-        if ((idx % W === 0 && n === idx - 1) || (idx % W === W - 1 && n === idx + 1)) continue;
-        labels[n] = compId;
-        bfsQueue[tail++] = n;
+  // ─── Scan rows → horizontal walls ────────────────────────────────────────────
+  // Build per-row run list
+  const rowRuns = new Array(H);
+  for (let y = 0; y < H; y++) {
+    rowRuns[y] = [];
+    let start = -1;
+    for (let x = 0; x <= W; x++) {
+      const black = x < W && pixels[y * W + x] === 0;
+      if (black && start === -1) { start = x; }
+      else if (!black && start !== -1) {
+        if (x - start >= MIN_RUN) rowRuns[y].push({ x1: start, x2: x - 1 });
+        start = -1;
       }
     }
-
-    componentSizes.push(size);
-    componentBounds.push({ minX, maxX, minY, maxY });
   }
 
-  console.log(`[FloorPlan] Found ${numComponents} connected components`);
+  // Link runs downward: each unlinked run starts a new wall band
+  const rowRunUsed = rowRuns.map(runs => new Uint8Array(runs.length));
+  const hWalls = [];
 
-  // ─── 2. PCA Line Fitting per component ───────────────────────────────────────
-  const MIN_PIXELS = 50;    // ignore tiny noise blobs
-  const MIN_LENGTH = 25;    // minimum wall length in pixels
-  const AXIS_SNAP_DEG = 8;  // snap to H/V if within this many degrees
+  for (let y = 0; y < H; y++) {
+    for (let ri = 0; ri < rowRuns[y].length; ri++) {
+      if (rowRunUsed[y][ri]) continue;
 
-  const walls = [];
+      let { x1: curX1, x2: curX2 } = rowRuns[y][ri];
+      let sumX1 = curX1, sumX2 = curX2, count = 1;
+      let minY = y, maxY = y;
+      rowRunUsed[y][ri] = 1;
 
-  for (let compId = 0; compId < numComponents; compId++) {
-    if (componentSizes[compId] < MIN_PIXELS) continue;
+      let gap = 0;
+      for (let ny = y + 1; ny < H; ny++) {
+        let bestJ = -1, bestOvlp = 0;
+        for (let j = 0; j < rowRuns[ny].length; j++) {
+          if (rowRunUsed[ny][j]) continue;
+          const { x1, x2 } = rowRuns[ny][j];
+          const ovlp = overlapFrac(curX1, curX2, x1, x2);
+          if (ovlp > 0.5 && ovlp > bestOvlp) { bestOvlp = ovlp; bestJ = j; }
+        }
 
-    // Collect pixels for this component
-    const { minX, maxX, minY, maxY } = componentBounds[compId];
-    const bboxW = maxX - minX + 1;
-    const bboxH = maxY - minY + 1;
+        if (bestJ === -1) {
+          if (++gap > MAX_GAP) break;
+          continue;
+        }
+        gap = 0;
+        const { x1, x2 } = rowRuns[ny][bestJ];
+        rowRunUsed[ny][bestJ] = 1;
+        // Update current run reference (tracks shifting wall edge)
+        curX1 = x1; curX2 = x2;
+        sumX1 += x1; sumX2 += x2; count++;
+        maxY = ny;
+      }
 
-    // Quick reject: if bounding box is roughly square and small → noise, not a wall
-    const bboxMax = Math.max(bboxW, bboxH);
-    const bboxMin = Math.min(bboxW, bboxH);
-    if (bboxMax < MIN_LENGTH) continue;
-    // Skip blobs that look like corners/intersections (roughly square and large)
-    // — these will be handled by wall connectivity later
-    // (only skip if very square AND not huge)
-    if (bboxMin > bboxMax * 0.6 && bboxMax < 80) continue;
+      const thickness = maxY - minY + 1;
+      if (count < MIN_ROWS) continue;
 
-    // Accumulate moments for PCA (sum, sum_x, sum_y, sum_xx, sum_xy, sum_yy)
-    let n = 0, sumX = 0, sumY = 0, sumXX = 0, sumXY = 0, sumYY = 0;
+      const avgX1 = Math.round(sumX1 / count);
+      const avgX2 = Math.round(sumX2 / count);
+      const length = avgX2 - avgX1;
 
-    // Scan only the bounding box for this component
-    for (let py = minY; py <= maxY; py++) {
-      for (let px = minX; px <= maxX; px++) {
-        if (labels[py * W + px] !== compId) continue;
-        n++;
-        sumX += px;
-        sumY += py;
-        sumXX += px * px;
-        sumXY += px * py;
-        sumYY += py * py;
+      if (length >= MIN_WALL && length > thickness * 1.5) {
+        hWalls.push({
+          start: { x: avgX1, y: Math.round((minY + maxY) / 2) },
+          end:   { x: avgX2, y: Math.round((minY + maxY) / 2) },
+          thickness,
+          isExterior: false,
+          confidence: 0.9,
+        });
       }
     }
-
-    if (n < MIN_PIXELS) continue;
-
-    // Centroid
-    const cx = sumX / n;
-    const cy = sumY / n;
-
-    // Covariance matrix (centered)
-    const covXX = sumXX / n - cx * cx;
-    const covXY = sumXY / n - cx * cy;
-    const covYY = sumYY / n - cy * cy;
-
-    // Analytic eigenvector of largest eigenvalue for 2×2 symmetric matrix
-    // λ = (covXX + covYY)/2 ± sqrt(((covXX - covYY)/2)² + covXY²)
-    const halfTrace = (covXX + covYY) / 2;
-    const disc = Math.sqrt(Math.max(0, ((covXX - covYY) / 2) ** 2 + covXY ** 2));
-    const lambda1 = halfTrace + disc; // largest eigenvalue = variance along principal axis
-
-    // Principal direction (eigenvector for lambda1)
-    let vx, vy;
-    if (Math.abs(covXY) > 1e-8) {
-      vx = lambda1 - covYY;
-      vy = covXY;
-    } else {
-      // Already axis-aligned
-      vx = covXX >= covYY ? 1 : 0;
-      vy = covXX >= covYY ? 0 : 1;
-    }
-    const vMag = Math.sqrt(vx * vx + vy * vy);
-    vx /= vMag;
-    vy /= vMag;
-    // Ensure consistent direction (positive x, or positive y if vertical)
-    if (vx < 0 || (Math.abs(vx) < 1e-6 && vy < 0)) { vx = -vx; vy = -vy; }
-
-    // Perpendicular direction
-    const nx = -vy, ny = vx;
-
-    // Project all pixels onto principal axis → find extent (length) and width (thickness)
-    let minT = Infinity, maxT = -Infinity;
-    let minN = Infinity, maxN = -Infinity;
-
-    for (let py = minY; py <= maxY; py++) {
-      for (let px = minX; px <= maxX; px++) {
-        if (labels[py * W + px] !== compId) continue;
-        const dx = px - cx, dy = py - cy;
-        const t = dx * vx + dy * vy;
-        const nv = dx * nx + dy * ny;
-        if (t < minT) minT = t;
-        if (t > maxT) maxT = t;
-        if (nv < minN) minN = nv;
-        if (nv > maxN) maxN = nv;
-      }
-    }
-
-    const length = maxT - minT;
-    const thickness = maxN - minN;
-
-    if (length < MIN_LENGTH) continue;
-    // Must be elongated: length > 1.5× thickness (walls aren't squares)
-    if (length < thickness * 1.5) continue;
-
-    // Raw endpoints from PCA
-    let x1 = cx + minT * vx;
-    let y1 = cy + minT * vy;
-    let x2 = cx + maxT * vx;
-    let y2 = cy + maxT * vy;
-
-    // ── Axis snapping: if nearly H or V, lock to exact horizontal/vertical ──
-    const angleDeg = Math.atan2(Math.abs(vy), Math.abs(vx)) * (180 / Math.PI);
-
-    if (angleDeg < AXIS_SNAP_DEG) {
-      // Nearly horizontal → force same Y (use centroid Y)
-      y1 = cy;
-      y2 = cy;
-    } else if (angleDeg > 90 - AXIS_SNAP_DEG) {
-      // Nearly vertical → force same X (use centroid X)
-      x1 = cx;
-      x2 = cx;
-    }
-
-    walls.push({
-      start: { x: Math.round(x1), y: Math.round(y1) },
-      end:   { x: Math.round(x2), y: Math.round(y2) },
-      thickness: Math.round(thickness),
-      isExterior: false,
-      confidence: 0.95,
-    });
   }
 
-  // ─── 3. Classify exterior walls ──────────────────────────────────────────────
-  if (walls.length > 0) {
+  // ─── Scan columns → vertical walls ───────────────────────────────────────────
+  const colRuns = new Array(W);
+  for (let x = 0; x < W; x++) {
+    colRuns[x] = [];
+    let start = -1;
+    for (let y = 0; y <= H; y++) {
+      const black = y < H && pixels[y * W + x] === 0;
+      if (black && start === -1) { start = y; }
+      else if (!black && start !== -1) {
+        if (y - start >= MIN_RUN) colRuns[x].push({ y1: start, y2: y - 1 });
+        start = -1;
+      }
+    }
+  }
+
+  const colRunUsed = colRuns.map(runs => new Uint8Array(runs.length));
+  const vWalls = [];
+
+  for (let x = 0; x < W; x++) {
+    for (let ri = 0; ri < colRuns[x].length; ri++) {
+      if (colRunUsed[x][ri]) continue;
+
+      let { y1: curY1, y2: curY2 } = colRuns[x][ri];
+      let sumY1 = curY1, sumY2 = curY2, count = 1;
+      let minX = x, maxX = x;
+      colRunUsed[x][ri] = 1;
+
+      let gap = 0;
+      for (let nx = x + 1; nx < W; nx++) {
+        let bestJ = -1, bestOvlp = 0;
+        for (let j = 0; j < colRuns[nx].length; j++) {
+          if (colRunUsed[nx][j]) continue;
+          const { y1, y2 } = colRuns[nx][j];
+          const ovlp = overlapFrac(curY1, curY2, y1, y2);
+          if (ovlp > 0.5 && ovlp > bestOvlp) { bestOvlp = ovlp; bestJ = j; }
+        }
+
+        if (bestJ === -1) {
+          if (++gap > MAX_GAP) break;
+          continue;
+        }
+        gap = 0;
+        const { y1, y2 } = colRuns[nx][bestJ];
+        colRunUsed[nx][bestJ] = 1;
+        curY1 = y1; curY2 = y2;
+        sumY1 += y1; sumY2 += y2; count++;
+        maxX = nx;
+      }
+
+      const thickness = maxX - minX + 1;
+      if (count < MIN_ROWS) continue;
+
+      const avgY1 = Math.round(sumY1 / count);
+      const avgY2 = Math.round(sumY2 / count);
+      const length = avgY2 - avgY1;
+
+      if (length >= MIN_WALL && length > thickness * 1.5) {
+        vWalls.push({
+          start: { x: Math.round((minX + maxX) / 2), y: avgY1 },
+          end:   { x: Math.round((minX + maxX) / 2), y: avgY2 },
+          thickness,
+          isExterior: false,
+          confidence: 0.9,
+        });
+      }
+    }
+  }
+
+  const allWalls = [...hWalls, ...vWalls];
+
+  // ─── Classify exterior walls ──────────────────────────────────────────────────
+  if (allWalls.length > 0) {
     let allMinX = Infinity, allMaxX = 0, allMinY = Infinity, allMaxY = 0;
-    walls.forEach(w => {
+    allWalls.forEach(w => {
       allMinX = Math.min(allMinX, w.start.x, w.end.x);
       allMaxX = Math.max(allMaxX, w.start.x, w.end.x);
       allMinY = Math.min(allMinY, w.start.y, w.end.y);
@@ -535,19 +505,19 @@ async function extractWallsFromCleanImage(cleanImageBase64) {
     });
     const margin = Math.max(W, H) * 0.05;
 
-    walls.forEach(w => {
+    allWalls.forEach(w => {
       const midX = (w.start.x + w.end.x) / 2;
       const midY = (w.start.y + w.end.y) / 2;
       w.isExterior =
         Math.abs(w.start.x - allMinX) < margin || Math.abs(w.end.x - allMaxX) < margin ||
         Math.abs(w.start.y - allMinY) < margin || Math.abs(w.end.y - allMaxY) < margin ||
-        Math.abs(midX - allMinX) < margin      || Math.abs(midX - allMaxX) < margin      ||
-        Math.abs(midY - allMinY) < margin      || Math.abs(midY - allMaxY) < margin;
+        Math.abs(midX - allMinX)      < margin || Math.abs(midX - allMaxX)    < margin ||
+        Math.abs(midY - allMinY)      < margin || Math.abs(midY - allMaxY)    < margin;
     });
   }
 
-  console.log(`[FloorPlan] Step 2 complete: ${walls.length} walls extracted via PCA (from ${numComponents} components)`);
-  return { walls, imageWidth: W, imageHeight: H };
+  console.log(`[FloorPlan] Step 2 complete: ${hWalls.length} horizontal + ${vWalls.length} vertical = ${allWalls.length} walls`);
+  return { walls: allWalls, imageWidth: W, imageHeight: H };
 }
 
 // Step 3: Extract semantic info (doors, rooms, stairs, scale) from original image
