@@ -1239,7 +1239,8 @@ export default async function handler(req, res) {
     console.error('[FloorPlan API] Error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to analyze floor plan'
+      error: 'Failed to analyze floor plan',
+      _debug: error?.message || String(error),
     });
   }
 }
