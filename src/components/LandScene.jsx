@@ -84,6 +84,7 @@ import {
   SNAP_THRESHOLD
 } from './scene/ComparisonObjects'
 import { WallSegment } from './scene/WallSegment'
+import { BuildingInterior } from './scene/BuildingInterior'
 import { RoomFloor } from './scene/RoomFloor'
 import { PlacedBuilding, BuildingPreview, SetbackZone, SnapIndicator, EdgeLabels } from './scene/BuildingComponents'
 import { PoolItem, FoundationItem, StairsItem, FurnitureItem } from './scene/PolygonRenderers'
@@ -3560,6 +3561,11 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
               isSelected={selectedBuildingId === building.id}
             />
           ))}
+          <BuildingInterior
+            walls={building.walls}
+            rooms={building.rooms}
+            stairs={building.stairs}
+          />
           {/* Building selection outline */}
           {selectedBuildingId === building.id && (
             <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>

@@ -1913,6 +1913,7 @@ function App() {
       rotation: buildingPreviewRotation,
       walls: pendingFloorPlan.walls,
       rooms: pendingFloorPlan.rooms || [],
+      stairs: pendingFloorPlan.stairs || [],
       stats: pendingFloorPlan.stats,
     }
 
