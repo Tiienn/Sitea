@@ -87,19 +87,6 @@ export default function FloorPlanPreview3D({ walls, rooms, stairs = [] }) {
           position={[bounds.centerX, 0, bounds.centerZ]}
         />
 
-        {/* Building floor — single plane covering entire footprint */}
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[bounds.centerX, 0.005, bounds.centerZ]}
-          receiveShadow
-        >
-          <planeGeometry args={[
-            (bounds.maxX - bounds.minX) + 0.5,
-            (bounds.maxZ - bounds.minZ) + 0.5
-          ]} />
-          <meshStandardMaterial color="#C8B898" roughness={0.6} metalness={0.02} />
-        </mesh>
-
         {/* Room furniture */}
         {rooms.map((room, i) => (
           <RoomFurniture key={`furn-${i}`} room={room} />
