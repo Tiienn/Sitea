@@ -2370,6 +2370,13 @@ function App() {
       // Ignore if typing in an input (except Escape which should blur first)
       if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.key !== 'Escape') return
 
+      // E to explode selected building
+      if ((e.key === 'e' || e.key === 'E') && selectedBuildingId) {
+        e.preventDefault()
+        explodeSelectedBuilding()
+        return
+      }
+
       // R to rotate (90 degrees)
       if (e.key === 'r' || e.key === 'R') {
         if (floorPlanPlacementMode || selectedBuildingId) {
@@ -2457,7 +2464,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, selectedFurnitureId, furnitureItems, updateFurniture, activeBuildTool, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom, activePanel])
+  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, selectedFurnitureId, furnitureItems, updateFurniture, activeBuildTool, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, explodeSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom, activePanel])
 
   // Show toast when building, comparison, room, pool, foundation, stairs, or roof is selected
   useEffect(() => {
@@ -3518,6 +3525,8 @@ function App() {
           switchFloor={switchFloor}
           floorCountToAdd={floorCountToAdd}
           setFloorCountToAdd={setFloorCountToAdd}
+          selectedBuildingId={selectedBuildingId}
+          onExplodeBuilding={explodeSelectedBuilding}
         />
       </div>
 
@@ -4337,17 +4346,9 @@ function App() {
       {/* Undo/Redo toast notification */}
       {undoRedoToast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm font-medium shadow-lg border border-[var(--color-border)] animate-fade-in flex items-center gap-3" style={{ padding: '8px 32px' }}>
-          {undoRedoToast === 'building_selected' ? (
-            <>
-              <span>Building selected • R rotate • Del delete</span>
-              <button
-                onClick={explodeSelectedBuilding}
-                className="px-4 py-2 bg-[var(--color-accent)] text-white rounded-lg text-xs font-semibold hover:brightness-110 transition-all"
-              >
-                Explode
-              </button>
-            </>
-          ) : undoRedoToast}
+          {undoRedoToast === 'building_selected'
+            ? 'Building selected • R rotate • Del delete • E to explode'
+            : undoRedoToast}
         </div>
       )}
 

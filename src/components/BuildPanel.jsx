@@ -338,6 +338,9 @@ export default function BuildPanel({
   hasSelection = false,
   // House templates
   onLoadHouseTemplate,
+  // Building explode
+  selectedBuildingId,
+  onExplodeBuilding,
 }) {
   const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed, setShowPricingModal } = useUser()
   const [activeSection, setActiveSection] = useState('tools')
@@ -749,6 +752,19 @@ export default function BuildPanel({
             {/* TOOLS Section */}
             {activeSection === 'tools' && (
               <div className="space-y-4">
+                {/* Explode building action (contextual — only when building selected) */}
+                {selectedBuildingId && onExplodeBuilding && (
+                  <div className="p-4 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)]">
+                    <p className="text-xs text-[var(--color-text-secondary)] mb-3">Building selected — explode to edit individual walls and furniture</p>
+                    <button
+                      onClick={onExplodeBuilding}
+                      className="w-full py-3 px-6 bg-[var(--color-accent)] hover:brightness-110 text-white rounded-lg text-sm font-semibold transition-all"
+                    >
+                      Explode Building
+                    </button>
+                  </div>
+                )}
+
                 {/* Tool Grid */}
                 <div className="grid grid-cols-3 gap-2">
                   {/* Room Tool */}
