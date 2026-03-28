@@ -1962,6 +1962,78 @@ function App() {
     setSelectedBuildingId(null)
   }, [selectedBuildingId])
 
+  // Explode building into individual walls + furniture
+  const explodeSelectedBuilding = useCallback(() => {
+    if (!selectedBuildingId) return
+    const building = buildings.find(b => b.id === selectedBuildingId)
+    if (!building) return
+
+    const pos = building.position
+    const rot = building.rotation || 0
+    const cosR = Math.cos(rot)
+    const sinR = Math.sin(rot)
+
+    // Transform a local point by building position + rotation
+    const transform = (p) => ({
+      x: p.x * cosR - p.z * sinR + pos.x,
+      z: p.x * sinR + p.z * cosR + pos.z,
+    })
+
+    // Add walls to scene (with openings preserved)
+    const newWalls = building.walls.map(wall => ({
+      id: crypto.randomUUID(),
+      start: transform(wall.start),
+      end: transform(wall.end),
+      height: wall.height || 2.7,
+      thickness: wall.thickness || 0.15,
+      openings: (wall.openings || []).map(o => ({ ...o, id: crypto.randomUUID() })),
+      isExterior: wall.isExterior,
+      floorLevel: 0,
+    }))
+    pushWallsState([...walls, ...newWalls])
+
+    // Place furniture from catalog based on room type
+    const roomFurnitureMap = {
+      bathroom: ['toilet'],
+      toilet: ['toilet'],
+      wc: ['toilet'],
+      kitchen: ['fridge'],
+      living: ['sofa', 'coffeeTable'],
+      lounge: ['sofa'],
+      family: ['sofa'],
+      bedroom: ['bed', 'nightstand'],
+      master: ['bed', 'nightstand'],
+      dining: ['diningTable', 'chair'],
+    }
+
+    const newFurniture = []
+    for (const room of (building.rooms || [])) {
+      const roomName = (room.name || '').toLowerCase()
+      for (const [keyword, catalogIds] of Object.entries(roomFurnitureMap)) {
+        if (roomName.includes(keyword)) {
+          const center = transform(room.center)
+          catalogIds.forEach((catalogId, i) => {
+            newFurniture.push({
+              id: crypto.randomUUID(),
+              catalogId,
+              position: { x: center.x + i * 0.8, z: center.z },
+              rotation: rot,
+            })
+          })
+          break
+        }
+      }
+    }
+    if (newFurniture.length > 0) {
+      setFurnitureItems(prev => [...prev, ...newFurniture])
+    }
+
+    // Remove the building
+    setBuildings(prev => prev.filter(b => b.id !== selectedBuildingId))
+    setSelectedBuildingId(null)
+    showToast(`Exploded building into ${newWalls.length} walls and ${newFurniture.length} furniture items`, 3000)
+  }, [selectedBuildingId, buildings, walls, pushWallsState, setFurnitureItems])
+
   // Rotate selected comparison object
   const rotateSelectedComparison = useCallback((angle = 90) => {
     if (!selectedComparisonId) return
@@ -2390,7 +2462,7 @@ function App() {
   // Show toast when building, comparison, room, pool, foundation, stairs, or roof is selected
   useEffect(() => {
     if (selectedBuildingId) {
-      setUndoRedoToast('Building selected • Drag to move • R to rotate • ESC to deselect • Del to delete')
+      setUndoRedoToast('building_selected')
     } else if (selectedComparisonId) {
       setUndoRedoToast('Object selected • Drag to move • R to rotate • ESC to deselect • Del to remove')
     } else if (selectedRoomId) {
@@ -4264,8 +4336,18 @@ function App() {
 
       {/* Undo/Redo toast notification */}
       {undoRedoToast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm font-medium shadow-lg border border-[var(--color-border)] animate-fade-in" style={{ padding: '8px 32px' }}>
-          {undoRedoToast}
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm font-medium shadow-lg border border-[var(--color-border)] animate-fade-in flex items-center gap-3" style={{ padding: '8px 32px' }}>
+          {undoRedoToast === 'building_selected' ? (
+            <>
+              <span>Building selected • R rotate • Del delete</span>
+              <button
+                onClick={explodeSelectedBuilding}
+                className="px-4 py-2 bg-[var(--color-accent)] text-white rounded-lg text-xs font-semibold hover:brightness-110 transition-all"
+              >
+                Explode
+              </button>
+            </>
+          ) : undoRedoToast}
         </div>
       )}
 
