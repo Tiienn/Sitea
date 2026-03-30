@@ -754,18 +754,6 @@ export default function BuildPanel({
               <div className="space-y-4">
                 {/* Tool Grid */}
                 <div className="grid grid-cols-3 gap-2">
-                  {/* Explode Tool (contextual — only when building selected) */}
-                  {selectedBuildingId && onExplodeBuilding && (
-                    <button
-                      onClick={onExplodeBuilding}
-                      className="tool-btn active"
-                    >
-                      <span className="w-5 h-5">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                      </span>
-                      <span className="text-[10px]">Explode <kbd className="opacity-40 text-[8px]">E</kbd></span>
-                    </button>
-                  )}
                   {/* Room Tool */}
                   <button
                     onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.ROOM ? BUILD_TOOLS.NONE : BUILD_TOOLS.ROOM)}
@@ -865,6 +853,19 @@ export default function BuildPanel({
                     <span className="w-5 h-5">{Icons.copy}</span>
                     <span className="text-[10px]">Copy</span>
                   </button>
+
+                  {/* Explode Tool (contextual — only when building selected) */}
+                  {selectedBuildingId && onExplodeBuilding && (
+                    <button
+                      onClick={onExplodeBuilding}
+                      className="tool-btn active"
+                    >
+                      <span className="w-5 h-5">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                      </span>
+                      <span className="text-[10px]">Explode <kbd className="opacity-40 text-[8px]">E</kbd></span>
+                    </button>
+                  )}
 
                   {/* Delete Tool */}
                   <button
