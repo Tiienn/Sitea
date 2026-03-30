@@ -752,21 +752,20 @@ export default function BuildPanel({
             {/* TOOLS Section */}
             {activeSection === 'tools' && (
               <div className="space-y-4">
-                {/* Explode building action (contextual — only when building selected) */}
-                {selectedBuildingId && onExplodeBuilding && (
-                  <div className="p-4 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)]">
-                    <p className="text-xs text-[var(--color-text-secondary)] mb-3">Building selected — explode to edit individual walls and furniture</p>
-                    <button
-                      onClick={onExplodeBuilding}
-                      className="w-full py-3 px-6 bg-[var(--color-accent)] hover:brightness-110 text-white rounded-lg text-sm font-semibold transition-all"
-                    >
-                      Explode Building
-                    </button>
-                  </div>
-                )}
-
                 {/* Tool Grid */}
                 <div className="grid grid-cols-3 gap-2">
+                  {/* Explode Tool (contextual — only when building selected) */}
+                  {selectedBuildingId && onExplodeBuilding && (
+                    <button
+                      onClick={onExplodeBuilding}
+                      className="tool-btn active"
+                    >
+                      <span className="w-5 h-5">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                      </span>
+                      <span className="text-[10px]">Explode <kbd className="opacity-40 text-[8px]">E</kbd></span>
+                    </button>
+                  )}
                   {/* Room Tool */}
                   <button
                     onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.ROOM ? BUILD_TOOLS.NONE : BUILD_TOOLS.ROOM)}
