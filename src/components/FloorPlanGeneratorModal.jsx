@@ -1604,12 +1604,17 @@ export default function FloorPlanGeneratorModal({
           }),
         });
 
-        data = await response.json();
+        const responseText = await response.text();
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error(`Analysis failed (${response.status}). Please try again.`);
+        }
 
         // If API returned an error, show details
         if (!response.ok || (!data.success && data.error)) {
-          const errorMsg = data.details
-            ? `${data.error}: ${data.details}`
+          const errorMsg = data._debug || data.details
+            ? `${data.error}: ${data._debug || data.details}`
             : (data.error || `Analysis failed: ${response.status}`);
           throw new Error(errorMsg);
         }
