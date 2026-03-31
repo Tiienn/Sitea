@@ -1955,9 +1955,10 @@ function App() {
     ))
   }, [selectedBuildingId])
 
-  // Delete selected building
+  // Delete selected building (with confirmation)
   const deleteSelectedBuilding = useCallback(() => {
     if (!selectedBuildingId) return
+    if (!window.confirm('Delete this building? This cannot be undone.')) return
     setBuildings(prev => prev.filter(b => b.id !== selectedBuildingId))
     setSelectedBuildingId(null)
   }, [selectedBuildingId])
