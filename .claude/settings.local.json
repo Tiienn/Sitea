@@ -148,7 +148,11 @@
       "Bash(printenv)",
       "mcp__plugin_playwright_playwright__browser_snapshot",
       "mcp__plugin_playwright_playwright__browser_wait_for",
-      "Bash(find /Users/tien/projects/sitea -type f \\\\\\(-name *floor* -o -name *plan* -o -name *wall* -o -name *room* -o -name *trace* -o -name *analysis* \\\\\\))"
+      "Bash(find /Users/tien/projects/sitea -type f \\\\\\(-name *floor* -o -name *plan* -o -name *wall* -o -name *room* -o -name *trace* -o -name *analysis* \\\\\\))",
+      "Bash(git -C /Users/tien/projects/sitea add api/analyze-floor-plan.js)",
+      "Bash(git -C:*)",
+      "Bash(git -C /Users/tien/projects/sitea push)",
+      "WebFetch(domain:ai.google.dev)"
     ],
     "deny": [],
     "ask": []

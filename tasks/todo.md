@@ -1,65 +1,25 @@
-# Floor Plan Analysis — Phase 4: Gemini Image Gen + CV Extraction
+# Fix Floor Plan Analysis Failure — Expired Gemini Models
 
-## Architecture
+## Problem
+Clicking "Analyze" on a floor plan upload results in "Analysis failed".
 
-**Current (broken):** Floor plan → LLM outputs pixel coordinates → render
-**New:** Floor plan → Gemini generates clean walls-only image → CV extracts coordinates → render
+## Root Cause
+The API at `api/analyze-floor-plan.js` uses dated preview/experimental Gemini models that Google has deprecated:
+- `gemini-2.0-flash-exp` (line 267) — image generation REST API call
+- `gemini-2.5-pro-preview-05-06` (lines 528, 635, 644) — semantic extraction + two-pass fallback
+- `gemini-2.0-flash` (line 109) — OCR (likely still works but should be consistent)
 
-### Why this works
-- Gemini is great at **understanding** floor plans (which lines are walls vs furniture)
-- Gemini is bad at outputting **precise pixel coordinates**
-- Traditional CV is great at **measuring precise coordinates** from clean images
-- By combining them, each does what it's good at
+When Step 1 (image gen) fails, it falls back to legacy two-pass which also uses the expired model — both pipelines fail.
 
-## Pipeline
-
-```
-[User uploads floor plan]
-         ↓
-[Step 1] Gemini 2.0 Flash generates a clean diagram:
-         thick black walls on white background, no furniture/text
-         ↓
-[Step 2] CV extracts wall coordinates from the clean image:
-         binarize → scan rows/cols → find wall segments → merge
-         ↓
-[Step 3] Gemini 2.5 Pro extracts semantic info (doors, rooms, scale)
-         from the ORIGINAL image — positions snapped to nearest wall
-         ↓
-[Step 4] Post-processing: snap, connect, validate
-         ↓
-[Return JSON with walls, doors, rooms]
-```
-
-## Plan
-
-- [ ] **1. Add `generateCleanDiagram()` function**
-  - Send original floor plan to Gemini with image generation
-  - Prompt: "Redraw showing ONLY structural walls as thick black lines on white"
-  - Model: `gemini-2.0-flash-exp` with `responseModalities: ['IMAGE']`
-  - Returns clean PNG base64
-
-- [ ] **2. Add `extractWallsFromCleanImage()` function**
-  - Binarize the generated image with sharp
-  - Get raw pixel buffer
-  - Scan rows for horizontal wall segments (black runs > 20px)
-  - Scan columns for vertical wall segments (black runs > 20px)
-  - Merge adjacent runs into wall segments with start/end/thickness
-  - Classify exterior (longest perimeter walls) vs interior
-  - Returns walls array
-
-- [ ] **3. Add `extractSemanticsFromOriginal()` function**
-  - Send ORIGINAL floor plan to Gemini 2.5 Pro
-  - Ask for doors, rooms, stairs, scale ONLY (no wall coordinates)
-  - Snap door positions to nearest extracted wall
-  - Returns doors, rooms, stairs, scale
-
-- [ ] **4. Update handler to use new pipeline**
-  - Replace two-pass analysis with: diagram gen → CV extract → semantics
-  - Keep existing post-processing (snap, connect, terrace removal)
-  - Keep OCR and Roboflow as supplementary data
+## Fix Plan
+- [x] Add `GEMINI_API_KEY` to Vercel Production environment (was only in Preview)
+- [x] Update `gemini-2.0-flash-exp` → `gemini-2.0-flash` in REST API URL (line 267)
+- [x] Update `gemini-2.5-pro-preview-05-06` → `gemini-2.5-pro-preview-03-25` in SDK calls (lines 528, 635, 644)
 
 ## Files to Edit
-- `api/analyze-floor-plan.js` — all changes
+- `api/analyze-floor-plan.js` — model name updates only
 
 ## Review
-_(to be filled after implementation)_
+Two issues found:
+1. **Missing env var (primary cause):** `GEMINI_API_KEY` was only set for Preview environment, not Production. All Gemini API calls failed immediately on `sitea.live`.
+2. **Expired model names (secondary):** `gemini-2.0-flash-exp` and `gemini-2.5-pro-preview-05-06` are deprecated preview models. Updated to current stable/preview versions.
