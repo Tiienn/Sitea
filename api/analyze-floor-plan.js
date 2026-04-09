@@ -9,6 +9,58 @@ export const config = {
   maxDuration: 120,
 };
 
+// --- Morphological operations for binary images (0=black/foreground, 255=white) ---
+
+// Erosion: removes black regions thinner than kernel — a pixel stays black only if
+// ALL neighbors in the kernel are also black. Kills thin lines and dashed segments.
+function morphErode(pixels, W, H, kernelSize = 3) {
+  const out = new Uint8Array(W * H);
+  const r = (kernelSize - 1) >> 1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let maxVal = 0;
+      for (let dy = -r; dy <= r; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= H) { maxVal = 255; break; }
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx;
+          const v = (nx >= 0 && nx < W) ? pixels[ny * W + nx] : 255;
+          if (v > maxVal) { maxVal = v; if (maxVal === 255) break; }
+        }
+        if (maxVal === 255) break;
+      }
+      out[y * W + x] = maxVal;
+    }
+  }
+  return out;
+}
+
+// Dilation: expands black regions back — a pixel becomes black if ANY neighbor is black.
+// Restores thick walls that erosion thinned.
+function morphDilate(pixels, W, H, kernelSize = 3) {
+  const out = new Uint8Array(W * H);
+  out.fill(255);
+  const r = (kernelSize - 1) >> 1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let minVal = 255;
+      for (let dy = -r; dy <= r; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= H) continue;
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= W) continue;
+          const v = pixels[ny * W + nx];
+          if (v < minVal) { minVal = v; if (minVal === 0) break; }
+        }
+        if (minVal === 0) break;
+      }
+      out[y * W + x] = minVal;
+    }
+  }
+  return out;
+}
+
 // --- Image preprocessing for better AI detection ---
 
 // Standard resolution for Gemini input — we control this so we know exact scale factor
@@ -18,15 +70,22 @@ async function preprocessImage(base64Image) {
   try {
     const inputBuffer = Buffer.from(base64Image, 'base64');
 
-    const processed = await sharp(inputBuffer)
+    // Binarize: grayscale → sharpen → threshold
+    const { data: rawPixels, info } = await sharp(inputBuffer)
       .grayscale()
       .sharpen({ sigma: 1.5, m1: 1.0, m2: 0.5 })
       .threshold(140)
-      // Thin-line suppression: blur softens thin furniture lines, re-threshold removes them
-      .blur(2)
-      .threshold(180)
-      .png()
-      .toBuffer();
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    // Morphological open (erode → dilate): removes thin lines and dashed segments
+    // without smearing them into solid bands like blur does
+    const eroded = morphErode(rawPixels, info.width, info.height, 3);
+    const opened = morphDilate(eroded, info.width, info.height, 3);
+
+    const processed = await sharp(Buffer.from(opened), {
+      raw: { width: info.width, height: info.height, channels: 1 }
+    }).png().toBuffer();
 
     console.log(`[FloorPlan] Preprocessed image: ${inputBuffer.length} → ${processed.length} bytes`);
     return processed.toString('base64');
@@ -117,10 +176,11 @@ These are numbers with units like "3500", "3500mm", "12ft", "4.2m", "2100", etc.
 They usually appear next to lines with arrows or tick marks at both ends.
 
 Return ONLY a JSON array of objects. No markdown, no explanation.
-Each object: { "value": number, "unit": "mm"|"m"|"cm"|"ft"|"in"|"unknown", "pixelLength": number|null }
+Each object: { "value": number, "unit": "mm"|"m"|"cm"|"ft"|"in"|"unknown", "pixelLength": number|null, "bbox": { "x": number, "y": number, "w": number, "h": number } }
 - value: the numeric value shown
 - unit: the unit (if no unit shown, guess from context — values >100 are likely mm, <20 are likely meters)
 - pixelLength: approximate pixel length of the dimension line if visible, otherwise null
+- bbox: the bounding box of the text label in pixels — x,y is the top-left corner, w,h is width and height. Include the dimension line/arrows if visible.
 
 If no dimension labels found, return an empty array: []`,
     ]);
@@ -150,7 +210,7 @@ If no dimension labels found, return an empty array: []`,
           meters = d.value > 100 ? d.value / 1000 : d.value;
           break;
       }
-      return { ...d, meters, pixelLength: d.pixelLength || null };
+      return { ...d, meters, pixelLength: d.pixelLength || null, bbox: d.bbox || null };
     }).filter(d => d.meters > 0.3 && d.meters < 50); // Sane range: 0.3m to 50m
 
     console.log(`[FloorPlan] OCR found ${normalized.length} dimension labels:`, normalized.map(d => `${d.value}${d.unit}=${d.meters.toFixed(2)}m`));
@@ -282,7 +342,8 @@ Rules for the generated image:
 - Do NOT include: furniture, appliances, fixtures, dimension labels, text, room names, door arcs, window symbols, hatching, or any annotations
 - Do NOT include: dimension lines, arrows, measurement text
 - Make walls as STRAIGHT horizontal or vertical lines (no wobble)
-- Every room must be fully enclosed by walls
+- Every room must be fully enclosed by walls EXCEPT: stairwells and open-plan areas (e.g. open kitchen/living) which may have gaps where there is no wall
+- Do NOT invent walls where the original floor plan has none — if two spaces are open to each other, leave the gap
 - The output should look like a simple black line drawing of just the wall structure` }
           ]
         }],
@@ -330,10 +391,10 @@ Rules for the generated image:
 //   Horizontal scan ignores vertical walls (they're thin columns, not wide rows).
 //   Vertical scan ignores horizontal walls (thin rows, not tall columns).
 //   Each pass sees walls cleanly because orthogonal walls are too narrow to register.
-async function extractWallsFromCleanImage(cleanImageBase64) {
+async function extractWallsFromCleanImage(cleanImageBase64, textBoxes = [], srcWidth = 0, srcHeight = 0) {
   console.log('[FloorPlan] Step 2: Extracting walls via run-link scan...');
 
-  const { data: pixels, info } = await sharp(Buffer.from(cleanImageBase64, 'base64'))
+  const { data: rawPixels, info } = await sharp(Buffer.from(cleanImageBase64, 'base64'))
     .grayscale()
     .threshold(128)
     .raw()
@@ -342,10 +403,14 @@ async function extractWallsFromCleanImage(cleanImageBase64) {
   const W = info.width;
   const H = info.height;
 
+  // Morphological open: erode removes thin/dashed lines, dilate restores thick walls
+  const eroded = morphErode(rawPixels, W, H, 3);
+  const pixels = morphDilate(eroded, W, H, 3);
+
   const MIN_RUN   = 12;   // min horizontal/vertical run length (filters cross-section noise)
   const MIN_WALL  = 25;   // min wall segment length to keep
   const MAX_GAP   = 4;    // max row/col gap to bridge (anti-aliasing, slight unevenness)
-  const MIN_ROWS  = 2;    // min number of rows in a wall band (rejects 1-pixel noise)
+  const MIN_ROWS  = 4;    // min number of rows in a wall band (rejects thin lines)
 
   // ─── Helper: overlap fraction of two runs ────────────────────────────────────
   function overlapFrac(a1, a2, b1, b2) {
@@ -493,7 +558,37 @@ async function extractWallsFromCleanImage(cleanImageBase64) {
     }
   }
 
-  const allWalls = [...hWalls, ...vWalls];
+  let allWalls = [...hWalls, ...vWalls];
+
+  // ─── Filter walls that overlap OCR text bounding boxes ───────────────────────
+  if (textBoxes.length > 0 && srcWidth > 0 && srcHeight > 0) {
+    // Scale bounding boxes from original image space to clean diagram space
+    const scaleX = W / srcWidth;
+    const scaleY = H / srcHeight;
+    const scaledBoxes = textBoxes.map(tb => ({
+      x: tb.x * scaleX,
+      y: tb.y * scaleY,
+      w: tb.w * scaleX,
+      h: tb.h * scaleY,
+    }));
+
+    const PAD = 5; // pixels of padding around each text box
+    const before = allWalls.length;
+    allWalls = allWalls.filter(wall => {
+      const midX = (wall.start.x + wall.end.x) / 2;
+      const midY = (wall.start.y + wall.end.y) / 2;
+      for (const tb of scaledBoxes) {
+        if (midX >= tb.x - PAD && midX <= tb.x + tb.w + PAD &&
+            midY >= tb.y - PAD && midY <= tb.y + tb.h + PAD) {
+          return false;
+        }
+      }
+      return true;
+    });
+    if (before !== allWalls.length) {
+      console.log(`[FloorPlan] Filtered ${before - allWalls.length} walls overlapping OCR text boxes`);
+    }
+  }
 
   // ─── Classify exterior walls ──────────────────────────────────────────────────
   if (allWalls.length > 0) {
@@ -548,12 +643,19 @@ async function extractSemanticsFromOriginal(genai, base64Image, mediaType, walls
     `This floor plan image is ${geminiW}x${geminiH} pixels. Walls have already been extracted by computer vision:
 ${wallSummary}
 
-Your job: extract ONLY semantic information — doors, rooms, stairs, and scale. Do NOT extract walls.
+Your job: extract ONLY semantic information — doors, windows, rooms, stairs, and scale. Do NOT extract walls.
 
 For DOORS:
 - Find door symbols (quarter-circle arcs, double arcs, sliding markers)
 - Report their center position as pixel coordinates ON the nearest wall from the list above
 - wallIndex = the wall number from the list above that the door is ON
+
+For WINDOWS:
+- Find window symbols (parallel lines on walls, glass markers, large glazing panels, thin double-line segments on exterior walls)
+- Large sliding glass doors that act as windows (floor-to-ceiling glazing) should be reported as windows, not doors
+- Report their center position as pixel coordinates ON the nearest wall
+- wallIndex = the wall number from the list above that the window is ON
+- width = the window width in pixels
 
 For ROOMS:
 - Name each room (Living Room, Bedroom, Kitchen, etc.)
@@ -572,6 +674,7 @@ ${formatRoomHints(roomHints)}
 Return JSON:
 {
   "doors": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": 0, "doorType": "single"|"double"|"sliding" }],
+  "windows": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N }],
   "rooms": [{ "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null }],
   "stairs": [{ "center": {"x":N,"y":N}, "direction": "up"|"down"|"unknown" }],
   "scale": { "pixelsPerMeter": NUMBER, "confidence": NUMBER, "source": STRING },
@@ -589,7 +692,7 @@ Return JSON:
     result = match ? JSON.parse(match[0]) : {};
   }
 
-  console.log(`[FloorPlan] Step 3 complete: ${result.doors?.length || 0} doors, ${result.rooms?.length || 0} rooms`);
+  console.log(`[FloorPlan] Step 3 complete: ${result.doors?.length || 0} doors, ${result.windows?.length || 0} windows, ${result.rooms?.length || 0} rooms`);
   return result;
 }
 
@@ -712,8 +815,9 @@ ${exteriorWallsDesc}
 Now find ALL INTERIOR elements:
 1. ALL interior partition walls (walls INSIDE the building that divide rooms)
 2. ALL doors (single, double, sliding)
-3. ALL rooms (name + center)
-4. ALL stairs
+3. ALL windows (parallel lines on walls, glass markers, large glazing panels). Large sliding glass doors that act as windows should be reported as windows.
+4. ALL rooms (name + center)
+5. ALL stairs
 ${dimensionHints}${formatRoomHints(roomHints)}
 IMPORTANT: The exterior walls are already detected. Copy them EXACTLY into your output with isExterior: true — do not move, adjust, or re-detect them. Your job is ONLY interior elements.
 When interior walls meet exterior walls, their endpoints must SNAP to the nearest exterior wall coordinate.
@@ -726,6 +830,7 @@ Return JSON:
   "imageSize": { "width": ${geminiW}, "height": ${geminiH} },
   "walls": [ { "start": {"x":N,"y":N}, "end": {"x":N,"y":N}, "thickness": N, "isExterior": BOOLEAN, "confidence": 0.0-1.0 } ],
   "doors": [ { "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": N, "doorType": "single"|"double"|"sliding" } ],
+  "windows": [ { "center": {"x":N,"y":N}, "width": N, "wallIndex": N } ],
   "rooms": [ { "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null } ],
   "stairs": [ { "center": {"x":N,"y":N}, "direction": "up"|"down"|"unknown" } ],
   "scale": { "pixelsPerMeter": NUMBER, "confidence": NUMBER, "source": STRING },
@@ -844,8 +949,14 @@ export default async function handler(req, res) {
     const cleanDiagram = await generateCleanDiagram(resizedOriginal, resizedOriginalMediaType, apiKey);
 
     if (cleanDiagram) {
+      // Collect OCR text bounding boxes in original image space
+      const ocrTextBoxes = ocrDimensions
+        .filter(d => d.bbox && d.bbox.w > 0 && d.bbox.h > 0)
+        .map(d => d.bbox);
+
       // Step 2: Extract wall coordinates from clean image via CV
-      const cvResult = await extractWallsFromCleanImage(cleanDiagram);
+      // Pass OCR bboxes + original image size so CV can scale them to clean diagram space
+      const cvResult = await extractWallsFromCleanImage(cleanDiagram, ocrTextBoxes, actualWidth, actualHeight);
 
       if (cvResult.walls.length >= 4) {
         // Scale CV coordinates from generated image space to resized input space
@@ -873,7 +984,7 @@ export default async function handler(req, res) {
           imageSize: { width: geminiW, height: geminiH },
           walls: cvResult.walls,
           doors: semantics.doors || [],
-          windows: [],
+          windows: semantics.windows || [],
           rooms: semantics.rooms || [],
           stairs: semantics.stairs || [],
           scale: semantics.scale || { pixelsPerMeter: geminiW / 15, confidence: 0.3, source: 'estimated' },
@@ -916,6 +1027,10 @@ export default async function handler(req, res) {
       (result.doors).forEach(door => {
         if (door.center) { door.center.x *= coordScaleX; door.center.y *= coordScaleY; }
         if (door.width) door.width *= Math.max(coordScaleX, coordScaleY);
+      });
+      (result.windows).forEach(win => {
+        if (win.center) { win.center.x *= coordScaleX; win.center.y *= coordScaleY; }
+        if (win.width) win.width *= Math.max(coordScaleX, coordScaleY);
       });
       (result.rooms).forEach(room => {
         if (room.center) { room.center.x *= coordScaleX; room.center.y *= coordScaleY; }
@@ -1222,6 +1337,7 @@ export default async function handler(req, res) {
       walls: result.walls.length,
       avgWallConfidence: avgConfidence,
       doors: result.doors.length,
+      windows: result.windows.length,
       rooms: result.rooms.length,
       stairs: result.stairs?.length || 0,
       shape: result.overallShape,

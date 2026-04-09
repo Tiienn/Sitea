@@ -1,25 +1,28 @@
-# Fix Floor Plan Analysis Failure — Expired Gemini Models
+# Fix Missing Openings + OCR-Prioritized CV Scan + Dashed Line Filtering
 
-## Problem
-Clicking "Analyze" on a floor plan upload results in "Analysis failed".
+## Task 1: Fix Missing Windows (DONE)
+- [x] Add window detection to Step 3 prompt
+- [x] Pass windows through in new pipeline result
+- [x] Add window detection to legacy two-pass prompt
+- [x] Add window coordinate rescaling
 
-## Root Cause
-The API at `api/analyze-floor-plan.js` uses dated preview/experimental Gemini models that Google has deprecated:
-- `gemini-2.0-flash-exp` (line 267) — image generation REST API call
-- `gemini-2.5-pro-preview-05-06` (lines 528, 635, 644) — semantic extraction + two-pass fallback
-- `gemini-2.0-flash` (line 109) — OCR (likely still works but should be consistent)
+## Task 2: OCR-Prioritized CV — Filter text from wall detection (DONE)
+- [x] Add bounding boxes to OCR prompt
+- [x] Pass OCR bboxes to `extractWallsFromCleanImage`
+- [x] Filter wall candidates in CV scan
+- [x] Scale OCR bboxes to clean image space
 
-When Step 1 (image gen) fails, it falls back to legacy two-pass which also uses the expired model — both pipelines fail.
+## Task 3: Dashed Line Filtering — Thin-line suppression (DONE)
+- [x] **1. Replace blur with morphological erosion→dilation in `preprocessImage`** — Erosion (3x3 kernel) removes lines ≤1px thick; dilation restores thick walls. No smearing of dashed lines.
+- [x] **2. Add morphological open to CV scan binarization** — Same erode→dilate before the run-link scan in `extractWallsFromCleanImage`.
+- [x] **3. Raise `MIN_ROWS` from 2 to 4** — Wall bands must now be at least 4 rows thick to be kept, rejecting thin artifacts.
 
-## Fix Plan
-- [x] Add `GEMINI_API_KEY` to Vercel Production environment (was only in Preview)
-- [x] Update `gemini-2.0-flash-exp` → `gemini-2.0-flash` in REST API URL (line 267)
-- [x] Update `gemini-2.5-pro-preview-05-06` → `gemini-2.5-pro-preview-03-25` in SDK calls (lines 528, 635, 644)
-
-## Files to Edit
-- `api/analyze-floor-plan.js` — model name updates only
+## Files Edited
+- `api/analyze-floor-plan.js`
 
 ## Review
-Two issues found:
-1. **Missing env var (primary cause):** `GEMINI_API_KEY` was only set for Preview environment, not Production. All Gemini API calls failed immediately on `sitea.live`.
-2. **Expired model names (secondary):** `gemini-2.0-flash-exp` and `gemini-2.5-pro-preview-05-06` are deprecated preview models. Updated to current stable/preview versions.
+**Task 1** — Windows were never extracted. Added window detection to both Gemini prompts and passed data through.
+
+**Task 2** — OCR now returns bounding boxes. CV scan filters walls that overlap text regions.
+
+**Task 3** — Replaced `blur(2).threshold(180)` with proper morphological opening (`morphErode` → `morphDilate` with 3x3 kernel). Blur smeared dashed lines (stairs, property boundaries) into solid bands that looked like walls. Erosion cleanly removes thin lines without creating false solids — a pixel stays black only if all 3x3 neighbors are black, so 1-2px lines vanish. Dilation then restores thick walls to original size. Applied to both `preprocessImage` (legacy/Roboflow) and `extractWallsFromCleanImage` (new pipeline CV). Also raised `MIN_ROWS` from 2 to 4 as an additional safety net.
