@@ -110,7 +110,8 @@ function deduplicateWalls(walls, threshold) {
  */
 function snapWallEndpoints(walls, imageSize = { width: 1000, height: 1000 }) {
   const baseDimension = Math.min(imageSize.width, imageSize.height);
-  const SNAP_THRESHOLD = Math.max(3, Math.min(15, baseDimension * 0.005));
+  // Tighter snap: only merge endpoints that are very close (was 0.005 * dim, up to 15px)
+  const SNAP_THRESHOLD = Math.max(2, Math.min(8, baseDimension * 0.003));
 
   const allEndpoints = [];
   walls.forEach((wall, wallIndex) => {
@@ -249,7 +250,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
   const cleanWalls = deduplicateWalls(snappedWalls, threshold);
 
   // Convert walls
-  const walls = cleanWalls.map((wall, index) => {
+  const rawWalls = cleanWalls.map((wall, index) => {
     const start = toWorld(wall.start.x, wall.start.y);
     const end = toWorld(wall.end.x, wall.end.y);
 
@@ -263,6 +264,49 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
       openings: [],
     };
   });
+
+  // Filter out segments too short to be real structural walls.
+  // Rule: keep a wall if length >= 0.8m OR both endpoints connect to at least one
+  // other wall (within 0.1m tolerance). This preserves short walls at T/L junctions
+  // while discarding isolated noise like dimension ticks and closet-door stubs.
+  const MIN_WALL_LENGTH_M = 0.8;
+  const CONNECT_TOL_M = 0.1;
+
+  const pointsClose = (a, b) => {
+    const dx = a.x - b.x;
+    const dz = a.z - b.z;
+    return dx * dx + dz * dz <= CONNECT_TOL_M * CONNECT_TOL_M;
+  };
+
+  const wallLength = (w) => {
+    const dx = w.end.x - w.start.x;
+    const dz = w.end.z - w.start.z;
+    return Math.sqrt(dx * dx + dz * dz);
+  };
+
+  const walls = rawWalls.filter((w, i) => {
+    if (wallLength(w) >= MIN_WALL_LENGTH_M) return true;
+
+    // Check if BOTH endpoints connect to at least one other wall
+    let startConnected = false;
+    let endConnected = false;
+    for (let j = 0; j < rawWalls.length; j++) {
+      if (j === i) continue;
+      const other = rawWalls[j];
+      if (!startConnected && (pointsClose(w.start, other.start) || pointsClose(w.start, other.end))) {
+        startConnected = true;
+      }
+      if (!endConnected && (pointsClose(w.end, other.start) || pointsClose(w.end, other.end))) {
+        endConnected = true;
+      }
+      if (startConnected && endConnected) return true;
+    }
+    return false;
+  });
+
+  if (walls.length !== rawWalls.length) {
+    console.log(`[FloorPlan] Walls: filtered ${rawWalls.length - walls.length} short segments (< ${MIN_WALL_LENGTH_M}m, not connected at both ends)`);
+  }
 
   // Helper: Find nearest wall
   const findNearestWall = (point) => {

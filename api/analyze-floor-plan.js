@@ -300,9 +300,9 @@ The user has manually marked the following rooms on the floor plan.
 Positions are given as percentages of image width/height (0% = left/top, 100% = right/bottom).
 Convert to pixels using the image dimensions you detect.
 Use these as STRONG hints:
-- There MUST be walls separating adjacent rooms
-- Each room MUST be enclosed by walls on all sides
-- If two marked rooms are next to each other, there MUST be a wall between them
+- Walls should generally separate adjacent rooms, EXCEPT when two rooms share one open-plan space (e.g. open kitchen + dining, or living + dining). In open-plan layouts, two marked rooms may exist inside the same large enclosed area with NO dividing wall between them.
+- Only draw a dividing wall between two marked rooms if the original floor plan clearly shows one. Do NOT invent walls to force enclosure.
+- The outer boundary of an open-plan area must still be fully enclosed by walls.
 - EXCEPTION: Outdoor spaces (Terrace, Balcony) do NOT need walls drawn around them. They are open-air areas outside the building. Do NOT create walls to enclose terraces or balconies — only detect the building walls that border them.
 - STAIRS: If a room is marked as "Stairs", output it in the "stairs" array (not "rooms"). Stairs appear as parallel diagonal lines in floor plans. Never classify stairs as a room.\n\n`;
 
@@ -334,17 +334,35 @@ async function generateCleanDiagram(base64Image, mediaType, apiKey) {
             { inlineData: { mimeType: mediaType, data: base64Image } },
             { text: `Look at this architectural floor plan. Generate a NEW clean image that shows ONLY the structural walls.
 
-Rules for the generated image:
-- WHITE background
-- BLACK thick lines for ALL walls (exterior and interior partition walls)
+The generated image MUST be a pure black-and-white line drawing — no color, no gray, no text, no annotations of any kind.
+
+STRICT RULES for the generated image:
+- WHITE background (pure #FFFFFF)
+- BLACK thick lines (pure #000000) for ALL walls (exterior and interior partition walls)
 - Exterior walls should be THICKER than interior walls
 - Follow the EXACT same layout, proportions, and positions as the original
-- Do NOT include: furniture, appliances, fixtures, dimension labels, text, room names, door arcs, window symbols, hatching, or any annotations
-- Do NOT include: dimension lines, arrows, measurement text
+
+AGGRESSIVELY REMOVE everything that is NOT a structural wall. The following MUST be completely absent from the output:
+- ALL colored lines of any color (orange, red, green, blue, yellow, gray, etc.) — these are typically dimension lines, setback markers, property boundaries, or annotations and are NEVER walls
+- ALL dimension lines, measurement lines, and the arrows/tick marks at their ends
+- ALL text and numbers (dimension labels like "3500", "4.2m", room names like "Kitchen", area labels like "127sqm", "AREA", "1.0m setback", etc.)
+- ALL dashed, dotted, or double-dashed lines (property boundaries, setback lines, fold lines, invisible walls)
+- ALL furniture, appliances, fixtures (beds, sofas, tables, toilets, sinks, stoves, etc.)
+- ALL door arcs (quarter circles), window symbols, hatching, stair step lines
+- ALL title blocks, legends, scale bars, compass/north arrows
+- ALL page borders, frames, or decorative elements
+
+If a line in the original is anything other than solid black/dark gray AND clearly represents a structural wall, OMIT it from the output.
+
+WALL THICKNESS TEST: Only draw walls that are VISIBLY THICKER than the dimension/annotation lines in the original. Structural walls are drawn as heavy double-lines or thick filled bands — typically 3-10x thicker than dimension lines, property boundaries, or furniture outlines. Thin lines of any kind — even if they form rectangles or appear to enclose a space — are NEVER walls and must be omitted. If in doubt about whether a line is a wall or an annotation, leave it out.
+
+LAYOUT RULES:
 - Make walls as STRAIGHT horizontal or vertical lines (no wobble)
-- Every room must be fully enclosed by walls EXCEPT: stairwells and open-plan areas (e.g. open kitchen/living) which may have gaps where there is no wall
-- Do NOT invent walls where the original floor plan has none — if two spaces are open to each other, leave the gap
-- The output should look like a simple black line drawing of just the wall structure` }
+- The outer boundary of the building must be fully enclosed by walls
+- Do NOT invent walls where the original floor plan has none — if two rooms share one open-plan space (e.g. open kitchen + dining, living + dining), leave the gap between them and do not draw a dividing wall
+- Stairwells and open-plan areas may have gaps where there is no wall
+
+The output must look like the simplest possible black-and-white architectural wall-only schematic — nothing else.` }
           ]
         }],
         generationConfig: {
@@ -713,7 +731,7 @@ CRITICAL RULES:
 3. For EVERY wall, follow the actual drawn line — do not infer or estimate
 4. Confidence (0.0–1.0) for each wall: 1.0 = clearly structural, 0.4 = uncertain minimum
 5. FIND ALL WALLS — typical houses have 15–40 wall segments. If fewer than 12, look harder.
-6. Every room MUST be enclosed by walls. Adjacent rooms MUST have a wall between them.
+6. The building outer boundary MUST be enclosed by walls. Adjacent rooms usually have a wall between them, EXCEPT open-plan layouts where two rooms (e.g. kitchen + dining, living + dining) share one large enclosed space with no dividing wall — only draw a wall if the original plan clearly shows one.
 7. STAIRS are NOT rooms — output in "stairs" array only.
 8. OUTDOOR SPACES (terraces, balconies) are NOT enclosed by walls.
 9. ROOM-COUNT CROSS-CHECK: For N rooms, need at least N-1 interior walls.
@@ -821,7 +839,7 @@ Now find ALL INTERIOR elements:
 ${dimensionHints}${formatRoomHints(roomHints)}
 IMPORTANT: The exterior walls are already detected. Copy them EXACTLY into your output with isExterior: true — do not move, adjust, or re-detect them. Your job is ONLY interior elements.
 When interior walls meet exterior walls, their endpoints must SNAP to the nearest exterior wall coordinate.
-Every room must be bounded by walls. If two rooms are adjacent, there MUST be a wall between them.
+The building outer boundary must be enclosed by walls. Adjacent rooms usually have a wall between them, EXCEPT open-plan layouts (e.g. open kitchen + dining, living + dining) where two rooms share one large enclosed space with no dividing wall — only draw a wall if the original plan clearly shows one.
 The image is ${geminiW}x${geminiH} pixels. All coordinates in PIXELS.
 
 Return JSON:
