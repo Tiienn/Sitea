@@ -338,8 +338,10 @@ The generated image MUST be a pure black-and-white line drawing — no color, no
 
 STRICT RULES for the generated image:
 - WHITE background (pure #FFFFFF)
-- BLACK thick lines (pure #000000) for ALL walls (exterior and interior partition walls)
-- Exterior walls should be THICKER than interior walls
+- BLACK THICK lines (pure #000000) for ALL walls (exterior and interior partition walls)
+- CRITICAL: Walls must be drawn as CONSISTENTLY THICK solid bands — at least 6-10 pixels thick for interior walls, 10-16 pixels for exterior walls. DO NOT draw walls as thin single-pixel lines. Thin walls will be mistaken for noise and discarded by downstream processing.
+- All interior walls should have a similar, consistent thickness to each other
+- All exterior walls should have a similar, consistent thickness to each other (noticeably thicker than interior)
 - Follow the EXACT same layout, proportions, and positions as the original
 
 AGGRESSIVELY REMOVE everything that is NOT a structural wall. The following MUST be completely absent from the output:
@@ -578,6 +580,28 @@ async function extractWallsFromCleanImage(cleanImageBase64, textBoxes = [], srcW
 
   let allWalls = [...hWalls, ...vWalls];
 
+  // ─── Thickness filter: reject thin annotation lines ──────────────────────────
+  // Hybrid: absolute minimum + median-relative adaptive threshold.
+  // Real structural walls are consistently thicker than stair/dimension/furniture lines,
+  // so anything significantly thinner than median is noise.
+  if (allWalls.length >= 8) {
+    const thicknesses = allWalls.map(w => w.thickness).sort((a, b) => a - b);
+    const median = thicknesses[Math.floor(thicknesses.length / 2)];
+    const MIN_THICKNESS = Math.max(3, median * 0.4);
+    const before = allWalls.length;
+    allWalls = allWalls.filter(w => w.thickness >= MIN_THICKNESS);
+    if (before !== allWalls.length) {
+      console.log(`[FloorPlan] Thickness filter: median=${median}px, threshold=${MIN_THICKNESS.toFixed(1)}px, dropped ${before - allWalls.length}/${before} walls`);
+    }
+  } else {
+    // Too few walls for a reliable median — just apply the absolute floor
+    const before = allWalls.length;
+    allWalls = allWalls.filter(w => w.thickness >= 3);
+    if (before !== allWalls.length) {
+      console.log(`[FloorPlan] Thickness filter (absolute only): dropped ${before - allWalls.length}/${before} walls with thickness < 3px`);
+    }
+  }
+
   // ─── Filter walls that overlap OCR text bounding boxes ───────────────────────
   if (textBoxes.length > 0 && srcWidth > 0 && srcHeight > 0) {
     // Scale bounding boxes from original image space to clean diagram space
@@ -661,18 +685,30 @@ async function extractSemanticsFromOriginal(genai, base64Image, mediaType, walls
     `This floor plan image is ${geminiW}x${geminiH} pixels. Walls have already been extracted by computer vision:
 ${wallSummary}
 
-Your job: extract ONLY semantic information — doors, windows, rooms, stairs, and scale. Do NOT extract walls.
+Your job: extract semantic information (doors, windows, rooms, stairs, scale) AND audit the wall list.
+
+WALL AUDIT (rejectWallIndices):
+The CV scan above sometimes mistakes dimension lines, property boundaries, or annotation lines for walls. Look at each wall in the list and compare it to the original image. Return an array of wall indices that should be REJECTED (removed from the final output).
+
+A wall MUST be rejected if:
+- It sits on top of a dimension line (vertical or horizontal line with arrows/ticks and a numeric label like "5500", "3600", etc.)
+- It is drawn with a colored (orange, red, green, blue) line in the original — these are always annotations, never structural walls
+- It passes through the middle of a single clearly-marked room (e.g. a vertical line splitting a "Living Room" down the middle — that line is a dimension, not a wall)
+- It sits inside an open-plan area and has no corresponding thick black line in the original
+- It is a setback line, property boundary, or garden/terrace edge rather than a building wall
+
+When in doubt, KEEP the wall (do not reject). Only reject walls that you are confident are non-structural.
 
 For DOORS:
 - Find door symbols (quarter-circle arcs, double arcs, sliding markers)
 - Report their center position as pixel coordinates ON the nearest wall from the list above
-- wallIndex = the wall number from the list above that the door is ON
+- wallIndex = the wall number from the list above that the door is ON (use the ORIGINAL index, before rejection)
 
 For WINDOWS:
 - Find window symbols (parallel lines on walls, glass markers, large glazing panels, thin double-line segments on exterior walls)
 - Large sliding glass doors that act as windows (floor-to-ceiling glazing) should be reported as windows, not doors
 - Report their center position as pixel coordinates ON the nearest wall
-- wallIndex = the wall number from the list above that the window is ON
+- wallIndex = the wall number from the list above that the window is ON (use the ORIGINAL index)
 - width = the window width in pixels
 
 For ROOMS:
@@ -691,6 +727,7 @@ ${formatRoomHints(roomHints)}
 
 Return JSON:
 {
+  "rejectWallIndices": [N, N, ...],
   "doors": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": 0, "doorType": "single"|"double"|"sliding" }],
   "windows": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N }],
   "rooms": [{ "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null }],
@@ -710,7 +747,7 @@ Return JSON:
     result = match ? JSON.parse(match[0]) : {};
   }
 
-  console.log(`[FloorPlan] Step 3 complete: ${result.doors?.length || 0} doors, ${result.windows?.length || 0} windows, ${result.rooms?.length || 0} rooms`);
+  console.log(`[FloorPlan] Step 3 complete: ${result.doors?.length || 0} doors, ${result.windows?.length || 0} windows, ${result.rooms?.length || 0} rooms, ${result.rejectWallIndices?.length || 0} walls flagged for rejection`);
   return result;
 }
 
@@ -990,19 +1027,45 @@ export default async function handler(req, res) {
           console.log(`[FloorPlan] Scaled CV coords: ${cvResult.imageWidth}x${cvResult.imageHeight} → ${geminiW}x${geminiH}`);
         }
 
-        // Step 3: Extract semantic info from original image
+        // Step 3: Extract semantic info from original image + audit walls
         const semantics = await extractSemanticsFromOriginal(
           genai, resizedOriginal, resizedOriginalMediaType,
           cvResult.walls, knownWidthMeters, dimensionHints, roomHints, geminiW, geminiH
         );
 
+        // Apply Gemini's wall audit: reject flagged walls and remap door/window wallIndex refs
+        let auditedWalls = cvResult.walls;
+        let auditedDoors = semantics.doors || [];
+        let auditedWindows = semantics.windows || [];
+        const rejectSet = new Set(
+          Array.isArray(semantics.rejectWallIndices) ? semantics.rejectWallIndices : []
+        );
+        if (rejectSet.size > 0 && rejectSet.size < cvResult.walls.length) {
+          const indexMap = new Map();
+          auditedWalls = [];
+          cvResult.walls.forEach((w, oldIdx) => {
+            if (!rejectSet.has(oldIdx)) {
+              indexMap.set(oldIdx, auditedWalls.length);
+              auditedWalls.push(w);
+            }
+          });
+          // Drop doors/windows referencing rejected walls, remap the rest
+          auditedDoors = auditedDoors
+            .filter(d => d.wallIndex == null || indexMap.has(d.wallIndex))
+            .map(d => d.wallIndex != null ? { ...d, wallIndex: indexMap.get(d.wallIndex) } : d);
+          auditedWindows = auditedWindows
+            .filter(w => w.wallIndex == null || indexMap.has(w.wallIndex))
+            .map(w => w.wallIndex != null ? { ...w, wallIndex: indexMap.get(w.wallIndex) } : w);
+          console.log(`[FloorPlan] Wall audit: rejected ${rejectSet.size} walls (${cvResult.walls.length} → ${auditedWalls.length})`);
+        }
+
         // Combine CV walls + semantic info
         result = {
           success: true,
           imageSize: { width: geminiW, height: geminiH },
-          walls: cvResult.walls,
-          doors: semantics.doors || [],
-          windows: semantics.windows || [],
+          walls: auditedWalls,
+          doors: auditedDoors,
+          windows: auditedWindows,
           rooms: semantics.rooms || [],
           stairs: semantics.stairs || [],
           scale: semantics.scale || { pixelsPerMeter: geminiW / 15, confidence: 0.3, source: 'estimated' },
