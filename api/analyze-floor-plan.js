@@ -696,20 +696,28 @@ A wall MUST be rejected if:
 - It passes through the middle of a single clearly-marked room (e.g. a vertical line splitting a "Living Room" down the middle — that line is a dimension, not a wall)
 - It sits inside an open-plan area and has no corresponding thick black line in the original
 - It is a setback line, property boundary, or garden/terrace edge rather than a building wall
+- It forms a small "phantom room" box around a staircase where the original plan shows the stairs as open (stairs are usually open on at least one side; look for walls that enclose the stair footprint that do NOT exist in the original drawing)
 
 When in doubt, KEEP the wall (do not reject). Only reject walls that you are confident are non-structural.
 
-For DOORS:
-- Find door symbols (quarter-circle arcs, double arcs, sliding markers)
-- Report their center position as pixel coordinates ON the nearest wall from the list above
-- wallIndex = the wall number from the list above that the door is ON (use the ORIGINAL index, before rejection)
+For DOORS — CRITICAL, every enclosed room MUST have at least one door:
+- Find ALL door symbols: quarter-circle arcs (hinged doors), double arcs (double doors), straight line with parallel marks (sliding doors), rectangular opening with small arc (pocket doors)
+- Look carefully at EVERY enclosed room — bedrooms, bathrooms, toilets, closets, utility rooms ALL need a door. Small interior doors are easy to miss; scan each room perimeter.
+- If you can identify a room but cannot see its door symbol, infer the door at the most likely position (usually the wall closest to a hallway or main living area) and report it with doorType "single"
+- Report position using BOTH formats below:
+  - center: {x, y} pixel coordinates of the door center
+  - wallIndex: the wall number from the list above that the door is ON (use the ORIGINAL index)
+  - positionAlongWall: distance in PIXELS from the wall's start point (wall.start) along the wall direction to the door center. This is more robust than absolute pixel coordinates.
+- width: door width in pixels (typical: 60-120 px for a standard 0.8-0.9m door)
 
 For WINDOWS:
-- Find window symbols (parallel lines on walls, glass markers, large glazing panels, thin double-line segments on exterior walls)
+- Find window symbols: parallel lines on walls, glass markers, large glazing panels, thin double-line segments on exterior walls
 - Large sliding glass doors that act as windows (floor-to-ceiling glazing) should be reported as windows, not doors
-- Report their center position as pixel coordinates ON the nearest wall
-- wallIndex = the wall number from the list above that the window is ON (use the ORIGINAL index)
-- width = the window width in pixels
+- Report position using BOTH formats:
+  - center: {x, y} pixel coordinates
+  - wallIndex: the ORIGINAL wall index
+  - positionAlongWall: distance in pixels from wall.start to window center
+- width: window width in pixels
 
 For ROOMS:
 - Name each room (Living Room, Bedroom, Kitchen, etc.)
@@ -717,8 +725,9 @@ For ROOMS:
 - Include labeledArea in m² if printed in the image
 
 For STAIRS:
-- Find stair symbols (parallel diagonal lines)
+- Find stair symbols (parallel diagonal lines, usually with an "UP" or "DN" label)
 - Report center position
+- Stairs should NOT be enclosed on all sides — they typically open into a hallway or living space
 
 For SCALE:
 ${scaleHint}
@@ -728,8 +737,8 @@ ${formatRoomHints(roomHints)}
 Return JSON:
 {
   "rejectWallIndices": [N, N, ...],
-  "doors": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "rotation": 0, "doorType": "single"|"double"|"sliding" }],
-  "windows": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N }],
+  "doors": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "positionAlongWall": N, "rotation": 0, "doorType": "single"|"double"|"sliding" }],
+  "windows": [{ "center": {"x":N,"y":N}, "width": N, "wallIndex": N, "positionAlongWall": N }],
   "rooms": [{ "name": STRING, "center": {"x":N,"y":N}, "labeledArea": NUMBER|null }],
   "stairs": [{ "center": {"x":N,"y":N}, "direction": "up"|"down"|"unknown" }],
   "scale": { "pixelsPerMeter": NUMBER, "confidence": NUMBER, "source": STRING },
@@ -1105,13 +1114,16 @@ export default async function handler(req, res) {
         if (wall.end) { wall.end.x *= coordScaleX; wall.end.y *= coordScaleY; }
         if (wall.thickness) wall.thickness *= Math.max(coordScaleX, coordScaleY);
       });
+      const avgScale = (coordScaleX + coordScaleY) / 2;
       (result.doors).forEach(door => {
         if (door.center) { door.center.x *= coordScaleX; door.center.y *= coordScaleY; }
         if (door.width) door.width *= Math.max(coordScaleX, coordScaleY);
+        if (typeof door.positionAlongWall === 'number') door.positionAlongWall *= avgScale;
       });
       (result.windows).forEach(win => {
         if (win.center) { win.center.x *= coordScaleX; win.center.y *= coordScaleY; }
         if (win.width) win.width *= Math.max(coordScaleX, coordScaleY);
+        if (typeof win.positionAlongWall === 'number') win.positionAlongWall *= avgScale;
       });
       (result.rooms).forEach(room => {
         if (room.center) { room.center.x *= coordScaleX; room.center.y *= coordScaleY; }

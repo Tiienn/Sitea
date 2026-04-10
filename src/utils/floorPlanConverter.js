@@ -340,15 +340,18 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     return Math.max(0, Math.min(wallLength, t * wallLength));
   };
 
-  // Attach doors
+  // Attach doors — prefer Gemini's positionAlongWall (pixels) when provided,
+  // fall back to snap-to-nearest-wall by center coordinate
   (aiData.doors || []).forEach((door, index) => {
     const doorCenter = toWorld(door.center.x, door.center.y);
     const { wall } = findNearestWall(doorCenter);
 
     if (wall) {
-      const position = getPositionAlongWall(wall, doorCenter);
-      const width = (door.width || 90) * scale;
       const wallLen = getWallLength(wall);
+      const position = typeof door.positionAlongWall === 'number'
+        ? door.positionAlongWall * scale
+        : getPositionAlongWall(wall, doorCenter);
+      const width = (door.width || 90) * scale;
 
       wall.openings.push({
         id: `door-generated-${Date.now()}-${index}`,
@@ -367,9 +370,11 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     const { wall } = findNearestWall(windowCenter);
 
     if (wall) {
-      const position = getPositionAlongWall(wall, windowCenter);
-      const width = (window.width || 100) * scale;
       const wallLen = getWallLength(wall);
+      const position = typeof window.positionAlongWall === 'number'
+        ? window.positionAlongWall * scale
+        : getPositionAlongWall(wall, windowCenter);
+      const width = (window.width || 100) * scale;
 
       wall.openings.push({
         id: `window-generated-${Date.now()}-${index}`,
