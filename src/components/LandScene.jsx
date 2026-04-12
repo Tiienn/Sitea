@@ -3561,11 +3561,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
               isSelected={selectedBuildingId === building.id}
             />
           ))}
-          <BuildingInterior
-            walls={building.walls}
-            rooms={building.rooms}
-            stairs={building.stairs}
-          />
+          <BuildingInterior walls={building.walls} />
           {/* Building selection outline */}
           {selectedBuildingId === building.id && (
             <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
