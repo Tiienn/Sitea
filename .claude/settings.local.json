@@ -152,7 +152,11 @@
       "Bash(git -C /Users/tien/projects/sitea add api/analyze-floor-plan.js)",
       "Bash(git -C:*)",
       "Bash(git -C /Users/tien/projects/sitea push)",
-      "WebFetch(domain:ai.google.dev)"
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(sed -i '' '125,169d' /Users/tien/projects/sitea/src/components/FloorPlanPreview3D.jsx)",
+      "Bash(sed -n '120,130p' /Users/tien/projects/sitea/src/components/FloorPlanPreview3D.jsx)",
+      "Bash(sed -i '' '120,317d' /Users/tien/projects/sitea/src/components/FloorPlanPreview3D.jsx)",
+      "Bash(sed -n '118,125p' /Users/tien/projects/sitea/src/components/FloorPlanPreview3D.jsx)"
     ],
     "deny": [],
     "ask": []
