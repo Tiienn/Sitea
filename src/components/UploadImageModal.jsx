@@ -1,12 +1,13 @@
 import { useState, useRef } from 'react'
 import { analyzeImage } from '../services/imageAnalysis'
 import { useUser } from '../hooks/useUser.jsx'
+import { fileToImageData, renderPdfPageToImage } from '../utils/pdfToImage'
 
 // Confidence threshold for auto-routing (70%)
 const AUTO_ROUTE_THRESHOLD = 0.7
 
 export default function UploadImageModal({ onClose, onUploadForLand, onUploadForFloorPlan }) {
-  const { isPaidUser, planType, canUseUpload, markUploadUsed, hasUsedUpload, uploadCount, uploadsRemaining, setShowPricingModal } = useUser()
+  const { isPaidUser, planType, markUploadUsed, hasUsedUpload, uploadCount, uploadsRemaining, setShowPricingModal } = useUser()
   const [isDragging, setIsDragging] = useState(false)
   const [preview, setPreview] = useState(null)
   const [step, setStep] = useState('promise') // 'promise' | 'upload' | 'preview' | 'analyzing' | 'confirm' | 'scale'
@@ -15,6 +16,10 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
   const [pendingFloorPlan, setPendingFloorPlan] = useState(null) // imageData waiting for scale input
   const [scaleValue, setScaleValue] = useState('')
   const [scaleUnit, setScaleUnit] = useState('meters')
+  const [pdfFile, setPdfFile] = useState(null)
+  const [pdfPageNumber, setPdfPageNumber] = useState(1)
+  const [pdfPageCount, setPdfPageCount] = useState(1)
+  const [isRenderingPdf, setIsRenderingPdf] = useState(false)
   const fileInputRef = useRef(null)
 
   // Route to the appropriate mode
@@ -53,20 +58,48 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
   const handleFile = async (f) => {
     if (!f) return
 
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(f.type)) {
-      alert('Please upload a PNG or JPG file')
+      alert('Please upload a PNG, JPG, or PDF file')
       return
     }
 
     setError(null)
+    setIsRenderingPdf(f.type === 'application/pdf')
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setPreview(e.target.result)
+    try {
+      const result = await fileToImageData(f, { pageNumber: 1 })
+      setPreview(result.imageData)
+      setPdfFile(result.isPdf ? f : null)
+      setPdfPageNumber(result.pageNumber)
+      setPdfPageCount(result.pageCount)
       setStep('preview')
+    } catch (err) {
+      console.error('PDF render failed:', err)
+      setError('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
+      setStep('upload')
+    } finally {
+      setIsRenderingPdf(false)
     }
-    reader.readAsDataURL(f)
+  }
+
+  const renderPdfPage = async (pageNumber) => {
+    if (!pdfFile || pageNumber < 1 || pageNumber > pdfPageCount) return
+
+    setIsRenderingPdf(true)
+    setError(null)
+
+    try {
+      const result = await renderPdfPageToImage(pdfFile, { pageNumber })
+      setPreview(result.imageData)
+      setPdfPageNumber(result.pageNumber)
+      setPdfPageCount(result.pageCount)
+    } catch (err) {
+      console.error('PDF page render failed:', err)
+      setError('Could not render that PDF page. Please try another page or file.')
+    } finally {
+      setIsRenderingPdf(false)
+    }
   }
 
   // Called when user clicks "Generate 3D Walkthrough" from preview step
@@ -110,6 +143,10 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
     setPendingFloorPlan(null)
     setScaleValue('')
     setScaleUnit('meters')
+    setPdfFile(null)
+    setPdfPageNumber(1)
+    setPdfPageCount(1)
+    setIsRenderingPdf(false)
   }
 
   const handleClose = () => {
@@ -146,7 +183,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                 Turn your floor plan into a 3D walkthrough
               </h1>
               <p className="text-[var(--color-text-muted)] text-sm mb-6">
-                Upload a photo or screenshot. We'll detect walls, doors, and windows automatically.
+                Upload a scanned PDF, photo, or screenshot. We'll detect walls, doors, and windows automatically.
               </p>
 
               {/* 2D → 3D visual */}
@@ -187,7 +224,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                   <p className="mt-2 text-xs">
                     {hasUsedUpload ? (
                       <span className="text-teal-400">
-                        Want to upload more? <span className="px-1.5 py-0.5 bg-teal-500 text-white font-bold rounded ml-0.5">Pro — $29</span>
+                        Want to upload more? <span className="px-1.5 py-0.5 bg-teal-500 text-white font-bold rounded ml-0.5">Pro - $20</span>
                       </span>
                     ) : (
                       <span className="text-green-400">Your first upload is free</span>
@@ -218,7 +255,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/jpg"
+                  accept="image/png,image/jpeg,image/jpg,application/pdf,.pdf"
                   onChange={(e) => handleFile(e.target.files?.[0])}
                   className="hidden"
                 />
@@ -242,7 +279,9 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                   <p className="text-white font-medium mb-1">
                     {isDragging ? 'Drop your file here' : 'Click to upload or drag and drop'}
                   </p>
-                  <p className="text-[var(--color-text-muted)] text-sm">PNG or JPG</p>
+                  <p className="text-[var(--color-text-muted)] text-sm">
+                    {isRenderingPdf ? 'Rendering PDF...' : 'PDF, PNG, or JPG'}
+                  </p>
                 </div>
               </div>
 
@@ -260,6 +299,10 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]"></div>
                   <span>JPG</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]"></div>
+                  <span>PDF</span>
                 </div>
               </div>
 
@@ -287,6 +330,38 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
               <div className="rounded-xl overflow-hidden mb-4 border border-white/10">
                 <img src={preview} alt="Your floor plan" className="w-full" />
               </div>
+
+              {pdfFile && pdfPageCount > 1 && (
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-white/5 border border-white/10 mb-4" style={{ padding: '10px 12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => renderPdfPage(pdfPageNumber - 1)}
+                    disabled={pdfPageNumber <= 1 || isRenderingPdf}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-white hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-[var(--color-text-secondary)] text-center">
+                    {isRenderingPdf ? 'Rendering...' : `Page ${pdfPageNumber} of ${pdfPageCount}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => renderPdfPage(pdfPageNumber + 1)}
+                    disabled={pdfPageNumber >= pdfPageCount || isRenderingPdf}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-white hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+
+              {pdfFile && pdfPageCount === 1 && (
+                <p className="text-xs text-[var(--color-text-muted)] text-center mb-4">PDF page rendered for analysis</p>
+              )}
+
+              {error && (
+                <p className="text-red-400 text-sm text-center mb-4">{error}</p>
+              )}
 
               {/* Gate check */}
               {uploadsRemaining <= 0 ? (

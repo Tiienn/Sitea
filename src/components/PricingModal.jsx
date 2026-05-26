@@ -16,13 +16,13 @@ const paypalOptions = {
  *
  * Pricing:
  * - Monthly Pro: $9.99/month subscription (3 uploads)
- * - Homeowner: $29 one-time payment (10 uploads, MOST POPULAR)
+ * - Homeowner: $20 one-time payment (20 uploads, MOST POPULAR)
  * - Lifetime: $149 one-time payment (unlimited uploads)
  */
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export default function PricingModal({ onClose, onSuccess }) {
-  const { user, setShowAuthModal } = useUser()
+  const { user, setShowAuthModal, refreshSubscription } = useUser()
   const [selectedPlan, setSelectedPlan] = useState('homeowner')
   const [email, setEmail] = useState(user?.email || '')
   const [error, setError] = useState(null)
@@ -38,12 +38,13 @@ export default function PricingModal({ onClose, onSuccess }) {
   }, [onClose])
 
   const MONTHLY_PRICE = '9.99'
-  const HOMEOWNER_PRICE = '29.00'
+  const HOMEOWNER_PRICE = '20'
   const LIFETIME_PRICE = '149.00'
 
   // Validate email before payment
   const validateEmail = () => {
-    if (!email || !isValidEmail(email)) {
+    const paymentEmail = user?.email || email
+    if (!paymentEmail || !isValidEmail(paymentEmail)) {
       setError('Please enter a valid email address')
       return false
     }
@@ -51,66 +52,60 @@ export default function PricingModal({ onClose, onSuccess }) {
     return true
   }
 
-  // Save subscription to Supabase
-  const saveSubscription = async (paypalData, planType) => {
+  const getAccessToken = async () => {
     if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, saving to localStorage only')
-      localStorage.setItem('landVisualizerPaidUser', 'true')
-      localStorage.setItem('landVisualizerEmail', email)
-      localStorage.setItem('landVisualizerPlanType', planType)
-      return true
+      throw new Error('Payments require account sign in')
     }
 
-    try {
-      const { error: dbError } = await supabase
-        .from('subscriptions')
-        .upsert({
-          email: email.toLowerCase(),
-          paypal_subscription_id: paypalData.subscriptionID || null,
-          paypal_payer_id: paypalData.payerID,
-          status: 'active',
-          plan_type: planType,
-          expires_at: (planType === 'lifetime' || planType === 'homeowner') ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        }, { onConflict: 'email' })
-
-      if (dbError) {
-        console.error('Database error:', dbError)
-        localStorage.setItem('landVisualizerPaidUser', 'true')
-        localStorage.setItem('landVisualizerEmail', email)
-      }
-
-      localStorage.setItem('landVisualizerPaidUser', 'true')
-      localStorage.setItem('landVisualizerEmail', email)
-      localStorage.setItem('landVisualizerPlanType', planType)
-      return true
-    } catch (err) {
-      console.error('Error saving subscription:', err)
-      localStorage.setItem('landVisualizerPaidUser', 'true')
-      return true
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      throw new Error('Please sign in before upgrading')
     }
+
+    return session.access_token
+  }
+
+  const paymentRequest = async (path, body) => {
+    const token = await getAccessToken()
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || data.error) {
+      throw new Error(data.error || 'Payment verification failed')
+    }
+
+    return data
+  }
+
+  const ensureSignedIn = () => {
+    if (user) return true
+    setError('Please sign in before upgrading')
+    setShowAuthModal(true)
+    return false
   }
 
   // PayPal order creation for homeowner one-time payment
-  const createHomeownerOrder = (data, actions) => {
+  const createHomeownerOrder = async () => {
     if (!validateEmail()) return Promise.reject('Invalid email')
+    if (!ensureSignedIn()) return Promise.reject('Please sign in before upgrading')
 
-    return actions.order.create({
-      purchase_units: [{
-        amount: {
-          value: HOMEOWNER_PRICE,
-          currency_code: 'USD'
-        },
-        description: 'Sitea Pro - Homeowner Access'
-      }]
-    })
+    const data = await paymentRequest('/api/paypal-create-order', { planType: 'homeowner' })
+    return data.orderID
   }
 
   // PayPal order approval for homeowner
-  const onHomeownerApprove = async (data, actions) => {
+  const onHomeownerApprove = async (data) => {
     setIsProcessing(true)
     try {
-      const details = await actions.order.capture()
-      await saveSubscription({ payerID: details.payer.payer_id }, 'homeowner')
+      await paymentRequest('/api/paypal-capture-order', { orderID: data.orderID, planType: 'homeowner' })
+      await refreshSubscription?.()
       onSuccess?.('homeowner')
     } catch (err) {
       setError('Payment failed. Please try again.')
@@ -120,26 +115,20 @@ export default function PricingModal({ onClose, onSuccess }) {
   }
 
   // PayPal order creation for lifetime one-time payment
-  const createLifetimeOrder = (data, actions) => {
+  const createLifetimeOrder = async () => {
     if (!validateEmail()) return Promise.reject('Invalid email')
+    if (!ensureSignedIn()) return Promise.reject('Please sign in before upgrading')
 
-    return actions.order.create({
-      purchase_units: [{
-        amount: {
-          value: LIFETIME_PRICE,
-          currency_code: 'USD'
-        },
-        description: 'Sitea Pro - Lifetime Access'
-      }]
-    })
+    const data = await paymentRequest('/api/paypal-create-order', { planType: 'lifetime' })
+    return data.orderID
   }
 
   // PayPal order approval for lifetime
-  const onLifetimeApprove = async (data, actions) => {
+  const onLifetimeApprove = async (data) => {
     setIsProcessing(true)
     try {
-      const details = await actions.order.capture()
-      await saveSubscription({ payerID: details.payer.payer_id }, 'lifetime')
+      await paymentRequest('/api/paypal-capture-order', { orderID: data.orderID, planType: 'lifetime' })
+      await refreshSubscription?.()
       onSuccess?.('lifetime')
     } catch (err) {
       setError('Payment failed. Please try again.')
@@ -151,6 +140,7 @@ export default function PricingModal({ onClose, onSuccess }) {
   // PayPal subscription creation for monthly
   const createMonthlySubscription = (data, actions) => {
     if (!validateEmail()) return Promise.reject('Invalid email')
+    if (!ensureSignedIn()) return Promise.reject('Please sign in before upgrading')
 
     return actions.subscription.create({
       plan_id: import.meta.env.VITE_PAYPAL_MONTHLY_PLAN_ID || 'YOUR_PLAN_ID'
@@ -161,10 +151,8 @@ export default function PricingModal({ onClose, onSuccess }) {
   const onMonthlyApprove = async (data) => {
     setIsProcessing(true)
     try {
-      await saveSubscription({
-        subscriptionID: data.subscriptionID,
-        payerID: data.payerID
-      }, 'monthly')
+      await paymentRequest('/api/paypal-verify-subscription', { subscriptionID: data.subscriptionID })
+      await refreshSubscription?.()
       onSuccess?.('monthly')
     } catch (err) {
       setError('Subscription failed. Please try again.')
@@ -175,7 +163,7 @@ export default function PricingModal({ onClose, onSuccess }) {
 
   const features = {
     homeowner: [
-      { icon: 'home', text: '10 floor plan uploads' },
+      { icon: 'home', text: '20 floor plan uploads' },
       { icon: 'sparkles', text: 'AI detects walls, doors & windows automatically' },
       { icon: 'share', text: 'Share your walkthrough with family' },
       { icon: 'download', text: 'Export images & 3D models' },
@@ -192,7 +180,7 @@ export default function PricingModal({ onClose, onSuccess }) {
     ]
   }
 
-  const FeatureIcon = ({ type }) => {
+  const renderFeatureIcon = (type) => {
     const icons = {
       home: (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -249,7 +237,7 @@ export default function PricingModal({ onClose, onSuccess }) {
   }
 
   // Shared card renderer
-  const PlanCard = ({ plan, price, priceSuffix, title, badge, badgeColor, accentColor, isHighlighted, featureList, inheritNote, paypalContent }) => {
+  const renderPlanCard = ({ plan, price, priceSuffix, title, badge, badgeColor, accentColor, isHighlighted, featureList, inheritNote, paypalContent }) => {
     const isSelected = selectedPlan === plan
     const borderGradient = accentColor === 'emerald'
       ? 'linear-gradient(135deg, #10b981, #06b6d4, #10b981)'
@@ -264,7 +252,7 @@ export default function PricingModal({ onClose, onSuccess }) {
     return (
       <div
         className={`relative group cursor-pointer transition-all duration-300 ${
-          isSelected ? 'scale-[1.02]' : 'hover:scale-[1.01]'
+          isSelected ? 'md:scale-[1.02]' : 'md:hover:scale-[1.01]'
         } ${isHighlighted ? 'md:-mt-4 md:mb-[-16px]' : ''}`}
         onClick={() => setSelectedPlan(plan)}
       >
@@ -275,7 +263,7 @@ export default function PricingModal({ onClose, onSuccess }) {
               badgeColor === 'emerald'
                 ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-900 shadow-emerald-500/25'
                 : 'bg-gradient-to-r from-amber-400 to-orange-400 text-slate-900 shadow-amber-500/25'
-            }`} style={{ padding: '4px 14px', fontSize: '10px', letterSpacing: '0.1em' }}>
+            }`} style={{ padding: '4px 14px', fontSize: '10px' }}>
               {badge}
             </div>
           </div>
@@ -323,7 +311,7 @@ export default function PricingModal({ onClose, onSuccess }) {
             {featureList.map((feature, i) => (
               <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
                 <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center ${iconText} flex-shrink-0`}>
-                  <FeatureIcon type={feature.icon} />
+                  {renderFeatureIcon(feature.icon)}
                 </div>
                 {feature.text}
               </li>
@@ -331,7 +319,7 @@ export default function PricingModal({ onClose, onSuccess }) {
           </ul>
 
           {/* PayPal button */}
-          {isSelected && email && paypalContent}
+          {isSelected && (user?.email || email) && paypalContent}
         </div>
       </div>
     )
@@ -352,23 +340,25 @@ export default function PricingModal({ onClose, onSuccess }) {
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-4xl max-h-[calc(100vh-32px)] overflow-y-auto"
         style={{
           animation: 'modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute -top-14 right-0 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105 z-10"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
         {/* Glass card container */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-slate-800/90 to-slate-900/95 border border-white/10 shadow-2xl shadow-black/50">
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-slate-950/50 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 transition-all hover:scale-105"
+            aria-label="Close pricing"
+            title="Close"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
           {/* Top highlight line */}
           <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
 
@@ -385,7 +375,7 @@ export default function PricingModal({ onClose, onSuccess }) {
               </span>
             </div>
 
-            <h2 className="text-3xl font-bold text-white mb-3 tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">
               See Your Home Before You Build It
             </h2>
             <p className="text-slate-400 text-sm leading-relaxed">
@@ -397,7 +387,7 @@ export default function PricingModal({ onClose, onSuccess }) {
           <div className="px-8 pb-6">
             <input
               type="email"
-              value={email}
+              value={user?.email || email}
               onChange={(e) => !user && setEmail(e.target.value)}
               readOnly={!!user}
               placeholder="Enter your email for license delivery"
@@ -416,14 +406,14 @@ export default function PricingModal({ onClose, onSuccess }) {
           {/* Pricing cards — 3 columns on desktop, stacked on mobile */}
           <div className="px-8 pb-8 grid md:grid-cols-3 gap-5 items-start" style={{ paddingTop: '32px' }}>
             {/* Monthly Pro (left, secondary) */}
-            <PlanCard
-              plan="monthly"
-              price={MONTHLY_PRICE}
-              priceSuffix="/month"
-              title="Monthly Pro"
-              accentColor="emerald"
-              featureList={features.monthly}
-              paypalContent={
+            {renderPlanCard({
+              plan: 'monthly',
+              price: MONTHLY_PRICE,
+              priceSuffix: '/month',
+              title: 'Monthly Pro',
+              accentColor: 'emerald',
+              featureList: features.monthly,
+              paypalContent: (
                 <div className="mt-4 animate-fadeIn">
                   <PayPalButtons
                     style={{ layout: 'vertical', color: 'gold', shape: 'pill', label: 'subscribe', height: 45 }}
@@ -433,21 +423,21 @@ export default function PricingModal({ onClose, onSuccess }) {
                     disabled={isProcessing}
                   />
                 </div>
-              }
-            />
+              )
+            })}
 
             {/* Homeowner (center, highlighted hero) */}
-            <PlanCard
-              plan="homeowner"
-              price={HOMEOWNER_PRICE}
-              priceSuffix="one-time"
-              title="Homeowner"
-              badge="MOST POPULAR"
-              badgeColor="emerald"
-              accentColor="emerald"
-              isHighlighted={true}
-              featureList={features.homeowner}
-              paypalContent={
+            {renderPlanCard({
+              plan: 'homeowner',
+              price: HOMEOWNER_PRICE,
+              priceSuffix: 'one-time',
+              title: 'Homeowner',
+              badge: 'MOST POPULAR',
+              badgeColor: 'emerald',
+              accentColor: 'emerald',
+              isHighlighted: true,
+              featureList: features.homeowner,
+              paypalContent: (
                 <div className="mt-4 animate-fadeIn">
                   <PayPalButtons
                     style={{ layout: 'vertical', color: 'gold', shape: 'pill', label: 'pay', height: 45 }}
@@ -457,21 +447,21 @@ export default function PricingModal({ onClose, onSuccess }) {
                     disabled={isProcessing}
                   />
                 </div>
-              }
-            />
+              )
+            })}
 
             {/* Lifetime (right, secondary) */}
-            <PlanCard
-              plan="lifetime"
-              price={LIFETIME_PRICE}
-              priceSuffix="one-time"
-              title="Lifetime Access"
-              badge="BEST VALUE"
-              badgeColor="amber"
-              accentColor="amber"
-              featureList={features.lifetime}
-              inheritNote="Everything in Homeowner, plus:"
-              paypalContent={
+            {renderPlanCard({
+              plan: 'lifetime',
+              price: LIFETIME_PRICE,
+              priceSuffix: 'one-time',
+              title: 'Lifetime Access',
+              badge: 'BEST VALUE',
+              badgeColor: 'amber',
+              accentColor: 'amber',
+              featureList: features.lifetime,
+              inheritNote: 'Everything in Homeowner, plus:',
+              paypalContent: (
                 <div className="mt-4 animate-fadeIn">
                   <PayPalButtons
                     style={{ layout: 'vertical', color: 'gold', shape: 'pill', label: 'pay', height: 45 }}
@@ -481,13 +471,13 @@ export default function PricingModal({ onClose, onSuccess }) {
                     disabled={isProcessing}
                   />
                 </div>
-              }
-            />
+              )
+            })}
           </div>
 
           {/* Trust indicators */}
           <div className="px-8 pt-2" style={{ paddingBottom: '18px' }}>
-            <div className="flex items-center justify-center gap-6 border-t border-slate-700/50" style={{ paddingTop: '14px', paddingBottom: '2px' }}>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 border-t border-slate-700/50" style={{ paddingTop: '14px', paddingBottom: '2px' }}>
               <div className="flex items-center gap-2 text-slate-400 text-xs">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />

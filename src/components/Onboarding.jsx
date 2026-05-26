@@ -3,6 +3,7 @@ import PolygonEditor, { calculatePolygonArea } from './PolygonEditor'
 import ImageTracer from './ImageTracer'
 import { useUser } from '../hooks/useUser.jsx'
 import { analyzeImage } from '../services/imageAnalysis'
+import { fileToImageData } from '../utils/pdfToImage'
 import {
   LAND_TEMPLATES,
   areaToRectDims,
@@ -247,13 +248,8 @@ export default function Onboarding({
       alert('Please upload a PNG, JPG, or PDF file')
       return
     }
-    if (file.type === 'application/pdf') {
-      alert('PDF support coming soon. Please use PNG or JPG for now.')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      const imageData = e.target.result
+    try {
+      const { imageData } = await fileToImageData(file)
       setPendingImage(imageData)
       setIsAnalyzing(true)
       try {
@@ -276,8 +272,10 @@ export default function Onboarding({
         setShowConfirm(true)
       }
       setIsAnalyzing(false)
+    } catch (err) {
+      console.error('File render failed:', err)
+      alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
     }
-    reader.readAsDataURL(file)
   }
 
   // Confirm detected type

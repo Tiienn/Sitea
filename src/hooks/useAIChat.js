@@ -4,7 +4,30 @@ import { convertFloorPlanToWorld } from '../utils/floorPlanConverter'
 
 const MAX_TOOL_ITERATIONS = 5
 
-export function useAIChat({ addWallFromPoints, addFurniture, deleteFurniture, clearAllWalls, setFurnitureItems, walls, rooms, furnitureItems, roomLabels, setRoomLabels, onFloorPlanGenerated }) {
+const formatMeters = (value) => Number.isFinite(value) ? `${value.toFixed(1)}m` : 'unknown'
+
+export function useAIChat({
+  addWallFromPoints,
+  addFurniture,
+  deleteFurniture,
+  clearAllWalls,
+  setFurnitureItems,
+  walls,
+  rooms,
+  furnitureItems,
+  roomLabels,
+  setRoomLabels,
+  onFloorPlanGenerated,
+  hasLand = false,
+  dimensions,
+  landArea,
+  shapeMode,
+  confirmedPolygon,
+  placedBuildings = [],
+  generatedBuildings = [],
+  setbacksEnabled = false,
+  setbackDistanceM = 0,
+}) {
   const STORAGE_KEY = 'sitea-ai-chat'
 
   const [messages, setMessages] = useState(() => {
@@ -113,6 +136,40 @@ export function useAIChat({ addWallFromPoints, addFurniture, deleteFurniture, cl
   // Build scene context so Claude knows what's already placed
   const buildSceneContext = useCallback(() => {
     const parts = []
+    if (hasLand) {
+      const landShape = shapeMode === 'upload' ? 'uploaded/detected boundary' : shapeMode || 'rectangle'
+      parts.push(`Land: ${landShape}, ${Math.round(landArea || 0)}m², approximately ${formatMeters(dimensions?.width)} wide by ${formatMeters(dimensions?.length)} long.`)
+      if (confirmedPolygon?.length >= 3) {
+        parts.push(`Land boundary has ${confirmedPolygon.length} points.`)
+      }
+      if (setbacksEnabled) {
+        parts.push(`Setback rule: keep new structures ${formatMeters(setbackDistanceM)} from the land boundary.`)
+      }
+    } else {
+      parts.push('Land is not confirmed yet. Help the user define land size, shape, or upload a plan before making detailed placement promises.')
+    }
+    if (placedBuildings.length > 0) {
+      parts.push(`Placed structures (${placedBuildings.length}):`)
+      placedBuildings.forEach((building, i) => {
+        const name = building.type?.name || building.type?.id || `Structure ${i + 1}`
+        const width = building.type?.width ? formatMeters(building.type.width) : 'unknown width'
+        const length = building.type?.length ? formatMeters(building.type.length) : 'unknown length'
+        const x = formatMeters(building.position?.x)
+        const z = formatMeters(building.position?.z)
+        parts.push(`  - ${name}: ${width} x ${length}, center=(${x}, ${z})`)
+      })
+    }
+    if (generatedBuildings.length > 0) {
+      parts.push(`AI-generated floor-plan buildings (${generatedBuildings.length}):`)
+      generatedBuildings.forEach((building, i) => {
+        const stats = building.stats
+          ? `${building.stats.wallCount || 0} walls, ${building.stats.doorCount || 0} doors, ${building.stats.windowCount || 0} windows, ${building.stats.roomCount || 0} rooms`
+          : 'no stats'
+        const x = formatMeters(building.position?.x)
+        const z = formatMeters(building.position?.z)
+        parts.push(`  - Building ${i + 1}: ${stats}, center=(${x}, ${z})`)
+      })
+    }
     if (rooms.length > 0) {
       parts.push(`Rooms (${rooms.length}):`)
       rooms.forEach((r, i) => {
@@ -130,9 +187,21 @@ export function useAIChat({ addWallFromPoints, addFurniture, deleteFurniture, cl
         parts.push(`  - ${f.catalogId} at (${f.position.x.toFixed(1)}, ${f.position.z.toFixed(1)}) id=${f.id}`)
       })
     }
-    if (parts.length === 0) parts.push('Scene is empty.')
     return parts.join('\n')
-  }, [rooms, furnitureItems, roomLabels])
+  }, [
+    hasLand,
+    shapeMode,
+    landArea,
+    dimensions,
+    confirmedPolygon,
+    setbacksEnabled,
+    setbackDistanceM,
+    placedBuildings,
+    generatedBuildings,
+    rooms,
+    furnitureItems,
+    roomLabels,
+  ])
 
   // Handle floor plan file upload via the dedicated analyzer endpoint
   const analyzeFloorPlan = useCallback(async (fileBase64, text) => {

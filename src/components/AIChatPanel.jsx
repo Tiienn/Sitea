@@ -1,12 +1,29 @@
 import { useState, useRef, useEffect } from 'react'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { fileToImageData } from '../utils/pdfToImage'
 
 const SUGGESTIONS = [
-  'Create a 5x4m bedroom',
-  'Add a sofa to my scene',
-  "What's in my scene?",
-  'Build my floor plan from an image',
+  { label: 'Upload scanned PDF or plan image', action: 'upload' },
+  { label: 'What can fit on my land?', prompt: 'What can fit on my land?' },
+  { label: 'Create a simple 2-bedroom layout', prompt: 'Create a simple 2-bedroom layout' },
+  { label: 'Summarize my current scene', prompt: "What's in my scene?" },
 ]
+
+function SuggestionIcon({ action }) {
+  if (action === 'upload') {
+    return (
+      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M5.25 19.5h13.5A2.25 2.25 0 0021 17.25V6.75a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+    </svg>
+  )
+}
 
 function ToolChip({ action }) {
   const getLabel = () => {
@@ -51,7 +68,7 @@ function LoadingDots() {
   )
 }
 
-export default function AIChatPanel({ messages, isLoading, error, onSend, onClear, onClose }) {
+export default function AIChatPanel({ messages, isLoading, onSend, onClear, onClose }) {
   const isMobile = useIsMobile()
   const [input, setInput] = useState('')
   const listRef = useRef(null)
@@ -76,17 +93,28 @@ export default function AIChatPanel({ messages, isLoading, error, onSend, onClea
     onSend(text)
   }
 
-  const handleFileUpload = (e) => {
+  const handleSuggestionClick = (suggestion) => {
+    if (suggestion.action === 'upload') {
+      fileInputRef.current?.click()
+      return
+    }
+    handleSuggestion(suggestion.prompt)
+  }
+
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = '' // reset for re-upload
-    const reader = new FileReader()
-    reader.onload = () => {
-      const base64 = reader.result.split(',')[1] // strip data:...;base64,
+
+    try {
+      const { imageData } = await fileToImageData(file)
+      const base64 = imageData.split(',')[1] // strip data:...;base64,
       onSend(input.trim() || '', base64)
       setInput('')
+    } catch (err) {
+      console.error('File render failed:', err)
+      alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
     }
-    reader.readAsDataURL(file)
   }
 
   const panel = (
@@ -103,7 +131,10 @@ export default function AIChatPanel({ messages, isLoading, error, onSend, onClea
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
             </svg>
           </div>
-          <span className="font-display font-semibold text-sm">AI Assistant</span>
+          <div>
+            <div className="font-display font-semibold text-sm">Sitea Agent</div>
+            <div className="text-[11px] text-[var(--color-text-muted)]">Land, plans, rooms, exports</div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -130,17 +161,26 @@ export default function AIChatPanel({ messages, isLoading, error, onSend, onClea
       {/* Messages */}
       <div ref={listRef} className="flex-1 overflow-y-auto space-y-3 min-h-0" style={{ padding: '20px 20px' }}>
         {messages.length === 0 && !isLoading && (
-          <div className="flex flex-col gap-2">
-            {SUGGESTIONS.map((s, i) => (
-              <button
-                key={s}
-                onClick={() => i === 3 ? fileInputRef.current?.click() : handleSuggestion(s)}
-                className="rounded-xl bg-white/5 hover:bg-white/10 text-sm text-left text-[var(--color-text-secondary)] hover:text-white transition-all border border-[var(--color-border)]"
-                style={{ padding: '10px 16px' }}
-              >
-                {s}
-              </button>
-            ))}
+          <div className="flex flex-col gap-4">
+            <div className="rounded-2xl bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20" style={{ padding: '18px' }}>
+              <div className="font-display font-semibold text-white text-base mb-2">Start with your land or plan</div>
+              <p className="text-sm leading-relaxed text-[var(--color-text-secondary)]">
+                Ask what can fit, build rooms by size, or upload a scanned floor plan so Sitea can detect walls, doors, windows, and rooms.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {SUGGESTIONS.map((suggestion) => (
+                <button
+                  key={suggestion.label}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="min-h-[48px] rounded-xl bg-white/5 hover:bg-white/10 text-sm text-left text-[var(--color-text-secondary)] hover:text-white transition-all border border-[var(--color-border)] flex items-center gap-3"
+                  style={{ padding: '12px 16px' }}
+                >
+                  <SuggestionIcon action={suggestion.action} />
+                  <span>{suggestion.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -167,7 +207,7 @@ export default function AIChatPanel({ messages, isLoading, error, onSend, onClea
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V5.25a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5v14.25a1.5 1.5 0 001.5 1.5z" />
                         </svg>
-                        Image attached
+                        Plan attached
                       </div>
                     )}
                     {displayText && <p className="whitespace-pre-wrap">{displayText}</p>}
@@ -196,7 +236,7 @@ export default function AIChatPanel({ messages, isLoading, error, onSend, onClea
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf,.pdf"
         onChange={handleFileUpload}
         className="hidden"
       />
@@ -207,7 +247,7 @@ export default function AIChatPanel({ messages, isLoading, error, onSend, onClea
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading}
             className="p-2 rounded-lg text-[var(--color-text-muted)] hover:text-white hover:bg-white/5 transition-all shrink-0 disabled:opacity-30"
-            title="Upload floor plan image"
+            title="Upload floor plan PDF or image"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V5.25a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5v14.25a1.5 1.5 0 001.5 1.5z" />
@@ -219,7 +259,7 @@ export default function AIChatPanel({ messages, isLoading, error, onSend, onClea
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.stopPropagation()}
-            placeholder="Ask anything..."
+            placeholder="Ask Sitea or upload a plan..."
             disabled={isLoading}
             className="flex-1 bg-transparent text-sm text-white placeholder-[var(--color-text-muted)] outline-none"
           />

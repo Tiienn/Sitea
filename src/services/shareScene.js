@@ -11,7 +11,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 
 const TABLE_NAME = 'shared_scenes'
-const SCENE_VERSION = 2
+const SCENE_VERSION = 3
 
 /**
  * Build scene payload from app state
@@ -39,7 +39,8 @@ export function buildScenePayload(state) {
     roomLabels,
     roomStyles,
     comparisonPositions,
-    comparisonRotations
+    comparisonRotations,
+    generatedBuildings
   } = state
 
   return {
@@ -56,6 +57,15 @@ export function buildScenePayload(state) {
       x: b.position.x,
       z: b.position.z,
       rotationY: b.rotationY
+    })),
+    generatedBuildings: (generatedBuildings || []).map(b => ({
+      id: b.id,
+      position: b.position,
+      rotation: b.rotation || 0,
+      walls: b.walls || [],
+      rooms: b.rooms || [],
+      stairs: b.stairs || [],
+      stats: b.stats || null
     })),
     // Walls with doors/windows (rooms auto-detect from walls)
     walls: (walls || []).map(wall => ({

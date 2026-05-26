@@ -10,6 +10,7 @@ import ImageTracer from './ImageTracer'
 import ShapeEditor from './ShapeEditor'
 import { analyzeImage } from '../services/imageAnalysis'
 import { useUser } from '../hooks/useUser.jsx'
+import { fileToImageData } from '../utils/pdfToImage'
 
 // Confidence threshold for auto-routing
 const AUTO_ROUTE_THRESHOLD = 0.7
@@ -171,18 +172,19 @@ export default function LandPanel({
       return
     }
 
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(file.type)) {
-      alert('Please upload a PNG or JPG file')
+      alert('Please upload a PNG, JPG, or PDF file')
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      const imageData = e.target.result
+    try {
+      const { imageData } = await fileToImageData(file)
       processUploadedImage(imageData)
+    } catch (err) {
+      console.error('File render failed:', err)
+      alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
     }
-    reader.readAsDataURL(file)
   }
 
   // Process an image data URL (shared by image and PDF paths)
@@ -511,7 +513,7 @@ export default function LandPanel({
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/jpg"
+                        accept="image/png,image/jpeg,image/jpg,application/pdf,.pdf"
                         onChange={(e) => handleFileUpload(e.target.files?.[0])}
                         className="hidden"
                       />

@@ -1,5 +1,6 @@
+/* global process, Buffer */
 import OpenAI from 'openai';
-import { createClient } from '@supabase/supabase-js';
+import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
 
 export const config = {
   maxDuration: 60,
@@ -17,32 +18,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // --- Auth: verify JWT and check subscription ---
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-  const token = authHeader.replace('Bearer ', '');
-
-  const supabase = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.VITE_SUPABASE_ANON_KEY
-  );
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-
-  const { data: subscription } = await supabase
-    .from('subscriptions')
-    .select('status')
-    .eq('email', user.email.toLowerCase())
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (!subscription) {
-    return res.status(403).json({ error: 'Active subscription required' });
+  let user;
+  try {
+    ({ user } = await requireActiveSubscription(req));
+  } catch (error) {
+    return sendError(res, error);
   }
 
   const { image, style = 'modern' } = req.body;

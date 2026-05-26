@@ -28,6 +28,7 @@ export function restoreScenePayload(payload, setters, buildingTypes) {
     setFoundations,
     setStairs,
     setFurnitureItems,
+    setBuildings,
     setRoomLabels,
     setRoomStyles,
     setComparisonPositions,
@@ -55,6 +56,26 @@ export function restoreScenePayload(payload, setters, buildingTypes) {
       })
       .filter(Boolean)
     setPlacedBuildings(restoredBuildings)
+  }
+
+  if (setBuildings) {
+    const restoredGeneratedBuildings = Array.isArray(payload.generatedBuildings)
+      ? payload.generatedBuildings
+        .filter(b => b && b.id && b.position && Array.isArray(b.walls))
+        .map(b => ({
+          id: b.id,
+          position: {
+            x: b.position.x || 0,
+            z: b.position.z || 0,
+          },
+          rotation: b.rotation || 0,
+          walls: b.walls || [],
+          rooms: b.rooms || [],
+          stairs: b.stairs || [],
+          stats: b.stats || null,
+        }))
+      : []
+    setBuildings(restoredGeneratedBuildings)
   }
 
   // Settings

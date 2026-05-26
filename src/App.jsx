@@ -1192,7 +1192,7 @@ function App() {
       setDimensions, setShapeMode, setConfirmedPolygon, setPolygonPoints,
       setPlacedBuildings, setLengthUnit, setAreaUnit, setSetbacksEnabled,
       setSetbackDistanceM, setLabels, setActiveComparisons, clearWallsHistory,
-      setPools, setFoundations, setStairs, setFurnitureItems,
+      setPools, setFoundations, setStairs, setFurnitureItems, setBuildings,
       setRoomLabels, setRoomStyles, setComparisonPositions, setComparisonRotations,
     }
     restoreScenePayload(payload, sceneSetters, BUILDING_TYPES)
@@ -1218,7 +1218,7 @@ function App() {
       setDimensions, setShapeMode, setConfirmedPolygon, setPolygonPoints,
       setPlacedBuildings, setLengthUnit, setAreaUnit, setSetbacksEnabled,
       setSetbackDistanceM, setLabels, setActiveComparisons, clearWallsHistory,
-      setPools, setFoundations, setStairs, setFurnitureItems,
+      setPools, setFoundations, setStairs, setFurnitureItems, setBuildings,
       setRoomLabels, setRoomStyles, setComparisonPositions, setComparisonRotations,
     }
     restoreScenePayload(payload, sceneSetters, BUILDING_TYPES)
@@ -1240,12 +1240,13 @@ function App() {
       lengthUnit, areaUnit, setbacksEnabled, setbackDistanceM, labels,
       activeComparisons, cameraState: null, walls,
       pools, foundations, stairs, furnitureItems,
-      roomLabels, roomStyles, comparisonPositions, comparisonRotations
+      roomLabels, roomStyles, comparisonPositions, comparisonRotations,
+      generatedBuildings: buildings
     })
   }, [shapeMode, dimensions, confirmedPolygon, placedBuildings, lengthUnit, areaUnit,
       setbacksEnabled, setbackDistanceM, labels, activeComparisons, walls,
       pools, foundations, stairs, furnitureItems, roomLabels, roomStyles,
-      comparisonPositions, comparisonRotations])
+      comparisonPositions, comparisonRotations, buildings])
 
   // Save project to cloud
   const saveProjectToCloud = useCallback(async () => {
@@ -1301,6 +1302,7 @@ function App() {
     setPolygonPoints([])
     setConfirmedPolygon(null)
     setPlacedBuildings([])
+    setBuildings([])
     setActiveComparisons({})
     clearWallsHistory([])
     setPools([])
@@ -1901,6 +1903,15 @@ function App() {
     addWallFromPoints, addFurniture, deleteFurniture, clearAllWalls,
     setFurnitureItems, walls, rooms, furnitureItems, roomLabels, setRoomLabels,
     onFloorPlanGenerated: handleFloorPlanGenerated,
+    hasLand: userHasLand,
+    dimensions,
+    landArea: area,
+    shapeMode,
+    confirmedPolygon,
+    placedBuildings,
+    generatedBuildings: buildings,
+    setbacksEnabled,
+    setbackDistanceM,
   })
 
   // Place the pending floor plan as a building
@@ -2616,6 +2627,7 @@ function App() {
         if (data.polygonPoints) setPolygonPoints(data.polygonPoints)
         if (data.confirmedPolygon) setConfirmedPolygon(data.confirmedPolygon)
         if (data.placedBuildings) setPlacedBuildings(data.placedBuildings)
+        if (data.generatedBuildings) setBuildings(data.generatedBuildings)
         if (data.activeComparisons) setActiveComparisons(data.activeComparisons)
         // Load walls with validation (backward compatible)
         if (data.walls && Array.isArray(data.walls)) {
@@ -2649,6 +2661,7 @@ function App() {
       polygonPoints,
       confirmedPolygon,
       placedBuildings,
+      generatedBuildings: buildings,
       activeComparisons,
       walls
     }
@@ -2674,6 +2687,7 @@ function App() {
     setPolygonPoints([])
     setConfirmedPolygon(null)
     setPlacedBuildings([])
+    setBuildings([])
     setActiveComparisons({})
     clearWallsHistory([])
   }
@@ -2855,7 +2869,8 @@ function App() {
       roomLabels,
       roomStyles,
       comparisonPositions,
-      comparisonRotations
+      comparisonRotations,
+      generatedBuildings: buildings
     })
 
     const result = await createSharedScene(payload)
@@ -4578,8 +4593,9 @@ function App() {
 
       {/* AI Chat */}
       <AIChatButton
-        onClick={() => setShowAIChat(true)}
-        visible={isPaidUser && !isReadOnly && userHasLand && !showAIChat && !isGuidedMode && !isDefiningLand}
+        onClick={() => requirePaid(() => setShowAIChat(true))}
+        visible={!showPricingModal && !showAuthModal && !isReadOnly && landingStep === null && !showAIChat && !isGuidedMode && !isDefiningLand}
+        locked={!isPaidUser}
       />
       {showAIChat && (
         <AIChatPanel

@@ -3,6 +3,7 @@ import { houseTemplates, HOUSE_TEMPLATE_ORDER, DEFAULT_HOUSE_TEMPLATE } from '..
 import { FURNITURE_CATEGORIES, FURNITURE_ITEMS } from '../data/furnitureCatalog'
 import { analyzeImage } from '../services/imageAnalysis'
 import { useUser } from '../hooks/useUser.jsx'
+import { fileToImageData } from '../utils/pdfToImage'
 
 // Confidence threshold for auto-routing
 const AUTO_ROUTE_THRESHOLD = 0.7
@@ -384,18 +385,20 @@ export default function BuildPanel({
   const handleFileUpload = async (file) => {
     if (!file) return
 
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(file.type)) {
-      alert('Please upload a PNG or JPG file')
+      alert('Please upload a PNG, JPG, or PDF file')
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setPendingImage(e.target.result)
+    try {
+      const { imageData } = await fileToImageData(file)
+      setPendingImage(imageData)
       setShowPreview(true)
+    } catch (err) {
+      console.error('File render failed:', err)
+      alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
     }
-    reader.readAsDataURL(file)
   }
 
   // Called when user clicks "Generate 3D" from preview
@@ -496,7 +499,7 @@ export default function BuildPanel({
                           onClick={() => setShowPricingModal(true)}
                           className="w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold rounded-lg transition-all mb-2"
                         >
-                          Try Pro — $29
+                          Try Pro — $20
                         </button>
                         <button
                           onClick={() => { setShowPreview(false); setPendingImage(null) }}
@@ -546,7 +549,7 @@ export default function BuildPanel({
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/jpg"
+                        accept="image/png,image/jpeg,image/jpg,application/pdf,.pdf"
                         onChange={(e) => handleFileUpload(e.target.files?.[0])}
                         className="hidden"
                       />

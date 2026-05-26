@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useUser } from '../hooks/useUser.jsx'
 import { detectSitePlanBoundary } from '../services/imageAnalysis'
+import { fileToImageData } from '../utils/pdfToImage'
 
 export default function ImageTracer({
   uploadedImage,
@@ -50,7 +51,7 @@ export default function ImageTracer({
   const { markUploadUsed } = useUser()
 
   // Handle file selection
-  const handleFileSelect = useCallback((file) => {
+  const handleFileSelect = useCallback(async (file) => {
     if (!file) return
 
     // Check file type
@@ -60,18 +61,12 @@ export default function ImageTracer({
       return
     }
 
-    // For PDF, we'd need a PDF renderer - for now just handle images
-    if (file.type === 'application/pdf') {
-      alert('PDF support coming soon. Please use PNG or JPG for now.')
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
+    try {
+      const { imageData } = await fileToImageData(file)
       // Mark upload as used (consumes free trial)
       markUploadUsed()
 
-      setUploadedImage(e.target.result)
+      setUploadedImage(imageData)
       // Reset state for new image
       setPoints([])
       setScale(null)
@@ -80,8 +75,10 @@ export default function ImageTracer({
       setZoom(1)
       setPan({ x: 0, y: 0 })
       setPointsHistory([])
+    } catch (err) {
+      console.error('File render failed:', err)
+      alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
     }
-    reader.readAsDataURL(file)
   }, [setUploadedImage, markUploadUsed])
 
   // Handle file input change
@@ -938,7 +935,7 @@ export default function ImageTracer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/jpg,.pdf"
+          accept="image/png,image/jpeg,image/jpg,application/pdf,.pdf"
           onChange={handleFileInputChange}
           className="hidden"
         />
@@ -971,7 +968,7 @@ export default function ImageTracer({
             or click to browse
           </div>
           <div className="text-[10px] text-white/30">
-            Supports PNG, JPG
+            Supports PDF, PNG, JPG
           </div>
         </div>
 
@@ -994,7 +991,7 @@ export default function ImageTracer({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/jpg,.pdf"
+        accept="image/png,image/jpeg,image/jpg,application/pdf,.pdf"
         onChange={handleFileInputChange}
         className="hidden"
       />

@@ -1,5 +1,6 @@
+/* global process */
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@supabase/supabase-js';
+import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
 
 export const config = {
   maxDuration: 30,
@@ -22,7 +23,12 @@ function checkRateLimit(userId) {
   return true;
 }
 
-const SYSTEM_PROMPT = `You are Sitea's AI assistant, helping users design their home layout in a 3D scene editor.
+const SYSTEM_PROMPT = `You are Sitea Agent, an AI planning partner for land buyers and homeowners using Sitea's 3D land and home visualization editor.
+
+PRIMARY JOB:
+- Help users understand what can fit on their land, turn scanned plans into a usable layout, and iterate practical site/building ideas.
+- Treat the scene as the source of truth. Use the current scene context before changing an existing layout.
+- If the user uploads a scanned PDF or plan image, Sitea routes it through a detector before you respond. Explain the detected walls, doors, windows, rooms, and next placement step clearly.
 
 COORDINATE SYSTEM:
 - The scene uses meters. X = left/right, Z = forward/back.
@@ -32,12 +38,13 @@ AVAILABLE FURNITURE (catalogId → name):
 sofa, armchair, coffeeTable, tvStand, bed, nightstand, desk, diningTable, chair, fridge, toilet, bathtub, tree, bench
 
 GUIDELINES:
+- Ask for missing constraints when they affect the layout: site size, setbacks, road/front orientation, room count, parking, outdoor space, or budget priorities.
 - When creating rooms, use realistic dimensions (e.g., bedroom: 4x3m, living room: 5x4m, bathroom: 2.5x2m, kitchen: 3x3m).
 - IMPORTANT: When placing multiple rooms, share walls by placing them adjacent (e.g., if the first room spans X=0 to X=5, start the next room at X=5). Never overlap rooms. Use get_scene_summary first if unsure where existing rooms are.
 - Place furniture sensibly inside rooms (e.g., bed centered in bedroom, sofa against wall in living room). Calculate positions within the room's bounds.
 - When asked to create a room with furniture, create the room first, then add furniture.
-- Be concise and helpful. Describe what you did after using tools.
-- If the user asks something unrelated to home design, answer briefly but steer back to how you can help with their layout.`;
+- Be concise and helpful. Describe what you did after using tools, then suggest one sensible next step.
+- If the user asks something unrelated to land or home design, answer briefly but steer back to how you can help visualize their site.`;
 
 const TOOLS = [
   {
@@ -106,32 +113,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Auth: verify JWT and check subscription
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-  const token = authHeader.replace('Bearer ', '');
-
-  const supabase = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.VITE_SUPABASE_ANON_KEY
-  );
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-
-  const { data: subscription } = await supabase
-    .from('subscriptions')
-    .select('status')
-    .eq('email', user.email.toLowerCase())
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (!subscription) {
-    return res.status(403).json({ error: 'Active subscription required' });
+  let user;
+  try {
+    ({ user } = await requireActiveSubscription(req));
+  } catch (error) {
+    return sendError(res, error);
   }
 
   // Rate limiting

@@ -23,80 +23,45 @@ export function UserProvider({ children }) {
     localStorage.setItem('landVisualizerTheme', newTheme)
   }, [])
 
-  // Check subscription status from localStorage and optionally Supabase
+  // Check subscription status from Supabase. localStorage is only a UI cache.
   const checkSubscription = useCallback(async () => {
     setIsLoading(true)
     try {
-      // First check localStorage for quick access
-      const savedStatus = localStorage.getItem('landVisualizerPaidUser')
       const savedEmail = localStorage.getItem('landVisualizerEmail')
       const savedPlanType = localStorage.getItem('landVisualizerPlanType')
 
-      if (savedStatus === 'true') {
-        setIsPaidUser(true)
+      if (savedPlanType) {
         setPlanType(savedPlanType)
+      }
 
-        // If Supabase is configured, verify the subscription is still valid
-        if (isSupabaseConfigured() && savedEmail) {
-          const { data, error } = await supabase
-            .from('subscriptions')
-            .select('status, plan_type, expires_at')
-            .eq('email', savedEmail.toLowerCase())
-            .single()
+      if (!isSupabaseConfigured() || !savedEmail) {
+        setIsPaidUser(false)
+        setPlanType(null)
+        localStorage.setItem('landVisualizerPaidUser', 'false')
+        setIsLoading(false)
+        return
+      }
 
-          if (error || !data) {
-            // Subscription not found in database, but keep localStorage as fallback
-            console.warn('Could not verify subscription in database')
-          } else if (data.status !== 'active') {
-            // Subscription is no longer active
-            setIsPaidUser(false)
-            setPlanType(null)
-            localStorage.setItem('landVisualizerPaidUser', 'false')
-          } else if (data.expires_at && new Date(data.expires_at) < new Date()) {
-            // Subscription has expired
-            setIsPaidUser(false)
-            setPlanType(null)
-            localStorage.setItem('landVisualizerPaidUser', 'false')
-          } else {
-            // Subscription is valid
-            setPlanType(data.plan_type)
-          }
-        }
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('status, plan_type, expires_at')
+        .eq('email', savedEmail.toLowerCase())
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (data && (!data.expires_at || new Date(data.expires_at) >= new Date())) {
+        setIsPaidUser(true)
+        setPlanType(data.plan_type)
+        localStorage.setItem('landVisualizerPaidUser', 'true')
+        localStorage.setItem('landVisualizerPlanType', data.plan_type)
       } else {
-        // localStorage doesn't say paid — check Supabase in case subscription exists
-        if (isSupabaseConfigured()) {
-          const email = localStorage.getItem('landVisualizerEmail')
-          if (email) {
-            const { data } = await supabase
-              .from('subscriptions')
-              .select('status, plan_type, expires_at')
-              .eq('email', email.toLowerCase())
-              .eq('status', 'active')
-              .maybeSingle()
-
-            if (data && (!data.expires_at || new Date(data.expires_at) >= new Date())) {
-              setIsPaidUser(true)
-              setPlanType(data.plan_type)
-              localStorage.setItem('landVisualizerPaidUser', 'true')
-              localStorage.setItem('landVisualizerPlanType', data.plan_type)
-            } else {
-              setIsPaidUser(false)
-              setPlanType(null)
-            }
-          } else {
-            setIsPaidUser(false)
-            setPlanType(null)
-          }
-        } else {
-          setIsPaidUser(false)
-          setPlanType(null)
-        }
+        setIsPaidUser(false)
+        setPlanType(null)
+        localStorage.setItem('landVisualizerPaidUser', 'false')
       }
     } catch (error) {
       console.error('Error checking subscription:', error)
-      // On error, trust localStorage
-      const savedStatus = localStorage.getItem('landVisualizerPaidUser')
-      setIsPaidUser(savedStatus === 'true')
+      setIsPaidUser(false)
     }
     setIsLoading(false)
   }, [])
@@ -169,7 +134,7 @@ export function UserProvider({ children }) {
   const getUploadLimit = useCallback(() => {
     if (!isPaidUser) return 1 // free: 1 upload
     if (planType === 'monthly') return 3 // monthly: 3 uploads
-    if (planType === 'homeowner') return 10 // homeowner: 10 uploads
+    if (planType === 'homeowner') return 20 // homeowner: 20 uploads
     return Infinity // lifetime: unlimited
   }, [isPaidUser, planType])
 
