@@ -124,45 +124,13 @@ export async function detectSitePlanBoundary(imageBase64) {
 /**
  * Analyze uploaded image to detect if it's a site plan or floor plan
  * @param {string} imageBase64 - Base64 encoded image
- * @param {boolean} isPaidUser - Whether user has paid subscription
  * @returns {Promise<{ type: 'site-plan' | 'floor-plan', confidence: number, method: string }>}
  */
-export async function analyzeImage(imageBase64, isPaidUser = false) {
+export async function analyzeImage(imageBase64) {
   // Always use heuristics for plan type detection (site-plan vs floor-plan).
   // The /api/analyze-plan endpoint does not exist; AI endpoints are for
   // processing plans, not classifying type.
   return analyzeWithHeuristics(imageBase64)
-}
-
-/**
- * AI-powered analysis for paid users
- * Uses vision AI model via backend API
- */
-async function analyzeWithAI(imageBase64) {
-  try {
-    const response = await fetch('/api/analyze-plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        image: imageBase64.replace(/^data:image\/\w+;base64,/, '')
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error('AI analysis failed')
-    }
-
-    const result = await response.json()
-    return {
-      type: result.type,
-      confidence: result.confidence,
-      method: 'ai',
-    }
-  } catch (error) {
-    console.error('AI analysis error, falling back to heuristics:', error)
-    // Fallback to heuristics if AI fails
-    return analyzeWithHeuristics(imageBase64)
-  }
 }
 
 /**
@@ -194,6 +162,12 @@ async function analyzeWithHeuristics(imageBase64) {
     floorPlanScore += 2
   } else if (analysis.lineDensity < 0.15) {
     sitePlanScore += 2
+  }
+
+  // 2b. Site plans often include colored property/setback/dimension lines
+  // (red boundary, green setback, orange measurement lines) around a building.
+  if (analysis.sitePlanColorCue) {
+    sitePlanScore += 3
   }
 
   // 3. Edge complexity
@@ -264,9 +238,21 @@ async function analyzeImageCharacteristics(img) {
 
   // Convert to grayscale
   const grayscale = []
+  let sitePlanColorPixels = 0
   for (let i = 0; i < data.length; i += 4) {
-    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+    const gray = (r + g + b) / 3
     grayscale.push(gray)
+
+    const colorRange = Math.max(r, g, b) - Math.min(r, g, b)
+    const isRedBoundary = r > 150 && g < 120 && b < 120
+    const isGreenSetback = g > 120 && r < 160 && b < 160
+    const isOrangeDimension = r > 180 && g > 70 && g < 190 && b < 120
+    if (colorRange > 45 && (isRedBoundary || isGreenSetback || isOrangeDimension)) {
+      sitePlanColorPixels++
+    }
   }
 
   // Edge detection
@@ -277,12 +263,14 @@ async function analyzeImageCharacteristics(img) {
   const perpendicularLineRatio = estimatePerpendicularLines(edges, canvas.width, canvas.height)
   const centerDetailRatio = calculateCenterDetailRatio(edges, canvas.width, canvas.height)
   const hasRoomLikeRegions = detectRoomLikeRegions(edges, canvas.width, canvas.height)
+  const sitePlanColorCue = sitePlanColorPixels / (data.length / 4) > 0.003
 
   return {
     lineDensity,
     perpendicularLineRatio,
     centerDetailRatio,
     hasRoomLikeRegions,
+    sitePlanColorCue,
   }
 }
 

@@ -1,0 +1,620 @@
+{
+  "success": true,
+  "imageSize": {
+    "width": 1224,
+    "height": 864
+  },
+  "walls": [
+    {
+      "start": {
+        "x": 190,
+        "y": 160
+      },
+      "end": {
+        "x": 1135,
+        "y": 160
+      },
+      "thickness": 22,
+      "isExterior": true,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 1135,
+        "y": 160
+      },
+      "end": {
+        "x": 1135,
+        "y": 750
+      },
+      "thickness": 22,
+      "isExterior": true,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 1135,
+        "y": 750
+      },
+      "end": {
+        "x": 190,
+        "y": 750
+      },
+      "thickness": 22,
+      "isExterior": true,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 190,
+        "y": 750
+      },
+      "end": {
+        "x": 190,
+        "y": 160
+      },
+      "thickness": 22,
+      "isExterior": true,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 305,
+        "y": 160
+      },
+      "end": {
+        "x": 305,
+        "y": 360
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.45
+    },
+    {
+      "start": {
+        "x": 400,
+        "y": 160
+      },
+      "end": {
+        "x": 400,
+        "y": 280
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.4
+    },
+    {
+      "start": {
+        "x": 560,
+        "y": 160
+      },
+      "end": {
+        "x": 560,
+        "y": 280
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.4
+    },
+    {
+      "start": {
+        "x": 650,
+        "y": 160
+      },
+      "end": {
+        "x": 650,
+        "y": 360
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.45
+    },
+    {
+      "start": {
+        "x": 190,
+        "y": 280
+      },
+      "end": {
+        "x": 720,
+        "y": 280
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.5
+    },
+    {
+      "start": {
+        "x": 190,
+        "y": 360
+      },
+      "end": {
+        "x": 720,
+        "y": 360
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.45
+    },
+    {
+      "start": {
+        "x": 720,
+        "y": 160
+      },
+      "end": {
+        "x": 720,
+        "y": 750
+      },
+      "thickness": 18,
+      "isExterior": false,
+      "confidence": 0.5
+    },
+    {
+      "start": {
+        "x": 720,
+        "y": 250
+      },
+      "end": {
+        "x": 1135,
+        "y": 250
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.5
+    },
+    {
+      "start": {
+        "x": 870,
+        "y": 160
+      },
+      "end": {
+        "x": 870,
+        "y": 360
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.4
+    },
+    {
+      "start": {
+        "x": 950,
+        "y": 160
+      },
+      "end": {
+        "x": 950,
+        "y": 750
+      },
+      "thickness": 18,
+      "isExterior": false,
+      "confidence": 0.5
+    },
+    {
+      "start": {
+        "x": 720,
+        "y": 360
+      },
+      "end": {
+        "x": 1135,
+        "y": 360
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.45
+    },
+    {
+      "start": {
+        "x": 720,
+        "y": 460
+      },
+      "end": {
+        "x": 950,
+        "y": 460
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.5
+    },
+    {
+      "start": {
+        "x": 820,
+        "y": 460
+      },
+      "end": {
+        "x": 820,
+        "y": 750
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.45
+    },
+    {
+      "start": {
+        "x": 900,
+        "y": 460
+      },
+      "end": {
+        "x": 900,
+        "y": 750
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.45
+    },
+    {
+      "start": {
+        "x": 950,
+        "y": 550
+      },
+      "end": {
+        "x": 1135,
+        "y": 550
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.4
+    },
+    {
+      "start": {
+        "x": 470,
+        "y": 360
+      },
+      "end": {
+        "x": 470,
+        "y": 750
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.5
+    },
+    {
+      "start": {
+        "x": 360,
+        "y": 520
+      },
+      "end": {
+        "x": 360,
+        "y": 750
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.45
+    },
+    {
+      "start": {
+        "x": 190,
+        "y": 520
+      },
+      "end": {
+        "x": 470,
+        "y": 520
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.5
+    },
+    {
+      "start": {
+        "x": 360,
+        "y": 520
+      },
+      "end": {
+        "x": 720,
+        "y": 520
+      },
+      "thickness": 16,
+      "isExterior": false,
+      "confidence": 0.45
+    }
+  ],
+  "doors": [
+    {
+      "center": {
+        "x": 190,
+        "y": 320
+      },
+      "width": 90,
+      "wallIndex": 3,
+      "positionAlongWall": 0.7288,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 305,
+        "y": 320
+      },
+      "width": 80,
+      "wallIndex": 4,
+      "positionAlongWall": 0.8,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 380,
+        "y": 360
+      },
+      "width": 80,
+      "wallIndex": 9,
+      "positionAlongWall": 0.3585,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 560,
+        "y": 360
+      },
+      "width": 90,
+      "wallIndex": 9,
+      "positionAlongWall": 0.6981,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 270,
+        "y": 520
+      },
+      "width": 80,
+      "wallIndex": 21,
+      "positionAlongWall": 0.2857,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 560,
+        "y": 520
+      },
+      "width": 80,
+      "wallIndex": 22,
+      "positionAlongWall": 0.5556,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 470,
+        "y": 610
+      },
+      "width": 80,
+      "wallIndex": 19,
+      "positionAlongWall": 0.641,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 720,
+        "y": 335
+      },
+      "width": 80,
+      "wallIndex": 10,
+      "positionAlongWall": 0.2966,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 870,
+        "y": 300
+      },
+      "width": 80,
+      "wallIndex": 12,
+      "positionAlongWall": 0.7,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 950,
+        "y": 470
+      },
+      "width": 80,
+      "wallIndex": 13,
+      "positionAlongWall": 0.5254,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 775,
+        "y": 460
+      },
+      "width": 80,
+      "wallIndex": 15,
+      "positionAlongWall": 0.2391,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 860,
+        "y": 460
+      },
+      "width": 70,
+      "wallIndex": 15,
+      "positionAlongWall": 0.6087,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 930,
+        "y": 460
+      },
+      "width": 80,
+      "wallIndex": 15,
+      "positionAlongWall": 0.913,
+      "rotation": 0,
+      "doorType": "single"
+    }
+  ],
+  "windows": [
+    {
+      "center": {
+        "x": 275,
+        "y": 160
+      },
+      "width": 80,
+      "wallIndex": 0,
+      "positionAlongWall": 0.0899
+    },
+    {
+      "center": {
+        "x": 525,
+        "y": 160
+      },
+      "width": 80,
+      "wallIndex": 0,
+      "positionAlongWall": 0.3545
+    },
+    {
+      "center": {
+        "x": 875,
+        "y": 160
+      },
+      "width": 90,
+      "wallIndex": 0,
+      "positionAlongWall": 0.7249
+    },
+    {
+      "center": {
+        "x": 190,
+        "y": 260
+      },
+      "width": 80,
+      "wallIndex": 3,
+      "positionAlongWall": 0.8305
+    },
+    {
+      "center": {
+        "x": 250,
+        "y": 750
+      },
+      "width": 90,
+      "wallIndex": 2,
+      "positionAlongWall": 0.9365
+    },
+    {
+      "center": {
+        "x": 700,
+        "y": 750
+      },
+      "width": 90,
+      "wallIndex": 2,
+      "positionAlongWall": 0.4603
+    },
+    {
+      "center": {
+        "x": 1135,
+        "y": 265
+      },
+      "width": 90,
+      "wallIndex": 1,
+      "positionAlongWall": 0.178
+    },
+    {
+      "center": {
+        "x": 1135,
+        "y": 650
+      },
+      "width": 90,
+      "wallIndex": 1,
+      "positionAlongWall": 0.8305
+    }
+  ],
+  "rooms": [
+    {
+      "name": "Entry",
+      "center": {
+        "x": 255,
+        "y": 320
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Living",
+      "center": {
+        "x": 560,
+        "y": 320
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Dining",
+      "center": {
+        "x": 925,
+        "y": 210
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Kitchen",
+      "center": {
+        "x": 270,
+        "y": 645
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Bedroom",
+      "center": {
+        "x": 540,
+        "y": 640
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Hall",
+      "center": {
+        "x": 835,
+        "y": 410
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Bath",
+      "center": {
+        "x": 1040,
+        "y": 455
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Closet/Storage",
+      "center": {
+        "x": 770,
+        "y": 620
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Closet/Storage",
+      "center": {
+        "x": 860,
+        "y": 620
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Closet/Storage",
+      "center": {
+        "x": 925,
+        "y": 635
+      },
+      "labeledArea": null
+    }
+  ],
+  "stairs": [],
+  "scale": {
+    "pixelsPerMeter": 100,
+    "confidence": 0.4,
+    "source": "assumed standard 0.9m single-door opening ~ 90 px"
+  },
+  "overallShape": "rectangular",
+  "totalArea": {
+    "value": 55.8,
+    "unit": "m2"
+  }
+}

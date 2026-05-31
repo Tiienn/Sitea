@@ -17,7 +17,6 @@ export default function Minimap({
   walls = [],
   rooms = [],
   buildings = [],
-  isLandscape = false,
   mobileTopOffset = null
 }) {
   const canvasRef = useRef(null)
@@ -394,7 +393,7 @@ export default function Minimap({
     ctx.lineWidth = 1
     ctx.strokeRect(0, 0, size, size)
 
-  }, [landWidth, landLength, polygonPoints, placedBuildings, comparisonObjects, comparisonPositions, comparisonRotations, playerPosition, playerRotation, showDimensions, lengthUnit, walls, rooms, buildings])
+  }, [landWidth, landLength, polygonPoints, placedBuildings, comparisonObjects, comparisonPositions, comparisonRotations, playerPosition, playerRotation, showDimensions, lengthUnit, walls, rooms, buildings, size])
 
   return (
     <div
@@ -412,12 +411,12 @@ export default function Minimap({
         }}
       />
       {/* Toggle dimensions button */}
-      <button
-        onClick={() => setShowDimensions(!showDimensions)}
-        className={`absolute top-2 right-2 px-2 py-1 text-[10px] font-medium rounded-md transition-all ${
-          showDimensions
-            ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)]'
-            : 'bg-white/10 text-[var(--color-text-secondary)] hover:bg-white/15 hover:text-white'
+        <button
+          onClick={() => setShowDimensions(!showDimensions)}
+          className={`absolute top-2 right-2 min-w-11 min-h-11 px-2 text-[11px] font-medium rounded-lg transition-all ${
+            showDimensions
+              ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)]'
+              : 'bg-white/10 text-[var(--color-text-secondary)] hover:bg-white/15 hover:text-white'
         }`}
         title={showDimensions ? 'Hide dimensions' : 'Show dimensions'}
       >

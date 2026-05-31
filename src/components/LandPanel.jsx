@@ -391,7 +391,7 @@ export default function LandPanel({
                           const meters = lengthUnit === 'ft' ? val / 3.28084 : lengthUnit === 'mm' ? val / 1000 : val
                           setLocalDimensions(prev => ({ ...prev, length: meters }))
                         }}
-                        className="flex-1 px-3 py-2 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:border-[var(--color-accent)]"
+                        className="sitea-field flex-1 text-sm"
                         min="1"
                         step={lengthUnit === 'mm' ? '100' : '0.5'}
                       />
@@ -415,7 +415,7 @@ export default function LandPanel({
                           const meters = lengthUnit === 'ft' ? val / 3.28084 : lengthUnit === 'mm' ? val / 1000 : val
                           setLocalDimensions(prev => ({ ...prev, width: meters }))
                         }}
-                        className="flex-1 px-3 py-2 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:border-[var(--color-accent)]"
+                        className="sitea-field flex-1 text-sm"
                         min="1"
                         step={lengthUnit === 'mm' ? '100' : '0.5'}
                       />
@@ -425,19 +425,19 @@ export default function LandPanel({
                 </div>
 
                 {/* Area display */}
-                <div className="bg-[var(--color-bg-elevated)] rounded-xl" style={{ padding: '12px 16px' }}>
+                <div className="sitea-panel-card" style={{ padding: '12px 16px' }}>
                   <div className="text-xs text-[var(--color-text-muted)] mb-1">Area</div>
                   <div className="text-lg font-display font-bold text-[var(--color-text-primary)]">
                     {formatAreaDisplay(localDimensions.length * localDimensions.width, lengthUnit)}
                   </div>
                 </div>
 
-                <button
-                  onClick={handleApplyRectangle}
-                  className="btn-primary w-full"
-                >
-                  Apply
-                </button>
+                  <button
+                    onClick={handleApplyRectangle}
+                    className="sitea-btn sitea-btn-primary w-full"
+                  >
+                    Apply
+                  </button>
               </div>
             )}
 
@@ -447,12 +447,12 @@ export default function LandPanel({
                 {LAND_TEMPLATES.map(template => {
                   const { widthM, lengthM } = areaToRectDims(template.areaM2)
                   return (
-                    <button
-                      key={template.id}
-                      onClick={() => handleTemplateSelect({ ...template, width: widthM, length: lengthM })}
-                      className="w-full text-left rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] hover:bg-white/10 transition-colors"
-                      style={{ padding: '6px 16px' }}
-                    >
+                      <button
+                        key={template.id}
+                        onClick={() => handleTemplateSelect({ ...template, width: widthM, length: lengthM })}
+                        className="sitea-panel-card w-full text-left"
+                        style={{ padding: '12px 16px' }}
+                      >
                       <div className="text-sm font-medium text-[var(--color-text-primary)]">{template.label}</div>
                       <div className="text-xs text-[var(--color-text-muted)] mt-0.5">
                         {formatTemplateArea(template.areaM2, lengthUnit)} • {formatTemplateDims(widthM, lengthM, lengthUnit)}
@@ -475,8 +475,8 @@ export default function LandPanel({
                   onComplete={handlePolygonComplete}
                   lengthUnit={lengthUnit}
                 />
-                {confirmedPolygon && shapeMode === 'polygon' && (
-                  <div className="bg-[var(--color-bg-elevated)] rounded-xl" style={{ padding: '12px 16px', marginTop: 8 }}>
+                  {confirmedPolygon && shapeMode === 'polygon' && (
+                    <div className="sitea-panel-card" style={{ padding: '12px 16px', marginTop: 8 }}>
                     <div className="text-xs text-[var(--color-text-muted)] mb-1">Area</div>
                     <div className="text-lg font-display font-bold text-[var(--color-text-primary)]">
                       {formatAreaDisplay(calculatePolygonArea(confirmedPolygon), lengthUnit)}
@@ -501,14 +501,15 @@ export default function LandPanel({
                         setIsDragging(false)
                         handleFileUpload(e.dataTransfer.files[0])
                       }}
-                      className={`
-                        cursor-pointer rounded-xl border-2 border-dashed p-8
-                        transition-all duration-200
-                        ${isDragging
-                          ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 scale-[1.02]'
-                          : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-white/5'
-                        }
-                      `}
+                        className={`
+                          sitea-upload-zone cursor-pointer rounded-xl border-2 border-dashed
+                          transition-all duration-200
+                          ${isDragging
+                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 scale-[1.02]'
+                            : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-white/5'
+                          }
+                        `}
+                        style={{ padding: '28px 22px' }}
                     >
                       <input
                         ref={fileInputRef}
@@ -518,7 +519,7 @@ export default function LandPanel({
                         className="hidden"
                       />
                       <div className="flex flex-col items-center justify-center text-center">
-                        <div className={`w-12 h-12 rounded-full mb-3 flex items-center justify-center transition-all ${isDragging ? 'bg-[var(--color-accent)]/20' : 'bg-[var(--color-bg-elevated)]'}`}>
+                          <div className={`w-12 h-12 rounded-full mb-3 flex items-center justify-center transition-all ${isDragging ? 'bg-[var(--color-accent)]/20' : 'bg-white/10 border border-white/10'}`}>
                           <svg className={`w-6 h-6 ${isDragging ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                           </svg>
@@ -535,7 +536,7 @@ export default function LandPanel({
 
                     {/* Plan type descriptions */}
                     <div className="space-y-2 mt-2">
-                      <div className="flex items-start gap-2 rounded-lg bg-[var(--color-bg-elevated)]" style={{ padding: '8px 12px' }}>
+                        <div className="sitea-panel-card flex items-start gap-2" style={{ padding: '10px 12px' }}>
                         <svg className="w-4 h-4 mt-0.5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
@@ -544,7 +545,7 @@ export default function LandPanel({
                           <p className="text-xs text-[var(--color-text-muted)]">Outdoor land boundaries, property lines, lot surveys</p>
                         </div>
                       </div>
-                      <div className="flex items-start gap-2 rounded-lg bg-[var(--color-bg-elevated)]" style={{ padding: '8px 12px' }}>
+                        <div className="sitea-panel-card flex items-start gap-2" style={{ padding: '10px 12px' }}>
                         <svg className="w-4 h-4 mt-0.5 text-[var(--color-accent)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
@@ -587,16 +588,16 @@ export default function LandPanel({
                     </p>
                     <p className="text-[var(--color-text-muted)] text-xs mb-4">Is that correct?</p>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => confirmType('site-plan')}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${detectedType === 'site-plan' ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-white/10'}`}
-                      >
+                        <button
+                          onClick={() => confirmType('site-plan')}
+                          className={`sitea-btn flex-1 ${detectedType === 'site-plan' ? 'sitea-btn-primary' : 'sitea-btn-secondary'}`}
+                        >
                         Site Plan
                       </button>
-                      <button
-                        onClick={() => confirmType('floor-plan')}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${detectedType === 'floor-plan' ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)]' : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-white/10'}`}
-                      >
+                        <button
+                          onClick={() => confirmType('floor-plan')}
+                          className={`sitea-btn flex-1 ${detectedType === 'floor-plan' ? 'sitea-btn-primary' : 'sitea-btn-secondary'}`}
+                        >
                         Floor Plan
                       </button>
                     </div>
@@ -671,7 +672,7 @@ export default function LandPanel({
       {activeSection && (
         <button
           onClick={() => setActiveSection(null)}
-          className="w-4 h-full flex items-center justify-center bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-l border-[var(--color-border)]"
+            className="sitea-collapse-handle h-full flex items-center justify-center bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-l border-[var(--color-border)]"
         >
           <svg className="w-4 h-4 text-[var(--color-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />

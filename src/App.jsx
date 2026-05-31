@@ -29,8 +29,6 @@ const LoadingFallback = () => (
 import Minimap from './components/Minimap'
 import Onboarding from './components/Onboarding'
 import GuidedOnboarding from './components/GuidedOnboarding'
-import LandingHero from './components/LandingHero'
-import PlotReveal from './components/PlotReveal'
 import { FSM_HOUSE_WALLS, FSM_LAND, FSM_CAMERA_START, FSM_HOUSE_BOUNDS } from './data/houseTemplate'
 import { houseTemplates } from './data/houseTemplates'
 import BuildPanel from './components/BuildPanel'
@@ -579,8 +577,6 @@ function App() {
   const [guidedStep, setGuidedStep] = useState(0) // 0=off, 1=welcome, 2=walk, 3=inside, 4=unlock
   const isGuidedMode = guidedStep > 0
   const [userHasLand, setUserHasLand] = useState(false) // Will be set true when user defines their land
-  const [landingStep, setLandingStep] = useState('hero') // 'hero' | 'reveal' | null
-  const [revealData, setRevealData] = useState(null) // { sizeM2, unit } for PlotReveal
   const [isDefiningLand, setIsDefiningLand] = useState(false) // Shows land definition flow
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     return localStorage.getItem('landVisualizerIntroSeen') === 'true'
@@ -811,7 +807,7 @@ function App() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
   const [aiRenderResult, setAiRenderResult] = useState(null)
   const [showAiRenderModal, setShowAiRenderModal] = useState(false)
-  const [showAIChat, setShowAIChat] = useState(false)
+  const [showAIChat, setShowAIChat] = useState(true)
   const canvasRef = useRef(null)
   const sceneRef = useRef(null)
 
@@ -908,7 +904,7 @@ function App() {
 
   // Initialize guided mode for first-time visitors (FSM), or fallback to walkthrough
   useEffect(() => {
-    // New users see LandingHero instead of guided FSM — skip auto-trigger
+    // New users start directly in the workspace; skip the legacy guided auto-trigger.
     if (!localStorage.getItem('fsmCompleted') && !userHasLand && !isReadOnly) {
       return
     }
@@ -1333,8 +1329,15 @@ function App() {
       if (sizeParam) {
         const sizeM2 = parseFloat(sizeParam)
         if (sizeM2 > 0) {
-          setRevealData({ sizeM2, unit: 'sqm' })
-          setLandingStep('reveal')
+          const side = Math.sqrt(sizeM2)
+          setDimensions({ length: side, width: side })
+          setShapeMode('rectangle')
+          setConfirmedPolygon(null)
+          setUserHasLand(true)
+          setHasSeenIntro(true)
+          localStorage.setItem('landVisualizerIntroSeen', 'true')
+          localStorage.setItem('fsmCompleted', 'true')
+          setActiveComparisons({ basketballCourt: true, tennisCourt: true })
         }
       }
       // Check if user has saved land data
@@ -1898,11 +1901,26 @@ function App() {
     setUndoRedoToast('Click on land to place building • R to rotate • ESC to cancel')
   }, [])
 
+  const handleAgentSitePlanUploaded = useCallback((imageData) => {
+    setUploadedImage(imageData)
+    setActivePanel('land')
+    setUndoRedoToast('Site plan opened in Land tools • Trace boundary or compare scale')
+  }, [])
+
+  const activateAgentComparison = useCallback((comparisonId) => {
+    setActiveComparisons(prev => ({ ...prev, [comparisonId]: true }))
+    setActivePanel(null)
+    setUndoRedoToast('Added comparison to land')
+  }, [])
+
   // AI Chat hook
   const aiChat = useAIChat({
     addWallFromPoints, addFurniture, deleteFurniture, clearAllWalls,
     setFurnitureItems, walls, rooms, furnitureItems, roomLabels, setRoomLabels,
     onFloorPlanGenerated: handleFloorPlanGenerated,
+    onSitePlanUploaded: handleAgentSitePlanUploaded,
+    activateComparison: activateAgentComparison,
+    isPaidUser,
     hasLand: userHasLand,
     dimensions,
     landArea: area,
@@ -2960,28 +2978,6 @@ function App() {
   }
 
   // Start land definition flow
-  // Landing hero handler — goes to reveal step
-  const handleLandingExplore = ({ sizeM2, unit }) => {
-    setRevealData({ sizeM2, unit: unit || 'sqm' })
-    setLandingStep('reveal')
-  }
-
-  // PlotReveal → 3D designer handoff
-  const handleRevealTo3D = () => {
-    const sizeM2 = revealData?.sizeM2 || 800
-    const side = Math.sqrt(sizeM2)
-    setDimensions({ length: side, width: side })
-    setShapeMode('rectangle')
-    setConfirmedPolygon(null)
-    setUserHasLand(true)
-    setLandingStep(null)
-    setViewMode('firstPerson')
-    setHasSeenIntro(true)
-    localStorage.setItem('landVisualizerIntroSeen', 'true')
-    localStorage.setItem('fsmCompleted', 'true')
-    setActiveComparisons({ 'basketball-court': true, 'tennis-court': true })
-  }
-
   const startDefiningLand = () => {
     // Analytics: track define land clicked
     const mode = isReadOnly ? 'shared' : (userHasLand ? 'user' : 'example')
@@ -3077,7 +3073,7 @@ function App() {
           <div className="text-[var(--color-text-secondary)] text-sm mb-6">{shareError}</div>
           <button
             onClick={() => { setShareError(null); window.location.href = '/' }}
-            className="btn-primary"
+            className="sitea-btn sitea-btn-primary"
           >
             Go to Home
           </button>
@@ -3098,7 +3094,8 @@ function App() {
           </div>
           <button
             onClick={exitReadOnlyMode}
-            className="btn-primary text-sm py-1.5 px-4"
+            className="sitea-btn sitea-btn-primary"
+            style={{ minHeight: '40px', padding: '8px 16px' }}
           >
             Define Your Land
           </button>
@@ -3118,19 +3115,6 @@ function App() {
           lengthUnit={lengthUnit}
           setLengthUnit={setLengthUnit}
           isTouchDevice={isTouchDevice}
-        />
-      )}
-
-      {/* Landing flow: hero → reveal → 3D */}
-      {!userHasLand && !isReadOnly && guidedStep === 0 && landingStep === 'hero' && (
-        <LandingHero onExplore={handleLandingExplore} />
-      )}
-      {landingStep === 'reveal' && revealData && (
-        <PlotReveal
-          sizeM2={revealData.sizeM2}
-          unit={revealData.unit}
-          onDesign3D={handleRevealTo3D}
-          onBack={() => setLandingStep('hero')}
         />
       )}
 
@@ -3628,12 +3612,12 @@ function App() {
             <span className="label">Build</span>
           </button>
 
-          <button
-            onClick={() => canEdit && handleSave()}
-            className={`ribbon-btn ${(saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'text-[var(--color-accent)]' : projectSaveStatus === 'saving' ? 'text-yellow-400' : projectSaveStatus === 'error' ? 'text-red-400' : ''}`}
-            disabled={!canEdit}
-            title={!canEdit ? 'View-only mode' : currentProjectId ? `Saving to "${currentProjectName}"` : 'Save your design'}
-          >
+            <button
+              onClick={() => canEdit && handleSave()}
+              className={`ribbon-btn ${(saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'text-[var(--color-accent)]' : projectSaveStatus === 'saving' ? 'text-[var(--color-warning)]' : projectSaveStatus === 'error' ? 'text-[var(--color-danger)]' : ''}`}
+              disabled={!canEdit}
+              title={!canEdit ? 'View-only mode' : currentProjectId ? `Saving to "${currentProjectName}"` : 'Save your design'}
+            >
             <span className="icon">
               {projectSaveStatus === 'saving' ? (
                 <div className="w-5 h-5 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
@@ -3667,7 +3651,7 @@ function App() {
 
               <button
                 onClick={handleShare}
-                className={`ribbon-btn ${shareStatus === 'copied' ? 'text-[var(--color-accent)]' : shareStatus === 'error' ? 'text-red-400' : ''}`}
+                className={`ribbon-btn ${shareStatus === 'copied' ? 'text-[var(--color-accent)]' : shareStatus === 'error' ? 'text-[var(--color-danger)]' : ''}`}
                 title={shareStatus === 'error' ? 'Sharing unavailable' : 'Copy share link'}
               >
                 <span className="icon">
@@ -3715,7 +3699,7 @@ function App() {
               {!isPaidUser && (
                 <button
                   onClick={() => setShowPricingModal(true)}
-                  className="flex flex-col items-center justify-center w-16 h-full text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/5 transition-all flex-none"
+                  className="ribbon-btn ribbon-btn-pro"
                   title="Upgrade to Pro"
                 >
                   <svg className="w-5 h-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="#facc15" strokeWidth={1.5}>
@@ -3729,11 +3713,11 @@ function App() {
               <div className="relative flex-none w-16 flex items-center justify-center">
                 {user ? (
                   <>
-                    <button
-                      onClick={() => setShowUserMenu(!showUserMenu)}
-                      className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold text-sm hover:scale-110 transition-transform"
-                      title={user.email}
-                    >
+                      <button
+                        onClick={() => setShowUserMenu(!showUserMenu)}
+                        className="w-11 h-11 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold text-sm hover:scale-105 transition-transform"
+                        title={user.email}
+                      >
                       {(user.email?.[0] || '?').toUpperCase()}
                     </button>
                     {showUserMenu && (
@@ -3752,21 +3736,21 @@ function App() {
                               </div>
                             </div>
                           </div>
-                          {/* Plans & Pricing */}
-                          <button
-                            onClick={() => { setShowPricingModal(true); setShowUserMenu(false) }}
-                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
-                          >
+                            {/* Plans & Pricing */}
+                            <button
+                              onClick={() => { setShowPricingModal(true); setShowUserMenu(false) }}
+                              className="sitea-menu-row"
+                            >
                             <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
                             </svg>
                             <span>Plans & Pricing</span>
                           </button>
-                          {/* My Projects */}
-                          <button
-                            onClick={() => { setShowProjectsModal(true); setShowUserMenu(false) }}
-                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
-                          >
+                            {/* My Projects */}
+                            <button
+                              onClick={() => { setShowProjectsModal(true); setShowUserMenu(false) }}
+                              className="sitea-menu-row"
+                            >
                             <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                             </svg>
@@ -3774,10 +3758,10 @@ function App() {
                           </button>
                           {/* Log Out */}
                           <div className="border-t border-[var(--color-border)] my-1" />
-                          <button
-                            onClick={() => { signOut(); setShowUserMenu(false) }}
-                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-red-400"
-                          >
+                            <button
+                              onClick={() => { signOut(); setShowUserMenu(false) }}
+                              className="sitea-menu-row text-[var(--color-danger)]"
+                            >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                             </svg>
@@ -3788,11 +3772,11 @@ function App() {
                     )}
                   </>
                 ) : (
-                  <button
-                    onClick={() => setShowAuthModal(true)}
-                    className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-gray-400 hover:bg-white/20 hover:text-white transition-all"
-                    title="Sign In"
-                  >
+                    <button
+                      onClick={() => setShowAuthModal(true)}
+                      className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center text-gray-400 hover:bg-white/20 hover:text-white transition-all"
+                      title="Sign In"
+                    >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
@@ -3819,16 +3803,16 @@ function App() {
         </div>
       </div>
 
-      {/* Mobile overflow menu popup */}
-      {isMobile && showOverflow && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
-          <div className={`fixed bg-[var(--color-panel)] backdrop-blur-xl rounded-xl shadow-2xl border border-[var(--color-border)] py-2 min-w-[180px] z-50 animate-slide-in-bottom-2 ${
-            isLandscape ? 'left-14 bottom-4' : 'bottom-[72px] right-4'
-          }`}>
+        {/* Mobile overflow menu popup */}
+        {isMobile && showOverflow && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
+            <div className={`fixed sitea-control-panel rounded-xl py-2 min-w-[180px] z-50 animate-slide-in-bottom-2 ${
+              isLandscape ? 'left-14 bottom-4' : 'bottom-[72px] right-4'
+            }`}>
             <button
               onClick={() => { togglePanel('export'); setShowOverflow(false) }}
-              className={`flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors ${activePanel === 'export' ? 'text-[var(--color-accent)]' : 'text-white'}`}
+              className={`sitea-menu-row ${activePanel === 'export' ? 'text-[var(--color-accent)]' : 'text-white'}`}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -3837,7 +3821,7 @@ function App() {
             </button>
             <button
               onClick={() => { handleShare(); setShowOverflow(false) }}
-              className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+              className="sitea-menu-row"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
@@ -3846,7 +3830,7 @@ function App() {
             </button>
             <button
               onClick={() => { setShowHelp(true); setShowOverflow(false) }}
-              className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+              className="sitea-menu-row"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
@@ -3872,7 +3856,7 @@ function App() {
                 {/* Plans & Pricing */}
                 <button
                   onClick={() => { setShowPricingModal(true); setShowOverflow(false) }}
-                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+	                  className="sitea-menu-row"
                 >
                   <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
@@ -3882,7 +3866,7 @@ function App() {
                 {/* My Projects */}
                 <button
                   onClick={() => { setShowProjectsModal(true); setShowOverflow(false) }}
-                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+	                  className="sitea-menu-row"
                 >
                   <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
@@ -3893,7 +3877,7 @@ function App() {
                 {/* Log Out */}
                 <button
                   onClick={() => { signOut(); setShowOverflow(false) }}
-                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-red-400"
+	                  className="sitea-menu-row text-[var(--color-danger)]"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -3904,7 +3888,7 @@ function App() {
             ) : (
               <button
                 onClick={() => { setShowAuthModal(true); setShowOverflow(false) }}
-                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+	                className="sitea-menu-row"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -3944,7 +3928,7 @@ function App() {
               <div className="mt-2 panel-premium p-4 animate-slide-in-bottom-2">
                 <button
                   onClick={startDefiningLand}
-                  className="btn-primary w-full flex items-center justify-center gap-2"
+                  className="sitea-btn sitea-btn-primary w-full"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
@@ -3981,7 +3965,7 @@ function App() {
             </div>
             <button
               onClick={startDefiningLand}
-              className="btn-primary w-full flex items-center justify-center gap-2"
+              className="sitea-btn sitea-btn-primary w-full"
             >
               <span>Edit Land</span>
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -4165,16 +4149,16 @@ function App() {
       {isMobile && !isGuidedMode && (
         <div className={`absolute right-3 z-30 flex flex-col items-end gap-2 animate-fade-in ${isReadOnly ? 'top-20' : 'top-12'}`}>
           <div className="flex items-center gap-2">
-            <div className="panel-premium flex items-center rounded-xl p-1.5 gap-1">
+            <div className="sitea-control-panel sitea-segment">
               {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
                 <button key={mode} onClick={() => setViewMode(mode)}
-                  className={`px-6 py-2.5 text-base font-bold rounded-lg transition-all ${viewMode === mode ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)]'}`}
+                  className={`sitea-segment-btn ${viewMode === mode ? 'active' : ''}`}
                 >{label}</button>
               ))}
             </div>
             <button
               onClick={() => setShowMobileViewControls(true)}
-              className="panel-premium p-3 rounded-xl"
+              className="sitea-icon-btn sitea-control-panel"
             >
               <svg className="w-6 h-6 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
@@ -4185,14 +4169,10 @@ function App() {
           {/* 1P sub-controls: 1st/3rd person toggle + distance */}
           {viewMode === 'firstPerson' && (
             <div className="self-stretch flex flex-col gap-1.5 overflow-hidden min-w-0">
-              <div className="panel-premium rounded-xl p-1.5 flex items-center gap-1">
+              <div className="sitea-control-panel sitea-segment">
                 <button
                   onClick={() => { setCameraMode(CAMERA_MODE.FIRST_PERSON); setFollowDistance(0) }}
-                  className={`flex-1 px-4 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    cameraMode === CAMERA_MODE.FIRST_PERSON
-                      ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                      : 'text-[var(--color-text-secondary)]'
-                  }`}
+                  className={`sitea-segment-btn flex-1 flex items-center justify-center gap-1.5 ${cameraMode === CAMERA_MODE.FIRST_PERSON ? 'active' : ''}`}
                 >
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
@@ -4202,11 +4182,7 @@ function App() {
                 </button>
                 <button
                   onClick={() => { setCameraMode(CAMERA_MODE.THIRD_PERSON); setFollowDistance(DEFAULT_TP_DISTANCE) }}
-                  className={`flex-1 px-4 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    cameraMode === CAMERA_MODE.THIRD_PERSON
-                      ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                      : 'text-[var(--color-text-secondary)]'
-                  }`}
+                  className={`sitea-segment-btn flex-1 flex items-center justify-center gap-1.5 ${cameraMode === CAMERA_MODE.THIRD_PERSON ? 'active' : ''}`}
                 >
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
@@ -4215,7 +4191,7 @@ function App() {
                 </button>
               </div>
               {cameraMode === CAMERA_MODE.THIRD_PERSON && (
-                <div className="panel-premium rounded-xl p-1.5 flex items-center min-w-0">
+                <div className="sitea-control-panel rounded-xl flex items-center min-w-0" style={{ padding: '10px 12px' }}>
                   <input
                     type="range"
                     min={2}
@@ -4237,27 +4213,27 @@ function App() {
         <>
           <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileViewControls(false)} />
           <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pb-20 animate-slide-in-bottom">
-            <div className="panel-premium p-5 text-white">
+            <div className="sitea-control-panel rounded-2xl text-white" style={{ padding: '20px' }}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-display font-semibold text-white">View Settings</h3>
-                <button onClick={() => setShowMobileViewControls(false)} className="p-1 hover:bg-white/10 rounded-lg">
+                <button onClick={() => setShowMobileViewControls(false)} className="sitea-icon-btn" style={{ width: 40, height: 40 }}>
                   <svg className="w-5 h-5 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Dimensions</span>
+                <div className="sitea-control-row">
+                  <span>Dimensions</span>
                   <button onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))} className={`toggle-switch ${labels.land ? 'active' : ''}`}><span className="toggle-knob" /></button>
                 </div>
-                <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Grid</span>
+                <div className="sitea-control-row">
+                  <span>Grid</span>
                   <button onClick={() => setGridSnapEnabled(!gridSnapEnabled)} className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}><span className="toggle-knob" /></button>
                 </div>
-                <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Quality</span>
-                  <select value={graphicsQuality} onChange={(e) => setGraphicsQuality(e.target.value)} className="select-premium" style={{ fontSize: '11px', padding: '4px 22px 4px 8px', borderRadius: '6px' }}>
+                <div className="sitea-control-row">
+                  <span>Quality</span>
+                  <select value={graphicsQuality} onChange={(e) => setGraphicsQuality(e.target.value)} className="select-premium">
                     <option value={QUALITY.FAST}>Fast</option>
                     <option value={QUALITY.BEST}>Best</option>
                   </select>
@@ -4268,100 +4244,88 @@ function App() {
         </>
       )}
 
-      {/* Desktop: always-visible view controls */}
-      {!isMobile && !isGuidedMode && (
-      <div className={`absolute right-4 panel-premium text-white overflow-hidden animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}>
-        <div className="px-4 py-3 space-y-3">
-          <div className="space-y-2">
-            <span className="text-[var(--color-text-secondary)] text-sm text-center block">View</span>
-            <div className="flex bg-[var(--color-bg-secondary)] rounded-lg p-1 gap-1">
-              <button
-                onClick={() => setViewMode('firstPerson')}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  viewMode === 'firstPerson'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                    : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-white/10'
-                }`}
-                title="First Person View (Press 1)"
-              >
-                1P
-              </button>
-              <button
-                onClick={() => setViewMode('orbit')}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  viewMode === 'orbit'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                    : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-white/10'
-                }`}
-                title="3D Orbit View (Press 2)"
-              >
-                3D
-              </button>
-              <button
-                onClick={() => setViewMode('2d')}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  viewMode === '2d'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                    : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-white/10'
-                }`}
-                title="2D Top-Down View (Press 3)"
-              >
-                2D
-              </button>
+        {/* Desktop: always-visible view controls */}
+        {!isMobile && !isGuidedMode && (
+          <div className={`absolute right-4 sitea-control-panel rounded-2xl text-white overflow-hidden animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}>
+            <div className="px-4 py-3 space-y-3">
+              <div className="space-y-2">
+                <span className="text-[var(--color-text-secondary)] text-sm text-center block">View</span>
+                <div className="sitea-segment">
+                  <button
+                    onClick={() => setViewMode('firstPerson')}
+                    className={`sitea-segment-btn ${viewMode === 'firstPerson' ? 'active' : ''}`}
+                    title="First Person View (Press 1)"
+                  >
+                    1P
+                  </button>
+                  <button
+                    onClick={() => setViewMode('orbit')}
+                    className={`sitea-segment-btn ${viewMode === 'orbit' ? 'active' : ''}`}
+                    title="3D Orbit View (Press 2)"
+                  >
+                    3D
+                  </button>
+                  <button
+                    onClick={() => setViewMode('2d')}
+                    className={`sitea-segment-btn ${viewMode === '2d' ? 'active' : ''}`}
+                    title="2D Top-Down View (Press 3)"
+                  >
+                    2D
+                  </button>
+                </div>
+              </div>
+
+              {(viewMode === 'orbit' || viewMode === '2d') && (
+                <button
+                  onClick={() => setFitToLandTrigger(t => t + 1)}
+                  className="sitea-btn sitea-btn-secondary w-full"
+                  style={{ minHeight: 38, padding: '8px 12px' }}
+                >
+                  Fit to Land
+                </button>
+              )}
+
+              <div className="sitea-control-row">
+                <span>Dimensions</span>
+                <button
+                  onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))}
+                  className={`toggle-switch ${labels.land ? 'active' : ''}`}
+                  aria-pressed={labels.land}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+
+              <div className="sitea-control-row">
+                <span>Grid</span>
+                <button
+                  onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
+                  className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}
+                  aria-pressed={gridSnapEnabled}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+
+              <div className="sitea-control-row">
+                <span>Quality</span>
+                <select
+                  value={graphicsQuality}
+                  onChange={(e) => setGraphicsQuality(e.target.value)}
+                  className="select-premium"
+                >
+                  <option value={QUALITY.FAST}>Fast</option>
+                  <option value={QUALITY.BEST}>Best</option>
+                </select>
+              </div>
             </div>
           </div>
-
-          {(viewMode === 'orbit' || viewMode === '2d') && (
-            <button
-              onClick={() => setFitToLandTrigger(t => t + 1)}
-              className="w-full py-1.5 px-3 text-sm font-medium rounded-lg bg-[var(--color-bg-secondary)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg-primary)] text-[var(--color-text-secondary)] transition-colors border border-[var(--color-border)]"
-            >
-              Fit to Land
-            </button>
-          )}
-
-          <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Dimensions</span>
-            <button
-              onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))}
-              className={`toggle-switch ${labels.land ? 'active' : ''}`}
-              aria-pressed={labels.land}
-            >
-              <span className="toggle-knob" />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Grid</span>
-            <button
-              onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
-              className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}
-              aria-pressed={gridSnapEnabled}
-            >
-              <span className="toggle-knob" />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Quality</span>
-            <select
-              value={graphicsQuality}
-              onChange={(e) => setGraphicsQuality(e.target.value)}
-              className="select-premium"
-              style={{ fontSize: '11px', padding: '4px 22px 4px 8px', borderRadius: '6px' }}
-            >
-              <option value={QUALITY.FAST}>Fast</option>
-              <option value={QUALITY.BEST}>Best</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      )}
+        )}
 
 
       {/* Undo/Redo toast notification */}
       {undoRedoToast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm font-medium shadow-lg border border-[var(--color-border)] animate-fade-in flex items-center gap-3" style={{ padding: '8px 32px' }}>
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-xl sitea-status-toast text-[var(--color-text-primary)] text-sm font-medium animate-fade-in flex items-center gap-3" style={{ padding: '10px 22px' }}>
           {undoRedoToast === 'building_selected'
             ? 'Building selected • R rotate • Del delete • E to explode'
             : undoRedoToast}
@@ -4369,13 +4333,11 @@ function App() {
       )}
 
       {/* Soft Pro upgrade banner */}
-      {showProBanner && !isPaidUser && (
-        <div className={`fixed left-1/2 -translate-x-1/2 z-40 animate-slide-in-bottom ${
-          isTouchDevice ? 'bottom-20' : 'bottom-6'
-        }`}>
-          <div className="flex items-center gap-3 bg-[var(--color-bg-secondary)]/95 backdrop-blur-md
-            rounded-xl border border-[var(--color-border)] shadow-lg shadow-black/20
-            pl-4 pr-2 py-2.5 max-w-md">
+        {showProBanner && !isPaidUser && (
+          <div className={`fixed left-1/2 -translate-x-1/2 z-40 animate-slide-in-bottom ${
+            isTouchDevice ? 'bottom-20' : 'bottom-6'
+          }`}>
+            <div className="flex items-center gap-3 sitea-status-toast rounded-xl pl-4 pr-2 py-2.5 max-w-md">
 
             {/* Banner content — clickable */}
             <button
@@ -4594,15 +4556,17 @@ function App() {
       {/* AI Chat */}
       <AIChatButton
         onClick={() => requirePaid(() => setShowAIChat(true))}
-        visible={!showPricingModal && !showAuthModal && !isReadOnly && landingStep === null && !showAIChat && !isGuidedMode && !isDefiningLand}
+        visible={!showPricingModal && !showAuthModal && !isReadOnly && !showAIChat && !isGuidedMode && !isDefiningLand}
         locked={!isPaidUser}
       />
-      {showAIChat && (
+      {showAIChat && !isReadOnly && !showPricingModal && !showAuthModal && !isGuidedMode && !isDefiningLand && (
         <AIChatPanel
           messages={aiChat.messages}
           isLoading={aiChat.isLoading}
+          activeProcess={aiChat.activeProcess}
           error={aiChat.error}
           onSend={aiChat.sendMessage}
+          onAction={aiChat.handleAction}
           onClear={aiChat.clearChat}
           onClose={() => setShowAIChat(false)}
         />

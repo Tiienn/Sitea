@@ -1,0 +1,851 @@
+{
+  "success": true,
+  "imageSize": {
+    "width": 825,
+    "height": 972
+  },
+  "walls": [
+    {
+      "start": {
+        "x": 170,
+        "y": 230
+      },
+      "end": {
+        "x": 290,
+        "y": 230
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.8
+    },
+    {
+      "start": {
+        "x": 170,
+        "y": 230
+      },
+      "end": {
+        "x": 170,
+        "y": 330
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.85
+    },
+    {
+      "start": {
+        "x": 170,
+        "y": 330
+      },
+      "end": {
+        "x": 170,
+        "y": 450
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.85
+    },
+    {
+      "start": {
+        "x": 170,
+        "y": 450
+      },
+      "end": {
+        "x": 170,
+        "y": 520
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.85
+    },
+    {
+      "start": {
+        "x": 170,
+        "y": 520
+      },
+      "end": {
+        "x": 170,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.85
+    },
+    {
+      "start": {
+        "x": 290,
+        "y": 230
+      },
+      "end": {
+        "x": 290,
+        "y": 330
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.75
+    },
+    {
+      "start": {
+        "x": 290,
+        "y": 330
+      },
+      "end": {
+        "x": 290,
+        "y": 360
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.75
+    },
+    {
+      "start": {
+        "x": 290,
+        "y": 360
+      },
+      "end": {
+        "x": 360,
+        "y": 360
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 360,
+        "y": 360
+      },
+      "end": {
+        "x": 420,
+        "y": 360
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 460,
+        "y": 360
+      },
+      "end": {
+        "x": 460,
+        "y": 360
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.65
+    },
+    {
+      "start": {
+        "x": 460,
+        "y": 360
+      },
+      "end": {
+        "x": 520,
+        "y": 360
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.65
+    },
+    {
+      "start": {
+        "x": 520,
+        "y": 360
+      },
+      "end": {
+        "x": 560,
+        "y": 360
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.65
+    },
+    {
+      "start": {
+        "x": 590,
+        "y": 360
+      },
+      "end": {
+        "x": 720,
+        "y": 360
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 720,
+        "y": 360
+      },
+      "end": {
+        "x": 720,
+        "y": 520
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.85
+    },
+    {
+      "start": {
+        "x": 720,
+        "y": 520
+      },
+      "end": {
+        "x": 720,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.85
+    },
+    {
+      "start": {
+        "x": 170,
+        "y": 640
+      },
+      "end": {
+        "x": 230,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 230,
+        "y": 640
+      },
+      "end": {
+        "x": 290,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 290,
+        "y": 640
+      },
+      "end": {
+        "x": 420,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 420,
+        "y": 640
+      },
+      "end": {
+        "x": 520,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 520,
+        "y": 640
+      },
+      "end": {
+        "x": 600,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 600,
+        "y": 640
+      },
+      "end": {
+        "x": 650,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 650,
+        "y": 640
+      },
+      "end": {
+        "x": 720,
+        "y": 640
+      },
+      "thickness": 14,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 290,
+        "y": 360
+      },
+      "end": {
+        "x": 290,
+        "y": 450
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.75
+    },
+    {
+      "start": {
+        "x": 290,
+        "y": 450
+      },
+      "end": {
+        "x": 290,
+        "y": 510
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.75
+    },
+    {
+      "start": {
+        "x": 290,
+        "y": 530
+      },
+      "end": {
+        "x": 290,
+        "y": 640
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 170,
+        "y": 330
+      },
+      "end": {
+        "x": 218,
+        "y": 330
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 245,
+        "y": 330
+      },
+      "end": {
+        "x": 290,
+        "y": 330
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 218,
+        "y": 330
+      },
+      "end": {
+        "x": 225,
+        "y": 450
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 170,
+        "y": 450
+      },
+      "end": {
+        "x": 225,
+        "y": 450
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 225,
+        "y": 450
+      },
+      "end": {
+        "x": 290,
+        "y": 450
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 225,
+        "y": 450
+      },
+      "end": {
+        "x": 230,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 230,
+        "y": 520
+      },
+      "end": {
+        "x": 230,
+        "y": 640
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 170,
+        "y": 520
+      },
+      "end": {
+        "x": 230,
+        "y": 520
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.55
+    },
+    {
+      "start": {
+        "x": 360,
+        "y": 360
+      },
+      "end": {
+        "x": 360,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 460,
+        "y": 360
+      },
+      "end": {
+        "x": 470,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 360,
+        "y": 520
+      },
+      "end": {
+        "x": 395,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.65
+    },
+    {
+      "start": {
+        "x": 425,
+        "y": 520
+      },
+      "end": {
+        "x": 470,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.65
+    },
+    {
+      "start": {
+        "x": 520,
+        "y": 360
+      },
+      "end": {
+        "x": 520,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 290,
+        "y": 530
+      },
+      "end": {
+        "x": 360,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 470,
+        "y": 520
+      },
+      "end": {
+        "x": 520,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.7
+    },
+    {
+      "start": {
+        "x": 560,
+        "y": 520
+      },
+      "end": {
+        "x": 600,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 600,
+        "y": 520
+      },
+      "end": {
+        "x": 720,
+        "y": 520
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.75
+    },
+    {
+      "start": {
+        "x": 425,
+        "y": 520
+      },
+      "end": {
+        "x": 420,
+        "y": 640
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 520,
+        "y": 520
+      },
+      "end": {
+        "x": 520,
+        "y": 640
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.6
+    },
+    {
+      "start": {
+        "x": 600,
+        "y": 520
+      },
+      "end": {
+        "x": 600,
+        "y": 570
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.75
+    },
+    {
+      "start": {
+        "x": 600,
+        "y": 570
+      },
+      "end": {
+        "x": 600,
+        "y": 640
+      },
+      "thickness": 12,
+      "isExterior": false,
+      "confidence": 0.75
+    },
+    {
+      "start": {
+        "x": 650,
+        "y": 570
+      },
+      "end": {
+        "x": 650,
+        "y": 640
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.55
+    },
+    {
+      "start": {
+        "x": 600,
+        "y": 570
+      },
+      "end": {
+        "x": 650,
+        "y": 570
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.55
+    }
+  ],
+  "doors": [
+    {
+      "center": {
+        "x": 230,
+        "y": 330
+      },
+      "width": 34,
+      "wallIndex": 25,
+      "positionAlongWall": 1,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 290,
+        "y": 520
+      },
+      "width": 40,
+      "wallIndex": 23,
+      "positionAlongWall": 1,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 412.5,
+        "y": 520
+      },
+      "width": 36,
+      "wallIndex": 35,
+      "positionAlongWall": 1,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 540,
+        "y": 520
+      },
+      "width": 40,
+      "wallIndex": 39,
+      "positionAlongWall": 1,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 520,
+        "y": 585
+      },
+      "width": 34,
+      "wallIndex": 43,
+      "positionAlongWall": 0.54,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 390,
+        "y": 360
+      },
+      "width": 64,
+      "wallIndex": 8,
+      "positionAlongWall": 0.5,
+      "rotation": 0,
+      "doorType": "sliding"
+    },
+    {
+      "center": {
+        "x": 625,
+        "y": 360
+      },
+      "width": 76,
+      "wallIndex": 12,
+      "positionAlongWall": 0.27,
+      "rotation": 0,
+      "doorType": "sliding"
+    }
+  ],
+  "windows": [
+    {
+      "center": {
+        "x": 230,
+        "y": 230
+      },
+      "width": 80,
+      "wallIndex": 0,
+      "positionAlongWall": 0.5
+    },
+    {
+      "center": {
+        "x": 655,
+        "y": 360
+      },
+      "width": 90,
+      "wallIndex": 12,
+      "positionAlongWall": 0.5
+    },
+    {
+      "center": {
+        "x": 720,
+        "y": 440
+      },
+      "width": 60,
+      "wallIndex": 13,
+      "positionAlongWall": 0.5
+    },
+    {
+      "center": {
+        "x": 675,
+        "y": 640
+      },
+      "width": 44,
+      "wallIndex": 21,
+      "positionAlongWall": 0.36
+    }
+  ],
+  "rooms": [
+    {
+      "name": "Bedroom",
+      "center": {
+        "x": 230,
+        "y": 285
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Bathroom",
+      "center": {
+        "x": 195,
+        "y": 390
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Stair Hall",
+      "center": {
+        "x": 240,
+        "y": 560
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Bedroom",
+      "center": {
+        "x": 415,
+        "y": 440
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Bedroom",
+      "center": {
+        "x": 620,
+        "y": 445
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Closet",
+      "center": {
+        "x": 420,
+        "y": 600
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "WC",
+      "center": {
+        "x": 620,
+        "y": 585
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Open Terrace",
+      "center": {
+        "x": 525,
+        "y": 300
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Hall",
+      "center": {
+        "x": 360,
+        "y": 585
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Stairs",
+      "center": {
+        "x": 230,
+        "y": 565
+      },
+      "labeledArea": null
+    }
+  ],
+  "stairs": [
+    {
+      "center": {
+        "x": 230,
+        "y": 565
+      },
+      "direction": "down"
+    }
+  ],
+  "scale": {
+    "pixelsPerMeter": 41,
+    "confidence": 0.93,
+    "source": "dimension_label"
+  },
+  "overallShape": "rectangular plan with recessed open-terrace edge at top",
+  "totalArea": {
+    "value": 101,
+    "unit": "sqm"
+  }
+}

@@ -1,10 +1,63 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { convertFloorPlanToWorld } from '../utils/floorPlanConverter'
+import { analyzeImage } from '../services/imageAnalysis'
 
 const MAX_TOOL_ITERATIONS = 5
+const TENNIS_COURT = { id: 'tennisCourt', name: 'tennis court', width: 10.97, length: 23.77 }
 
 const formatMeters = (value) => Number.isFinite(value) ? `${value.toFixed(1)}m` : 'unknown'
+const formatArea = (value) => Number.isFinite(value) ? `${Math.round(value)}m²` : 'the current land'
+
+const FLOOR_PLAN_PROCESS = {
+  title: 'Reading your floor plan',
+  subtitle: 'Detecting structure first, then preparing a 3D preview you can place on the land.',
+  steps: [
+    { label: 'Plan attached', state: 'done' },
+    { label: 'Detect walls, doors, windows, and rooms', state: 'current' },
+    { label: 'Prepare 3D placement preview', state: 'waiting' },
+  ],
+}
+
+const SITE_PLAN_PROCESS = {
+  title: 'Reading your site plan',
+  subtitle: 'Checking the boundary and opening the land tools so the next step is visible.',
+  steps: [
+    { label: 'Plan attached', state: 'done' },
+    { label: 'Review land boundary and scale', state: 'current' },
+    { label: 'Offer a real-world comparison', state: 'waiting' },
+  ],
+}
+
+function getTennisCourtFit(landArea) {
+  const courtArea = TENNIS_COURT.width * TENNIS_COURT.length
+  if (!Number.isFinite(landArea) || landArea <= 0) {
+    return {
+      count: null,
+      text: 'I can compare it against a tennis court once your land area is confirmed.',
+    }
+  }
+
+  const count = Math.floor(landArea / courtArea)
+  if (count <= 0) {
+    return {
+      count,
+      text: `A standard tennis court is about ${Math.round(courtArea)}m², so it is larger than ${formatArea(landArea)} before setbacks and access space.`,
+    }
+  }
+
+  return {
+    count,
+    text: `About ${count} tennis court${count === 1 ? '' : 's'} can fit inside ${formatArea(landArea)} before setbacks, house footprint, and access space.`,
+  }
+}
+
+function shouldTreatUploadAsSitePlan(text, fileMeta, detection) {
+  const uploadText = `${text || ''} ${fileMeta?.fileName || ''}`.toLowerCase()
+  const asksForSite = /\b(site|land|plot|parcel|lot|boundary)\b/.test(uploadText)
+  const asksForFloor = /\b(floor|room|wall|door|window|bedroom|bathroom)\b/.test(uploadText)
+  return detection?.type === 'site-plan' || (asksForSite && !asksForFloor)
+}
 
 export function useAIChat({
   addWallFromPoints,
@@ -18,6 +71,9 @@ export function useAIChat({
   roomLabels,
   setRoomLabels,
   onFloorPlanGenerated,
+  onSitePlanUploaded,
+  activateComparison,
+  isPaidUser = false,
   hasLand = false,
   dimensions,
   landArea,
@@ -37,6 +93,7 @@ export function useAIChat({
     } catch { return [] }
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [activeProcess, setActiveProcess] = useState(null)
   const [error, setError] = useState(null)
   const abortRef = useRef(false)
   const pendingLabelsRef = useRef([]) // [{centerX, centerZ, label}]
@@ -207,6 +264,7 @@ export function useAIChat({
   const analyzeFloorPlan = useCallback(async (fileBase64, text) => {
     setError(null)
     setIsLoading(true)
+    setActiveProcess(FLOOR_PLAN_PROCESS)
 
     const userMsg = { role: 'user', content: text || 'Analyze my floor plan', displayText: text || 'Analyze my floor plan', hasImage: true }
     setMessages(prev => [...prev, userMsg])
@@ -235,9 +293,23 @@ export function useAIChat({
 
       const result = convertFloorPlanToWorld(data)
       const { stats } = result
-      const summary = `Detected ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, and ${stats.roomCount} rooms. Placing building now — click on your land to position it.`
+      const stairText = stats.stairCount ? `, and ${stats.stairCount} stair${stats.stairCount === 1 ? '' : 's'}` : ''
+      const summary = `I found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.\n\nI prepared a 3D building preview from your plan. Next, click on the land to place it. Press R first if you want to rotate it.`
 
-      setMessages(prev => [...prev, { role: 'assistant', content: summary }])
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: summary,
+        nextSteps: [
+          { label: 'Plan geometry detected', state: 'done' },
+          { label: '3D preview prepared', state: 'done' },
+          { label: 'Click the land to place it', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'analyze_floor_plan',
+          input: stats,
+          success: true,
+        }],
+      }])
 
       if (onFloorPlanGenerated) {
         onFloorPlanGenerated(result)
@@ -246,26 +318,99 @@ export function useAIChat({
       setError(err.message)
       setMessages(prev => [...prev, { role: 'assistant', content: '', error: err.message }])
     } finally {
+      setActiveProcess(null)
       setIsLoading(false)
     }
   }, [onFloorPlanGenerated])
 
-  const sendMessage = useCallback(async (text, fileBase64 = null) => {
-    if ((!text.trim() && !fileBase64) || isLoading) return
+  const analyzeSitePlan = useCallback(async (text, fileMeta, detection = null) => {
+    setError(null)
+    setIsLoading(true)
+    setActiveProcess(SITE_PLAN_PROCESS)
 
-    // Route file uploads through the dedicated floor plan analyzer
+    const displayText = text || `Review ${fileMeta?.fileName || 'my site plan'}`
+    const userMsg = { role: 'user', content: displayText, displayText, hasImage: true }
+    setMessages(prev => [...prev, userMsg])
+
+    try {
+      if (fileMeta?.imageData && onSitePlanUploaded) {
+        onSitePlanUploaded(fileMeta.imageData)
+      }
+
+      const fit = getTennisCourtFit(landArea)
+      const confidenceText = detection?.confidence
+        ? ` with ${Math.round(detection.confidence * 100)}% confidence`
+        : ''
+      const countLabel = fit.count === 1 ? 'Show 1 tennis court' : 'Show tennis court comparison'
+      const summary = `I read this as a site plan${confidenceText}.\n\n${fit.text}\n\nI opened the Land panel with your uploaded plan, so you can trace or confirm the boundary next. You can also compare the land against a tennis court to make the scale easier to feel.`
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: summary,
+        nextSteps: [
+          { label: 'Site plan recognized', state: 'done' },
+          { label: 'Land panel opened', state: 'done' },
+          { label: 'Trace boundary or compare scale', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'review_site_plan',
+          input: {
+            landArea: Math.round(landArea || 0),
+            tennisCourtFit: fit.count,
+            detectionType: detection?.type || 'site-plan',
+          },
+          success: true,
+        }],
+        suggestedActions: [{
+          type: 'activate_comparison',
+          comparisonId: TENNIS_COURT.id,
+          label: countLabel,
+          objectName: 'tennis court',
+        }],
+      }])
+    } catch (err) {
+      setError(err.message)
+      setMessages(prev => [...prev, { role: 'assistant', content: '', error: err.message }])
+    } finally {
+      setActiveProcess(null)
+      setIsLoading(false)
+    }
+  }, [landArea, onSitePlanUploaded])
+
+  const routePlanUpload = useCallback(async (fileBase64, text, fileMeta = {}) => {
+    let detection = null
+    if (fileMeta?.imageData) {
+      try {
+        detection = await analyzeImage(fileMeta.imageData, isPaidUser)
+      } catch (err) {
+        console.warn('Plan type detection failed, using floor-plan analyzer fallback:', err)
+      }
+    }
+
+    if (shouldTreatUploadAsSitePlan(text, fileMeta, detection)) {
+      return analyzeSitePlan(text, fileMeta, detection)
+    }
+
+    return analyzeFloorPlan(fileBase64, text)
+  }, [analyzeFloorPlan, analyzeSitePlan, isPaidUser])
+
+  const sendMessage = useCallback(async (text, fileBase64 = null, fileMeta = {}) => {
+    const messageText = text || ''
+    if ((!messageText.trim() && !fileBase64) || isLoading) return
+
+    // Route file uploads by plan type before using the paid floor-plan analyzer.
     if (fileBase64) {
-      return analyzeFloorPlan(fileBase64, text)
+      return routePlanUpload(fileBase64, messageText, fileMeta)
     }
 
     setError(null)
     setIsLoading(true)
     abortRef.current = false
 
-    const apiContent = text
+    const apiContent = messageText
 
     // Add user message to UI
-    const userMsg = { role: 'user', content: apiContent, displayText: text, hasImage: false }
+    const userMsg = { role: 'user', content: apiContent, displayText: messageText, hasImage: false }
     setMessages(prev => [...prev, userMsg])
 
     // Build API messages from ref (has all messages up to now) + the new user message
@@ -356,10 +501,34 @@ export function useAIChat({
     } finally {
       setIsLoading(false)
     }
-  }, [isLoading, analyzeFloorPlan, executeTool, buildApiMessages, buildSceneContext])
+  }, [isLoading, routePlanUpload, executeTool, buildApiMessages, buildSceneContext])
+
+  const handleAction = useCallback((action) => {
+    if (!action || isLoading) return
+
+    if (action.type === 'activate_comparison' && action.comparisonId) {
+      activateComparison?.(action.comparisonId)
+      const label = action.objectName || 'comparison object'
+      setMessages(prev => [...prev, {
+        role: 'user',
+        content: action.label,
+        displayText: action.label,
+        hasImage: false,
+      }, {
+        role: 'assistant',
+        content: `Done. I added the ${label} comparison to the land. You can drag it around or rotate it in the scene.`,
+      }])
+      return
+    }
+
+    if (action.prompt) {
+      sendMessage(action.prompt)
+    }
+  }, [activateComparison, isLoading, sendMessage])
 
   const clearChat = useCallback(() => {
     setMessages([])
+    setActiveProcess(null)
     setError(null)
   }, [])
 
@@ -391,5 +560,5 @@ export function useAIChat({
     }
   }, [rooms, roomLabels, setRoomLabels])
 
-  return { messages, isLoading, error, sendMessage, clearChat }
+  return { messages, isLoading, activeProcess, error, sendMessage, handleAction, clearChat }
 }

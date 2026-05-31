@@ -721,7 +721,7 @@ export default function BuildPanel({
                           value={floorPlanSettings.offsetX}
                           onChange={(e) => setFloorPlanSettings(prev => ({ ...prev, offsetX: parseFloat(e.target.value) || 0 }))}
                           step={0.5}
-                          className="w-full px-2 py-1 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:border-[var(--color-accent)]"
+                          className="sitea-field w-full text-sm"
                         />
                       </div>
                       <div>
@@ -731,7 +731,7 @@ export default function BuildPanel({
                           value={floorPlanSettings.offsetZ}
                           onChange={(e) => setFloorPlanSettings(prev => ({ ...prev, offsetZ: parseFloat(e.target.value) || 0 }))}
                           step={0.5}
-                          className="w-full px-2 py-1 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:border-[var(--color-accent)]"
+                          className="sitea-field w-full text-sm"
                         />
                       </div>
                     </div>
@@ -741,10 +741,11 @@ export default function BuildPanel({
                     </p>
 
                     {/* Upload new button */}
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full py-2 text-xs text-[var(--color-text-muted)] hover:text-white transition-colors"
-                    >
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="sitea-btn sitea-btn-secondary w-full text-xs"
+                        style={{ minHeight: 40, padding: '8px 12px' }}
+                      >
                       Upload different image
                     </button>
                   </div>
@@ -882,31 +883,23 @@ export default function BuildPanel({
 
                 {/* Undo/Redo Buttons */}
                 <div className="flex gap-2 border-t border-[var(--color-border)]" style={{ paddingTop: 10 }}>
-                  <button
-                    onClick={onUndo}
-                    disabled={!canUndo}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      canUndo
-                        ? 'bg-[var(--color-bg-elevated)] hover:bg-white/10 text-[var(--color-text-primary)]'
-                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] opacity-50 cursor-not-allowed'
-                    }`}
-                    title="Undo (Ctrl+Z)"
-                  >
+                    <button
+                      onClick={onUndo}
+                      disabled={!canUndo}
+                      className="sitea-btn sitea-btn-secondary flex-1"
+                      title="Undo (Ctrl+Z)"
+                    >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 0 1 5 5v2M3 10l4-4M3 10l4 4" />
                     </svg>
                     <span>Undo</span>
                   </button>
-                  <button
-                    onClick={onRedo}
-                    disabled={!canRedo}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      canRedo
-                        ? 'bg-[var(--color-bg-elevated)] hover:bg-white/10 text-[var(--color-text-primary)]'
-                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] opacity-50 cursor-not-allowed'
-                    }`}
-                    title="Redo (Ctrl+Shift+Z)"
-                  >
+                    <button
+                      onClick={onRedo}
+                      disabled={!canRedo}
+                      className="sitea-btn sitea-btn-secondary flex-1"
+                      title="Redo (Ctrl+Shift+Z)"
+                    >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 10H11a5 5 0 0 0-5 5v2M21 10l-4-4M21 10l-4 4" />
                     </svg>
@@ -1634,7 +1627,7 @@ export default function BuildPanel({
       {activeSection && (
         <button
           onClick={() => setActiveSection(null)}
-          className="w-4 h-full flex items-center justify-center bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-l border-[var(--color-border)]"
+            className="sitea-collapse-handle h-full flex items-center justify-center bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-l border-[var(--color-border)]"
         >
           <svg className="w-4 h-4 text-[var(--color-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />

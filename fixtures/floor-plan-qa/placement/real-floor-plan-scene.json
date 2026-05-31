@@ -1,0 +1,2364 @@
+{
+  "dimensions": {
+    "length": 50,
+    "width": 70
+  },
+  "shapeMode": "rectangle",
+  "polygonPoints": [],
+  "confirmedPolygon": null,
+  "placedBuildings": [],
+  "generatedBuildings": [
+    {
+      "id": "qa-real-wide-40x30",
+      "qaSource": "real-wide-40x30",
+      "title": "Real wide residential floor plan, 40 by 30 feet",
+      "position": {
+        "x": -24,
+        "z": -7
+      },
+      "rotation": 0,
+      "walls": [
+        {
+          "id": "wall-generated-1780255251362-0",
+          "start": {
+            "x": -6.0456508328192475,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": -5.1819864281307835,
+            "z": -4.73593635025101
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251365-0",
+              "type": "window",
+              "position": 0.8636644046884638,
+              "width": 1.7273288093769277,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-2",
+          "start": {
+            "x": -2.8377544725478105,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": -1.8507094386181373,
+            "z": -4.73593635025101
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-6",
+          "start": {
+            "x": 2.344231955582973,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": 4.5650832819247364,
+            "z": -4.73593635025101
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251365-3",
+              "type": "window",
+              "position": 0.49352251696483646,
+              "width": 0.9870450339296729,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-8",
+          "start": {
+            "x": -6.0456508328192475,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": -6.0456508328192475,
+            "z": -3.625951268160929
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251365-4",
+              "type": "window",
+              "position": 0.8019740900678592,
+              "width": 1.6039481801357185,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-10",
+          "start": {
+            "x": -6.0456508328192475,
+            "z": -1.652644455556341
+          },
+          "end": {
+            "x": -6.0456508328192475,
+            "z": -0.04933267031511407
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251365-5",
+              "type": "window",
+              "position": 0.8019740900678592,
+              "width": 1.6039481801357185,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-11",
+          "start": {
+            "x": -6.0456508328192475,
+            "z": 1.5539791149261137
+          },
+          "end": {
+            "x": -6.0456508328192475,
+            "z": 4.390607658045209
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-12",
+          "start": {
+            "x": 6.144355336212214,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": 6.144355336212214,
+            "z": -2.7626295376464225
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-13",
+          "start": {
+            "x": 6.144355336212214,
+            "z": -1.282649428192982
+          },
+          "end": {
+            "x": 6.144355336212214,
+            "z": 0.4439940328360328
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-14",
+          "start": {
+            "x": 6.144355336212214,
+            "z": 0.4439940328360328
+          },
+          "end": {
+            "x": 6.144355336212214,
+            "z": 2.6639641970161936
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-generated-1780255251365-6",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.5243676742751388,
+              "width": 1.0487353485502775,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-16",
+          "start": {
+            "x": -6.0456508328192475,
+            "z": 4.390607658045209
+          },
+          "end": {
+            "x": -4.0715607649599015,
+            "z": 4.390607658045209
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-17",
+          "start": {
+            "x": -2.8377544725478105,
+            "z": 4.390607658045209
+          },
+          "end": {
+            "x": -1.233806292412092,
+            "z": 4.390607658045209
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251365-6",
+              "type": "window",
+              "position": 0.6169031462060456,
+              "width": 1.2338062924120912,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-18",
+          "start": {
+            "x": -0.2467612584824187,
+            "z": 4.390607658045209
+          },
+          "end": {
+            "x": 1.8507094386181357,
+            "z": 4.390607658045209
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-generated-1780255251365-5",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.5243676742751388,
+              "width": 1.0487353485502775,
+              "height": 2.1
+            },
+            {
+              "id": "window-generated-1780255251365-7",
+              "type": "window",
+              "position": 0.6785934608266502,
+              "width": 1.3571869216533003,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-19",
+          "start": {
+            "x": 3.207896360271437,
+            "z": 4.390607658045209
+          },
+          "end": {
+            "x": 4.071560764959901,
+            "z": 4.390607658045209
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-20",
+          "start": {
+            "x": 4.071560764959901,
+            "z": 4.390607658045209
+          },
+          "end": {
+            "x": 6.144355336212214,
+            "z": 4.390607658045209
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-21",
+          "start": {
+            "x": -6.0456508328192475,
+            "z": -1.652644455556341
+          },
+          "end": {
+            "x": -4.0715607649599015,
+            "z": -1.6526444555563418
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251365-0",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.45033929673041334,
+              "width": 0.9006785934608267,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-23",
+          "start": {
+            "x": -2.8377544725478105,
+            "z": -1.652644455556341
+          },
+          "end": {
+            "x": -1.8507094386181373,
+            "z": -1.652644455556341
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251365-1",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.45033929673041334,
+              "width": 0.9006785934608267,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-25",
+          "start": {
+            "x": -0.6169031462060468,
+            "z": -1.6526444555563418
+          },
+          "end": {
+            "x": 0.863664404688464,
+            "z": -1.6526444555563418
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-27",
+          "start": {
+            "x": 1.8507094386181357,
+            "z": -1.652644455556341
+          },
+          "end": {
+            "x": 2.344231955582973,
+            "z": -1.652644455556341
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251365-3",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.45033929673041334,
+              "width": 0.9006785934608267,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-30",
+          "start": {
+            "x": 4.071560764959901,
+            "z": -1.652644455556341
+          },
+          "end": {
+            "x": 6.144355336212214,
+            "z": -1.6526444555563418
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251365-4",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.45033929673041334,
+              "width": 0.9006785934608267,
+              "height": 2.1
+            },
+            {
+              "id": "window-generated-1780255251365-8",
+              "type": "window",
+              "position": 0.7402837754472548,
+              "width": 1.4805675508945095,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-31",
+          "start": {
+            "x": -2.8377544725478105,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": -2.8377544725478105,
+            "z": -3.502619592373143
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-32",
+          "start": {
+            "x": -2.8377544725478105,
+            "z": -2.7626295376464225
+          },
+          "end": {
+            "x": -2.8377544725478105,
+            "z": -1.652644455556341
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-33",
+          "start": {
+            "x": -1.8507094386181373,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": -1.8507094386181373,
+            "z": -3.502619592373143
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-34",
+          "start": {
+            "x": -1.8507094386181373,
+            "z": -2.7626295376464225
+          },
+          "end": {
+            "x": -1.8507094386181373,
+            "z": -1.652644455556341
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-35",
+          "start": {
+            "x": 0.8636644046884624,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": 0.863664404688464,
+            "z": -1.6526444555563418
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251365-2",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.4318322023442319,
+              "width": 0.8636644046884638,
+              "height": 2.1
+            },
+            {
+              "id": "window-generated-1780255251365-1",
+              "type": "window",
+              "position": 0.8636644046884638,
+              "width": 1.7273288093769277,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-36",
+          "start": {
+            "x": 1.8507094386181357,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": 1.8507094386181357,
+            "z": -1.652644455556341
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "window-generated-1780255251365-2",
+              "type": "window",
+              "position": 0.3701418877236274,
+              "width": 0.7402837754472548,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251362-37",
+          "start": {
+            "x": 2.344231955582973,
+            "z": -4.73593635025101
+          },
+          "end": {
+            "x": 2.344231955582973,
+            "z": -1.652644455556341
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-40",
+          "start": {
+            "x": 4.071560764959901,
+            "z": 0.4439940328360328
+          },
+          "end": {
+            "x": 4.071560764959901,
+            "z": 4.390607658045209
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-41",
+          "start": {
+            "x": 4.071560764959901,
+            "z": 0.4439940328360328
+          },
+          "end": {
+            "x": 6.144355336212214,
+            "z": 0.4439940328360328
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-42",
+          "start": {
+            "x": 4.811844540407154,
+            "z": 2.9106275485917665
+          },
+          "end": {
+            "x": 4.811844540407154,
+            "z": 3.89728095489406
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-43",
+          "start": {
+            "x": 5.55212831585441,
+            "z": 2.9106275485917665
+          },
+          "end": {
+            "x": 5.55212831585441,
+            "z": 3.89728095489406
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251362-44",
+          "start": {
+            "x": 4.811844540407154,
+            "z": 3.89728095489406
+          },
+          "end": {
+            "x": 5.55212831585441,
+            "z": 3.89728095489406
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        }
+      ],
+      "rooms": [
+        {
+          "id": "room-generated-1780255251366-0",
+          "name": "Bedroom #2",
+          "center": {
+            "x": -4.441702652683529,
+            "z": -3.194290402903676
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-1",
+          "name": "Bedroom #3",
+          "center": {
+            "x": -1.6039481801357185,
+            "z": -3.194290402903676
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-2",
+          "name": "Bathroom",
+          "center": {
+            "x": 1.4188772362739037,
+            "z": -3.194290402903676
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-3",
+          "name": "Master Bedroom",
+          "center": {
+            "x": 4.19494139420111,
+            "z": -3.194290402903676
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-4",
+          "name": "Hallway",
+          "center": {
+            "x": 0.12338062924120935,
+            "z": -0.8509885629357283
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-5",
+          "name": "Family Room",
+          "center": {
+            "x": -4.0715607649599015,
+            "z": 1.3689816012444334
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-6",
+          "name": "Dining Area",
+          "center": {
+            "x": -0.4935225169648374,
+            "z": 1.3689816012444334
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-7",
+          "name": "Kitchen",
+          "center": {
+            "x": 2.2208513263417635,
+            "z": 1.3689816012444334
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-8",
+          "name": "Closet",
+          "center": {
+            "x": 5.120296113510177,
+            "z": -0.5426593734662609
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251366-9",
+          "name": "Washroom",
+          "center": {
+            "x": 5.120296113510177,
+            "z": 2.9106275485917665
+          },
+          "area": 0
+        }
+      ],
+      "stairs": [],
+      "stats": {
+        "wallCount": 31,
+        "doorCount": 7,
+        "windowCount": 9,
+        "roomCount": 10,
+        "stairCount": 0
+      }
+    },
+    {
+      "id": "qa-real-site-ground-floor",
+      "qaSource": "real-site-ground-floor",
+      "title": "Real dimensioned site plan ground floor",
+      "position": {
+        "x": 0,
+        "z": 7
+      },
+      "rotation": 0,
+      "walls": [
+        {
+          "id": "wall-generated-1780255251367-0",
+          "start": {
+            "x": -8.820908820908821,
+            "z": -6.088506088506088
+          },
+          "end": {
+            "x": -8.820908820908821,
+            "z": -3.6234036234036235
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-1",
+          "start": {
+            "x": -8.820908820908821,
+            "z": -3.6234036234036235
+          },
+          "end": {
+            "x": -8.820908820908821,
+            "z": -2.286902286902287
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-2",
+          "start": {
+            "x": -8.820908820908821,
+            "z": -2.286902286902287
+          },
+          "end": {
+            "x": -8.820908820908821,
+            "z": -0.7425007425007425
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-3",
+          "start": {
+            "x": -8.820908820908821,
+            "z": -0.7425007425007425
+          },
+          "end": {
+            "x": -8.820908820908821,
+            "z": 4.633204633204633
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-4",
+          "start": {
+            "x": -8.820908820908821,
+            "z": -6.94980694980695
+          },
+          "end": {
+            "x": -4.336204336204336,
+            "z": -6.94980694980695
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251367-0",
+              "type": "window",
+              "position": 1.2622512622512623,
+              "width": 2.5245025245025245,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-5",
+          "start": {
+            "x": -4.336204336204336,
+            "z": -6.94980694980695
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": -4.365904365904366
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-generated-1780255251367-0",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.4455004455004455,
+              "width": 0.891000891000891,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-6",
+          "start": {
+            "x": -4.306504306504307,
+            "z": -4.365904365904366
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": -3.6234036234036235
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-7",
+          "start": {
+            "x": -4.306504306504307,
+            "z": -4.365904365904366
+          },
+          "end": {
+            "x": -0.0891000891000891,
+            "z": -4.365904365904366
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-generated-1780255251367-3",
+              "type": "door",
+              "doorType": "sliding",
+              "position": 1.782001782001782,
+              "width": 1.8,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-8",
+          "start": {
+            "x": 1.098901098901099,
+            "z": -4.365904365904366
+          },
+          "end": {
+            "x": 3.356103356103356,
+            "z": -4.365904365904366
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-9",
+          "start": {
+            "x": 4.484704484704484,
+            "z": -4.365904365904366
+          },
+          "end": {
+            "x": 8.167508167508167,
+            "z": -4.395604395604396
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-generated-1780255251367-4",
+              "type": "door",
+              "doorType": "sliding",
+              "position": 2.376002376002376,
+              "width": 1.8,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-10",
+          "start": {
+            "x": 8.167508167508167,
+            "z": -4.395604395604396
+          },
+          "end": {
+            "x": 8.761508761508761,
+            "z": -4.573804573804574
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-11",
+          "start": {
+            "x": 8.761508761508761,
+            "z": -4.573804573804574
+          },
+          "end": {
+            "x": 8.761508761508761,
+            "z": 4.662904662904663
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251368-4",
+              "type": "window",
+              "position": 0.4455004455004455,
+              "width": 0.891000891000891,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-12",
+          "start": {
+            "x": -8.820908820908821,
+            "z": 4.633204633204633
+          },
+          "end": {
+            "x": -7.87050787050787,
+            "z": 4.662904662904663
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-13",
+          "start": {
+            "x": -7.128007128007128,
+            "z": 4.633204633204633
+          },
+          "end": {
+            "x": -5.7915057915057915,
+            "z": 4.662904662904663
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251368-1",
+              "type": "window",
+              "position": 0.37125037125037125,
+              "width": 0.7425007425007425,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-14",
+          "start": {
+            "x": -5.7915057915057915,
+            "z": 4.662904662904663
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": 4.633204633204633
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-15",
+          "start": {
+            "x": -4.306504306504307,
+            "z": 4.633204633204633
+          },
+          "end": {
+            "x": -2.079002079002079,
+            "z": 4.662904662904663
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-16",
+          "start": {
+            "x": -0.594000594000594,
+            "z": 4.662904662904663
+          },
+          "end": {
+            "x": 2.673002673002673,
+            "z": 4.662904662904663
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251368-2",
+              "type": "window",
+              "position": 0.7425007425007425,
+              "width": 1.485001485001485,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "window-generated-1780255251368-3",
+              "type": "window",
+              "position": 0.7425007425007425,
+              "width": 1.485001485001485,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-17",
+          "start": {
+            "x": 4.158004158004158,
+            "z": 4.662904662904663
+          },
+          "end": {
+            "x": 8.761508761508761,
+            "z": 4.662904662904663
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-18",
+          "start": {
+            "x": 8.167508167508167,
+            "z": -7.395307395307396
+          },
+          "end": {
+            "x": 8.167508167508167,
+            "z": -4.395604395604396
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-19",
+          "start": {
+            "x": -4.306504306504307,
+            "z": -3.6234036234036235
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": -2.286902286902287
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251367-1",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.4455004455004455,
+              "width": 0.891000891000891,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-20",
+          "start": {
+            "x": -4.306504306504307,
+            "z": -2.286902286902287
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": -0.7425007425007425
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-21",
+          "start": {
+            "x": -4.306504306504307,
+            "z": -0.7425007425007425
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": 4.633204633204633
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-22",
+          "start": {
+            "x": -8.820908820908821,
+            "z": -3.6234036234036235
+          },
+          "end": {
+            "x": -7.128007128007128,
+            "z": -3.6234036234036235
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-23",
+          "start": {
+            "x": -7.128007128007128,
+            "z": -3.6234036234036235
+          },
+          "end": {
+            "x": -6.147906147906148,
+            "z": -3.6234036234036235
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-24",
+          "start": {
+            "x": -5.138105138105138,
+            "z": -3.6234036234036235
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": -3.6234036234036235
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-25",
+          "start": {
+            "x": -7.128007128007128,
+            "z": -3.6234036234036235
+          },
+          "end": {
+            "x": -7.128007128007128,
+            "z": -2.286902286902287
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251367-2",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.4158004158004158,
+              "width": 0.8316008316008316,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251367-26",
+          "start": {
+            "x": -7.128007128007128,
+            "z": -2.286902286902287
+          },
+          "end": {
+            "x": -7.128007128007128,
+            "z": -0.7425007425007425
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-27",
+          "start": {
+            "x": -8.820908820908821,
+            "z": -2.286902286902287
+          },
+          "end": {
+            "x": -7.128007128007128,
+            "z": -2.286902286902287
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-28",
+          "start": {
+            "x": -8.820908820908821,
+            "z": -0.7425007425007425
+          },
+          "end": {
+            "x": -7.128007128007128,
+            "z": -0.7425007425007425
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-29",
+          "start": {
+            "x": -7.128007128007128,
+            "z": -0.7425007425007425
+          },
+          "end": {
+            "x": -7.128007128007128,
+            "z": 4.633204633204633
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-30",
+          "start": {
+            "x": -7.128007128007128,
+            "z": -0.7425007425007425
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": -0.7425007425007425
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-31",
+          "start": {
+            "x": -6.147906147906148,
+            "z": -3.6234036234036235
+          },
+          "end": {
+            "x": -5.94000594000594,
+            "z": -2.286902286902287
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-32",
+          "start": {
+            "x": -7.128007128007128,
+            "z": -2.286902286902287
+          },
+          "end": {
+            "x": -5.94000594000594,
+            "z": -2.286902286902287
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-33",
+          "start": {
+            "x": -5.94000594000594,
+            "z": -2.286902286902287
+          },
+          "end": {
+            "x": -4.306504306504307,
+            "z": -2.286902286902287
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251367-34",
+          "start": {
+            "x": 1.6335016335016335,
+            "z": -2.5839025839025838
+          },
+          "end": {
+            "x": 1.6335016335016335,
+            "z": 3.593703593703594
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        }
+      ],
+      "rooms": [
+        {
+          "id": "room-generated-1780255251368-0",
+          "name": "Bedroom",
+          "center": {
+            "x": -6.682506682506682,
+            "z": -5.316305316305316
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251368-1",
+          "name": "Bath / Toilet",
+          "center": {
+            "x": -8.01900801900802,
+            "z": -2.0493020493020495
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251368-2",
+          "name": "Staircase",
+          "center": {
+            "x": -7.722007722007722,
+            "z": 2.257202257202257
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251368-3",
+          "name": "Hall / Corridor",
+          "center": {
+            "x": -5.643005643005643,
+            "z": -0.2673002673002673
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251368-4",
+          "name": "Living / Dining / Kitchen",
+          "center": {
+            "x": 2.97000297000297,
+            "z": 1.3662013662013661
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251368-5",
+          "name": "Covered Terrace",
+          "center": {
+            "x": 2.5245025245025245,
+            "z": -2.0493020493020495
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251368-6",
+          "name": "Stairs",
+          "center": {
+            "x": -7.722007722007722,
+            "z": 2.4057024057024057
+          },
+          "area": 0
+        }
+      ],
+      "stairs": [
+        {
+          "id": "stair-generated-1780255251368-0",
+          "center": {
+            "x": -7.722007722007722,
+            "z": 2.4057024057024057
+          },
+          "direction": "up"
+        }
+      ],
+      "stats": {
+        "wallCount": 35,
+        "doorCount": 5,
+        "windowCount": 5,
+        "roomCount": 7,
+        "stairCount": 1
+      }
+    },
+    {
+      "id": "qa-real-site-upper-floor",
+      "qaSource": "real-site-upper-floor",
+      "title": "Real dimensioned site plan upper floor",
+      "position": {
+        "x": 24,
+        "z": -7
+      },
+      "rotation": 0,
+      "walls": [
+        {
+          "id": "wall-generated-1780255251368-0",
+          "start": {
+            "x": -5.914634146341464,
+            "z": -6.2439024390243905
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": -6.2439024390243905
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251369-0",
+              "type": "window",
+              "position": 0.975609756097561,
+              "width": 1.951219512195122,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-1",
+          "start": {
+            "x": -5.914634146341464,
+            "z": -6.2439024390243905
+          },
+          "end": {
+            "x": -5.914634146341464,
+            "z": -3.804878048780488
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-2",
+          "start": {
+            "x": -5.914634146341464,
+            "z": -3.804878048780488
+          },
+          "end": {
+            "x": -5.914634146341464,
+            "z": -0.8780487804878049
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-3",
+          "start": {
+            "x": -5.914634146341464,
+            "z": -0.8780487804878049
+          },
+          "end": {
+            "x": -5.914634146341464,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-4",
+          "start": {
+            "x": -5.914634146341464,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": -5.914634146341464,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-5",
+          "start": {
+            "x": -2.9878048780487805,
+            "z": -6.2439024390243905
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": -3.804878048780488
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-6",
+          "start": {
+            "x": -2.9878048780487805,
+            "z": -3.804878048780488
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": -3.073170731707317
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-7",
+          "start": {
+            "x": -2.9878048780487805,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": -1.2804878048780488,
+            "z": -3.073170731707317
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-8",
+          "start": {
+            "x": -1.2804878048780488,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": 0.18292682926829268,
+            "z": -3.073170731707317
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-generated-1780255251369-5",
+              "type": "door",
+              "doorType": "sliding",
+              "position": 0.7804878048780488,
+              "width": 1.5609756097560976,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-10",
+          "start": {
+            "x": 1.1585365853658538,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": 2.6219512195121952,
+            "z": -3.073170731707317
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-11",
+          "start": {
+            "x": 2.6219512195121952,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": 3.597560975609756,
+            "z": -3.073170731707317
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-12",
+          "start": {
+            "x": 4.329268292682927,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": 7.5,
+            "z": -3.073170731707317
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-generated-1780255251369-6",
+              "type": "door",
+              "doorType": "sliding",
+              "position": 0.926829268292683,
+              "width": 1.8,
+              "height": 2.1
+            },
+            {
+              "id": "window-generated-1780255251369-1",
+              "type": "window",
+              "position": 1.0975609756097562,
+              "width": 2.1951219512195124,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-13",
+          "start": {
+            "x": 7.5,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": 7.5,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251369-2",
+              "type": "window",
+              "position": 0.7317073170731707,
+              "width": 1.4634146341463414,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-14",
+          "start": {
+            "x": 7.5,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": 7.5,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-15",
+          "start": {
+            "x": -5.914634146341464,
+            "z": 3.75609756097561
+          },
+          "end": {
+            "x": -4.451219512195122,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-16",
+          "start": {
+            "x": -4.451219512195122,
+            "z": 3.75609756097561
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-17",
+          "start": {
+            "x": -2.9878048780487805,
+            "z": 3.75609756097561
+          },
+          "end": {
+            "x": 0.18292682926829268,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-18",
+          "start": {
+            "x": 0.18292682926829268,
+            "z": 3.75609756097561
+          },
+          "end": {
+            "x": 2.6219512195121952,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-19",
+          "start": {
+            "x": 2.6219512195121952,
+            "z": 3.75609756097561
+          },
+          "end": {
+            "x": 4.573170731707317,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-20",
+          "start": {
+            "x": 4.573170731707317,
+            "z": 3.75609756097561
+          },
+          "end": {
+            "x": 5.7926829268292686,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-21",
+          "start": {
+            "x": 5.7926829268292686,
+            "z": 3.75609756097561
+          },
+          "end": {
+            "x": 7.5,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-generated-1780255251369-3",
+              "type": "window",
+              "position": 0.5365853658536586,
+              "width": 1.0731707317073171,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-22",
+          "start": {
+            "x": -2.9878048780487805,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": -0.8780487804878049
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-23",
+          "start": {
+            "x": -2.9878048780487805,
+            "z": -0.8780487804878049
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": 0.5853658536585367
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-24",
+          "start": {
+            "x": -2.9878048780487805,
+            "z": 1.0731707317073171
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-25",
+          "start": {
+            "x": -5.914634146341464,
+            "z": -3.804878048780488
+          },
+          "end": {
+            "x": -4.7439024390243905,
+            "z": -3.804878048780488
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-26",
+          "start": {
+            "x": -4.085365853658537,
+            "z": -3.804878048780488
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": -3.804878048780488
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-27",
+          "start": {
+            "x": -4.7439024390243905,
+            "z": -3.804878048780488
+          },
+          "end": {
+            "x": -4.573170731707317,
+            "z": -0.8780487804878049
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251369-0",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.41463414634146345,
+              "width": 0.8292682926829269,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-28",
+          "start": {
+            "x": -5.914634146341464,
+            "z": -0.8780487804878049
+          },
+          "end": {
+            "x": -4.573170731707317,
+            "z": -0.8780487804878049
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-29",
+          "start": {
+            "x": -4.573170731707317,
+            "z": -0.8780487804878049
+          },
+          "end": {
+            "x": -2.9878048780487805,
+            "z": -0.8780487804878049
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-30",
+          "start": {
+            "x": -4.573170731707317,
+            "z": -0.8780487804878049
+          },
+          "end": {
+            "x": -4.451219512195122,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-31",
+          "start": {
+            "x": -4.451219512195122,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": -4.451219512195122,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-32",
+          "start": {
+            "x": -5.914634146341464,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": -4.451219512195122,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-33",
+          "start": {
+            "x": -1.2804878048780488,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": -1.2804878048780488,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-34",
+          "start": {
+            "x": 1.1585365853658538,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": 1.402439024390244,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-35",
+          "start": {
+            "x": -1.2804878048780488,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": -0.4268292682926829,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-36",
+          "start": {
+            "x": 0.3048780487804878,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": 1.402439024390244,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-37",
+          "start": {
+            "x": 2.6219512195121952,
+            "z": -3.073170731707317
+          },
+          "end": {
+            "x": 2.6219512195121952,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251369-3",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.4878048780487805,
+              "width": 0.975609756097561,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-38",
+          "start": {
+            "x": -2.9878048780487805,
+            "z": 1.0731707317073171
+          },
+          "end": {
+            "x": -1.2804878048780488,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251369-1",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.4878048780487805,
+              "width": 0.975609756097561,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-39",
+          "start": {
+            "x": 1.402439024390244,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": 2.6219512195121952,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-40",
+          "start": {
+            "x": 3.597560975609756,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": 4.573170731707317,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-41",
+          "start": {
+            "x": 4.573170731707317,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": 7.5,
+            "z": 0.8292682926829269
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-42",
+          "start": {
+            "x": 0.3048780487804878,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": 0.18292682926829268,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251369-2",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.43902439024390244,
+              "width": 0.8780487804878049,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-43",
+          "start": {
+            "x": 2.6219512195121952,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": 2.6219512195121952,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-generated-1780255251369-4",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.41463414634146345,
+              "width": 0.8292682926829269,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-generated-1780255251368-44",
+          "start": {
+            "x": 4.573170731707317,
+            "z": 0.8292682926829269
+          },
+          "end": {
+            "x": 4.573170731707317,
+            "z": 2.048780487804878
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-45",
+          "start": {
+            "x": 4.573170731707317,
+            "z": 2.048780487804878
+          },
+          "end": {
+            "x": 4.573170731707317,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-46",
+          "start": {
+            "x": 5.7926829268292686,
+            "z": 2.048780487804878
+          },
+          "end": {
+            "x": 5.7926829268292686,
+            "z": 3.75609756097561
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-generated-1780255251368-47",
+          "start": {
+            "x": 4.573170731707317,
+            "z": 2.048780487804878
+          },
+          "end": {
+            "x": 5.7926829268292686,
+            "z": 2.048780487804878
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        }
+      ],
+      "rooms": [
+        {
+          "id": "room-generated-1780255251369-0",
+          "name": "Bedroom",
+          "center": {
+            "x": -4.451219512195122,
+            "z": -4.902439024390244
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-1",
+          "name": "Bathroom",
+          "center": {
+            "x": -5.304878048780488,
+            "z": -2.3414634146341466
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-2",
+          "name": "Stair Hall",
+          "center": {
+            "x": -4.2073170731707314,
+            "z": 1.8048780487804879
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-3",
+          "name": "Bedroom",
+          "center": {
+            "x": 0.06097560975609756,
+            "z": -1.1219512195121952
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-4",
+          "name": "Bedroom",
+          "center": {
+            "x": 5.060975609756098,
+            "z": -1
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-5",
+          "name": "Closet",
+          "center": {
+            "x": 0.18292682926829268,
+            "z": 2.780487804878049
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-6",
+          "name": "WC",
+          "center": {
+            "x": 5.060975609756098,
+            "z": 2.4146341463414633
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-7",
+          "name": "Open Terrace",
+          "center": {
+            "x": 2.7439024390243905,
+            "z": -4.536585365853659
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-8",
+          "name": "Hall",
+          "center": {
+            "x": -1.2804878048780488,
+            "z": 2.4146341463414633
+          },
+          "area": 0
+        },
+        {
+          "id": "room-generated-1780255251369-9",
+          "name": "Stairs",
+          "center": {
+            "x": -4.451219512195122,
+            "z": 1.926829268292683
+          },
+          "area": 0
+        }
+      ],
+      "stairs": [
+        {
+          "id": "stair-generated-1780255251369-0",
+          "center": {
+            "x": -4.451219512195122,
+            "z": 1.926829268292683
+          },
+          "direction": "down"
+        }
+      ],
+      "stats": {
+        "wallCount": 47,
+        "doorCount": 7,
+        "windowCount": 4,
+        "roomCount": 10,
+        "stairCount": 1
+      }
+    }
+  ],
+  "activeComparisons": {},
+  "walls": []
+}

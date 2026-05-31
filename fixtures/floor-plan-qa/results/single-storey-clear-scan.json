@@ -1,0 +1,26 @@
+{
+  "fixtureId": "single-storey-clear-scan",
+  "capturedAt": "2026-05-26T21:21:19.022Z",
+  "sourceFile": "samples/single-storey-clear-scan.pdf",
+  "imageFile": "samples/single-storey-clear-scan.png",
+  "analyzer": "api/analyze-floor-plan.js",
+  "rawResultFile": "results/raw/single-storey-clear-scan.json",
+  "detected": {
+    "walls": 39,
+    "doors": 12,
+    "windows": 7,
+    "rooms": 14,
+    "stairs": 0
+  },
+  "criticalMisses": [],
+  "notes": [
+    "local analyzer fixture run"
+  ],
+  "artifacts": {},
+  "placementOk": true,
+  "scale": {
+    "pixelsPerMeter": 78,
+    "confidence": 0.4,
+    "source": "assumed 0.9m single-door width ~70px"
+  }
+}

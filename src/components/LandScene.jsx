@@ -219,21 +219,36 @@ function CameraReporter({ onUpdate }) {
 function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPointerLeave, onPointerDown, onPointerUp, viewMode = 'firstPerson' }) {
   const is2D = viewMode === '2d'
 
+  const normalizedPolygonPoints = useMemo(() => {
+    if (!polygonPoints || polygonPoints.length < 3) return null
+
+    const points = polygonPoints
+      .map((point) => {
+        const x = Number(point.x)
+        const y = Number(point.y ?? point.z)
+
+        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+      })
+      .filter(Boolean)
+
+    return points.length >= 3 ? points : null
+  }, [polygonPoints])
+
   // Create a stable hash of polygon points for cache invalidation
   const polygonHash = useMemo(() => {
-    if (!polygonPoints || polygonPoints.length < 3) return `rect-${length}-${width}`
-    return polygonPoints.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join('|')
-  }, [polygonPoints, length, width])
+    if (!normalizedPolygonPoints) return `rect-${length}-${width}`
+    return normalizedPolygonPoints.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join('|')
+  }, [normalizedPolygonPoints, length, width])
 
   // Create shape geometry for polygon or rectangle
   const shapeGeometry = useMemo(() => {
     const shape = new THREE.Shape()
 
-    if (polygonPoints && polygonPoints.length >= 3) {
+    if (normalizedPolygonPoints) {
       // Polygon mode
-      shape.moveTo(polygonPoints[0].x, polygonPoints[0].y)
-      for (let i = 1; i < polygonPoints.length; i++) {
-        shape.lineTo(polygonPoints[i].x, polygonPoints[i].y)
+      shape.moveTo(normalizedPolygonPoints[0].x, normalizedPolygonPoints[0].y)
+      for (let i = 1; i < normalizedPolygonPoints.length; i++) {
+        shape.lineTo(normalizedPolygonPoints[i].x, normalizedPolygonPoints[i].y)
       }
       shape.closePath()
     } else {
@@ -248,12 +263,12 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
     }
 
     return new THREE.ShapeGeometry(shape)
-  }, [polygonHash]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [normalizedPolygonPoints, width, length])
 
   // Get corner points for posts (must be in perimeter order for line drawing)
   const corners = useMemo(() => {
-    if (polygonPoints && polygonPoints.length >= 3) {
-      return polygonPoints.map(p => [p.x, p.y])
+    if (normalizedPolygonPoints) {
+      return normalizedPolygonPoints.map(p => [p.x, p.y])
     }
     // Rectangle corners in clockwise order: top-left → top-right → bottom-right → bottom-left
     return [
@@ -262,11 +277,28 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
       [width / 2, -length / 2],
       [-width / 2, -length / 2],
     ]
-  }, [polygonHash]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [normalizedPolygonPoints, width, length])
 
   // Create line geometry from same corners used by shapeGeometry
   const linePositions = useMemo(() => {
     return new Float32Array([...corners.flatMap(([x, y]) => [x, y, 0]), corners[0][0], corners[0][1], 0])
+  }, [corners])
+
+  const boundarySegments = useMemo(() => {
+    return corners.map(([x1, y1], index) => {
+      const [x2, y2] = corners[(index + 1) % corners.length]
+      const worldZ1 = -y1
+      const worldZ2 = -y2
+      const dx = x2 - x1
+      const dz = worldZ2 - worldZ1
+      return {
+        key: `${index}-${x1}-${y1}`,
+        x: (x1 + x2) / 2,
+        z: (worldZ1 + worldZ2) / 2,
+        length: Math.sqrt(dx * dx + dz * dz),
+        rotation: -Math.atan2(dz, dx),
+      }
+    })
   }, [corners])
 
   // 2D CAD colors
@@ -296,6 +328,19 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
         </bufferGeometry>
         <lineBasicMaterial color={borderColor} linewidth={2} />
       </line>
+
+      {/* Raised site boundary rail - stays visible over large comparison overlays */}
+      {!is2D && boundarySegments.map(segment => (
+        <mesh
+          key={segment.key}
+          position={[segment.x, 0.16, segment.z]}
+          rotation={[0, segment.rotation, 0]}
+          renderOrder={8}
+        >
+          <boxGeometry args={[segment.length, 0.035, 0.12]} />
+          <meshBasicMaterial color="#e8fff4" toneMapped={false} />
+        </mesh>
+      ))}
 
       {/* Corner posts - hidden in 2D mode, negate z to match rotated land surface */}
       {!is2D && corners.map(([x, z], i) => (
@@ -706,9 +751,8 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     }
   }, [polygonPoints, width, length])
 
-  // Fit camera to land when trigger changes
-  useEffect(() => {
-    if (fitToLandTrigger === 0 || !orbitControlsRef.current) return
+  const fitCameraToLand = useCallback(() => {
+    if (!orbitControlsRef.current) return
     if (viewMode !== 'orbit' && viewMode !== '2d') return
 
     const extentX = landBounds.maxX - landBounds.minX
@@ -716,20 +760,23 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
     const maxExtent = Math.max(extentX, extentZ)
 
     if (viewMode === '2d') {
-      // For orthographic camera, adjust zoom to fit land
-      // Zoom = viewportSize / worldSize (approximately)
       const padding = 1.2 // 20% padding
       const targetZoom = Math.min(window.innerWidth, window.innerHeight) / (maxExtent * padding)
       camera.zoom = Math.max(1, Math.min(100, targetZoom))
-      // Position camera directly above (MapControls polar angle lock handles orientation)
       camera.position.set(orbitTarget.x, 200, orbitTarget.z)
       camera.updateProjectionMatrix()
     } else {
-      // For perspective camera in orbit mode
       const fov = camera.fov * (Math.PI / 180)
-      const distance = (maxExtent * 1.1) / (2 * Math.tan(fov / 2))
+      const canvas = gl.domElement
+      const aspect = Math.max(0.1, (canvas?.clientWidth || window.innerWidth) / (canvas?.clientHeight || window.innerHeight))
+      const horizontalFov = 2 * Math.atan(Math.tan(fov / 2) * aspect)
+      const padding = 1.2
+      const distance = Math.max(
+        (extentX * padding) / (2 * Math.tan(horizontalFov / 2)),
+        (extentZ * padding) / (2 * Math.tan(fov / 2)),
+        8
+      )
 
-      // Position camera above and back from target
       const angle = Math.PI / 4 // 45 degree angle
       camera.position.set(
         orbitTarget.x,
@@ -748,38 +795,24 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       }
     }
     orbitControlsRef.current.update()
-  }, [fitToLandTrigger, viewMode, landBounds, orbitTarget, camera])
+  }, [viewMode, landBounds, orbitTarget, camera, gl])
 
-  // Auto-fit when entering 2D mode
+  // Fit camera to land when trigger changes
+  useEffect(() => {
+    if (fitToLandTrigger === 0) return
+    fitCameraToLand()
+  }, [fitToLandTrigger, fitCameraToLand])
+
+  // Auto-fit when entering overview modes
   const prevViewModeRef = useRef(viewMode)
   useEffect(() => {
     const prevMode = prevViewModeRef.current
     prevViewModeRef.current = viewMode
 
-    // Only auto-fit when switching TO 2D mode (not already in 2D)
-    if (viewMode === '2d' && prevMode !== '2d') {
-      // Small delay to let camera switch happen first
-      setTimeout(() => {
-        const extentX = landBounds.maxX - landBounds.minX
-        const extentZ = landBounds.maxZ - landBounds.minZ
-        const maxExtent = Math.max(extentX, extentZ)
-        const centerX = (landBounds.minX + landBounds.maxX) / 2
-        const centerZ = (landBounds.minZ + landBounds.maxZ) / 2
-
-        // Calculate zoom to fit land with padding
-        const padding = 1.3 // 30% padding
-        const targetZoom = Math.min(window.innerWidth, window.innerHeight) / (maxExtent * padding)
-        camera.zoom = Math.max(1, Math.min(100, targetZoom))
-        camera.position.set(centerX, 200, centerZ)
-        camera.updateProjectionMatrix()
-
-        if (orbitControlsRef.current) {
-          orbitControlsRef.current.target.set(centerX, 0, centerZ)
-          orbitControlsRef.current.update()
-        }
-      }, 50)
+    if ((viewMode === 'orbit' || viewMode === '2d') && prevMode !== viewMode) {
+      setTimeout(fitCameraToLand, 50)
     }
-  }, [viewMode, landBounds, camera])
+  }, [viewMode, fitCameraToLand])
 
   // Calculate NPC positions outside land boundary (recalculates when land changes)
   const npcPositions = useMemo(() => {

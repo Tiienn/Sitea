@@ -1,12 +1,100 @@
+/* global process */
 // api/analyze-site-plan.js (Vercel serverless function)
-// Detects land boundary polygon from site plan images using Claude Vision
+// Detects land boundary polygon from site plan images using OpenAI vision
 
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
 
 export const config = {
   maxDuration: 60,
 };
+
+const OPENAI_SITE_PLAN_MODEL = process.env.OPENAI_SITE_PLAN_MODEL || process.env.OPENAI_CHAT_MODEL || 'gpt-5-mini';
+
+function imageDataUrl(base64Image, mediaType) {
+  return `data:${mediaType};base64,${base64Image}`;
+}
+
+function getOpenAIOutputText(response) {
+  if (typeof response.output_text === 'string') return response.output_text;
+
+  return (response.output || [])
+    .flatMap(item => Array.isArray(item.content) ? item.content : [])
+    .filter(part => part.type === 'output_text' && typeof part.text === 'string')
+    .map(part => part.text)
+    .join('\n');
+}
+
+function parseOpenAIJson(response) {
+  if (response.output_parsed) return response.output_parsed;
+
+  const text = getOpenAIOutputText(response);
+  if (!text) throw new Error('OpenAI returned no text');
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    throw new Error('No valid JSON found in OpenAI response');
+  }
+}
+
+function openAIJsonSchema(name, schema, description) {
+  return {
+    type: 'json_schema',
+    name,
+    description,
+    strict: false,
+    schema,
+  };
+}
+
+function sitePlanSchema() {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      boundary: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            x: { type: 'number' },
+            y: { type: 'number' },
+          },
+          required: ['x', 'y'],
+        },
+      },
+      dimensions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            fromVertex: { type: 'integer' },
+            toVertex: { type: 'integer' },
+            label: { type: 'string' },
+            unit: { type: 'string', enum: ['m', 'ft', 'unknown'] },
+          },
+          required: ['fromVertex', 'toVertex', 'label', 'unit'],
+        },
+      },
+      scale: { type: ['object', 'null'], additionalProperties: true },
+      imageSize: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          width: { type: 'number' },
+          height: { type: 'number' },
+        },
+        required: ['width', 'height'],
+      },
+    },
+    required: ['boundary', 'dimensions', 'scale', 'imageSize'],
+  };
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -36,28 +124,20 @@ export default async function handler(req, res) {
 
   const mediaType = detectMediaType(image);
 
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
   });
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      temperature: 0,
-      messages: [{
+    const response = await openai.responses.create({
+      model: OPENAI_SITE_PLAN_MODEL,
+      reasoning: { effort: 'low' },
+      max_output_tokens: 4096,
+      input: [{
         role: 'user',
         content: [
           {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mediaType,
-              data: image,
-            },
-          },
-          {
-            type: 'text',
+            type: 'input_text',
             text: `This image is ${width || 'unknown'} x ${height || 'unknown'} pixels. Find the LAND PARCEL boundary.
 
 THE LAND PARCEL is the LARGEST filled/colored/shaded polygon in the image (yellow, orange, green, blue, or gray). It has dimension labels on its edges (e.g. "21.45m"). It is usually a trapezoid or rectangle with 4 corners.
@@ -71,31 +151,21 @@ RULES:
 - List vertices clockwise
 - For dimensions: read any dimension labels on the edges (e.g. "21.45m", "15.30", "50ft"). For each label, identify which two boundary vertices it connects (use 0-based indices matching the boundary array order). Do NOT try to measure pixel distances — just read the text labels.
 
-Return ONLY this JSON, nothing else:
-{
-  "boundary": [{ "x": NUMBER, "y": NUMBER }],
-  "dimensions": [{ "fromVertex": INDEX, "toVertex": INDEX, "label": "TEXT_VALUE", "unit": "m_OR_ft_OR_unknown" }],
-  "scale": null,
-  "imageSize": { "width": ${width || 0}, "height": ${height || 0} }
-}`
-          }
-        ]
-      }]
+Return JSON only matching the requested schema.`
+          },
+          { type: 'input_image', image_url: imageDataUrl(image, mediaType), detail: 'high' },
+        ],
+      }],
+      text: {
+        format: openAIJsonSchema(
+          'site_plan_boundary',
+          sitePlanSchema(),
+          'Land parcel boundary and printed dimensions extracted from a site plan image.'
+        ),
+      },
     });
 
-    const content = response.content[0].text;
-
-    let result;
-    try {
-      result = JSON.parse(content);
-    } catch {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No valid JSON found in response');
-      }
-    }
+    const result = parseOpenAIJson(response);
 
     result.success = true;
     result.boundary = result.boundary || [];

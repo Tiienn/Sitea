@@ -8,6 +8,7 @@ const ROOT = process.cwd()
 const QA_DIR = path.join(ROOT, 'fixtures/floor-plan-qa')
 const MANIFEST_PATH = path.join(QA_DIR, 'manifest.json')
 const RESULTS_DIR = path.join(QA_DIR, 'results')
+const RAW_RESULTS_DIR = path.join(RESULTS_DIR, 'raw')
 const REPORT_PATH = path.join(ROOT, 'tasks/floor-plan-qa-results.md')
 
 const DEFAULT_THRESHOLDS = {
@@ -20,8 +21,42 @@ const DEFAULT_THRESHOLDS = {
 
 const COUNT_KEYS = ['walls', 'doors', 'windows', 'rooms', 'stairs']
 
+function hasEnvValue(name) {
+  return typeof process.env[name] === 'string' && process.env[name].trim() !== ''
+}
+
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+}
+
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return
+
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/)
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue
+
+    const [key, ...rest] = trimmed.split('=')
+    if (key.startsWith('VERCEL')) continue
+    if (process.env[key]) continue
+
+    let value = rest.join('=').trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+
+    process.env[key] = value
+  }
+}
+
+function loadLocalEnv() {
+  for (const fileName of ['.env.qa.local', '.env.production.local', '.env.local']) {
+    loadEnvFile(path.join(ROOT, fileName))
+  }
 }
 
 function writeJson(filePath, data) {
@@ -47,6 +82,10 @@ function loadManifest() {
 
 function resultPathFor(id) {
   return path.join(RESULTS_DIR, `${id}.json`)
+}
+
+function rawResultPathFor(id) {
+  return path.join(RAW_RESULTS_DIR, `${id}.json`)
 }
 
 function countArray(value) {
@@ -91,9 +130,18 @@ function loadFixtureResult(fixture) {
   return readJson(filePath)
 }
 
+function imagePathForFixture(fixture) {
+  const sourcePath = path.join(QA_DIR, fixture.sourceFile)
+  const renderedPath = sourcePath.replace(/\.pdf$/i, '.png')
+  if (fixture.imageFile) return path.join(QA_DIR, fixture.imageFile)
+  if (fs.existsSync(renderedPath)) return renderedPath
+  return sourcePath
+}
+
 function scoreFixture(fixture, rawResult, thresholds) {
   const expected = fixtureExpectedCounts(fixture)
   const detected = rawResult ? detectedCounts(rawResult) : normalizeCounts()
+  const reviewOnly = fixture.reviewOnly === true
   const missing = []
   const categoryScores = {}
 
@@ -104,7 +152,7 @@ function scoreFixture(fixture, rawResult, thresholds) {
       ? (detectedCount === 0 ? 1 : 0)
       : Math.min(detectedCount / expectedCount, 1)
 
-    const passed = coverage >= thresholds[key]
+    const passed = reviewOnly || coverage >= thresholds[key]
     categoryScores[key] = { expected: expectedCount, detected: detectedCount, coverage, passed }
     if (!passed) missing.push(key)
   }
@@ -113,14 +161,15 @@ function scoreFixture(fixture, rawResult, thresholds) {
   const placementOk = rawResult?.placementOk !== false
   const sourceReady = sourceExists(fixture)
   const resultReady = Boolean(rawResult)
-  const demoReady = sourceReady && resultReady && missing.length === 0 && criticalMisses.length === 0 && placementOk
+  const demoReady = !reviewOnly && sourceReady && resultReady && missing.length === 0 && criticalMisses.length === 0 && placementOk
 
-  return { expected, detected, categoryScores, missing, criticalMisses, placementOk, sourceReady, resultReady, demoReady }
+  return { expected, detected, categoryScores, missing, criticalMisses, placementOk, sourceReady, resultReady, reviewOnly, demoReady }
 }
 
 function statusLabel(score) {
   if (!score.sourceReady) return 'Missing fixture'
   if (!score.resultReady) return 'Needs run'
+  if (score.reviewOnly) return 'Review-only'
   if (score.demoReady) return 'Demo-ready'
   return 'Needs work'
 }
@@ -129,31 +178,58 @@ function formatCoverage(value) {
   return `${Math.round(value * 100)}%`
 }
 
+function formatScaleNote(scale) {
+  if (!scale) return null
+
+  const source = scale.source || 'unknown'
+  const pixelsPerMeter = Number(scale.pixelsPerMeter)
+  const confidence = Number(scale.confidence)
+  const details = [`scale: ${source}`]
+
+  if (Number.isFinite(pixelsPerMeter)) details.push(`${pixelsPerMeter.toFixed(1)} px/m`)
+  if (Number.isFinite(confidence)) details.push(`${Math.round(confidence * 100)}% confidence`)
+
+  return details.join(', ')
+}
+
 function buildReport(manifest, scores) {
   const generatedAt = new Date().toISOString()
-  const demoReadyCount = scores.filter(item => item.score.demoReady).length
+  const scoredFixtures = scores.filter(item => !item.score.reviewOnly)
+  const reviewOnlyFixtures = scores.filter(item => item.score.reviewOnly)
+  const demoReadyCount = scoredFixtures.filter(item => item.score.demoReady).length
+  const reviewReadyCount = reviewOnlyFixtures.filter(item => item.score.sourceReady && item.score.resultReady).length
   const lines = [
     '# Floor Plan QA Results',
     '',
     `Generated: ${generatedAt}`,
     '',
-    `Demo-ready fixtures: ${demoReadyCount}/${scores.length}`,
+    `Demo-ready fixtures: ${demoReadyCount}/${scoredFixtures.length}`,
+  ]
+
+  if (reviewOnlyFixtures.length > 0) {
+    lines.push(`Review-only real fixtures with results: ${reviewReadyCount}/${reviewOnlyFixtures.length}`)
+  }
+
+  lines.push(
     '',
     '| Fixture | Source | Status | Walls | Doors | Windows | Rooms | Stairs | Notes |',
     '|---|---|---|---:|---:|---:|---:|---:|---|',
-  ]
+  )
 
   for (const { fixture, result, score } of scores) {
     const source = score.sourceReady ? fixture.sourceFile : `missing: ${fixture.sourceFile}`
     const notes = [
       ...(score.criticalMisses || []),
       ...(Array.isArray(result?.notes) ? result.notes : result?.notes ? [result.notes] : []),
+      formatScaleNote(result?.scale),
       ...(score.missing.length ? [`low coverage: ${score.missing.join(', ')}`] : []),
       score.placementOk ? null : 'placement failed',
+      score.reviewOnly && !score.resultReady ? 'review-only real fixture; run analyzer to capture counts' : null,
     ].filter(Boolean).join('; ')
 
     const cells = COUNT_KEYS.map(key => {
       const item = score.categoryScores[key]
+      if (score.reviewOnly) return score.resultReady ? `${item.detected} detected` : '-'
       return `${item.detected}/${item.expected} (${formatCoverage(item.coverage)})`
     })
 
@@ -177,12 +253,24 @@ function buildReport(manifest, scores) {
     `- Stairs: ${Math.round(manifest.thresholds.stairs * 100)}% or better.`,
     '- No critical misses.',
     '- The generated building must be placeable in the 3D scene.',
+  )
+
+  if (reviewOnlyFixtures.length > 0) {
+    lines.push('- Review-only real fixtures report detected counts and notes, but do not affect demo-ready scoring.')
+  }
+
+  const allScoredReady = demoReadyCount === scoredFixtures.length
+  const allReviewReady = reviewReadyCount === reviewOnlyFixtures.length
+
+  lines.push(
     '',
     '## Next Action',
     '',
-    demoReadyCount === scores.length
-      ? 'All fixtures are demo-ready. Use this report as the baseline before analyzer changes.'
-      : 'Run missing fixtures, record results, then focus analyzer changes on the lowest-coverage categories.',
+    allScoredReady && allReviewReady
+      ? 'All scored fixtures are demo-ready. Review real fixture raw outputs and 3D placement before analyzer changes.'
+      : allScoredReady
+        ? 'Synthetic baseline is demo-ready. Run pending review-only real fixtures to gather real-world evidence.'
+        : 'Run missing scored fixtures, record results, then focus analyzer changes on the lowest-coverage categories.',
     ''
   )
 
@@ -199,7 +287,10 @@ function summarize({ check = false } = {}) {
   fs.writeFileSync(REPORT_PATH, buildReport(manifest, scores))
   console.log(`Wrote ${path.relative(ROOT, REPORT_PATH)}`)
 
-  if (check && scores.some(({ score }) => !score.demoReady)) {
+  const hasFailingScoredFixture = scores.some(({ score }) => !score.reviewOnly && !score.demoReady)
+  const hasMissingReviewSource = scores.some(({ score }) => score.reviewOnly && !score.sourceReady)
+
+  if (check && (hasFailingScoredFixture || hasMissingReviewSource)) {
     process.exitCode = 1
   }
 }
@@ -257,18 +348,110 @@ function record(args) {
   summarize()
 }
 
-function main() {
+function createMockResponse() {
+  return {
+    statusCode: 200,
+    payload: null,
+    status(code) {
+      this.statusCode = code
+      return this
+    },
+    json(payload) {
+      this.payload = payload
+      return payload
+    },
+  }
+}
+
+async function runFixture(fixture) {
+  loadLocalEnv()
+
+  if (!hasEnvValue('OPENAI_API_KEY') && !hasEnvValue('GEMINI_API_KEY')) {
+    throw new Error('Missing non-empty OPENAI_API_KEY or GEMINI_API_KEY. Sensitive Vercel values may pull as empty placeholders; set a key in .env.qa.local or export it before running fixtures.')
+  }
+
+  const imagePath = imagePathForFixture(fixture)
+  if (!fs.existsSync(imagePath)) {
+    throw new Error(`Missing rendered fixture image for ${fixture.id}: ${path.relative(ROOT, imagePath)}`)
+  }
+
+  process.env.SITEA_QA_BYPASS_SUBSCRIPTION = '1'
+
+  const { default: handler } = await import('../api/analyze-floor-plan.js')
+  const image = fs.readFileSync(imagePath).toString('base64')
+  const req = {
+    method: 'POST',
+    headers: { 'x-sitea-qa-bypass': 'local-fixture-runner' },
+    body: {
+      image,
+      knownWidthMeters: fixture.knownWidthMeters,
+      roomHints: fixture.roomHints,
+    },
+  }
+  const res = createMockResponse()
+
+  await handler(req, res)
+
+  if (res.statusCode >= 400 || !res.payload?.success) {
+    throw new Error(`${fixture.id} analyzer failed with ${res.statusCode}: ${res.payload?.error || 'unknown error'}`)
+  }
+
+  writeJson(rawResultPathFor(fixture.id), res.payload)
+
+  const result = {
+    fixtureId: fixture.id,
+    capturedAt: new Date().toISOString(),
+    sourceFile: fixture.sourceFile,
+    imageFile: path.relative(QA_DIR, imagePath),
+    analyzer: 'api/analyze-floor-plan.js',
+    rawResultFile: path.relative(QA_DIR, rawResultPathFor(fixture.id)),
+    detected: detectedCounts(res.payload),
+    criticalMisses: [],
+    notes: ['local analyzer fixture run'],
+    artifacts: {},
+    placementOk: true,
+    scale: res.payload.scale || null,
+  }
+
+  writeJson(resultPathFor(fixture.id), result)
+  return result
+}
+
+async function runAnalyzer(args) {
+  const manifest = loadManifest()
+  const includeReviewOnly = args.includes('--all')
+  const requestedFixtureIds = args.filter(arg => arg !== '--all')
+  const fixtureIds = requestedFixtureIds.length
+    ? requestedFixtureIds
+    : manifest.fixtures
+      .filter(fixture => includeReviewOnly || !fixture.reviewOnly)
+      .map(fixture => fixture.id)
+
+  for (const fixtureId of fixtureIds) {
+    const fixture = manifest.fixtures.find(item => item.id === fixtureId)
+    if (!fixture) throw new Error(`Unknown fixture id: ${fixtureId}`)
+
+    console.log(`Running analyzer fixture: ${fixture.id}`)
+    const result = await runFixture(fixture)
+    console.log(`Recorded ${fixture.id}: ${COUNT_KEYS.map(key => `${key}=${result.detected[key]}`).join(', ')}`)
+  }
+
+  summarize()
+}
+
+async function main() {
   const [command = 'summarize', ...args] = process.argv.slice(2)
 
   if (command === 'summarize') return summarize()
   if (command === 'check') return summarize({ check: true })
   if (command === 'record') return record(args)
+  if (command === 'run') return runAnalyzer(args)
 
   throw new Error(`Unknown command: ${command}`)
 }
 
 try {
-  main()
+  await main()
 } catch (error) {
   console.error(error.message)
   process.exit(1)

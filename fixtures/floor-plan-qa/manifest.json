@@ -61,6 +61,42 @@
         "Printed dimension lines are ignored as walls",
         "Scale uses printed dimensions when available"
       ]
+    },
+    {
+      "id": "real-wide-40x30",
+      "title": "Real wide residential floor plan, 40 by 30 feet",
+      "sourceFile": "samples/real/real-wide-40x30.webp",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Outer 40 by 30 foot perimeter is recognized as the main building shell",
+        "Bedroom, bathroom, closet, washroom, kitchen, dining, and family areas are detected as usable spaces",
+        "Windows and door swings are detected without turning beds, cabinets, or labels into walls"
+      ]
+    },
+    {
+      "id": "real-site-ground-floor",
+      "title": "Real dimensioned site plan ground floor",
+      "sourceFile": "samples/real/real-site-ground-floor.png",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Red property boundary and green setback lines are ignored as building walls",
+        "Ground floor walls, terrace openings, stair, bath/toilet, and kitchen/living spaces are detected",
+        "Printed metric dimensions are used as scale hints rather than structural elements"
+      ]
+    },
+    {
+      "id": "real-site-upper-floor",
+      "title": "Real dimensioned site plan upper floor",
+      "sourceFile": "samples/real/real-site-upper-floor.png",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Red property boundary and green setback lines are ignored as building walls",
+        "Upper floor bedroom walls, WC, closet, stair, terrace, doors, and windows are detected",
+        "Dimension strings and arrows are used as measurements rather than walls"
+      ]
     }
   ]
 }

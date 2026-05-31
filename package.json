@@ -11,7 +11,9 @@
     "qa:floor-plans": "node scripts/floor-plan-qa.mjs summarize",
     "qa:floor-plans:check": "node scripts/floor-plan-qa.mjs check",
     "qa:floor-plans:fixtures": "node scripts/generate-floor-plan-qa-fixtures.mjs",
+    "qa:floor-plans:run": "node scripts/floor-plan-qa.mjs run",
     "qa:floor-plans:record": "node scripts/floor-plan-qa.mjs record",
+    "qa:floor-plans:placement": "node scripts/floor-plan-placement-qa.mjs",
     "cap:sync": "npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
@@ -19,7 +21,6 @@
     "postinstall": "node -e \"const fs=require('fs');const f='node_modules/@capacitor/app/android/build.gradle';if(fs.existsSync(f)){let c=fs.readFileSync(f,'utf8');c=c.replace(\\\"proguard-android.txt\\\",\\\"proguard-android-optimize.txt\\\");fs.writeFileSync(f,c)}\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
     "@capacitor/android": "^8.0.2",
     "@capacitor/app": "^8.0.0",
     "@capacitor/cli": "^8.1.0",

@@ -285,6 +285,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
   };
 
   const walls = rawWalls.filter((w, i) => {
+    if (wallLength(w) < 0.05) return false;
     if (wallLength(w) >= MIN_WALL_LENGTH_M) return true;
 
     // Check if BOTH endpoints connect to at least one other wall

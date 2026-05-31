@@ -1,0 +1,18 @@
+# Floor Plan Placement QA
+
+Generated: 2026-05-31T19:20:51.370Z
+
+Local scene: `fixtures/floor-plan-qa/placement/real-floor-plan-scene.json`
+
+| Fixture | Status | Raw Walls | 3D Walls | Doors | Windows | Rooms | Stairs | Bounds | Scale | Notes |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| real-wide-40x30 | Visual QA candidate | 45 | 31 | 7 | 9 | 10 | 0 | 12.19m x 9.13m | dimension_label, 147.6 px/m, 95% | shortest wall 0.49m; longest wall 3.95m |
+| real-site-ground-floor | Visual QA candidate | 35 | 35 | 5 | 5 | 7 | 1 | 17.58m x 12.06m | dimension_label, 33.7 px/m, 95% | shortest wall 0.62m; longest wall 9.24m |
+| real-site-upper-floor | Visual QA candidate | 48 | 47 | 7 | 4 | 10 | 1 | 13.41m x 10m | dimension_label, 41.0 px/m, 93% | shortest wall 0.73m; longest wall 3.91m |
+
+## Browser QA Steps
+
+1. Start the local app.
+2. Load `fixtures/floor-plan-qa/placement/real-floor-plan-scene.json` into `localStorage.landVisualizer`.
+3. Open 3D orbit view and 2D view.
+4. Confirm the canvas is nonblank, all three buildings appear on the land, walls are not wildly fragmented, openings attach to walls, and scale looks plausible.

@@ -1,5 +1,5 @@
 /* global process */
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
 
 export const config = {
@@ -10,6 +10,7 @@ export const config = {
 const rateLimitMap = new Map(); // userId → { count, resetAt }
 const RATE_LIMIT = 20; // max requests per window
 const RATE_WINDOW_MS = 60 * 1000; // 1 minute
+const OPENAI_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-5-mini';
 
 function checkRateLimit(userId) {
   const now = Date.now();
@@ -108,6 +109,110 @@ const TOOLS = [
   },
 ];
 
+const OPENAI_TOOLS = TOOLS.map(tool => ({
+  type: 'function',
+  function: {
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.input_schema,
+  },
+}));
+
+function safeJsonParse(value) {
+  if (!value) return {};
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+}
+
+function contentText(content) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter(block => block?.type === 'text' && typeof block.text === 'string')
+    .map(block => block.text)
+    .join('\n');
+}
+
+function toOpenAIMessages(messages) {
+  const openaiMessages = [];
+
+  for (const message of messages) {
+    if (message.role === 'user' && Array.isArray(message.content)) {
+      for (const block of message.content) {
+        if (block?.type === 'tool_result') {
+          openaiMessages.push({
+            role: 'tool',
+            tool_call_id: block.tool_use_id,
+            content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content ?? ''),
+          });
+        }
+      }
+      continue;
+    }
+
+    if (message.role === 'assistant' && Array.isArray(message.content)) {
+      const toolUses = message.content.filter(block => block?.type === 'tool_use');
+      const text = contentText(message.content);
+      const assistantMessage = {
+        role: 'assistant',
+        content: text || null,
+      };
+
+      if (toolUses.length > 0) {
+        assistantMessage.tool_calls = toolUses.map(tool => ({
+          id: tool.id,
+          type: 'function',
+          function: {
+            name: tool.name,
+            arguments: JSON.stringify(tool.input || {}),
+          },
+        }));
+      }
+
+      openaiMessages.push(assistantMessage);
+      continue;
+    }
+
+    if (message.role === 'assistant') {
+      openaiMessages.push({
+        role: 'assistant',
+        content: contentText(message.content),
+      });
+      continue;
+    }
+
+    if (message.role === 'user') {
+      openaiMessages.push({
+        role: 'user',
+        content: contentText(message.content),
+      });
+    }
+  }
+
+  return openaiMessages;
+}
+
+function toSiteaContent(message) {
+  const content = [];
+  if (message.content) {
+    content.push({ type: 'text', text: message.content });
+  }
+
+  for (const toolCall of message.tool_calls || []) {
+    content.push({
+      type: 'tool_use',
+      id: toolCall.id,
+      name: toolCall.function?.name,
+      input: safeJsonParse(toolCall.function?.arguments),
+    });
+  }
+
+  return content;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -136,22 +241,30 @@ export default async function handler(req, res) {
     systemPrompt += `\n\nCURRENT SCENE STATE:\n${sceneContext}`;
   }
 
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
   });
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      system: systemPrompt,
-      tools: TOOLS,
-      messages,
+    const response = await openai.chat.completions.create({
+      model: OPENAI_CHAT_MODEL,
+      max_completion_tokens: 2048,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...toOpenAIMessages(messages),
+      ],
+      tools: OPENAI_TOOLS,
+      tool_choice: 'auto',
     });
 
+    const responseMessage = response.choices?.[0]?.message;
+    if (!responseMessage) {
+      throw new Error('OpenAI returned no message');
+    }
+
     return res.status(200).json({
-      content: response.content,
-      stop_reason: response.stop_reason,
+      content: toSiteaContent(responseMessage),
+      stop_reason: responseMessage.tool_calls?.length ? 'tool_use' : 'end_turn',
     });
   } catch (error) {
     console.error('[AI Chat] Error:', error);

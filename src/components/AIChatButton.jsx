@@ -7,12 +7,12 @@ export default function AIChatButton({ onClick, visible, locked = false }) {
   return (
     <button
       onClick={onClick}
-      className={`fixed z-[60] flex items-center justify-center gap-2 min-h-[56px] min-w-[56px] rounded-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-[var(--color-bg-primary)] shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 hover:scale-105 active:scale-95 transition-all duration-200 ${
+      className={`sitea-agent-launcher fixed z-[60] flex items-center justify-center gap-2 min-h-[56px] min-w-[56px] rounded-full hover:scale-[1.03] active:scale-95 transition-all duration-200 ${
         isMobile ? 'bottom-20 right-4' : 'right-5 bottom-[260px]'
       } ${
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
       }`}
-      style={{ padding: isMobile ? '14px' : '14px 18px' }}
+      style={{ padding: isMobile ? '16px' : '14px 18px' }}
       aria-label={label}
       title={label}
     >

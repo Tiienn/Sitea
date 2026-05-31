@@ -33,6 +33,16 @@ This creates three scan-like PDFs matching the manifest. Replace them with real 
 npm run qa:floor-plans:record -- single-storey-clear-scan --walls 18 --doors 6 --windows 7 --rooms 5 --stairs 0 --note "baseline run"
 ```
 
+For the local analyzer fixture runner, load a local env file with `OPENAI_API_KEY` for the OpenAI-first path or `GEMINI_API_KEY` for the legacy fallback, then run:
+
+```bash
+npm run qa:floor-plans:run
+```
+
+This uses the same `api/analyze-floor-plan.js` handler with a local-only QA subscription bypass. The bypass is disabled on Vercel.
+If `vercel env pull` writes empty placeholders for sensitive values, manually set a non-empty `OPENAI_API_KEY` or `GEMINI_API_KEY` in `.env.qa.local`, or export it in the shell before running the fixtures.
+Optional model overrides: `OPENAI_FLOOR_PLAN_MODEL` controls OpenAI vision/structured output, and `OPENAI_IMAGE_MODEL` controls the GPT Image wall-mask stage.
+
 9. Generate the report:
 
 ```bash
