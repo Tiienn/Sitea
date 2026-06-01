@@ -584,3 +584,21 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Updated `AuthModal.jsx` with save-specific copy when the modal is opened from Save: `Save project`, `Sign in to save`, and a short account-save explanation.
 - Verification: `npx eslint src/components/AuthModal.jsx --format stylish`, `npm run build`, and `git diff --check` pass. `npx eslint src/App.jsx --quiet --format stylish` remains blocked by the existing App lint baseline of unused imports/helpers, with no new save-gate variables reported.
 - Browser QA passed on desktop and 390px mobile for signed-out Save: auth opens with save-specific copy, no false `Saved` state appears, no normal `landVisualizer` local project save is written, pending session payload is created, closing auth clears the pending save, no horizontal overflow is detected, and no runtime console errors are captured.
+
+---
+
+# SIT-13 Production Deploy
+
+## Todo
+- [x] Confirm the pushed SIT-13 commit is the local HEAD and the Vercel project link points at Sitea.
+- [x] Deploy SIT-13 to Vercel Production.
+- [x] Inspect the production deployment and alias/domain state.
+- [x] Browser-check `sitea.live` for signed-out Save requiring sign-in on desktop and mobile.
+- [x] Update Linear `SIT-13` with production deployment and verification details.
+
+## Review
+- Production deploy completed on 2026-06-01 to `dpl_cztaBwuQXTBNqpTixb8KH7Xi9qqC`.
+- New production URL: `https://sitea-ad84g7na3-tien820-8406s-projects.vercel.app`.
+- `vercel inspect` reports the deployment as `READY` and aliased to `https://sitea.live`, `https://sitea-one.vercel.app`, `https://sitea-tien820-8406s-projects.vercel.app`, and `https://sitea-tien820-8406-tien820-8406s-projects.vercel.app`.
+- Build completed successfully on Vercel with the same existing large chunk warning as local builds.
+- Live browser QA passed on desktop and 390px mobile for signed-out Save: WebGL canvas renders, Save opens save-specific auth, the Save button label changes to `Sign in`, no false `Saved` state appears, no normal `landVisualizer` local project save is written, a temporary pending-save session payload is created, no horizontal overflow is detected, and no runtime console errors are captured.
