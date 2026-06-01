@@ -544,3 +544,21 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Browser QA passed on desktop and 390px mobile for the first screen, Sitea Agent, Compare panel, sports comparisons, and horizontal overflow.
 - Fixed the only demo-breaking regression found during QA: `LandPlot` now normalizes polygon points that may arrive as `{ x, y }` or `{ x, z }` before creating the Three.js land fill, outline, and raised boundary rail. This removes the mobile Compare `THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN` error without changing object placement behavior.
 - Added `output/` to `.gitignore` so local browser QA screenshots stay out of the product commit.
+
+---
+
+# Production Deploy Verification
+
+## Todo
+- [x] Confirm the local git state is clean and the Vercel project link points at Sitea.
+- [x] Deploy the pushed Sitea milestone to Vercel Production.
+- [x] Inspect the production deployment result and alias/domain state.
+- [x] Browser-check `sitea.live` for first screen, Sitea Agent, compare entry, and no obvious runtime errors.
+- [x] Update Linear `SIT-10` with the production verification result.
+
+## Review
+- Production deploy completed on 2026-06-01 to `dpl_2wwJKBotzXisw59eH3V7R9NDYmfH`.
+- New production URL: `https://sitea-haoaj8dlo-tien820-8406s-projects.vercel.app`.
+- `vercel inspect` reports the deployment as `READY` and aliased to `https://sitea.live`, `https://sitea-one.vercel.app`, `https://sitea-tien820-8406s-projects.vercel.app`, and `https://sitea-tien820-8406-tien820-8406s-projects.vercel.app`.
+- Build completed successfully on Vercel with the same existing large chunk warning as local builds.
+- Live browser QA passed on desktop and 390px mobile: WebGL canvas renders, Sitea Agent welcome appears, Compare opens, Soccer can be selected, no horizontal overflow was detected, and no runtime console errors were captured.
