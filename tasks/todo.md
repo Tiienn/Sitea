@@ -562,3 +562,25 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - `vercel inspect` reports the deployment as `READY` and aliased to `https://sitea.live`, `https://sitea-one.vercel.app`, `https://sitea-tien820-8406s-projects.vercel.app`, and `https://sitea-tien820-8406-tien820-8406s-projects.vercel.app`.
 - Build completed successfully on Vercel with the same existing large chunk warning as local builds.
 - Live browser QA passed on desktop and 390px mobile: WebGL canvas renders, Sitea Agent welcome appears, Compare opens, Soccer can be selected, no horizontal overflow was detected, and no runtime console errors were captured.
+
+---
+
+# SIT-13 Require Sign-In For Saving
+
+## Todo
+- [x] Confirm the existing save behavior and the smallest safe change.
+- [x] Change explicit Save so unsigned users are prompted to sign in before any "Saved" success state is shown.
+- [x] After a successful sign-in, continue the pending Save into the existing Supabase project flow.
+- [x] Keep signed-in Save and existing project auto-save behavior unchanged.
+- [x] Polish Save button titles/status copy so users understand "Sign in to save" versus "Saved".
+- [x] Verify with focused lint/build and browser QA for signed-out Save, auth prompt, and no layout overflow.
+- [x] Update Linear `SIT-13` with shipped behavior and verification.
+
+## Review
+- Current root cause: `handleSave()` writes to `localStorage`, shows `Saved`, and only then opens auth for unsigned users. That violates the product rule that Save should require sign-in because the UI reports success before a cloud project exists.
+- Planned fix: make explicit Save gate on `user` first, set a pending-save flag, open `AuthModal`, and run `saveProjectToCloud()` automatically once Supabase auth state is available. The change should stay in `src/App.jsx` unless verification reveals a small supporting copy/style tweak is needed.
+- Implemented the save gate in `src/App.jsx`: unsigned Save now stores a temporary session pending-save payload, opens the auth modal, changes the Save label to `Sign in`, and waits for Supabase auth before calling the existing cloud save path.
+- Signed-in Save and current project auto-save still use the existing `saveProjectToCloud()` flow.
+- Updated `AuthModal.jsx` with save-specific copy when the modal is opened from Save: `Save project`, `Sign in to save`, and a short account-save explanation.
+- Verification: `npx eslint src/components/AuthModal.jsx --format stylish`, `npm run build`, and `git diff --check` pass. `npx eslint src/App.jsx --quiet --format stylish` remains blocked by the existing App lint baseline of unused imports/helpers, with no new save-gate variables reported.
+- Browser QA passed on desktop and 390px mobile for signed-out Save: auth opens with save-specific copy, no false `Saved` state appears, no normal `landVisualizer` local project save is written, pending session payload is created, closing auth clears the pending save, no horizontal overflow is detected, and no runtime console errors are captured.

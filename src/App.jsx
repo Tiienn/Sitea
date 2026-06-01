@@ -219,6 +219,8 @@ const BUILD_TOOLS = {
 const SNAP_DIST_M = 2.0     // meters - snap threshold distance
 const GRID_SIZE_M = 1.0     // meters - grid cell size
 const ROT_SNAP_DEG = 15     // degrees - rotation snap increment
+const PENDING_SAVE_AFTER_AUTH_KEY = 'siteaPendingSaveAfterAuth'
+const PENDING_SAVE_PAYLOAD_KEY = 'siteaPendingSavePayload'
 
 // Snap utility: get closest point on line segment (XZ plane)
 const getClosestPointOnSegment = (p, a, b) => {
@@ -796,9 +798,14 @@ function App() {
   // Project state (saved projects)
   const [currentProjectId, setCurrentProjectId] = useState(null)
   const [currentProjectName, setCurrentProjectName] = useState('Untitled Project')
-  const [projectSaveStatus, setProjectSaveStatus] = useState(null) // 'saving'|'saved'|'error'
+  const [projectSaveStatus, setProjectSaveStatus] = useState(null) // 'auth'|'saving'|'saved'|'error'
   const [showProjectsModal, setShowProjectsModal] = useState(false)
   const isLoadingProjectRef = useRef(false) // prevents auto-save during project load
+  const pendingSaveInFlightRef = useRef(false)
+  const authSuccessRef = useRef(false)
+  const [pendingSaveAfterAuth, setPendingSaveAfterAuth] = useState(() => {
+    return sessionStorage.getItem(PENDING_SAVE_AFTER_AUTH_KEY) === 'true'
+  })
 
   const [isExporting, setIsExporting] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
@@ -1245,10 +1252,10 @@ function App() {
       comparisonPositions, comparisonRotations, buildings])
 
   // Save project to cloud
-  const saveProjectToCloud = useCallback(async () => {
-    if (!user || isLoadingProjectRef.current) return
+  const saveProjectToCloud = useCallback(async (payloadOverride = null) => {
+    if (!user || isLoadingProjectRef.current) return { error: 'Authentication required' }
 
-    const payload = buildCurrentPayload()
+    const payload = payloadOverride || buildCurrentPayload()
 
     if (currentProjectId) {
       // Update existing project
@@ -1256,13 +1263,15 @@ function App() {
       const result = await updateProject(currentProjectId, payload)
       setProjectSaveStatus(result.error ? 'error' : 'saved')
       if (!result.error) setTimeout(() => setProjectSaveStatus(null), 2000)
+      return result
     } else {
       // Create new project — check limit for free users
       if (!isPaidUser) {
         const { count } = await countProjects()
         if (count >= 1) {
+          setProjectSaveStatus(null)
           setShowPricingModal(true)
-          return
+          return { error: 'Free project limit reached' }
         }
       }
       setProjectSaveStatus('saving')
@@ -1275,6 +1284,7 @@ function App() {
         setProjectSaveStatus('saved')
         setTimeout(() => setProjectSaveStatus(null), 2000)
       }
+      return result
     }
   }, [user, isPaidUser, currentProjectId, currentProjectName, buildCurrentPayload, setShowPricingModal])
 
@@ -1286,6 +1296,58 @@ function App() {
     }, 5000)
     return () => clearTimeout(timer)
   }, [buildCurrentPayload, currentProjectId, user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const clearPendingAuthSave = useCallback(() => {
+    sessionStorage.removeItem(PENDING_SAVE_AFTER_AUTH_KEY)
+    sessionStorage.removeItem(PENDING_SAVE_PAYLOAD_KEY)
+    setPendingSaveAfterAuth(false)
+  }, [])
+
+  useEffect(() => {
+    if (!user || !pendingSaveAfterAuth || pendingSaveInFlightRef.current) return
+
+    pendingSaveInFlightRef.current = true
+
+    const finishPendingSave = async () => {
+      let pendingPayload = null
+      const savedPayload = sessionStorage.getItem(PENDING_SAVE_PAYLOAD_KEY)
+      if (savedPayload) {
+        try {
+          pendingPayload = JSON.parse(savedPayload)
+        } catch (error) {
+          console.warn('Failed to restore pending save payload:', error)
+        }
+      }
+
+      try {
+        await saveProjectToCloud(pendingPayload)
+      } finally {
+        clearPendingAuthSave()
+        pendingSaveInFlightRef.current = false
+      }
+    }
+
+    finishPendingSave()
+  }, [user, pendingSaveAfterAuth, saveProjectToCloud, clearPendingAuthSave])
+
+  const handleAuthModalClose = useCallback(() => {
+    setShowAuthModal(false)
+
+    if (authSuccessRef.current) {
+      authSuccessRef.current = false
+      return
+    }
+
+    if (pendingSaveAfterAuth) {
+      clearPendingAuthSave()
+      setProjectSaveStatus(null)
+    }
+  }, [pendingSaveAfterAuth, clearPendingAuthSave, setShowAuthModal])
+
+  const handleAuthSuccess = useCallback(() => {
+    authSuccessRef.current = true
+    setShowAuthModal(false)
+  }, [setShowAuthModal])
 
   // Handle "New Project" — clear design state and project context
   const handleNewProject = useCallback(() => {
@@ -2672,28 +2734,17 @@ function App() {
   }, [])
 
   const handleSave = () => {
-    // Always save to localStorage
-    const data = {
-      dimensions,
-      shapeMode,
-      polygonPoints,
-      confirmedPolygon,
-      placedBuildings,
-      generatedBuildings: buildings,
-      activeComparisons,
-      walls
-    }
-    localStorage.setItem('landVisualizer', JSON.stringify(data))
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus(null), 2000)
-
-    // Also save to cloud if logged in
-    if (user) {
-      saveProjectToCloud()
-    } else {
-      // Prompt sign in for cloud save
+    if (!user) {
+      sessionStorage.setItem(PENDING_SAVE_AFTER_AUTH_KEY, 'true')
+      sessionStorage.setItem(PENDING_SAVE_PAYLOAD_KEY, JSON.stringify(buildCurrentPayload()))
+      setPendingSaveAfterAuth(true)
+      setSaveStatus(null)
+      setProjectSaveStatus('auth')
       setShowAuthModal(true)
+      return
     }
+
+    saveProjectToCloud()
   }
 
   const handleClearSaved = () => {
@@ -3614,13 +3665,17 @@ function App() {
 
             <button
               onClick={() => canEdit && handleSave()}
-              className={`ribbon-btn ${(saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'text-[var(--color-accent)]' : projectSaveStatus === 'saving' ? 'text-[var(--color-warning)]' : projectSaveStatus === 'error' ? 'text-[var(--color-danger)]' : ''}`}
+              className={`ribbon-btn ${(saveStatus === 'saved' || projectSaveStatus === 'saved' || projectSaveStatus === 'auth') ? 'text-[var(--color-accent)]' : projectSaveStatus === 'saving' ? 'text-[var(--color-warning)]' : projectSaveStatus === 'error' ? 'text-[var(--color-danger)]' : ''}`}
               disabled={!canEdit}
-              title={!canEdit ? 'View-only mode' : currentProjectId ? `Saving to "${currentProjectName}"` : 'Save your design'}
+              title={!canEdit ? 'View-only mode' : !user ? 'Sign in to save your design' : currentProjectId ? `Saving to "${currentProjectName}"` : 'Save your design'}
             >
             <span className="icon">
               {projectSaveStatus === 'saving' ? (
                 <div className="w-5 h-5 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+              ) : projectSaveStatus === 'auth' ? (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 00-9 0v3.75m-.75 11.25h10.5A2.25 2.25 0 0019.5 19.5v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
               ) : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -3631,7 +3686,7 @@ function App() {
                 </svg>
               )}
             </span>
-            <span className="label">{projectSaveStatus === 'saving' ? 'Saving...' : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'Saved' : 'Save'}</span>
+            <span className="label">{projectSaveStatus === 'auth' ? 'Sign in' : projectSaveStatus === 'saving' ? 'Saving...' : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'Saved' : 'Save'}</span>
           </button>
 
           {/* Desktop: show Export, Share, Help inline */}
@@ -4585,8 +4640,9 @@ function App() {
       {showAuthModal && (
         <Suspense fallback={<LoadingFallback />}>
           <AuthModal
-            onClose={() => setShowAuthModal(false)}
-            onSuccess={() => setShowAuthModal(false)}
+            intent={pendingSaveAfterAuth ? 'save' : 'default'}
+            onClose={handleAuthModalClose}
+            onSuccess={handleAuthSuccess}
           />
         </Suspense>
       )}

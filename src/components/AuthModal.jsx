@@ -3,13 +3,14 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-export default function AuthModal({ onClose, onSuccess }) {
+export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [message, setMessage] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
+  const isSaveIntent = intent === 'save'
 
   const handleGoogleSignIn = async () => {
     if (!isSupabaseConfigured()) {
@@ -134,17 +135,19 @@ export default function AuthModal({ onClose, onSuccess }) {
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 mb-5">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm font-semibold bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">
-                Welcome
+                {isSaveIntent ? 'Save project' : 'Welcome'}
               </span>
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">
-              {mode === 'signin' ? 'Sign In' : 'Create Account'}
+              {isSaveIntent ? 'Sign in to save' : mode === 'signin' ? 'Sign In' : 'Create Account'}
             </h2>
             <p className="text-slate-400 text-sm">
-              {mode === 'signin'
-                ? 'Sign in to sync your Pro status across devices'
-                : 'Create an account to get started'}
+              {isSaveIntent
+                ? 'Your design will be saved to your Sitea account after you sign in.'
+                : mode === 'signin'
+                  ? 'Sign in to sync your Pro status across devices'
+                  : 'Create an account to get started'}
             </p>
           </div>
 
