@@ -4,6 +4,7 @@
 
 import OpenAI from 'openai';
 import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
+import { consumeUploadCreditForUser } from '../server/uploadQuota.js';
 
 export const config = {
   maxDuration: 60,
@@ -101,8 +102,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  let authContext;
   try {
-    await requireActiveSubscription(req);
+    authContext = await requireActiveSubscription(req);
   } catch (error) {
     return sendError(res, error);
   }
@@ -124,9 +126,22 @@ export default async function handler(req, res) {
 
   const mediaType = detectMediaType(image);
 
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      error: 'Missing site-plan AI provider configuration',
+    });
+  }
+
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
+
+  try {
+    await consumeUploadCreditForUser(authContext.user, authContext.subscription);
+  } catch (error) {
+    return sendError(res, error);
+  }
 
   try {
     const response = await openai.responses.create({

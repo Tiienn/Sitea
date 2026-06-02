@@ -14,15 +14,15 @@ function requiredEnv(name) {
   return value;
 }
 
-function getSupabaseUrl() {
+export function getSupabaseUrl() {
   return requiredEnv('VITE_SUPABASE_URL');
 }
 
-function getSupabaseAnonKey() {
+export function getSupabaseAnonKey() {
   return requiredEnv('VITE_SUPABASE_ANON_KEY');
 }
 
-function getSupabaseServiceRoleKey() {
+export function getSupabaseServiceRoleKey() {
   return requiredEnv('SUPABASE_SERVICE_ROLE_KEY');
 }
 

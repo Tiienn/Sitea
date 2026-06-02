@@ -385,6 +385,10 @@ export default function BuildPanel({
   const handleFileUpload = async (file) => {
     if (!file) return
 
+    if (!canUseUpload()) {
+      return
+    }
+
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(file.type)) {
       alert('Please upload a PNG, JPG, or PDF file')
@@ -410,10 +414,15 @@ export default function BuildPanel({
       const result = await analyzeImage(pendingImage, isPaidUser)
 
       if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
-        markUploadUsed()
         if (result.type === 'floor-plan') {
           onOpenFloorPlanGenerator?.(pendingImage)
         } else {
+          const quota = await markUploadUsed()
+          if (!quota?.ok) {
+            setPendingImage(null)
+            setIsAnalyzing(false)
+            return
+          }
           onDetectedSitePlan?.(pendingImage)
         }
         setPendingImage(null)
@@ -431,12 +440,13 @@ export default function BuildPanel({
   }
 
   // Confirm detected type (for low confidence)
-  const confirmType = (type) => {
-    markUploadUsed() // Consume free trial
+  const confirmType = async (type) => {
     if (type === 'floor-plan') {
       // Open AI generator modal for floor plans
       onOpenFloorPlanGenerator?.(pendingImage)
     } else {
+      const quota = await markUploadUsed()
+      if (!quota?.ok) return
       onDetectedSitePlan?.(pendingImage)
     }
     setShowConfirm(false)

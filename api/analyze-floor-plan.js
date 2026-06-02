@@ -6,6 +6,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import sharp from 'sharp';
 import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
+import { consumeUploadCreditForUser } from '../server/uploadQuota.js';
 
 export const config = {
   maxDuration: 120,
@@ -1565,8 +1566,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  let authContext;
   try {
-    await requireActiveSubscription(req);
+    authContext = await requireActiveSubscription(req);
   } catch (error) {
     return sendError(res, error);
   }
@@ -1575,6 +1577,20 @@ export default async function handler(req, res) {
 
   if (!image) {
     return res.status(400).json({ error: 'Image is required' });
+  }
+
+  const openai = hasEnvValue('OPENAI_API_KEY')
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
+  const genai = hasEnvValue('GEMINI_API_KEY')
+    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    : null;
+
+  if (!openai && !genai) {
+    return res.status(500).json({
+      success: false,
+      error: 'Missing floor-plan AI provider configuration',
+    });
   }
 
   // Detect original image media type (needed for OCR on original)
@@ -1594,6 +1610,12 @@ export default async function handler(req, res) {
   const actualHeight = imageMeta.height;
   console.log(`[FloorPlan] Actual image dimensions: ${actualWidth}x${actualHeight}`);
 
+  try {
+    await consumeUploadCreditForUser(authContext.user, authContext.subscription);
+  } catch (error) {
+    return sendError(res, error);
+  }
+
   // Resize both images to standard resolution for model input (we control the input = deterministic scaling)
   const { base64: resizedOriginal, width: geminiW, height: geminiH } = await resizeForGemini(image);
   const processedImage = await preprocessImage(resizedOriginal);
@@ -1606,20 +1628,6 @@ export default async function handler(req, res) {
 
   // After preprocessing, image is always PNG
   const mediaType = 'image/png';
-
-  const openai = hasEnvValue('OPENAI_API_KEY')
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    : null;
-  const genai = hasEnvValue('GEMINI_API_KEY')
-    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    : null;
-
-  if (!openai && !genai) {
-    return res.status(500).json({
-      success: false,
-      error: 'Missing floor-plan AI provider configuration',
-    });
-  }
 
   try {
     const dimensionPromise = (async () => {

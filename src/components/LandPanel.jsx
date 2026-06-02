@@ -86,7 +86,7 @@ export default function LandPanel({
   isActive,
   onDetectedFloorPlan, // Called when floor plan is detected
 }) {
-  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload, uploadsRemaining } = useUser()
+  const { isPaidUser, canUseUpload, markUploadUsed, hasUsedUpload } = useUser()
   const [activeSection, setActiveSection] = useState('rectangle')
   const [localDimensions, setLocalDimensions] = useState({
     length: dimensions.length,
@@ -198,10 +198,13 @@ export default function LandPanel({
       if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
         // High confidence - auto-route
         if (result.type === 'site-plan') {
-          markUploadUsed()
+          const quota = await markUploadUsed()
+          if (!quota?.ok) {
+            setPendingImage(null)
+            return
+          }
           setUploadedImage(imageData)
         } else if (isPaidUser) {
-          markUploadUsed()
           onDetectedFloorPlan?.(imageData)
         } else {
           // Free user detected floor plan — don't consume upload, route to upgrade
@@ -216,21 +219,25 @@ export default function LandPanel({
     } catch (err) {
       console.error('Analysis failed:', err)
       // Fallback: assume site plan (we're in Land panel)
-      markUploadUsed() // Consume free trial
+      const quota = await markUploadUsed()
+      if (!quota?.ok) {
+        setPendingImage(null)
+        return
+      }
       setUploadedImage(imageData)
       setPendingImage(null)
+    } finally {
+      setIsAnalyzing(false)
     }
-
-    setIsAnalyzing(false)
   }
 
   // Confirm detected type (for low confidence)
-  const confirmType = (type) => {
+  const confirmType = async (type) => {
     if (type === 'site-plan') {
-      markUploadUsed()
+      const quota = await markUploadUsed()
+      if (!quota?.ok) return
       setUploadedImage(pendingImage)
     } else if (isPaidUser) {
-      markUploadUsed()
       onDetectedFloorPlan?.(pendingImage)
     } else {
       // Free user chose floor plan — don't consume upload

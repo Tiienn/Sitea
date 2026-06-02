@@ -602,3 +602,47 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - `vercel inspect` reports the deployment as `READY` and aliased to `https://sitea.live`, `https://sitea-one.vercel.app`, `https://sitea-tien820-8406s-projects.vercel.app`, and `https://sitea-tien820-8406-tien820-8406s-projects.vercel.app`.
 - Build completed successfully on Vercel with the same existing large chunk warning as local builds.
 - Live browser QA passed on desktop and 390px mobile for signed-out Save: WebGL canvas renders, Save opens save-specific auth, the Save button label changes to `Sign in`, no false `Saved` state appears, no normal `landVisualizer` local project save is written, a temporary pending-save session payload is created, no horizontal overflow is detected, and no runtime console errors are captured.
+
+---
+
+# SIT-12 Server-Side Upload Quota
+
+## Todo
+- [x] Confirm the upload quota product rule: uploads should require sign-in so quota can be tied to a Supabase user.
+- [x] Apply Supabase SQL for a server-owned upload quota table, RLS, explicit grants, and an atomic upload-credit consume function.
+- [x] Add a Vercel API route for upload quota status and upload-credit consumption using the authenticated Supabase user.
+- [x] Move `useUser.jsx` upload count/remaining state from `localStorage` authority to the server quota API.
+- [x] Update upload entry points to use the server quota flow: Sitea Agent upload, Land panel, Build panel, Upload modal, and ImageTracer.
+- [x] Enforce quota in paid server analyzers so `/api/analyze-floor-plan` and `/api/analyze-site-plan` cannot be bypassed by client changes.
+- [x] Keep plan limits aligned with current pricing: free signed-in user `1`, monthly `3`, homeowner `20`, lifetime unlimited.
+- [x] Verify Supabase SQL with test queries/advisors, focused lint/build, browser QA, and Linear `SIT-12` update.
+
+## Review
+- Current root cause: upload count is stored in `localStorage` through `useUser.jsx`, so users can reset or bypass usage locally. Multiple upload surfaces call `canUseUpload()` / `markUploadUsed()`, and Sitea Agent floor-plan upload currently reaches the paid analyzer without using those UI helpers.
+- Supabase project discovered through MCP: `utudexexqnmaoohmnsmk` (`Tiienn's Project`). Current public tables are `floor_plan_corrections`, `projects`, `shared_scenes`, and `subscriptions`; no upload quota table exists yet.
+- Supabase docs/changelog check: new/exposed tables need explicit grants plus RLS, and RLS policies should explicitly check `auth.uid() is not null` for authenticated-user rows.
+- Proposed implementation choice: make upload quota a signed-in account feature. Anonymous users should be prompted to sign in before upload, because a trustworthy server-side quota cannot be tied to an unauthenticated browser without falling back to local-only state.
+- Applied Supabase migration `server_upload_quota` to production project `utudexexqnmaoohmnsmk`: added `public.upload_usage`, RLS, explicit grants, and service-role-only `public.consume_upload_credit(uuid, integer)`.
+- Applied follow-up migration `server_upload_quota_monthly_period`: monthly usage now resets by server-generated `monthly:YYYY-MM` period key, while free/homeowner/lifetime use `forever`.
+- Added `/api/upload-quota` for authenticated quota reads and credit consumption; unauthenticated requests return `401 Authentication required`.
+- Replaced localStorage upload authority in `useUser.jsx` with server quota state and removed the old `landVisualizerUploadCount` key.
+- Upload surfaces now require sign-in and consume through the server quota flow: Sitea Agent site-plan upload, Land panel, Build panel, Upload modal, and ImageTracer.
+- Paid analyzer endpoints now consume server-side quota too: `/api/analyze-floor-plan` and `/api/analyze-site-plan`.
+- Floor-plan flows intentionally do not consume in the browser before the analyzer opens, avoiding double-counting; the analyzer endpoint is the source of truth for paid floor-plan analysis usage.
+- Documented the server quota model, monthly reset model, and plan limits in `README.md`.
+- Verification: Supabase RPC tested in rollback transactions for same-period blocking and next-period monthly reset, focused ESLint passed for new/changed server/API/upload files with one existing ImageTracer warning, `npm run build` passed, `/api/upload-quota` no-auth smoke returned 401, and the local app opened in the in-app browser with no console errors. Linear `SIT-12` was moved to In Review with implementation comments.
+
+---
+
+# SIT-12 Commit + Deploy
+
+## Todo
+- [x] Upgrade Vercel CLI from `54.6.1` to `54.7.1` and verify the installed version.
+- [x] Re-run focused quota checks before release.
+- [ ] Commit and push the SIT-12 server quota changes.
+- [ ] Deploy the pushed changes to Vercel Production.
+- [ ] Verify the production deployment and update Linear `SIT-12`.
+
+## Review
+- Upgraded Vercel CLI from `54.6.1` to `54.7.1`. The global install emitted the existing Node `v25` engine warning from `@renovatebot/pep440`, but `vercel --version` verifies `54.7.1`.
+- Release checks passed: focused ESLint for server quota/API/upload files reports only the existing ImageTracer hook warning, `npm run build` passes with existing large chunk warnings, `git diff --check` passes, and `/api/upload-quota` unauthenticated smoke returns `401 Authentication required`.

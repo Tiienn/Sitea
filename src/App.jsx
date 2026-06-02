@@ -539,7 +539,7 @@ function VirtualJoystick({ joystickInput, isRunning, setIsRunning, onJump, onTal
 
 function App() {
   // User context for paid features
-  const { user, isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid, signOut, showAuthModal, setShowAuthModal, planType, theme, setTheme, hasUsedUpload } = useUser()
+  const { user, isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid, signOut, showAuthModal, setShowAuthModal, planType, theme, setTheme, hasUsedUpload, markUploadUsed } = useUser()
   const isMobile = useIsMobile()
   const isLandscape = useIsLandscape()
   const [showOverflow, setShowOverflow] = useState(false)
@@ -1983,6 +1983,7 @@ function App() {
     onSitePlanUploaded: handleAgentSitePlanUploaded,
     activateComparison: activateAgentComparison,
     isPaidUser,
+    markUploadUsed,
     hasLand: userHasLand,
     dimensions,
     landArea: area,

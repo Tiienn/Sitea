@@ -7,7 +7,7 @@ import { fileToImageData, renderPdfPageToImage } from '../utils/pdfToImage'
 const AUTO_ROUTE_THRESHOLD = 0.7
 
 export default function UploadImageModal({ onClose, onUploadForLand, onUploadForFloorPlan }) {
-  const { isPaidUser, planType, markUploadUsed, hasUsedUpload, uploadCount, uploadsRemaining, setShowPricingModal } = useUser()
+  const { user, isPaidUser, planType, canUseUpload, markUploadUsed, hasUsedUpload, uploadCount, uploadsRemaining, setShowPricingModal } = useUser()
   const [isDragging, setIsDragging] = useState(false)
   const [preview, setPreview] = useState(null)
   const [step, setStep] = useState('promise') // 'promise' | 'upload' | 'preview' | 'analyzing' | 'confirm' | 'scale'
@@ -23,9 +23,13 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
   const fileInputRef = useRef(null)
 
   // Route to the appropriate mode
-  const routeToMode = (type, imageData) => {
+  const routeToMode = async (type, imageData) => {
     if (type === 'site-plan') {
-      markUploadUsed()
+      const quota = await markUploadUsed()
+      if (!quota?.ok) {
+        setStep('preview')
+        return
+      }
       onUploadForLand(imageData)
       onClose()
     } else {
@@ -36,12 +40,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
   }
 
   const confirmFloorPlan = (knownWidthMeters = null) => {
-    if (isPaidUser) {
-      markUploadUsed()
-      onUploadForFloorPlan(pendingFloorPlan, knownWidthMeters ? { knownWidthMeters } : null)
-    } else {
-      onUploadForFloorPlan(pendingFloorPlan, knownWidthMeters ? { knownWidthMeters } : null)
-    }
+    onUploadForFloorPlan(pendingFloorPlan, knownWidthMeters ? { knownWidthMeters } : null)
     onClose()
   }
 
@@ -57,6 +56,10 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
 
   const handleFile = async (f) => {
     if (!f) return
+
+    if (!canUseUpload()) {
+      return
+    }
 
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(f.type)) {
@@ -111,7 +114,7 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
       setDetection(result)
 
       if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
-        routeToMode(result.type, preview)
+        await routeToMode(result.type, preview)
       } else {
         setStep('confirm')
       }
@@ -226,8 +229,10 @@ export default function UploadImageModal({ onClose, onUploadForLand, onUploadFor
                       <span className="text-teal-400">
                         Want to upload more? <span className="px-1.5 py-0.5 bg-teal-500 text-white font-bold rounded ml-0.5">Pro - $20</span>
                       </span>
-                    ) : (
+                    ) : user ? (
                       <span className="text-green-400">Your first upload is free</span>
+                    ) : (
+                      <span className="text-green-400">Sign in to use your free upload</span>
                     )}
                   </p>
                 ) : (planType === 'homeowner' || planType === 'monthly') ? (

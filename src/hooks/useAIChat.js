@@ -74,6 +74,7 @@ export function useAIChat({
   onSitePlanUploaded,
   activateComparison,
   isPaidUser = false,
+  markUploadUsed = async () => ({ ok: true }),
   hasLand = false,
   dimensions,
   landArea,
@@ -333,6 +334,11 @@ export function useAIChat({
     setMessages(prev => [...prev, userMsg])
 
     try {
+      const quota = await markUploadUsed()
+      if (!quota?.ok) {
+        throw new Error(quota?.error || 'Upload limit reached')
+      }
+
       if (fileMeta?.imageData && onSitePlanUploaded) {
         onSitePlanUploaded(fileMeta.imageData)
       }
@@ -375,7 +381,7 @@ export function useAIChat({
       setActiveProcess(null)
       setIsLoading(false)
     }
-  }, [landArea, onSitePlanUploaded])
+  }, [landArea, markUploadUsed, onSitePlanUploaded])
 
   const routePlanUpload = useCallback(async (fileBase64, text, fileMeta = {}) => {
     let detection = null

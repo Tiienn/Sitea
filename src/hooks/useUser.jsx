@@ -10,9 +10,10 @@ export function UserProvider({ children }) {
   const [showPricingModal, setShowPricingModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [planType, setPlanType] = useState(null) // 'monthly' | 'lifetime' | null
-  const [uploadCount, setUploadCount] = useState(() => {
-    return parseInt(localStorage.getItem('landVisualizerUploadCount') || '0', 10)
-  })
+  const [uploadCount, setUploadCount] = useState(0)
+  const [uploadLimit, setUploadLimit] = useState(1)
+  const [uploadsRemaining, setUploadsRemaining] = useState(0)
+  const [uploadQuotaError, setUploadQuotaError] = useState(null)
   const hasUsedUpload = uploadCount > 0
   const [theme, setThemeState] = useState(() => {
     return localStorage.getItem('landVisualizerTheme') || 'dark'
@@ -22,6 +23,54 @@ export function UserProvider({ children }) {
     setThemeState(newTheme)
     localStorage.setItem('landVisualizerTheme', newTheme)
   }, [])
+
+  const applyUploadQuota = useCallback((quota) => {
+    const limit = quota?.isUnlimited ? Infinity : (quota?.limit ?? 1)
+    setUploadCount(quota?.used || 0)
+    setUploadLimit(limit)
+    setUploadsRemaining(limit === Infinity ? Infinity : (quota?.remaining ?? 0))
+  }, [])
+
+  const resetUploadQuota = useCallback(() => {
+    setUploadCount(0)
+    setUploadLimit(1)
+    setUploadsRemaining(0)
+    setUploadQuotaError(null)
+  }, [])
+
+  const refreshUploadQuota = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      resetUploadQuota()
+      return null
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        resetUploadQuota()
+        return null
+      }
+
+      const response = await fetch('/api/upload-quota', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Could not load upload quota')
+      }
+
+      applyUploadQuota(data)
+      setUploadQuotaError(null)
+      return data
+    } catch (error) {
+      console.error('Error loading upload quota:', error)
+      setUploadQuotaError(error.message)
+      return null
+    }
+  }, [applyUploadQuota, resetUploadQuota])
 
   // Check subscription status from Supabase. localStorage is only a UI cache.
   const checkSubscription = useCallback(async () => {
@@ -70,6 +119,10 @@ export function UserProvider({ children }) {
     checkSubscription()
   }, [checkSubscription])
 
+  useEffect(() => {
+    localStorage.removeItem('landVisualizerUploadCount')
+  }, [])
+
   // Auth listener — syncs Supabase auth session to user state
   useEffect(() => {
     if (!isSupabaseConfigured()) return
@@ -92,11 +145,20 @@ export function UserProvider({ children }) {
         checkSubscription()
       } else {
         setUser(null)
+        resetUploadQuota()
       }
     })
 
     return () => authSub.unsubscribe()
-  }, [checkSubscription])
+  }, [checkSubscription, resetUploadQuota])
+
+  useEffect(() => {
+    if (user) {
+      refreshUploadQuota()
+    } else {
+      resetUploadQuota()
+    }
+  }, [user, isPaidUser, planType, refreshUploadQuota, resetUploadQuota])
 
   // Sign out — clears auth session and local state
   const signOut = useCallback(async () => {
@@ -106,10 +168,12 @@ export function UserProvider({ children }) {
     setUser(null)
     setIsPaidUser(false)
     setPlanType(null)
+    resetUploadQuota()
     localStorage.removeItem('landVisualizerPaidUser')
     localStorage.removeItem('landVisualizerEmail')
     localStorage.removeItem('landVisualizerPlanType')
-  }, [])
+    localStorage.removeItem('landVisualizerUploadCount')
+  }, [resetUploadQuota])
 
   // Called after successful payment
   const onPaymentSuccess = useCallback((newPlanType) => {
@@ -118,7 +182,8 @@ export function UserProvider({ children }) {
     setShowPricingModal(false)
     localStorage.setItem('landVisualizerPaidUser', 'true')
     localStorage.setItem('landVisualizerPlanType', newPlanType)
-  }, [])
+    refreshUploadQuota()
+  }, [refreshUploadQuota])
 
   // Show pricing modal when user tries to access paid feature
   const requirePaid = useCallback((callback) => {
@@ -132,30 +197,63 @@ export function UserProvider({ children }) {
 
   // Upload limits by plan
   const getUploadLimit = useCallback(() => {
-    if (!isPaidUser) return 1 // free: 1 upload
-    if (planType === 'monthly') return 3 // monthly: 3 uploads
-    if (planType === 'homeowner') return 20 // homeowner: 20 uploads
-    return Infinity // lifetime: unlimited
-  }, [isPaidUser, planType])
-
-  const uploadsRemaining = Math.max(0, getUploadLimit() - uploadCount)
+    return uploadLimit
+  }, [uploadLimit])
 
   // Check if user can use upload
-  // Returns true if allowed, false if blocked (shows pricing modal)
+  // Returns true if allowed, false if blocked (shows auth/pricing modal)
   const canUseUpload = useCallback(() => {
-    if (uploadCount < getUploadLimit()) return true
+    if (!user) {
+      setShowAuthModal(true)
+      return false
+    }
+    if (uploadsRemaining === Infinity || uploadCount < getUploadLimit()) return true
     setShowPricingModal(true)
     return false
-  }, [uploadCount, getUploadLimit])
+  }, [user, uploadsRemaining, uploadCount, getUploadLimit])
 
   // Mark upload as used (call after successful upload)
-  const markUploadUsed = useCallback(() => {
-    setUploadCount(prev => {
-      const next = prev + 1
-      localStorage.setItem('landVisualizerUploadCount', String(next))
-      return next
-    })
-  }, [])
+  const markUploadUsed = useCallback(async () => {
+    if (!user) {
+      setShowAuthModal(true)
+      return { ok: false, error: 'Please sign in to upload plans' }
+    }
+    if (!isSupabaseConfigured()) {
+      return { ok: false, error: 'Uploads require Supabase to be configured' }
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        setShowAuthModal(true)
+        return { ok: false, error: 'Please sign in to upload plans' }
+      }
+
+      const response = await fetch('/api/upload-quota', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || data.error) {
+        const message = data.error || 'Upload limit reached'
+        if (response.status === 401) setShowAuthModal(true)
+        if (response.status === 403) setShowPricingModal(true)
+        setUploadQuotaError(message)
+        return { ok: false, error: message }
+      }
+
+      applyUploadQuota(data)
+      setUploadQuotaError(null)
+      return { ok: true, ...data }
+    } catch (error) {
+      console.error('Error updating upload quota:', error)
+      setUploadQuotaError(error.message)
+      return { ok: false, error: error.message }
+    }
+  }, [applyUploadQuota, user])
 
   return (
     <UserContext.Provider value={{
@@ -177,7 +275,10 @@ export function UserProvider({ children }) {
       hasUsedUpload,
       uploadCount,
       uploadsRemaining,
+      uploadLimit,
+      uploadQuotaError,
       refreshSubscription: checkSubscription,
+      refreshUploadQuota,
       theme,
       setTheme
     }}>
@@ -186,6 +287,7 @@ export function UserProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useUser() {
   const context = useContext(UserContext)
   if (!context) {
@@ -205,11 +307,14 @@ export function useUser() {
       signOut: async () => {},
       requirePaid: () => false,
       canUseUpload: () => true,
-      markUploadUsed: () => {},
+      markUploadUsed: async () => ({ ok: true }),
       hasUsedUpload: false,
       uploadCount: 0,
-      uploadsRemaining: 1,
+      uploadsRemaining: 0,
+      uploadLimit: 1,
+      uploadQuotaError: null,
       refreshSubscription: () => {},
+      refreshUploadQuota: () => {},
       theme: 'dark',
       setTheme: () => {}
     }

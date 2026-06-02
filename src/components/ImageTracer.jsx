@@ -47,12 +47,15 @@ export default function ImageTracer({
   const canvasSize = 300
   const image = uploadedImage // Alias for compatibility
 
-  // Upload tracking (for analytics, parent handles gating)
-  const { markUploadUsed } = useUser()
+  const { canUseUpload, markUploadUsed } = useUser()
 
   // Handle file selection
   const handleFileSelect = useCallback(async (file) => {
     if (!file) return
+
+    if (!canUseUpload()) {
+      return
+    }
 
     // Check file type
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
@@ -63,8 +66,8 @@ export default function ImageTracer({
 
     try {
       const { imageData } = await fileToImageData(file)
-      // Mark upload as used (consumes free trial)
-      markUploadUsed()
+      const quota = await markUploadUsed()
+      if (!quota?.ok) return
 
       setUploadedImage(imageData)
       // Reset state for new image
@@ -79,7 +82,7 @@ export default function ImageTracer({
       console.error('File render failed:', err)
       alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
     }
-  }, [setUploadedImage, markUploadUsed])
+  }, [canUseUpload, setUploadedImage, markUploadUsed])
 
   // Handle file input change
   const handleFileInputChange = (e) => {
