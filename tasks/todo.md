@@ -639,10 +639,15 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 ## Todo
 - [x] Upgrade Vercel CLI from `54.6.1` to `54.7.1` and verify the installed version.
 - [x] Re-run focused quota checks before release.
-- [ ] Commit and push the SIT-12 server quota changes.
-- [ ] Deploy the pushed changes to Vercel Production.
-- [ ] Verify the production deployment and update Linear `SIT-12`.
+- [x] Commit and push the SIT-12 server quota changes.
+- [x] Deploy the pushed changes to Vercel Production.
+- [x] Verify the production deployment and update Linear `SIT-12`.
 
 ## Review
 - Upgraded Vercel CLI from `54.6.1` to `54.7.1`. The global install emitted the existing Node `v25` engine warning from `@renovatebot/pep440`, but `vercel --version` verifies `54.7.1`.
 - Release checks passed: focused ESLint for server quota/API/upload files reports only the existing ImageTracer hook warning, `npm run build` passes with existing large chunk warnings, `git diff --check` passes, and `/api/upload-quota` unauthenticated smoke returns `401 Authentication required`.
+- Committed and pushed SIT-12 code as `00d94be Move upload quota to server` on `feature/simplified-onboarding`.
+- Production deploy completed on 2026-06-02 to `dpl_8CT1SG3UaN1PPfWXFSfzeJ8SFCjf`.
+- New production URL: `https://sitea-o0i87kco1-tien820-8406s-projects.vercel.app`.
+- `vercel inspect` reports the deployment as `READY` and aliased to `https://sitea.live`, `https://sitea-one.vercel.app`, `https://sitea-tien820-8406s-projects.vercel.app`, and `https://sitea-tien820-8406-tien820-8406s-projects.vercel.app`.
+- Live smoke checks passed: `https://sitea.live/` returns `200`, `https://sitea.live/api/upload-quota` returns `401 Authentication required` without a token, and browser QA shows Sitea Agent plus Compare content with zero runtime console errors.
