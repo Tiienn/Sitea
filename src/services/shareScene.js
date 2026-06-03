@@ -12,6 +12,25 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 
 const TABLE_NAME = 'shared_scenes'
 const SCENE_VERSION = 3
+export const SHARE_LINK_EXPIRATION_DAYS = 30
+
+export function getShareExpirationDate(now = new Date()) {
+  return new Date(now.getTime() + SHARE_LINK_EXPIRATION_DAYS * 24 * 60 * 60 * 1000)
+}
+
+export function formatShareExpiration(expiresAt) {
+  if (!expiresAt) return 'Legacy link'
+
+  const expires = new Date(expiresAt)
+  if (Number.isNaN(expires.getTime())) return 'Expiration unknown'
+
+  const msRemaining = expires.getTime() - Date.now()
+  if (msRemaining <= 0) return 'Expired'
+
+  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000))
+  if (daysRemaining <= 1) return 'Expires tomorrow'
+  return `Expires in ${daysRemaining} days`
+}
 
 /**
  * Build scene payload from app state
@@ -130,10 +149,11 @@ export async function createSharedScene(scenePayload) {
   }
 
   try {
+    const expiresAt = getShareExpirationDate().toISOString()
     const { data, error } = await supabase
       .from(TABLE_NAME)
-      .insert({ scene_json: scenePayload })
-      .select('id')
+      .insert({ scene_json: scenePayload, scene_version: SCENE_VERSION, expires_at: expiresAt })
+      .select('id, expires_at')
       .single()
 
     if (error) {
@@ -141,7 +161,7 @@ export async function createSharedScene(scenePayload) {
       return { error: 'Sharing unavailable right now' }
     }
 
-    return { id: data.id }
+    return { id: data.id, expiresAt: data.expires_at || expiresAt }
   } catch (err) {
     console.error('Share scene error:', err)
     return { error: 'Sharing unavailable right now' }
@@ -168,15 +188,28 @@ export async function fetchSharedScene(shareId) {
     // Always fetch by specific ID - never list all scenes
     const { data, error } = await supabase
       .from(TABLE_NAME)
-      .select('scene_json')
+      .select('scene_json, expires_at')
       .eq('id', shareId)
-      .single()
+      .maybeSingle()
 
     if (error || !data) {
-      return { error: 'Link invalid or expired' }
+      if (error) console.error('Fetch scene error:', error)
+      return {
+        error: 'This shared link has expired or no longer exists.',
+        title: 'Shared link unavailable',
+        reason: 'expired'
+      }
     }
 
-    return { payload: data.scene_json }
+    if (data.expires_at && new Date(data.expires_at) <= new Date()) {
+      return {
+        error: 'This shared layout link has expired. Ask the owner to share it again.',
+        title: 'Shared link expired',
+        reason: 'expired'
+      }
+    }
+
+    return { payload: data.scene_json, expiresAt: data.expires_at }
   } catch (err) {
     console.error('Fetch scene error:', err)
     return { error: 'Failed to load shared scene' }

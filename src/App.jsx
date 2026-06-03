@@ -54,7 +54,7 @@ import { exportModel } from './utils/modelExport'
 import { exportToPDF } from './utils/pdfExport'
 import { computeOverlappingIds, checkPreviewOverlap } from './utils/collision2d'
 import { detectRooms, findWallsForRoom } from './utils/roomDetection'
-import { buildScenePayload, createSharedScene, fetchSharedScene } from './services/shareScene'
+import { buildScenePayload, createSharedScene, fetchSharedScene, formatShareExpiration } from './services/shareScene'
 import { listProjects, countProjects, createProject, updateProject, renameProject, deleteProject, fetchProject } from './services/projectService'
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient'
 import { restoreScenePayload } from './utils/restoreScene'
@@ -111,6 +111,36 @@ const formatArea = (sqMeters, areaUnit) => {
     return `${value.toFixed(2)} ${areaUnit}`
   }
   return `${value.toFixed(0)} ${areaUnit}`
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Clipboard write timed out')), 2000))
+      ])
+      return true
+    } catch (error) {
+      console.warn('Clipboard API unavailable:', error)
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  textarea.style.pointerEvents = 'none'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+
+  try {
+    return document.execCommand('copy')
+  } finally {
+    document.body.removeChild(textarea)
+  }
 }
 
 const COMPARISON_OBJECTS = [
@@ -794,7 +824,11 @@ function App() {
   const [isReadOnly, setIsReadOnly] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
   const [shareError, setShareError] = useState(null)
-  const [shareStatus, setShareStatus] = useState(null) // 'copied' | 'error' | null
+  const [shareErrorTitle, setShareErrorTitle] = useState(null)
+  const [shareStatus, setShareStatus] = useState(null) // 'copied' | 'ready' | 'error' | null
+  const [shareExpiryMessage, setShareExpiryMessage] = useState(null)
+  const [shareUrl, setShareUrl] = useState(null)
+  const [sharedSceneExpiryMessage, setSharedSceneExpiryMessage] = useState(null)
   // Project state (saved projects)
   const [currentProjectId, setCurrentProjectId] = useState(null)
   const [currentProjectName, setCurrentProjectName] = useState('Untitled Project')
@@ -1180,16 +1214,20 @@ function App() {
   const loadSharedScene = useCallback(async (shareId) => {
     setShareLoading(true)
     setShareError(null)
+    setShareErrorTitle(null)
+    setSharedSceneExpiryMessage(null)
 
     const result = await fetchSharedScene(shareId)
 
     if (result.error) {
       setShareError(result.error)
+      setShareErrorTitle(result.title || 'Shared link unavailable')
       setShareLoading(false)
       return
     }
 
     const payload = result.payload
+    setSharedSceneExpiryMessage(formatShareExpiration(result.expiresAt))
 
         const sceneSetters = {
       setDimensions, setShapeMode, setConfirmedPolygon, setPolygonPoints,
@@ -2912,6 +2950,8 @@ function App() {
   const handleShare = async () => {
     // Analytics: track share clicked
     track('share_clicked', {})
+    setShareExpiryMessage(null)
+    setShareUrl(null)
 
     if (!isSupabaseConfigured()) {
       setShareStatus('error')
@@ -2947,7 +2987,10 @@ function App() {
 
     if (result.error) {
       setShareStatus('error')
-      setTimeout(() => setShareStatus(null), 3000)
+      setTimeout(() => {
+        setShareStatus(null)
+        setShareUrl(null)
+      }, 3000)
       return
     }
 
@@ -2956,15 +2999,29 @@ function App() {
 
     // Build share URL and copy to clipboard
     const shareUrl = `${window.location.origin}/s/${result.id}`
+    const expiryMessage = formatShareExpiration(result.expiresAt)
+    setShareUrl(shareUrl)
     try {
-      await navigator.clipboard.writeText(shareUrl)
+      const copied = await copyTextToClipboard(shareUrl)
+      if (!copied) throw new Error('Clipboard copy failed')
+      setShareExpiryMessage(expiryMessage)
       setShareStatus('copied')
-      setTimeout(() => setShareStatus(null), 3000)
+      showToast(`Share link copied • ${expiryMessage}`, 4000)
+      setTimeout(() => {
+        setShareStatus(null)
+        setShareExpiryMessage(null)
+        setShareUrl(null)
+      }, 5000)
     } catch (err) {
-      // Fallback for older browsers
-      console.error('Clipboard write failed:', err)
-      setShareStatus('error')
-      setTimeout(() => setShareStatus(null), 3000)
+      console.warn('Clipboard write failed:', err)
+      setShareExpiryMessage(expiryMessage)
+      setShareStatus('ready')
+      showToast(`Share link ready • ${expiryMessage} • ${shareUrl}`, 8000)
+      setTimeout(() => {
+        setShareStatus(null)
+        setShareExpiryMessage(null)
+        setShareUrl(null)
+      }, 10000)
     }
   }
 
@@ -3121,7 +3178,7 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
             </svg>
           </div>
-          <div className="text-[var(--color-text-primary)] font-display text-xl font-semibold mb-2">Scene not found</div>
+          <div className="text-[var(--color-text-primary)] font-display text-xl font-semibold mb-2">{shareErrorTitle || 'Shared link unavailable'}</div>
           <div className="text-[var(--color-text-secondary)] text-sm mb-6">{shareError}</div>
           <button
             onClick={() => { setShareError(null); window.location.href = '/' }}
@@ -3142,7 +3199,9 @@ function App() {
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
             <span className="text-[var(--color-text-primary)] text-sm font-medium">Shared layout</span>
-            <span className="text-[var(--color-text-muted)] text-xs">view-only</span>
+            <span className="text-[var(--color-text-muted)] text-xs">
+              view-only{sharedSceneExpiryMessage ? ` • ${sharedSceneExpiryMessage}` : ''}
+            </span>
           </div>
           <button
             onClick={exitReadOnlyMode}
@@ -3707,11 +3766,15 @@ function App() {
 
               <button
                 onClick={handleShare}
-                className={`ribbon-btn ${shareStatus === 'copied' ? 'text-[var(--color-accent)]' : shareStatus === 'error' ? 'text-[var(--color-danger)]' : ''}`}
-                title={shareStatus === 'error' ? 'Sharing unavailable' : 'Copy share link'}
+                className={`ribbon-btn ${shareStatus === 'copied' || shareStatus === 'ready' ? 'text-[var(--color-accent)]' : shareStatus === 'error' ? 'text-[var(--color-danger)]' : ''}`}
+                title={shareStatus === 'error'
+                  ? 'Sharing unavailable'
+                  : shareStatus === 'ready' && shareUrl
+                    ? `Link ready: ${shareUrl} (${shareExpiryMessage})`
+                    : shareExpiryMessage || 'Copy share link - expires in 30 days'}
               >
                 <span className="icon">
-                  {shareStatus === 'copied' ? (
+                  {shareStatus === 'copied' || shareStatus === 'ready' ? (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
@@ -3721,7 +3784,7 @@ function App() {
                     </svg>
                   )}
                 </span>
-                <span className="label">{shareStatus === 'copied' ? 'Copied' : shareStatus === 'error' ? 'Error' : 'Share'}</span>
+                <span className="label">{shareStatus === 'copied' ? 'Copied' : shareStatus === 'ready' ? 'Ready' : shareStatus === 'error' ? 'Error' : 'Share'}</span>
               </button>
 
               <button
@@ -3878,11 +3941,14 @@ function App() {
             <button
               onClick={() => { handleShare(); setShowOverflow(false) }}
               className="sitea-menu-row"
+              title={shareStatus === 'ready' && shareUrl
+                ? `Link ready: ${shareUrl} (${shareExpiryMessage})`
+                : shareExpiryMessage || 'Copy share link - expires in 30 days'}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
               </svg>
-              <span>Share</span>
+              <span>{shareStatus === 'copied' ? 'Copied' : shareStatus === 'ready' ? 'Ready' : 'Share'}</span>
             </button>
             <button
               onClick={() => { setShowHelp(true); setShowOverflow(false) }}
@@ -4381,7 +4447,7 @@ function App() {
 
       {/* Undo/Redo toast notification */}
       {undoRedoToast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-xl sitea-status-toast text-[var(--color-text-primary)] text-sm font-medium animate-fade-in flex items-center gap-3" style={{ padding: '10px 22px' }}>
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-xl sitea-status-toast text-[var(--color-text-primary)] text-sm font-medium animate-fade-in flex items-center gap-3 max-w-[min(92vw,560px)] text-center break-words" style={{ padding: '10px 22px' }}>
           {undoRedoToast === 'building_selected'
             ? 'Building selected • R rotate • Del delete • E to explode'
             : undoRedoToast}

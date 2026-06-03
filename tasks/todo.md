@@ -651,3 +651,34 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - New production URL: `https://sitea-o0i87kco1-tien820-8406s-projects.vercel.app`.
 - `vercel inspect` reports the deployment as `READY` and aliased to `https://sitea.live`, `https://sitea-one.vercel.app`, `https://sitea-tien820-8406s-projects.vercel.app`, and `https://sitea-tien820-8406-tien820-8406s-projects.vercel.app`.
 - Live smoke checks passed: `https://sitea.live/` returns `200`, `https://sitea.live/api/upload-quota` returns `401 Authentication required` without a token, and browser QA shows Sitea Agent plus Compare content with zero runtime console errors.
+
+---
+
+# SIT-14 Expiring Public Share Links
+
+## Todo
+- [x] Confirm product defaults: new shared links expire after 30 days; existing legacy links with no expiration remain valid for backward compatibility.
+- [x] Apply Supabase SQL for `shared_scenes.expires_at`, tighter grants, and RLS policies that only expose unexpired or legacy shared links.
+- [x] Update `src/services/shareScene.js` so new links save/return `expires_at` and expired links fail with a friendly message.
+- [x] Update the share UI in `src/App.jsx` to tell users when copied links expire and improve the expired-link error state.
+- [x] Preserve existing `/s/:id` shared-scene restore behavior for valid links, including generated buildings from SIT-6.
+- [x] Verify with Supabase test queries/advisors, focused lint/build, and browser QA for new share link copy plus expired-link handling.
+- [x] Update Linear `SIT-14`, commit/push, and deploy to Vercel Production once local verification passes.
+
+## Review
+- Linear `SIT-14` scope: add `shared_scenes.expires_at`, apply Supabase SQL, set a default expiration period, reject expired links clearly, show expiration timing in the share UI, keep existing non-expiring links backward-compatible or choose a deliberate fallback, and pass `npm run build`.
+- Current production `shared_scenes` columns are `id`, `created_at`, `scene_version`, and `scene_json`; there is no `expires_at` yet.
+- Current production policies are public insert and public select. Current grants are broader than the app needs, so the migration should reduce anon/authenticated privileges to `SELECT, INSERT` while keeping service-role management.
+- Current app code creates/fetches shared scenes directly through `src/services/shareScene.js`; `src/App.jsx` builds the `/s/:id` URL, copies it, and renders the shared-scene loading/error/read-only states.
+- Supabase docs/changelog check: Data API access is controlled by explicit grants plus RLS; newly exposed tables/policies should keep grants and RLS bundled. RLS remains required on public-schema tables.
+- Applied `sql/shared_scene_expiration.sql` to Supabase project `utudexexqnmaoohmnsmk`.
+- Verified in rollback transactions that anonymous inserts receive a future default `expires_at`, and anonymous reads see valid shared rows but not expired shared rows.
+- Tightened the public insert policy so shared links must expire within 30 days plus a 5-minute clock-skew cushion; verified anonymous 45-day inserts are blocked.
+- Removed the unused `idx_shared_scenes_expires_at` index after Supabase performance advisor flagged it; current `shared_scenes` indexes are back to the primary key only.
+- `src/services/shareScene.js` now writes `scene_version`, sets/returns `expires_at`, formats share expiration copy, fetches via `maybeSingle()`, and returns a friendly unavailable/expired response when the link cannot be loaded.
+- `src/App.jsx` now shows expiration timing after copying a share link, improves the shared-link error title, and shows valid shared-link expiry timing in the read-only banner.
+- Browser QA found the in-app browser can block clipboard writes after the link is created, so `src/App.jsx` now times out clipboard writes, falls back to textarea copy, and shows a recoverable `Ready` state with the created URL plus expiry when copy is unavailable.
+- Browser QA with valid public Supabase config passed: share creation produced `Ready` with `Expires in 30 days`, valid `/s/:id` restore showed `Shared layout` and `view-only • Expires in 30 days`, and a missing/expired route showed `Shared link unavailable` with no console errors.
+- Supabase security/performance advisors report no `shared_scenes` RLS/grant/index issue after cleanup. Remaining advisor warnings are pre-existing: `update_updated_at_column` search path, public `assets` bucket listing, leaked-password protection disabled, auth RLS initplan warnings, unindexed `floor_plan_corrections.user_id`, and subscription/index cleanup.
+- Verification: `git diff --check` passes, `npx eslint src/services/shareScene.js --format stylish` passes, and `npm run build` passes with the existing large-chunk warning. `npx eslint src/App.jsx --format stylish` still fails on the pre-existing large-file baseline of unused imports/handlers and hook dependency warnings.
+- Linear `SIT-14` was updated with implementation and verification notes before commit/push/deploy.
