@@ -706,3 +706,33 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Replaced `PRD.md` with an updated product requirements doc focused on land buyers/homeowners, the agent-led demo path, functional requirements, technical requirements, implementation reality, success criteria, and non-goals.
 - Verification: focused stale-term scan over `README.md`, `APP_STATUS.md`, and `PRD.md` returns no old Vite template, Claude, Anthropic, Ralphy, backend-pending, old PayPal blocker, or old production URL claims; env names were cross-checked against code; `git diff --check` passes.
 - Linear `SIT-15` was updated with the changed files and verification notes.
+
+---
+
+# SIT-16 Fix Lint Scope And First-Party Baseline
+
+## Todo
+- [x] Commit and push completed SIT-15 docs before starting SIT-16.
+- [x] Read Linear `SIT-16`, `eslint.config.js`, `package.json`, first-party API/server/script surfaces, and current lint baseline.
+- [x] Update `eslint.config.js` ignores so `npm run lint` no longer scans generated Capacitor/mobile output under `android/` and `ios/`.
+- [x] Add intentional Node lint config for `api/**/*.js`, `server/**/*.js`, and `scripts/**/*.mjs` so Node globals like `process` and `Buffer` are handled by config instead of scattered file comments.
+- [x] Fix the high-signal browser `no-undef` in `src/components/LandScene.jsx` by replacing `process.env.NODE_ENV` with the Vite-safe dev check.
+- [x] Re-run full lint after the scope/global changes and make the smallest remaining baseline adjustment needed for lint to be useful as a daily check, preferring rule severity/config over noisy refactors unless a real bug appears.
+- [x] Verify `npm run build` or the local package-runner equivalent if `npm` remains unavailable in the Codex shell.
+- [x] Run `git diff --check`, update this review section, and update Linear `SIT-16` with verification notes.
+
+## Review
+- Linear `SIT-16` scope: exclude generated Capacitor/mobile artifacts, configure API/server Node globals, fix high-signal first-party `no-undef`, avoid broad refactors, keep `npm run build` passing.
+- Current `eslint.config.js` only ignores `dist` and applies browser globals to every `*.js`/`*.jsx` file.
+- Full lint snapshot through the local ESLint binary found `3,317` findings in `76` files. `android/` accounts for `2,307` findings and `ios/` accounts for `766`, so generated mobile output is the root cause of the noisy lint run.
+- Narrow first-party lint snapshot over `api`, `server`, `src`, and `scripts` found `244` findings in `30` files. The only first-party `no-undef` reported is `src/components/LandScene.jsx:4172`, where browser code references `process.env.NODE_ENV`.
+- The current Codex shell has `node` and local `node_modules/.bin/eslint`, but `npm` and `npx` are not on PATH. Implementation should verify with the closest local runner available and call out any package-runner limitation clearly.
+- Updated `eslint.config.js` to globally ignore `dist/**`, `android/**`, and `ios/**`.
+- Added a Node-specific ESLint override for `api/**/*.js`, `server/**/*.js`, and `scripts/**/*.mjs`, including Node globals plus Node 18+/Vercel runtime globals used by the API code: `fetch`, `File`, `Blob`, `FormData`, and `AbortController`.
+- Removed the now-redundant `/* global process */` and `/* global process, Buffer */` comments from API/server files.
+- Fixed the first-party browser `no-undef` by changing `src/components/LandScene.jsx` from `process.env.NODE_ENV === 'development'` to `import.meta.env.DEV`.
+- After scope and global fixes, full lint no longer reports `android/`, `ios/`, API/server false positives, or any `no-undef` errors. The remaining legacy first-party React/UI baseline is `243` warnings in `src/`.
+- To make `npm run lint` usable as a daily safety check without broad refactors, existing legacy baseline categories were downgraded to warnings: `no-unused-vars`, selected React compiler/hook baseline rules, and `react-refresh/only-export-components`. Correctness rules from `@eslint/js` such as `no-undef` remain errors.
+- Verification so far: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --format json -o /tmp/sitea-npm-eslint-final.json` exits `0` with `0` errors and `243` warnings, all under `src/`.
+- Build verification: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build` passes with the existing large-chunk warning. Running Vite through the Codex-bundled Node fails before app compilation because Rollup's native optional dependency cannot be loaded due to a local macOS code-signature/dlopen issue, so Homebrew Node must be first on `PATH` for local build verification in this shell.
+- `git diff --check` passes, and Linear `SIT-16` was updated with implementation and verification notes.

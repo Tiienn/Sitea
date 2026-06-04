@@ -1,4 +1,3 @@
-/* global process */
 import { createClient } from '@supabase/supabase-js';
 
 export class HttpError extends Error {

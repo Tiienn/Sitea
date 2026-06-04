@@ -1,4 +1,3 @@
-/* global process */
 // api/analyze-site-plan.js (Vercel serverless function)
 // Detects land boundary polygon from site plan images using OpenAI vision
 

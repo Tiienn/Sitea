@@ -4169,7 +4169,7 @@ export default function LandScene({ length, width, isExploring, comparisonObject
 
   // Debug log on quality change (dev only)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log(`[Quality] ${quality.toUpperCase()} | dpr=${dpr} | shadows=${qualitySettings.shadowsEnabled} | shadowMap=${qualitySettings.shadowMapSize}`)
     }
   }, [quality, dpr, qualitySettings])

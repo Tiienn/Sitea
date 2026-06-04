@@ -1,4 +1,3 @@
-/* global process, Buffer */
 // api/analyze-floor-plan.js (Vercel serverless function)
 // v5: OpenAI-first floor-plan analysis with Gemini fallback
 

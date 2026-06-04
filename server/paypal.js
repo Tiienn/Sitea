@@ -1,4 +1,3 @@
-/* global process, Buffer */
 import { randomUUID } from 'node:crypto';
 import { HttpError, upsertVerifiedSubscription } from './subscriptions.js';
 

@@ -1,4 +1,3 @@
-/* global process */
 import OpenAI from 'openai';
 import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
 
