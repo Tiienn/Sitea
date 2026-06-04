@@ -858,3 +858,30 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Added `npm run qa:agent-text-actions`, backed by `scripts/agent-text-actions-qa.mjs`. The script blocks local AI API routes and verifies typed mobile/desktop commands do not make paid API calls.
 - Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-text-actions`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, focused ESLint for edited files, and `git diff --check`.
 - QA screenshots are saved under `output/playwright/agent-text-actions/`.
+
+---
+
+# Agent Scene Control v2
+
+## Todo
+- [x] Re-read `frontend-design`, `DESIGN.md`, current text-action parser, App scene state, and comparison object controls.
+- [x] Inspect the existing comparison add/remove/position/rotation state so new commands can reuse current scene behavior.
+- [x] Expand the local scene-action catalog beyond sports: pool, house, garage, parking space, shipping container, car, shed, greenhouse, and medium/large house.
+- [x] Add deterministic typed commands for add/show, remove/hide, replace/swap, clear comparisons, and reset comparison transforms.
+- [x] Add land-size commands for square area requests such as "make my land 800m2" while preserving the existing rectangle dimension path.
+- [x] Add a single App callback for agent scene actions so the hook does not need direct access to App state internals.
+- [x] Update agent tool-chip labels for remove, replace, clear, reset, and area-set actions.
+- [x] Extend Playwright QA to cover v2 commands on mobile and desktop with AI API routes blocked.
+- [x] Run focused lint/build/QA checks and update this review section.
+
+## Review
+- Current v1 handles direct add actions for tennis, basketball, and soccer plus rectangle dimensions and basic fit checks.
+- Planned v2 keeps the agent practical and deterministic: it should change the actual visible scene for common user wording without calling paid AI APIs.
+- Scope guard: this pass controls existing comparison objects and land dimensions only. It will not yet generate/edit walls, floor-plan geometry, or freeform placements; those should be a later, more deliberate scene-graph layer.
+- Expanded `TEXT_ACTION_COMPARISONS` in `src/hooks/useAIChat.js` to cover sports, pool, house, medium/large house, garage, parking, container, car, shed, and greenhouse.
+- Added local parsing for add/show, remove/hide/delete, replace/swap/change, clear all comparisons, reset one/all comparison transforms, rectangle dimensions, and square land area commands.
+- Added `handleAgentSceneControl` in `src/App.jsx` as the single scene mutation callback for agent actions. It updates existing comparison, transform, selected-object, panel, and land dimension state instead of exposing App internals to the chat hook.
+- Updated `src/components/AIChatPanel.jsx` tool-chip labels for the new scene actions.
+- Expanded `scripts/agent-text-actions-qa.mjs` to cover 9 mobile/desktop command paths with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
+- Updated `scripts/agent-handoff-qa.mjs` for the new selected-object handoff state and re-ran it to verify the existing floor-plan/site-plan action flow still passes.
+- Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-text-actions`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-handoff`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, focused ESLint for edited files, and `git diff --check`.

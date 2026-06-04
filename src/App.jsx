@@ -2041,6 +2041,75 @@ function App() {
     localStorage.setItem('fsmCompleted', 'true')
   }, [lengthUnit])
 
+  const handleAgentSceneControl = useCallback((action = {}) => {
+    const getComparisonName = (id) => COMPARISON_OBJECTS.find(obj => obj.id === id)?.name || 'Comparison object'
+
+    if (action.type === 'set_land_dimensions') {
+      handleAgentLandDimensionsUpdated(action)
+      return true
+    }
+
+    if (action.type === 'activate_comparison' && action.comparisonId) {
+      setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: true }))
+      setSelectedComparisonId(action.comparisonId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${getComparisonName(action.comparisonId)} added`)
+      return true
+    }
+
+    if (action.type === 'remove_comparison' && action.comparisonId) {
+      setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: false }))
+      resetComparisonTransform(action.comparisonId)
+      setSelectedComparisonId(prev => prev === action.comparisonId ? null : prev)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${getComparisonName(action.comparisonId)} removed`)
+      return true
+    }
+
+    if (action.type === 'replace_comparison' && action.fromComparisonId && action.toComparisonId) {
+      setActiveComparisons(prev => ({
+        ...prev,
+        [action.fromComparisonId]: false,
+        [action.toComparisonId]: true,
+      }))
+      resetComparisonTransform(action.fromComparisonId)
+      resetComparisonTransform(action.toComparisonId)
+      setSelectedComparisonId(action.toComparisonId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${getComparisonName(action.toComparisonId)} added`)
+      return true
+    }
+
+    if (action.type === 'clear_comparisons') {
+      setActiveComparisons({})
+      setComparisonPositions({})
+      setComparisonRotations({})
+      setSelectedComparisonId(null)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Comparison objects cleared')
+      return true
+    }
+
+    if (action.type === 'reset_comparison_transform' && action.comparisonId) {
+      resetComparisonTransform(action.comparisonId)
+      setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: true }))
+      setSelectedComparisonId(action.comparisonId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${getComparisonName(action.comparisonId)} reset`)
+      return true
+    }
+
+    if (action.type === 'reset_all_comparison_transforms') {
+      setComparisonPositions({})
+      setComparisonRotations({})
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Comparison objects reset')
+      return true
+    }
+
+    return false
+  }, [handleAgentLandDimensionsUpdated, resetComparisonTransform])
+
   const handleAgentVisualHandoff = useCallback((action = {}) => {
     setShowAIChat(false)
     setActivePanel(null)
@@ -2061,6 +2130,7 @@ function App() {
     onSitePlanUploaded: handleAgentSitePlanUploaded,
     activateComparison: activateAgentComparison,
     onVisualHandoff: handleAgentVisualHandoff,
+    onSceneControl: handleAgentSceneControl,
     onLandDimensionsUpdated: handleAgentLandDimensionsUpdated,
     isPaidUser,
     markUploadUsed,

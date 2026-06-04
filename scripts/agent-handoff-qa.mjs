@@ -31,7 +31,7 @@ const CASES = [
   {
     name: 'site-plan',
     actionLabel: 'Show tennis court in 3D',
-    expectedToast: 'Tennis court added',
+    expectedToast: 'Object selected',
     messages: [{
       role: 'assistant',
       content: 'I prepared the land workspace from your uploaded plan. I can add a tennis court comparison so the scale is visible immediately.',

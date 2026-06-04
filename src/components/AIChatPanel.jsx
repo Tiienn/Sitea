@@ -46,8 +46,20 @@ function ToolChip({ action }) {
         return 'Site plan reviewed'
       case 'activate_comparison':
         return `Added ${input.objectName || 'comparison'}`
+      case 'remove_comparison':
+        return `Removed ${input.objectName || 'comparison'}`
+      case 'replace_comparison':
+        return `Replaced ${input.fromObjectName || 'object'}`
+      case 'clear_comparisons':
+        return 'Cleared comparisons'
+      case 'reset_comparison_transform':
+        return `Reset ${input.objectName || 'comparison'}`
+      case 'reset_all_comparison_transforms':
+        return 'Reset comparisons'
       case 'set_land_dimensions':
         return `Set land ${input.length}×${input.width}m`
+      case 'set_land_area':
+        return `Set land ${input.area}m²`
       case 'fit_check':
       case 'general_fit_check':
         return 'Checked fit'

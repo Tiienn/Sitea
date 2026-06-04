@@ -33,6 +33,96 @@ const TEXT_ACTION_COMPARISONS = [
     length: 105,
     aliases: ['soccer field', 'soccer', 'football pitch'],
   },
+  {
+    id: 'swimmingPool',
+    name: 'swimming pool',
+    displayName: 'Swimming pool',
+    pluralName: 'swimming pools',
+    width: 25,
+    length: 50,
+    aliases: ['swimming pool', 'olympic pool', 'pool'],
+  },
+  {
+    id: 'house',
+    name: 'house',
+    displayName: 'House',
+    pluralName: 'houses',
+    width: 10,
+    length: 10,
+    aliases: ['small house', '10m house', 'house', 'home'],
+  },
+  {
+    id: 'mediumHouse',
+    name: 'medium house',
+    displayName: 'Medium house',
+    pluralName: 'medium houses',
+    width: 12,
+    length: 15,
+    aliases: ['medium house', 'medium home'],
+  },
+  {
+    id: 'largeHouse',
+    name: 'large house',
+    displayName: 'Large house',
+    pluralName: 'large houses',
+    width: 15,
+    length: 20,
+    aliases: ['large house', 'large home'],
+  },
+  {
+    id: 'garage',
+    name: 'garage',
+    displayName: 'Garage',
+    pluralName: 'garages',
+    width: 6,
+    length: 6,
+    aliases: ['garage'],
+  },
+  {
+    id: 'parkingSpace',
+    name: 'parking space',
+    displayName: 'Parking space',
+    pluralName: 'parking spaces',
+    width: 2.5,
+    length: 5,
+    aliases: ['parking space', 'parking bay', 'parking spot', 'parking'],
+  },
+  {
+    id: 'shippingContainer',
+    name: 'shipping container',
+    displayName: 'Shipping container',
+    pluralName: 'shipping containers',
+    width: 2.44,
+    length: 6.06,
+    aliases: ['shipping container', 'container'],
+  },
+  {
+    id: 'carSedan',
+    name: 'car',
+    displayName: 'Car',
+    pluralName: 'cars',
+    width: 1.8,
+    length: 4.5,
+    aliases: ['car sedan', 'sedan', 'car'],
+  },
+  {
+    id: 'shed',
+    name: 'shed',
+    displayName: 'Shed',
+    pluralName: 'sheds',
+    width: 3,
+    length: 4,
+    aliases: ['shed'],
+  },
+  {
+    id: 'greenhouse',
+    name: 'greenhouse',
+    displayName: 'Greenhouse',
+    pluralName: 'greenhouses',
+    width: 4,
+    length: 6,
+    aliases: ['greenhouse'],
+  },
 ]
 
 const formatMeters = (value) => Number.isFinite(value) ? `${value.toFixed(1)}m` : 'unknown'
@@ -117,15 +207,29 @@ function normalizeCommand(text) {
     .trim()} `
 }
 
-function commandHasAlias(normalizedText, alias) {
+function getAliasIndex(normalizedText, alias) {
   const pattern = escapeRegex(alias).replace(/\s+/g, '\\s+')
-  return new RegExp(`\\b${pattern}\\b`).test(normalizedText)
+  return normalizedText.search(new RegExp(`\\b${pattern}\\b`))
+}
+
+function getComparisonMatches(normalizedText) {
+  const matches = []
+  for (const object of TEXT_ACTION_COMPARISONS) {
+    const aliasMatches = object.aliases
+      .map(alias => ({ alias, index: getAliasIndex(normalizedText, alias) }))
+      .filter(match => match.index >= 0)
+
+    if (aliasMatches.length > 0) {
+      aliasMatches.sort((a, b) => a.index - b.index || b.alias.length - a.alias.length)
+      matches.push({ object, ...aliasMatches[0] })
+    }
+  }
+
+  return matches.sort((a, b) => a.index - b.index || b.alias.length - a.alias.length)
 }
 
 function getComparisonFromCommand(normalizedText) {
-  return TEXT_ACTION_COMPARISONS.find(object =>
-    object.aliases.some(alias => commandHasAlias(normalizedText, alias))
-  )
+  return getComparisonMatches(normalizedText)[0]?.object
 }
 
 function hasSceneAddIntent(normalizedText) {
@@ -140,6 +244,43 @@ function isGeneralFitRequest(normalizedText) {
   return /\bwhat can fit\b/.test(normalizedText) ||
     /\bwhat fits\b/.test(normalizedText) ||
     /\bsee what fits\b/.test(normalizedText)
+}
+
+function hasRemoveIntent(normalizedText) {
+  return /\b(remove|hide|delete|take away|take out)\b/.test(normalizedText)
+}
+
+function hasReplaceIntent(normalizedText) {
+  return /\b(replace|swap|switch|change)\b/.test(normalizedText) &&
+    /\b(with|for|to)\b/.test(normalizedText)
+}
+
+function hasResetIntent(normalizedText) {
+  return /\b(reset|recenter|recentre|center|centre)\b/.test(normalizedText)
+}
+
+function isClearComparisonsRequest(normalizedText) {
+  return /\b(clear|remove|hide|delete)\b/.test(normalizedText) &&
+    /\b(all|everything|comparisons|objects|items)\b/.test(normalizedText) &&
+    !/\bwall|walls|room|rooms|floor plan|plan\b/.test(normalizedText)
+}
+
+function isResetAllComparisonsRequest(normalizedText) {
+  return hasResetIntent(normalizedText) &&
+    /\b(all|everything|comparisons|objects|items)\b/.test(normalizedText)
+}
+
+function parseReplaceCommand(normalizedText) {
+  if (!hasReplaceIntent(normalizedText)) return null
+  const matches = getComparisonMatches(normalizedText)
+  const uniqueMatches = []
+  for (const match of matches) {
+    if (!uniqueMatches.some(existing => existing.object.id === match.object.id)) {
+      uniqueMatches.push(match)
+    }
+  }
+  if (uniqueMatches.length < 2) return null
+  return { fromObject: uniqueMatches[0].object, toObject: uniqueMatches[1].object }
 }
 
 function createComparisonAction(object, label = `Show ${object.name} in 3D`) {
@@ -185,6 +326,26 @@ function parseLandDimensionCommand(normalizedText) {
   return { length, width }
 }
 
+function parseLandAreaCommand(normalizedText) {
+  const mentionsLand = /\b(land|plot|site|lot|parcel|property)\b/.test(normalizedText)
+  const hasSetIntent = /\b(set|make|create|define|use|change|resize|start)\b/.test(normalizedText)
+  if (!mentionsLand || !hasSetIntent) return null
+
+  const match = normalizedText.match(/\b(\d+(?:\.\d+)?)\s*(m2|m²|sqm|sq m|square meters?|square metres?|acres?|hectares?)\b/)
+  if (!match) return null
+
+  const value = Number.parseFloat(match[1])
+  if (!Number.isFinite(value)) return null
+
+  let area = value
+  if (/^acres?$/.test(match[2])) area = value * 4046.86
+  if (/^hectares?$/.test(match[2])) area = value * 10000
+  if (area < 10 || area > 1000000) return null
+
+  const side = Math.sqrt(area)
+  return { area, length: side, width: side }
+}
+
 function buildTextSceneAction(text, { landArea }) {
   const normalizedText = normalizeCommand(text)
   const landDimensions = parseLandDimensionCommand(normalizedText)
@@ -192,7 +353,33 @@ function buildTextSceneAction(text, { landArea }) {
     return { type: 'set_land_dimensions', ...landDimensions }
   }
 
+  const landAreaDimensions = parseLandAreaCommand(normalizedText)
+  if (landAreaDimensions) {
+    return { type: 'set_land_area', ...landAreaDimensions }
+  }
+
+  if (isClearComparisonsRequest(normalizedText)) {
+    return { type: 'clear_comparisons' }
+  }
+
+  const replacement = parseReplaceCommand(normalizedText)
+  if (replacement) {
+    return { type: 'replace_comparison', ...replacement }
+  }
+
+  if (isResetAllComparisonsRequest(normalizedText)) {
+    return { type: 'reset_all_comparison_transforms' }
+  }
+
   const comparison = getComparisonFromCommand(normalizedText)
+  if (comparison && hasResetIntent(normalizedText)) {
+    return { type: 'reset_comparison_transform', object: comparison }
+  }
+
+  if (comparison && hasRemoveIntent(normalizedText)) {
+    return { type: 'remove_comparison', object: comparison }
+  }
+
   if (comparison && hasFitIntent(normalizedText) && !hasSceneAddIntent(normalizedText)) {
     const fit = getObjectFit(comparison, landArea)
     return {
@@ -266,6 +453,7 @@ export function useAIChat({
   onSitePlanUploaded,
   activateComparison,
   onVisualHandoff,
+  onSceneControl,
   onLandDimensionsUpdated,
   isPaidUser = false,
   markUploadUsed = async () => ({ ok: true }),
@@ -608,33 +796,47 @@ export function useAIChat({
     setError(null)
     const userMsg = { role: 'user', content: messageText, displayText: messageText, hasImage: false }
 
-    if (action.type === 'set_land_dimensions') {
-      onLandDimensionsUpdated?.({ length: action.length, width: action.width })
+    if (action.type === 'set_land_dimensions' || action.type === 'set_land_area') {
+      const sceneAction = { type: 'set_land_dimensions', length: action.length, width: action.width }
+      if (action.type === 'set_land_area') sceneAction.area = action.area
+      if (onSceneControl) {
+        onSceneControl(sceneAction)
+      } else {
+        onLandDimensionsUpdated?.({ length: action.length, width: action.width })
+      }
       const area = action.length * action.width
+      const dimensionText = `${formatMeters(action.length)} x ${formatMeters(action.width)}`
+      const content = action.type === 'set_land_area'
+        ? `Done. I made the land a square ${formatArea(action.area)} plot (${dimensionText}) and opened the 3D scene so you can keep going visually.`
+        : `Done. I set the land to ${dimensionText} (${formatArea(area)}) and opened the 3D scene so you can keep going visually.`
       setMessages(prev => [...prev, userMsg, {
         role: 'assistant',
-        content: `Done. I set the land to ${formatMeters(action.length)} x ${formatMeters(action.width)} (${formatArea(area)}) and opened the 3D scene so you can keep going visually.`,
+        content,
         nextSteps: [
-          { label: 'Land dimensions set', state: 'done' },
+          { label: action.type === 'set_land_area' ? 'Land area set' : 'Land dimensions set', state: 'done' },
           { label: '3D scene opened', state: 'done' },
           { label: 'Ask what fits next', state: 'current' },
         ],
         toolActions: [{
-          name: 'set_land_dimensions',
+          name: action.type,
           input: {
             length: Number(action.length.toFixed(2)),
             width: Number(action.width.toFixed(2)),
-            area: Math.round(area),
+            area: Math.round(action.area || area),
           },
           success: true,
         }],
       }])
-      onVisualHandoff?.({ toast: `Land set to ${formatMeters(action.length)} x ${formatMeters(action.width)}` })
+      onVisualHandoff?.({ toast: action.type === 'set_land_area' ? `Land set to ${formatArea(action.area)}` : `Land set to ${dimensionText}` })
       return true
     }
 
     if (action.type === 'activate_comparison') {
-      activateComparison?.(action.object.id)
+      if (onSceneControl) {
+        onSceneControl({ type: 'activate_comparison', comparisonId: action.object.id })
+      } else {
+        activateComparison?.(action.object.id)
+      }
       setMessages(prev => [...prev, userMsg, {
         role: 'assistant',
         content: `Done. I added a ${action.object.name} to the land so the scale is visible immediately. It measures ${formatMeters(action.object.width)} x ${formatMeters(action.object.length)}.`,
@@ -658,6 +860,105 @@ export function useAIChat({
       return true
     }
 
+    if (action.type === 'remove_comparison') {
+      onSceneControl?.({ type: 'remove_comparison', comparisonId: action.object.id })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: `Done. I removed the ${action.object.name} from the scene.`,
+        nextSteps: [
+          { label: `${action.object.displayName} removed`, state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: 'Ask for the next comparison', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'remove_comparison',
+          input: { objectId: action.object.id, objectName: action.object.name },
+          success: true,
+        }],
+      }])
+      onVisualHandoff?.({ toast: `${action.object.displayName} removed` })
+      return true
+    }
+
+    if (action.type === 'replace_comparison') {
+      onSceneControl?.({
+        type: 'replace_comparison',
+        fromComparisonId: action.fromObject.id,
+        toComparisonId: action.toObject.id,
+      })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: `Done. I replaced the ${action.fromObject.name} with a ${action.toObject.name}. The ${action.toObject.name} measures ${formatMeters(action.toObject.width)} x ${formatMeters(action.toObject.length)}.`,
+        nextSteps: [
+          { label: `${action.fromObject.displayName} removed`, state: 'done' },
+          { label: `${action.toObject.displayName} added`, state: 'done' },
+          { label: 'Review scale in 3D', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'replace_comparison',
+          input: {
+            fromObjectId: action.fromObject.id,
+            fromObjectName: action.fromObject.name,
+            toObjectId: action.toObject.id,
+            toObjectName: action.toObject.name,
+          },
+          success: true,
+        }],
+      }])
+      onVisualHandoff?.({ toast: `${action.fromObject.displayName} replaced with ${action.toObject.displayName}` })
+      return true
+    }
+
+    if (action.type === 'clear_comparisons') {
+      onSceneControl?.({ type: 'clear_comparisons' })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: 'Done. I cleared the comparison objects from the land and opened the scene.',
+        nextSteps: [
+          { label: 'Comparison objects cleared', state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: 'Ask what fits next', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'clear_comparisons',
+          input: { scope: 'comparison_objects' },
+          success: true,
+        }],
+      }])
+      onVisualHandoff?.({ toast: 'Comparison objects cleared' })
+      return true
+    }
+
+    if (action.type === 'reset_comparison_transform') {
+      onSceneControl?.({ type: 'reset_comparison_transform', comparisonId: action.object.id })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: `Done. I reset the ${action.object.name} position and rotation so it returns to the default comparison layout.`,
+        toolActions: [{
+          name: 'reset_comparison_transform',
+          input: { objectId: action.object.id, objectName: action.object.name },
+          success: true,
+        }],
+      }])
+      onVisualHandoff?.({ toast: `${action.object.displayName} reset` })
+      return true
+    }
+
+    if (action.type === 'reset_all_comparison_transforms') {
+      onSceneControl?.({ type: 'reset_all_comparison_transforms' })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: 'Done. I reset all comparison object positions and rotations.',
+        toolActions: [{
+          name: 'reset_all_comparison_transforms',
+          input: { scope: 'comparison_objects' },
+          success: true,
+        }],
+      }])
+      onVisualHandoff?.({ toast: 'Comparison objects reset' })
+      return true
+    }
+
     setMessages(prev => [...prev, userMsg, {
       role: 'assistant',
       content: action.content,
@@ -669,7 +970,7 @@ export function useAIChat({
       suggestedActions: action.suggestedActions,
     }])
     return true
-  }, [activateComparison, landArea, onLandDimensionsUpdated, onVisualHandoff])
+  }, [activateComparison, landArea, onLandDimensionsUpdated, onSceneControl, onVisualHandoff])
 
   const sendMessage = useCallback(async (text, fileBase64 = null, fileMeta = {}) => {
     const messageText = text || ''
@@ -788,7 +1089,11 @@ export function useAIChat({
     if (!action || isLoading) return
 
     if (action.type === 'activate_comparison' && action.comparisonId) {
-      activateComparison?.(action.comparisonId)
+      if (onSceneControl) {
+        onSceneControl({ type: 'activate_comparison', comparisonId: action.comparisonId, toast: action.toast })
+      } else {
+        activateComparison?.(action.comparisonId)
+      }
       const label = action.objectName || 'comparison object'
       setMessages(prev => [...prev, {
         role: 'user',
@@ -822,7 +1127,7 @@ export function useAIChat({
     if (action.prompt) {
       sendMessage(action.prompt)
     }
-  }, [activateComparison, isLoading, onVisualHandoff, sendMessage])
+  }, [activateComparison, isLoading, onSceneControl, onVisualHandoff, sendMessage])
 
   const clearChat = useCallback(() => {
     setMessages([])
