@@ -101,6 +101,22 @@ const CASES = [
     expectChatVisible: false,
   },
   {
+    name: 'desktop-build-house-garage',
+    viewport: 'desktop',
+    prompt: 'Build a house with a garage',
+    expectedStoredText: 'I placed a starter layout with a medium house and a garage',
+    expectedToast: 'Starter layout placed',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-simple-home-layout',
+    viewport: 'mobile',
+    prompt: 'Make a simple home layout',
+    expectedStoredText: 'I placed a starter layout with a medium house, a garage, and a swimming pool',
+    expectedToast: 'Starter layout placed',
+    expectChatVisible: false,
+  },
+  {
     name: 'desktop-remove-structure',
     viewport: 'desktop',
     setupPrompts: [

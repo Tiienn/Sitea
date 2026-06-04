@@ -2058,7 +2058,7 @@ function App() {
       ]
     }
 
-    const findStructurePlacement = (buildingType) => {
+    const findStructurePlacement = (buildingType, existingBuildings = placedBuildings) => {
       const polygon = getLandPolygon()
       const xs = polygon.map(point => point.x)
       const zs = polygon.map(point => point.z ?? point.y)
@@ -2095,12 +2095,20 @@ function App() {
           { positionSnap: snapEnabled, gridSnap: gridSnapEnabled }
         )
         if (!isPlacementValid(snappedPos, buildingType, rotationY, polygon, setback)) continue
-        if (checkPreviewOverlap(snappedPos, buildingType, rotationY, placedBuildings)) continue
+        if (checkPreviewOverlap(snappedPos, buildingType, rotationY, existingBuildings)) continue
         return { position: snappedPos, rotationY }
       }
 
       return null
     }
+
+    const createAgentBuilding = (buildingType, placement) => ({
+      id: crypto.randomUUID(),
+      type: buildingType,
+      position: placement.position,
+      rotationY: placement.rotationY,
+      source: 'agent',
+    })
 
     if (action.type === 'set_land_dimensions') {
       handleAgentLandDimensionsUpdated(action)
@@ -2165,6 +2173,52 @@ function App() {
       return true
     }
 
+    if (action.type === 'place_structure_layout' && Array.isArray(action.structureIds)) {
+      const nextBuildings = [...placedBuildings]
+      const placed = []
+      const skipped = []
+
+      for (const structureId of action.structureIds) {
+        const buildingType = BUILDING_TYPES.find(building => building.id === structureId)
+        if (!buildingType) {
+          skipped.push({ structureId, name: structureId, reason: 'unknown_structure' })
+          continue
+        }
+
+        const placement = findStructurePlacement(buildingType, nextBuildings)
+        if (!placement) {
+          skipped.push({ structureId, name: buildingType.name.toLowerCase(), reason: 'no_safe_spot' })
+          continue
+        }
+
+        const newBuilding = createAgentBuilding(buildingType, placement)
+        nextBuildings.push(newBuilding)
+        placed.push({
+          structureId,
+          name: buildingType.name.toLowerCase(),
+          buildingId: newBuilding.id,
+          position: placement.position,
+          rotationY: placement.rotationY,
+        })
+      }
+
+      if (placed.length === 0) {
+        return { ok: false, placed, skipped }
+      }
+
+      setPlacedBuildings(nextBuildings)
+      if (placedBuildings.length === 0) {
+        trackFirstBuildingPlaced(placed[0].structureId)
+      }
+      const { coveragePercent } = computeCoverage(nextBuildings, area)
+      trackCoverageThreshold(coveragePercent)
+      setSelectedBuilding(null)
+      setSelectedPlacedBuildingId(placed[placed.length - 1].buildingId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Starter layout placed')
+      return { ok: true, placed, skipped }
+    }
+
     if (action.type === 'place_structure' && action.structureId) {
       const buildingType = BUILDING_TYPES.find(building => building.id === action.structureId)
       if (!buildingType) return { ok: false, reason: 'unknown_structure' }
@@ -2172,13 +2226,7 @@ function App() {
       const placement = findStructurePlacement(buildingType)
       if (!placement) return { ok: false, reason: 'no_safe_spot' }
 
-      const newBuilding = {
-        id: crypto.randomUUID(),
-        type: buildingType,
-        position: placement.position,
-        rotationY: placement.rotationY,
-        source: 'agent',
-      }
+      const newBuilding = createAgentBuilding(buildingType, placement)
 
       setPlacedBuildings(prev => {
         const next = [...prev, newBuilding]

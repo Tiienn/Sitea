@@ -208,9 +208,22 @@ const TEXT_ACTION_STRUCTURES = [
   },
 ]
 
+const DEFAULT_HOME_LAYOUT_STRUCTURE_IDS = ['mediumHouse', 'garage', 'pool']
+
 const formatMeters = (value) => Number.isFinite(value) ? `${value.toFixed(1)}m` : 'unknown'
 const formatArea = (value) => Number.isFinite(value) ? `${Math.round(value)}m²` : 'the current land'
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+function formatNameList(names) {
+  if (!names.length) return ''
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`
+}
+
+function formatStructureNameList(names) {
+  return formatNameList(names.map(name => `${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name}`))
+}
 
 const FLOOR_PLAN_PROCESS = {
   title: 'Reading your floor plan',
@@ -327,6 +340,26 @@ function getStructureFromCommand(normalizedText) {
   return getStructureMatches(normalizedText)[0]?.object
 }
 
+function getUniqueStructureMatches(normalizedText) {
+  const matches = []
+  for (const match of getStructureMatches(normalizedText)) {
+    if (!matches.some(existing => existing.object.id === match.object.id)) {
+      matches.push(match)
+    }
+  }
+
+  const hasLargeHouse = matches.some(match => match.object.id === 'largeHouse')
+  return matches.filter(match =>
+    !(hasLargeHouse && match.object.id === 'mediumHouse' && ['house', 'home'].includes(match.alias))
+  )
+}
+
+function getStructuresByIds(ids) {
+  return ids
+    .map(id => TEXT_ACTION_STRUCTURES.find(structure => structure.id === id))
+    .filter(Boolean)
+}
+
 function hasSceneAddIntent(normalizedText) {
   return /\b(add|show|place|put|display|compare|visualize|visualise|see)\b/.test(normalizedText)
 }
@@ -348,6 +381,19 @@ function hasRemoveIntent(normalizedText) {
 function hasStructurePlaceIntent(normalizedText) {
   return /\b(build|construct|create|add|place|put|make)\b/.test(normalizedText) &&
     !/\b(compare|comparison|show|display|visualize|visualise|see)\b/.test(normalizedText)
+}
+
+function isStarterStructureLayoutRequest(normalizedText) {
+  return /\b(layout|arrangement|starter plan|starter layout|home layout|site layout|simple layout)\b/.test(normalizedText) &&
+    /\b(build|construct|create|add|place|put|make|design|draft|plan)\b/.test(normalizedText) &&
+    !/\bfloor plan|uploaded plan|comparison|compare\b/.test(normalizedText)
+}
+
+function getStructureLayoutFromCommand(normalizedText) {
+  const matchedStructures = getUniqueStructureMatches(normalizedText).map(match => match.object)
+  if (matchedStructures.length >= 2) return matchedStructures
+  if (isStarterStructureLayoutRequest(normalizedText)) return getStructuresByIds(DEFAULT_HOME_LAYOUT_STRUCTURE_IDS)
+  return null
 }
 
 function hasStructureRemoveIntent(normalizedText) {
@@ -470,6 +516,11 @@ function buildTextSceneAction(text, { landArea }) {
 
   if (isClearStructuresRequest(normalizedText)) {
     return { type: 'clear_structures' }
+  }
+
+  const structureLayout = getStructureLayoutFromCommand(normalizedText)
+  if (structureLayout && (hasStructurePlaceIntent(normalizedText) || isStarterStructureLayoutRequest(normalizedText))) {
+    return { type: 'place_structure_layout', structures: structureLayout }
   }
 
   const structure = getStructureFromCommand(normalizedText)
@@ -980,6 +1031,50 @@ export function useAIChat({
         }],
       }])
       onVisualHandoff?.({ toast: `${action.object.displayName} added • drag or rotate it to compare scale` })
+      return true
+    }
+
+    if (action.type === 'place_structure_layout') {
+      const result = onSceneControl?.({
+        type: 'place_structure_layout',
+        structureIds: action.structures.map(structure => structure.id),
+      })
+      const placed = Array.isArray(result?.placed) ? result.placed : []
+      const skipped = Array.isArray(result?.skipped) ? result.skipped : []
+      const placedNames = formatStructureNameList(placed.map(item => item.name))
+      const requestedNames = formatStructureNameList(action.structures.map(structure => structure.name))
+      const skippedNames = formatStructureNameList(skipped.map(item => item.name))
+      const success = placed.length > 0
+      const partialCopy = skipped.length > 0
+        ? ` I could not safely fit ${skippedNames} without overlapping another structure or breaking the boundary/setback rules.`
+        : ''
+
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: success
+          ? `Done. I placed a starter layout with ${placedNames}.${partialCopy} The placed structures are real 3D buildings, so you can drag or adjust them in the scene.`
+          : `I checked ${requestedNames}, but I could not place the starter layout safely on the current land without overlap or boundary/setback issues. Try clearing space or asking for a smaller layout.`,
+        nextSteps: success ? [
+          { label: `${placed.length} structure${placed.length === 1 ? '' : 's'} placed`, state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: skipped.length > 0 ? 'Adjust or ask for a smaller layout' : 'Drag or adjust if needed', state: 'current' },
+        ] : [
+          { label: 'Layout checked', state: 'done' },
+          { label: 'No safe layout found', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'place_structure_layout',
+          input: {
+            structureIds: action.structures.map(structure => structure.id),
+            structureNames: action.structures.map(structure => structure.name),
+            placedCount: placed.length,
+            skippedCount: skipped.length,
+            skippedNames: skipped.map(item => item.name),
+          },
+          success,
+        }],
+      }])
+      onVisualHandoff?.({ toast: success ? 'Starter layout placed' : 'Starter layout could not be placed' })
       return true
     }
 

@@ -912,3 +912,28 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Updated tool chips and Playwright QA coverage for build garage, add shed, remove garage, and clear all structures on desktop/mobile with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
 - Product-flow fix: the floating Sitea Agent launcher now reopens chat directly instead of opening pricing. Uploads and paid analyzer calls still keep their existing auth/quota/payment gates, but talking to the agent stays available.
 - Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-text-actions`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-handoff`, focused ESLint for edited files, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`.
+
+---
+
+# Agent Structure Layout v2
+
+## Todo
+- [x] Inspect the current agent structure parser, App scene-control callback, and placed-building render/persistence path.
+- [x] Add a small multi-structure command path for requests like "build a house with a garage", "add a house, pool, and shed", and "make a simple home layout".
+- [x] Add an App-level batch placement action that reuses the existing snapping, setback, boundary, and overlap checks for each structure in order.
+- [x] Return clear agent feedback: what was placed, what could not fit safely, and what the user can adjust next.
+- [x] Keep single-structure commands unchanged and keep comparison-object commands separate from real structures.
+- [x] Add QA coverage for desktop and mobile batch layout commands with AI/analyzer routes blocked.
+- [x] Run focused lint/build/QA checks and update this review section.
+
+## Review
+- Agent Structure Placement v1 proved the scene can accept real `placedBuildings` from chat. The next useful step is a tiny layout planner, not freeform architecture.
+- Scope guard: v2 should still use the existing catalog structures and existing placement rules. It should not generate walls, solve full architectural layouts, or alter uploaded floor-plan buildings.
+- Product goal: a homeowner or land buyer should be able to say one plain sentence and see a starter site arrangement appear in 3D.
+- Added `place_structure_layout` parsing in `src/hooks/useAIChat.js` for clear multi-structure commands such as `Build a house with a garage` and `Add a house, pool, and shed`.
+- Added a starter home-layout shortcut for commands like `Make a simple home layout`; it currently places a medium house, garage, and swimming pool when safe.
+- Added App-level batch placement in `src/App.jsx`. It places each requested structure in order and checks every new candidate against the land boundary, setbacks, snapping rules, existing buildings, and structures already placed earlier in the same request.
+- The agent now reports partial success cleanly: placed structures, skipped structures, and what to adjust next.
+- Preserved separation between real structures and comparison objects. For example, `Show me a pool` still uses the comparison object path, while `Add a house, pool, and shed` places real structures.
+- Extended `npm run qa:agent-text-actions` with desktop and mobile batch-layout cases while blocking `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan`.
+- Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-text-actions`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-handoff`, focused ESLint for edited files, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`.

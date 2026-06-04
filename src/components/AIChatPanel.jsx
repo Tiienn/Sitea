@@ -58,6 +58,8 @@ function ToolChip({ action }) {
         return 'Reset comparisons'
       case 'place_structure':
         return `Placed ${input.structureName || 'structure'}`
+      case 'place_structure_layout':
+        return `Placed ${input.placedCount || 0} structures`
       case 'remove_structure':
         return `Removed ${input.structureName || 'structure'}`
       case 'clear_structures':
