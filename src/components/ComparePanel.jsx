@@ -1427,14 +1427,15 @@ export default function ComparePanel({
 
                 return (
                   <div key={obj.id} className="space-y-0">
-                  <button
-                    onClick={() => handleToggle(obj.id)}
-                    className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${
-                      activeComparisons[obj.id]
-                        ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30 rounded-t-xl border-b-0'
-                        : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)] hover:bg-white/10 rounded-xl'
-                    }`}
-                  >
+                    <button
+                      onClick={() => handleToggle(obj.id)}
+                      className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${
+                        activeComparisons[obj.id]
+                          ? 'bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/30 rounded-t-xl border-b-0'
+                          : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)] hover:bg-white/10 rounded-xl'
+                      }`}
+                      style={{ minHeight: '56px', padding: '12px 16px' }}
+                    >
                     <div className="flex items-center gap-3">
                       {/* Thumbnail */}
                       <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-black/20 hover:scale-105 transition-transform">
@@ -1486,12 +1487,13 @@ export default function ComparePanel({
                         )}
                       </div>
                     </div>
-                  </button>
+                    </button>
 
                   {/* Rotation controls - show when object is active */}
                   {activeComparisons[obj.id] && (
                     <div
                       className="flex items-center gap-2 px-3 py-2 bg-[var(--color-accent)]/10 rounded-b-xl border border-[var(--color-accent)]/30 border-t-0"
+                      style={{ minHeight: '56px', padding: '8px 12px' }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <span className="text-[var(--color-text-muted)] text-[11px]">Rotate:</span>
@@ -1499,6 +1501,7 @@ export default function ComparePanel({
                         <button
                           onClick={() => onRotationChange?.(obj.id, ((comparisonRotations[obj.id] || 0) - 45 + 360) % 360)}
                           className="w-6 h-6 flex items-center justify-center rounded bg-[var(--color-bg-secondary)] hover:bg-white/10 text-[var(--color-text-secondary)] text-sm"
+                          style={{ minWidth: '44px', minHeight: '44px' }}
                           title="Rotate -45°"
                         >
                           ↺
@@ -1508,12 +1511,14 @@ export default function ComparePanel({
                           value={Math.round(comparisonRotations[obj.id] || 0)}
                           onChange={(e) => onRotationChange?.(obj.id, (parseFloat(e.target.value) || 0) % 360)}
                           className="w-12 h-6 text-center text-[11px] rounded bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] border border-[var(--color-border)] focus:outline-none focus:border-[var(--color-accent)]"
+                          style={{ width: '56px', minHeight: '44px' }}
                           onClick={(e) => e.stopPropagation()}
                         />
                         <span className="text-[var(--color-text-muted)] text-[11px]">°</span>
                         <button
                           onClick={() => onRotationChange?.(obj.id, ((comparisonRotations[obj.id] || 0) + 45) % 360)}
                           className="w-6 h-6 flex items-center justify-center rounded bg-[var(--color-bg-secondary)] hover:bg-white/10 text-[var(--color-text-secondary)] text-sm"
+                          style={{ minWidth: '44px', minHeight: '44px' }}
                           title="Rotate +45°"
                         >
                           ↻
@@ -1521,7 +1526,8 @@ export default function ComparePanel({
                       </div>
                       <button
                         onClick={() => onResetTransform?.(obj.id)}
-                        className="ml-auto px-2 py-1 text-[10px] rounded bg-[var(--color-bg-secondary)] hover:bg-white/10 text-[var(--color-text-muted)]"
+                        className="ml-auto px-4 py-2 text-[11px] rounded bg-[var(--color-bg-secondary)] hover:bg-white/10 text-[var(--color-text-muted)]"
+                        style={{ minHeight: '44px', padding: '10px 16px' }}
                         title="Reset position and rotation"
                       >
                         Reset

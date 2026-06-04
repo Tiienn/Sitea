@@ -115,7 +115,8 @@ export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute -top-14 right-0 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105"
+          className="absolute -top-14 right-0 w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105"
+          aria-label="Close sign in"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -161,6 +162,7 @@ export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                     : 'text-slate-400 hover:text-white'
                 }`}
+                style={{ minHeight: '44px', padding: '10px 16px' }}
               >
                 Sign In
               </button>
@@ -171,6 +173,7 @@ export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                     : 'text-slate-400 hover:text-white'
                 }`}
+                style={{ minHeight: '44px', padding: '10px 16px' }}
               >
                 Sign Up
               </button>
@@ -183,6 +186,7 @@ export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
             <button
               onClick={handleGoogleSignIn}
               className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white text-sm font-medium hover:bg-white/10 transition-all"
+              style={{ minHeight: '48px', padding: '12px 16px' }}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
@@ -210,6 +214,7 @@ export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   className="w-full px-4 py-3.5 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:bg-slate-800/80 transition-all text-sm"
+                  style={{ minHeight: '48px', padding: '12px 16px' }}
                 />
               </div>
               <div>
@@ -220,6 +225,7 @@ export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min. 6 characters"
                   className="w-full px-4 py-3.5 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:bg-slate-800/80 transition-all text-sm"
+                  style={{ minHeight: '48px', padding: '12px 16px' }}
                 />
               </div>
 
@@ -228,7 +234,8 @@ export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
                   <button
                     type="button"
                     onClick={handleForgotPassword}
-                    className="text-xs text-slate-500 hover:text-emerald-400 transition-colors"
+                    className="inline-flex items-center text-xs text-slate-500 hover:text-emerald-400 transition-colors"
+                    style={{ minHeight: '44px', padding: '10px 0' }}
                   >
                     Forgot password?
                   </button>
@@ -239,6 +246,7 @@ export default function AuthModal({ onClose, onSuccess, intent = 'default' }) {
                 type="submit"
                 disabled={isLoading}
                 className="w-full py-3.5 mt-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-semibold rounded-2xl hover:from-emerald-400 hover:to-cyan-400 transition-all disabled:opacity-50 text-sm"
+                style={{ minHeight: '48px', padding: '12px 16px' }}
               >
                 {isLoading ? 'Please wait...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
               </button>

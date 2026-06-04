@@ -736,3 +736,51 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Verification so far: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --format json -o /tmp/sitea-npm-eslint-final.json` exits `0` with `0` errors and `243` warnings, all under `src/`.
 - Build verification: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build` passes with the existing large-chunk warning. Running Vite through the Codex-bundled Node fails before app compilation because Rollup's native optional dependency cannot be loaded due to a local macOS code-signature/dlopen issue, so Homebrew Node must be first on `PATH` for local build verification in this shell.
 - `git diff --check` passes, and Linear `SIT-16` was updated with implementation and verification notes.
+
+---
+
+# SIT-10 Final Mobile Demo Closure
+
+## Todo
+- [x] Commit and push completed SIT-16 lint-scope work.
+- [x] Re-read Linear `SIT-10`, the `frontend-design` skill, `DESIGN.md`, prior SIT-10 notes, and available browser QA screenshots.
+- [x] Start the local app with Homebrew Node first on `PATH` so Vite/Rollup use the working local runtime.
+- [x] Capture a fresh desktop and 390px mobile baseline for the core demo path: first screen, Sitea Agent, upload entry, land/compare controls, view controls, pricing/auth, save/share affordances, and placement state if reachable without paid API calls.
+- [x] Fix only real demo-path issues found in the audit: horizontal overflow, overlapping primary controls, cramped text, sub-44px tap targets, unreachable actions, unstable toggle layouts, or panel/modal spacing that violates `DESIGN.md`.
+- [x] Preserve desktop behavior while making mobile feel intentional and simple.
+- [x] Verify with desktop and mobile browser screenshots/metrics, no horizontal overflow, no runtime console errors, and focused lint/build checks.
+- [x] Update Linear `SIT-10` with the final closure result and record review notes here.
+
+## Review
+- Linear `SIT-10` is still `In Progress` and urgent. Acceptance requires a phone viewport demo path with no horizontal overflow or overlapping primary controls, usable tap targets, modal/panel spacing aligned with `DESIGN.md`, canvas controls that do not block upload/save/share actions, and browser verification screenshots for at least one mobile and one desktop viewport.
+- Required design workflow is active for this pass: use `frontend-design`, follow `DESIGN.md`, and keep changes targeted to the demo path.
+- Prior SIT-10 work already improved pricing, agent landing, agent upload, site-plan comparison actions, shared GUI tokens, Land/Build panel basics, comparison-object readability, land boundary visibility, and live production smoke. This pass should close the issue by auditing what remains rather than redesigning broadly.
+- Local Vite dev server is running at `http://127.0.0.1:5173/` with Homebrew Node first on `PATH`.
+- Baseline audit found no horizontal overflow, but it did find real mobile touch target misses: the compact mobile land CTA measured under 44px tall, compare-object rows measured about 42px tall, active compare rotation controls were too small, the mobile side-panel collapse handle was 40px wide, and the save auth modal tabs/buttons/inputs/forgot-password action measured under the 44px target rule.
+- Fixed the demo-path issues with minimal sizing changes: mobile land CTA now has explicit 52px minimum height and padding; auth modal close/tabs/OAuth/inputs/forgot/submit controls now have explicit 44-48px minimum touch sizing; compare rows and active rotation controls now have explicit 44-56px touch sizing; mobile `.sitea-collapse-handle` is now 44px wide.
+- Final audit artifacts are saved under `output/playwright/sitea-sit10-final/`: `final-audit-metrics.json`, `mobile-initial-agent.png`, `mobile-save-auth.png`, and `desktop-initial-agent.png`.
+- Final 390px mobile and 1280px desktop audit states passed with `0` horizontal overflow, `0` touch-target findings, `0` console errors, and `2` canvas elements across initial agent, Land, Compare, selected comparison, Build, Save/Auth, and desktop agent/compare/auth states.
+- Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`.
+- Linear `SIT-10` was updated with the final audit evidence and moved to `In Review`.
+
+---
+
+# Mobile AI Chat Layering Fix
+
+## Todo
+- [x] Read `frontend-design` guidance and `DESIGN.md` before changing the mobile UI.
+- [x] Inspect the current AI chat, mobile HUD, side panel, modal, and ribbon render layers.
+- [x] Make the AI chat the only foreground overlay on mobile while it is open, keeping the open world visible behind it.
+- [x] Raise the AI chat panel above normal HUD/sidebar layers so no control appears on top of it.
+- [x] Hide or suppress mobile-only foreground UI that competes with the AI chat: land CTA, bottom ribbon, overflow menu, minimap, view controls, side-panel backdrop/sidebar, joystick/pro banner/toasts where relevant.
+- [x] Keep desktop behavior unchanged unless the same layering bug is present there.
+- [x] Verify on a 390px mobile viewport that only the AI chat is in front, with no overlapping controls and no horizontal overflow.
+- [x] Run focused lint/build checks and update this review section.
+
+## Review
+- Current likely root cause: the mobile AI chat panel is rendered at `z-50`, the same general layer as the bottom ribbon, mobile CTA, overflow menu, and several control sheets. Because those surfaces remain mounted while chat is open, the mobile screen can show several foreground overlays at once.
+- Planned fix: treat `showAIChat && isMobile` as a focused chat mode. In that mode, the open world stays visible, but other app HUD/modal-like controls are hidden or closed so the AI chat is visually and interactively frontmost.
+- Implemented `isMobileChatFocused` in `src/App.jsx` so the app closes mobile panels/sheets when the agent opens and suppresses competing HUD surfaces while the agent is visible.
+- Raised the mobile `AIChatPanel` layer to `z-[220]`; desktop panel layering remains unchanged.
+- Browser verification at `390x844` passed: only `.sitea-agent-panel` was visible as a foreground control, canvas remained visible behind it, and horizontal overflow was `0`. Screenshot artifact: `output/playwright/sitea-mobile-chat-focus/mobile-chat-focused.png`.
+- Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`. Build still reports the existing large-chunk warning.

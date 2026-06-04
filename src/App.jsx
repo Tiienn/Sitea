@@ -854,6 +854,16 @@ function App() {
 
   // Centralized edit permission - gates all editing actions
   const canEdit = !isReadOnly
+  const isAIChatVisible = showAIChat && !isReadOnly && !showPricingModal && !showAuthModal && !isGuidedMode && !isDefiningLand
+  const isMobileChatFocused = isMobile && isAIChatVisible
+
+  useEffect(() => {
+    if (!isMobileChatFocused) return
+    setShowOverflow(false)
+    setShowMobileViewControls(false)
+    setMobileCtaExpanded(false)
+    setActivePanel(null)
+  }, [isMobileChatFocused])
 
   // Camera mode state (persisted)
   const [cameraMode, setCameraMode] = useState(() => {
@@ -3406,7 +3416,7 @@ function App() {
       </Suspense>
 
       {/* Minimap (hidden in 2D mode - redundant with top-down view) */}
-      {viewMode !== '2d' && !isGuidedMode && (
+      {viewMode !== '2d' && !isGuidedMode && !isMobileChatFocused && (
         <Minimap
           landWidth={dimensions.width}
           landLength={dimensions.length}
@@ -3433,10 +3443,10 @@ function App() {
       )}
 
       {/* Mobile joystick - positioned above ribbon */}
-      {isTouchDevice && <VirtualJoystick joystickInput={joystickInput} isRunning={isMobileRunning} setIsRunning={setIsMobileRunning} onJump={() => setMobileJumpTrigger(t => t + 1)} onTalk={() => window.dispatchEvent(new Event('mobileTalk'))} onUse={() => window.dispatchEvent(new Event('mobileUse'))} nearbyNPC={nearbyNPC} nearbyBuilding={nearbyBuilding} isLandscape={isLandscape} />}
+      {isTouchDevice && !isMobileChatFocused && <VirtualJoystick joystickInput={joystickInput} isRunning={isMobileRunning} setIsRunning={setIsMobileRunning} onJump={() => setMobileJumpTrigger(t => t + 1)} onTalk={() => window.dispatchEvent(new Event('mobileTalk'))} onUse={() => window.dispatchEvent(new Event('mobileUse'))} nearbyNPC={nearbyNPC} nearbyBuilding={nearbyBuilding} isLandscape={isLandscape} />}
 
       {/* Backdrop overlay when panel is open */}
-      {activePanel && (
+      {activePanel && !isMobileChatFocused && (
         <div
           className="fixed inset-0 z-40"
           onClick={() => setActivePanel(null)}
@@ -3445,7 +3455,7 @@ function App() {
 
       {/* Canva-style Compare sidebar - full height */}
       <div
-        className={`build-sidebar ${activePanel === 'compare' ? 'open' : 'closed'}`}
+        className={`build-sidebar ${!isMobileChatFocused && activePanel === 'compare' ? 'open' : 'closed'}`}
         style={{
           top: 0,
           bottom: isLandscape ? 0 : '56px',
@@ -3460,7 +3470,7 @@ function App() {
           lengthUnit={lengthUnit}
           onClosePanel={() => setActivePanel(null)}
           onExpandedChange={setPanelExpanded}
-          isActive={activePanel === 'compare'}
+          isActive={!isMobileChatFocused && activePanel === 'compare'}
           gridSnapEnabled={gridSnapEnabled}
           setGridSnapEnabled={setGridSnapEnabled}
           gridSize={gridSize}
@@ -3473,7 +3483,7 @@ function App() {
 
       {/* Land sidebar - separate from Build */}
       <div
-        className={`build-sidebar ${activePanel === 'land' ? 'open' : 'closed'}`}
+        className={`build-sidebar ${!isMobileChatFocused && activePanel === 'land' ? 'open' : 'closed'}`}
         style={{
           top: 0,
           bottom: isLandscape ? 0 : '56px',
@@ -3494,7 +3504,7 @@ function App() {
           lengthUnit={lengthUnit}
           setLengthUnit={handleLengthUnitChange}
           onExpandedChange={setPanelExpanded}
-          isActive={activePanel === 'land'}
+          isActive={!isMobileChatFocused && activePanel === 'land'}
           onDetectedFloorPlan={(imageData) => {
             // Floor plan analysis - upload gating handled in modal
             setFloorPlanImageForGenerator({ image: imageData, scaleHint: null })
@@ -3505,7 +3515,7 @@ function App() {
 
       {/* Build sidebar - separate from Land */}
       <div
-        className={`build-sidebar ${activePanel === 'build' ? 'open' : 'closed'}`}
+        className={`build-sidebar ${!isMobileChatFocused && activePanel === 'build' ? 'open' : 'closed'}`}
         style={{
           top: 0,
           bottom: isLandscape ? 0 : '56px',
@@ -3542,7 +3552,7 @@ function App() {
           polygon={currentPolygon}
           onClosePanel={() => setActivePanel(null)}
           onExpandedChange={setPanelExpanded}
-          isActive={activePanel === 'build'}
+          isActive={!isMobileChatFocused && activePanel === 'build'}
           walls={walls}
           wallDrawingMode={wallDrawingMode}
           setWallDrawingMode={setWallDrawingMode}
@@ -3643,7 +3653,7 @@ function App() {
 
       {/* Export sidebar */}
       <div
-        className={`build-sidebar ${activePanel === 'export' ? 'open' : 'closed'}`}
+        className={`build-sidebar ${!isMobileChatFocused && activePanel === 'export' ? 'open' : 'closed'}`}
         style={{
           top: 0,
           bottom: isLandscape ? 0 : '56px',
@@ -3657,7 +3667,7 @@ function App() {
           roomCount={rooms.length}
           hasLand={!!currentPolygon && currentPolygon.length >= 3}
           onExpandedChange={setPanelExpanded}
-          isActive={activePanel === 'export'}
+          isActive={!isMobileChatFocused && activePanel === 'export'}
           onScreenshot={handleScreenshot}
           isCapturing={isCapturing}
           viewMode={viewMode}
@@ -3679,7 +3689,7 @@ function App() {
         isLandscape
           ? "fixed left-0 top-0 bottom-0 w-12 z-50 ribbon-nav landscape-nav flex flex-col"
           : "fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up safe-area-bottom"
-      } style={isGuidedMode ? { display: 'none' } : undefined}>
+      } style={isGuidedMode || isMobileChatFocused ? { display: 'none' } : undefined}>
         <div className={
           isLandscape
             ? "flex flex-col items-center justify-center gap-1 flex-1 py-2"
@@ -3923,7 +3933,7 @@ function App() {
       </div>
 
         {/* Mobile overflow menu popup */}
-        {isMobile && showOverflow && (
+        {isMobile && showOverflow && !isMobileChatFocused && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
             <div className={`fixed sitea-control-panel rounded-xl py-2 min-w-[180px] z-50 animate-slide-in-bottom-2 ${
@@ -3999,7 +4009,7 @@ function App() {
                 {/* Log Out */}
                 <button
                   onClick={() => { signOut(); setShowOverflow(false) }}
-	                  className="sitea-menu-row text-[var(--color-danger)]"
+                  className="sitea-menu-row text-[var(--color-danger)]"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -4010,7 +4020,7 @@ function App() {
             ) : (
               <button
                 onClick={() => { setShowAuthModal(true); setShowOverflow(false) }}
-	                className="sitea-menu-row"
+                className="sitea-menu-row"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -4023,13 +4033,14 @@ function App() {
       )}
 
       {/* Primary CTA Card - top left, shifts right when sidebar open */}
-      {!isReadOnly && !isDefiningLand && !isGuidedMode && (
+      {!isReadOnly && !isDefiningLand && !isGuidedMode && !isMobileChatFocused && (
         isMobile ? (
           /* Mobile: compact collapsible version, hidden when side panel is open */
           !activePanel && <div className={`absolute top-12 z-50 ${isLandscape ? 'left-16' : 'left-4'}`}>
             <button
               onClick={() => setMobileCtaExpanded(!mobileCtaExpanded)}
-              className="panel-premium p-4 text-white animate-fade-in"
+              className="panel-premium text-white animate-fade-in"
+              style={{ minHeight: '52px', padding: '10px 16px' }}
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/20 flex items-center justify-center">
@@ -4099,7 +4110,7 @@ function App() {
       )}
 
       {/* Non-blocking walkthrough hint (first visit only) */}
-      {!hasSeenIntro && isExampleMode && !isDefiningLand && !isGuidedMode && walkthroughStep === 0 && (
+      {!isMobileChatFocused && !hasSeenIntro && isExampleMode && !isDefiningLand && !isGuidedMode && walkthroughStep === 0 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 panel-premium py-3 z-40 animate-gentle-pulse" style={{ padding: '12px 32px' }}>
           <p className="text-[var(--color-text-primary)] text-sm font-medium">
             {isTouchDevice ? 'Use joystick to explore' : 'Use WASD to explore'}
@@ -4109,7 +4120,7 @@ function App() {
       )}
 
       {/* Help text - top-center pill with auto-fade */}
-      {!isDefiningLand && !isReadOnly && !isGuidedMode && helpTextVisible && (
+      {!isMobileChatFocused && !isDefiningLand && !isReadOnly && !isGuidedMode && helpTextVisible && (
         <div
           className="absolute top-4 left-1/2 -translate-x-1/2 z-30 rounded-full pointer-events-none animate-fade-in"
           style={{
@@ -4268,7 +4279,7 @@ function App() {
 
       {/* Grouped View Controls - top right */}
       {/* Mobile: settings icon + slide-up sheet */}
-      {isMobile && !isGuidedMode && (
+      {isMobile && !isGuidedMode && !isMobileChatFocused && (
         <div className={`absolute right-3 z-30 flex flex-col items-end gap-2 animate-fade-in ${isReadOnly ? 'top-20' : 'top-12'}`}>
           <div className="flex items-center gap-2">
             <div className="sitea-control-panel sitea-segment">
@@ -4331,7 +4342,7 @@ function App() {
       )}
 
       {/* Mobile view controls slide-up sheet */}
-      {isMobile && showMobileViewControls && (
+      {isMobile && showMobileViewControls && !isMobileChatFocused && (
         <>
           <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileViewControls(false)} />
           <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pb-20 animate-slide-in-bottom">
@@ -4446,7 +4457,7 @@ function App() {
 
 
       {/* Undo/Redo toast notification */}
-      {undoRedoToast && (
+      {!isMobileChatFocused && undoRedoToast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-xl sitea-status-toast text-[var(--color-text-primary)] text-sm font-medium animate-fade-in flex items-center gap-3 max-w-[min(92vw,560px)] text-center break-words" style={{ padding: '10px 22px' }}>
           {undoRedoToast === 'building_selected'
             ? 'Building selected • R rotate • Del delete • E to explode'
@@ -4455,7 +4466,7 @@ function App() {
       )}
 
       {/* Soft Pro upgrade banner */}
-        {showProBanner && !isPaidUser && (
+        {showProBanner && !isPaidUser && !isMobileChatFocused && (
           <div className={`fixed left-1/2 -translate-x-1/2 z-40 animate-slide-in-bottom ${
             isTouchDevice ? 'bottom-20' : 'bottom-6'
           }`}>
@@ -4681,7 +4692,7 @@ function App() {
         visible={!showPricingModal && !showAuthModal && !isReadOnly && !showAIChat && !isGuidedMode && !isDefiningLand}
         locked={!isPaidUser}
       />
-      {showAIChat && !isReadOnly && !showPricingModal && !showAuthModal && !isGuidedMode && !isDefiningLand && (
+      {isAIChatVisible && (
         <AIChatPanel
           messages={aiChat.messages}
           isLoading={aiChat.isLoading}
