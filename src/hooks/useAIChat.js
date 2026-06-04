@@ -5,9 +5,39 @@ import { analyzeImage } from '../services/imageAnalysis'
 
 const MAX_TOOL_ITERATIONS = 5
 const TENNIS_COURT = { id: 'tennisCourt', name: 'tennis court', width: 10.97, length: 23.77 }
+const TEXT_ACTION_COMPARISONS = [
+  {
+    id: 'tennisCourt',
+    name: 'tennis court',
+    displayName: 'Tennis court',
+    pluralName: 'tennis courts',
+    width: 10.97,
+    length: 23.77,
+    aliases: ['tennis court', 'tennis'],
+  },
+  {
+    id: 'basketballCourt',
+    name: 'basketball court',
+    displayName: 'Basketball court',
+    pluralName: 'basketball courts',
+    width: 15,
+    length: 28,
+    aliases: ['basketball court', 'basketball'],
+  },
+  {
+    id: 'soccerField',
+    name: 'soccer field',
+    displayName: 'Soccer field',
+    pluralName: 'soccer fields',
+    width: 68,
+    length: 105,
+    aliases: ['soccer field', 'soccer', 'football pitch'],
+  },
+]
 
 const formatMeters = (value) => Number.isFinite(value) ? `${value.toFixed(1)}m` : 'unknown'
 const formatArea = (value) => Number.isFinite(value) ? `${Math.round(value)}m²` : 'the current land'
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const FLOOR_PLAN_PROCESS = {
   title: 'Reading your floor plan',
@@ -52,6 +82,168 @@ function getTennisCourtFit(landArea) {
   }
 }
 
+function getObjectFit(object, landArea) {
+  const objectArea = object.width * object.length
+  if (!Number.isFinite(landArea) || landArea <= 0) {
+    return {
+      count: null,
+      objectArea,
+      text: `I can compare ${object.name} scale once your land area is confirmed.`,
+    }
+  }
+
+  const count = Math.floor(landArea / objectArea)
+  if (count <= 0) {
+    return {
+      count,
+      objectArea,
+      text: `A ${object.name} is about ${Math.round(objectArea)}m² (${formatMeters(object.width)} x ${formatMeters(object.length)}), so it is larger than ${formatArea(landArea)} before setbacks and access space.`,
+    }
+  }
+
+  return {
+    count,
+    objectArea,
+    text: `About ${count} ${count === 1 ? object.name : object.pluralName} can fit inside ${formatArea(landArea)} before setbacks, house footprint, and access space.`,
+  }
+}
+
+function normalizeCommand(text) {
+  return ` ${String(text || '')
+    .toLowerCase()
+    .replace(/[×*]/g, ' x ')
+    .replace(/['"]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()} `
+}
+
+function commandHasAlias(normalizedText, alias) {
+  const pattern = escapeRegex(alias).replace(/\s+/g, '\\s+')
+  return new RegExp(`\\b${pattern}\\b`).test(normalizedText)
+}
+
+function getComparisonFromCommand(normalizedText) {
+  return TEXT_ACTION_COMPARISONS.find(object =>
+    object.aliases.some(alias => commandHasAlias(normalizedText, alias))
+  )
+}
+
+function hasSceneAddIntent(normalizedText) {
+  return /\b(add|show|place|put|display|compare|visualize|visualise|see)\b/.test(normalizedText)
+}
+
+function hasFitIntent(normalizedText) {
+  return /\b(fit|fits|fitting|how many|what can fit|what fits|see what fits)\b/.test(normalizedText)
+}
+
+function isGeneralFitRequest(normalizedText) {
+  return /\bwhat can fit\b/.test(normalizedText) ||
+    /\bwhat fits\b/.test(normalizedText) ||
+    /\bsee what fits\b/.test(normalizedText)
+}
+
+function createComparisonAction(object, label = `Show ${object.name} in 3D`) {
+  return {
+    type: 'activate_comparison',
+    comparisonId: object.id,
+    label,
+    objectName: object.name,
+    handoff: true,
+    toast: `${object.displayName} added • drag or rotate it to compare scale`,
+  }
+}
+
+function buildFitLine(object, landArea) {
+  const fit = getObjectFit(object, landArea)
+  if (fit.count === null) {
+    return `- ${object.displayName}: land area needed`
+  }
+  if (fit.count <= 0) {
+    return `- ${object.displayName}: not enough area before setbacks (${Math.round(fit.objectArea)}m² footprint)`
+  }
+  return `- ${object.displayName}: about ${fit.count} ${fit.count === 1 ? object.name : object.pluralName}`
+}
+
+function parseLandDimensionCommand(normalizedText) {
+  const mentionsLand = /\b(land|plot|site|lot|parcel|property)\b/.test(normalizedText)
+  const hasSetIntent = /\b(set|make|create|define|use|change|resize|start)\b/.test(normalizedText)
+  if (!mentionsLand || !hasSetIntent) return null
+
+  const match = normalizedText.match(/\b(\d+(?:\.\d+)?)\s*(m|meter|meters|metre|metres|ft|feet|foot)?\s*(?:x|by)\s*(\d+(?:\.\d+)?)\s*(m|meter|meters|metre|metres|ft|feet|foot)?\b/)
+  if (!match) return null
+
+  const firstValue = Number.parseFloat(match[1])
+  const secondValue = Number.parseFloat(match[3])
+  const unit = match[2] || match[4] || 'm'
+  if (!Number.isFinite(firstValue) || !Number.isFinite(secondValue)) return null
+
+  const unitMultiplier = /^(ft|feet|foot)$/.test(unit) ? 1 / 3.28084 : 1
+  const length = firstValue * unitMultiplier
+  const width = secondValue * unitMultiplier
+  if (length < 1 || width < 1 || length > 1000 || width > 1000) return null
+
+  return { length, width }
+}
+
+function buildTextSceneAction(text, { landArea }) {
+  const normalizedText = normalizeCommand(text)
+  const landDimensions = parseLandDimensionCommand(normalizedText)
+  if (landDimensions) {
+    return { type: 'set_land_dimensions', ...landDimensions }
+  }
+
+  const comparison = getComparisonFromCommand(normalizedText)
+  if (comparison && hasFitIntent(normalizedText) && !hasSceneAddIntent(normalizedText)) {
+    const fit = getObjectFit(comparison, landArea)
+    return {
+      type: 'fit_check',
+      object: comparison,
+      content: `${fit.text}\n\nI can add one ${comparison.name} to the scene so you can compare the scale visually.`,
+      suggestedActions: [createComparisonAction(comparison)],
+      toolInput: {
+        objectId: comparison.id,
+        objectName: comparison.name,
+        landArea: Math.round(landArea || 0),
+        fitCount: fit.count,
+      },
+    }
+  }
+
+  if (comparison && hasSceneAddIntent(normalizedText)) {
+    return { type: 'activate_comparison', object: comparison }
+  }
+
+  if (isGeneralFitRequest(normalizedText)) {
+    return {
+      type: 'general_fit_check',
+      content: `Here is a quick area-only fit check for ${formatArea(landArea)}:\n\n${TEXT_ACTION_COMPARISONS.map(object => buildFitLine(object, landArea)).join('\n')}\n\nThis is a first-pass scale check. Setbacks, access, slope, and the house footprint can reduce what actually works.`,
+      suggestedActions: TEXT_ACTION_COMPARISONS
+        .filter(object => {
+          const fit = getObjectFit(object, landArea)
+          return fit.count === null || fit.count > 0
+        })
+        .slice(0, 2)
+        .map(object => createComparisonAction(object)),
+      toolInput: {
+        landArea: Math.round(landArea || 0),
+        objects: TEXT_ACTION_COMPARISONS.map(object => ({
+          id: object.id,
+          count: getObjectFit(object, landArea).count,
+        })),
+      },
+    }
+  }
+
+  if (/\b(start|help|define|set)\b/.test(normalizedText) && /\bland size\b/.test(normalizedText)) {
+    return {
+      type: 'land_size_help',
+      content: 'Tell me the land dimensions and I will set the scene for you. For example: "Set my land to 40m by 30m." You can also upload a site plan and I will prepare the boundary review.',
+    }
+  }
+
+  return null
+}
+
 function shouldTreatUploadAsSitePlan(text, fileMeta, detection) {
   const uploadText = `${text || ''} ${fileMeta?.fileName || ''}`.toLowerCase()
   const asksForSite = /\b(site|land|plot|parcel|lot|boundary)\b/.test(uploadText)
@@ -74,6 +266,7 @@ export function useAIChat({
   onSitePlanUploaded,
   activateComparison,
   onVisualHandoff,
+  onLandDimensionsUpdated,
   isPaidUser = false,
   markUploadUsed = async () => ({ ok: true }),
   hasLand = false,
@@ -408,6 +601,76 @@ export function useAIChat({
     return analyzeFloorPlan(fileBase64, text)
   }, [analyzeFloorPlan, analyzeSitePlan, isPaidUser])
 
+  const handleTextSceneAction = useCallback((messageText) => {
+    const action = buildTextSceneAction(messageText, { landArea })
+    if (!action) return false
+
+    setError(null)
+    const userMsg = { role: 'user', content: messageText, displayText: messageText, hasImage: false }
+
+    if (action.type === 'set_land_dimensions') {
+      onLandDimensionsUpdated?.({ length: action.length, width: action.width })
+      const area = action.length * action.width
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: `Done. I set the land to ${formatMeters(action.length)} x ${formatMeters(action.width)} (${formatArea(area)}) and opened the 3D scene so you can keep going visually.`,
+        nextSteps: [
+          { label: 'Land dimensions set', state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: 'Ask what fits next', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'set_land_dimensions',
+          input: {
+            length: Number(action.length.toFixed(2)),
+            width: Number(action.width.toFixed(2)),
+            area: Math.round(area),
+          },
+          success: true,
+        }],
+      }])
+      onVisualHandoff?.({ toast: `Land set to ${formatMeters(action.length)} x ${formatMeters(action.width)}` })
+      return true
+    }
+
+    if (action.type === 'activate_comparison') {
+      activateComparison?.(action.object.id)
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: `Done. I added a ${action.object.name} to the land so the scale is visible immediately. It measures ${formatMeters(action.object.width)} x ${formatMeters(action.object.length)}.`,
+        nextSteps: [
+          { label: `${action.object.displayName} added`, state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: 'Drag or rotate to compare scale', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'activate_comparison',
+          input: {
+            objectId: action.object.id,
+            objectName: action.object.name,
+            width: action.object.width,
+            length: action.object.length,
+          },
+          success: true,
+        }],
+      }])
+      onVisualHandoff?.({ toast: `${action.object.displayName} added • drag or rotate it to compare scale` })
+      return true
+    }
+
+    setMessages(prev => [...prev, userMsg, {
+      role: 'assistant',
+      content: action.content,
+      toolActions: action.toolInput ? [{
+        name: action.type,
+        input: action.toolInput,
+        success: true,
+      }] : undefined,
+      suggestedActions: action.suggestedActions,
+    }])
+    return true
+  }, [activateComparison, landArea, onLandDimensionsUpdated, onVisualHandoff])
+
   const sendMessage = useCallback(async (text, fileBase64 = null, fileMeta = {}) => {
     const messageText = text || ''
     if ((!messageText.trim() && !fileBase64) || isLoading) return
@@ -415,6 +678,10 @@ export function useAIChat({
     // Route file uploads by plan type before using the paid floor-plan analyzer.
     if (fileBase64) {
       return routePlanUpload(fileBase64, messageText, fileMeta)
+    }
+
+    if (handleTextSceneAction(messageText)) {
+      return
     }
 
     setError(null)
@@ -515,7 +782,7 @@ export function useAIChat({
     } finally {
       setIsLoading(false)
     }
-  }, [isLoading, routePlanUpload, executeTool, buildApiMessages, buildSceneContext])
+  }, [isLoading, routePlanUpload, handleTextSceneAction, executeTool, buildApiMessages, buildSceneContext])
 
   const handleAction = useCallback((action) => {
     if (!action || isLoading) return

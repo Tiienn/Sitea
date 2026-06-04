@@ -44,6 +44,13 @@ function ToolChip({ action }) {
         return `${input.wallCount || 0} walls detected`
       case 'review_site_plan':
         return 'Site plan reviewed'
+      case 'activate_comparison':
+        return `Added ${input.objectName || 'comparison'}`
+      case 'set_land_dimensions':
+        return `Set land ${input.length}×${input.width}m`
+      case 'fit_check':
+      case 'general_fit_check':
+        return 'Checked fit'
       default:
         return name
     }

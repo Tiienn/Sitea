@@ -2023,6 +2023,24 @@ function App() {
     setUndoRedoToast('Added comparison to land')
   }, [])
 
+  const handleAgentLandDimensionsUpdated = useCallback(({ length, width }) => {
+    const safeLength = Math.max(0.3, length)
+    const safeWidth = Math.max(0.3, width)
+    setDimensions({ length: safeLength, width: safeWidth })
+    setInputValues({
+      length: convertLength(safeLength, lengthUnit).toFixed(1),
+      width: convertLength(safeWidth, lengthUnit).toFixed(1),
+    })
+    setShapeMode('rectangle')
+    setPolygonPoints([])
+    setConfirmedPolygon(null)
+    setUserHasLand(true)
+    setIsDefiningLand(false)
+    setHasSeenIntro(true)
+    localStorage.setItem('landVisualizerIntroSeen', 'true')
+    localStorage.setItem('fsmCompleted', 'true')
+  }, [lengthUnit])
+
   const handleAgentVisualHandoff = useCallback((action = {}) => {
     setShowAIChat(false)
     setActivePanel(null)
@@ -2043,6 +2061,7 @@ function App() {
     onSitePlanUploaded: handleAgentSitePlanUploaded,
     activateComparison: activateAgentComparison,
     onVisualHandoff: handleAgentVisualHandoff,
+    onLandDimensionsUpdated: handleAgentLandDimensionsUpdated,
     isPaidUser,
     markUploadUsed,
     hasLand: userHasLand,

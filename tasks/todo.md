@@ -834,3 +834,27 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - The QA script starts a Vite server, seeds chat-only localStorage state, clicks the floor-plan and site-plan agent handoff actions on `390x844` mobile and `1280x720` desktop, and saves screenshots under `output/playwright/agent-handoff/`.
 - Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-handoff`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`.
 - npm install reported `15` audit findings in existing dependency tree (`6` moderate, `8` high, `1` critical). I did not run `npm audit fix` because that would change unrelated package versions.
+
+---
+
+# Agent Text-to-Scene Actions
+
+## Todo
+- [x] Re-read `frontend-design`, `DESIGN.md`, and the current Sitea Agent action/handoff flow.
+- [x] Inspect the comparison object IDs and land dimension setters used by the main scene.
+- [x] Add a small deterministic text-action layer before `/api/ai-chat` so obvious typed requests can update the scene immediately.
+- [x] Support high-confidence first actions: show/add tennis court, basketball court, or soccer field; answer how many tennis courts fit; and set rectangular land dimensions only if the existing setters make that safe.
+- [x] Keep ambiguous messages falling through to the normal AI chat route.
+- [x] Add Playwright QA for typed mobile/desktop agent commands without making paid API calls.
+- [x] Run focused lint/build/QA checks and update this review section.
+
+## Review
+- Current gap: uploaded files and suggested buttons already hand off to the visual scene, but typed requests like "show me a tennis court" still mostly go through the AI chat API instead of directly changing the scene.
+- Planned approach: keep this first pass intentionally narrow and local. A deterministic parser will catch only obvious commands, update the existing scene state through the same comparison/handoff callbacks, and avoid paid API usage for those commands.
+- Product goal: Sitea should feel more like an agent that does the work in the open world, while manual panels remain available for correction and advanced control.
+- Implemented a local text-action parser in `src/hooks/useAIChat.js` before the `/api/ai-chat` path. It handles direct comparison requests, fit checks, "What can fit on my land?", "Help me start with land size", and clear rectangle land dimensions.
+- Added an App-level land-dimension callback so the agent can set a rectangle plot through the existing `dimensions`, `shapeMode`, intro, and handoff state instead of opening a manual modal.
+- Added lightweight tool-chip labels for the new local actions in `src/components/AIChatPanel.jsx`.
+- Added `npm run qa:agent-text-actions`, backed by `scripts/agent-text-actions-qa.mjs`. The script blocks local AI API routes and verifies typed mobile/desktop commands do not make paid API calls.
+- Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-text-actions`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, focused ESLint for edited files, and `git diff --check`.
+- QA screenshots are saved under `output/playwright/agent-text-actions/`.

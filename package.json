@@ -15,6 +15,7 @@
     "qa:floor-plans:record": "node scripts/floor-plan-qa.mjs record",
     "qa:floor-plans:placement": "node scripts/floor-plan-placement-qa.mjs",
     "qa:agent-handoff": "node scripts/agent-handoff-qa.mjs",
+    "qa:agent-text-actions": "node scripts/agent-text-actions-qa.mjs",
     "cap:sync": "npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
