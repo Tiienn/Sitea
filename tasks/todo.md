@@ -784,3 +784,53 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Raised the mobile `AIChatPanel` layer to `z-[220]`; desktop panel layering remains unchanged.
 - Browser verification at `390x844` passed: only `.sitea-agent-panel` was visible as a foreground control, canvas remained visible behind it, and horizontal overflow was `0`. Screenshot artifact: `output/playwright/sitea-mobile-chat-focus/mobile-chat-focused.png`.
 - Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`. Build still reports the existing large-chunk warning.
+
+---
+
+# Agent-Led Sitea Direction Reset
+
+## Todo
+- [x] Re-read `frontend-design`, `DESIGN.md`, current product docs, and the current Sitea Agent upload/action flow.
+- [x] Update `PRD.md`, `APP_STATUS.md`, and `README.md` so Sitea's direction is explicitly agent-delivered: users describe outcomes, Sitea executes, visualizes, and only asks for decisions when needed.
+- [x] Define the product rule in docs: manual measuring/drawing remains available as an advanced fallback, but the default path should be chat-first automation.
+- [x] Add a simple first implementation slice: agent result actions that move the user from chat focus into the prepared visual scene after floor-plan analysis or site-plan comparison.
+- [x] Add or adjust agent copy so it says what Sitea has done, what is ready, and what decision remains, instead of instructing the user to hunt through tools.
+- [x] Keep mobile behavior clean: chat opens by default, but when the user chooses a visual handoff action, the world controls become available again without overlay collisions.
+- [x] Verify on 390px mobile and desktop that the agent-led handoff does not reintroduce overlapping HUD/modals.
+- [x] Run focused lint/build checks and update this review section.
+
+## Review
+- Product direction from user: Sitea should be more of a chat agent that delivers what the user wants. Users should not feel they need to measure, draw, or understand tool panels first.
+- Current docs already say "agent-led," but the demo path still includes user-heavy language such as choosing dimensions, tracing boundaries, and manually placing/reviewing. This needs to be reframed around Sitea doing the setup and asking for confirmation only at decision points.
+- Current code supports agent upload routing and suggested actions, but the handoff remains text-heavy: after analysis, the user is told to click/place/trace. The first implementation should add explicit action buttons that transition from chat to the visual scene.
+- Design posture: quiet, trustworthy, inevitable. The agent should feel like an assistant preparing the workspace, not a chatbot floating beside a CAD tool.
+- Updated docs to use "agent-delivered" language: Sitea prepares the visual workspace, manual tools are advanced review/correction paths, and users confirm decisions only when needed.
+- Updated in-app help copy so users are told to ask Sitea first; Land/Build/Compare panels are framed as correction or advanced tools.
+- Added `onVisualHandoff` to the agent flow. Floor-plan results now offer "Place this in 3D"; site-plan comparison actions now add the tennis court and hand off to the 3D scene.
+- App-level handoff closes mobile chat focus, clears competing sheets/panels, switches to 3D orbit, fits the land, and shows a task-specific toast.
+- Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`.
+- Browser click-path verification now passes through `npm run qa:agent-handoff`: mobile and desktop floor-plan/site-plan handoff states close chat focus, restore scene controls, keep horizontal overflow at `0`, show expected toasts, and leave no visible overlay blockers.
+
+---
+
+# Install Playwright For Agent QA
+
+## Todo
+- [x] Read the Playwright skill and inspect package manager setup.
+- [x] Verify `npx` is available in the local shell path.
+- [x] Install Playwright as a dev dependency using npm so `package.json` and `package-lock.json` stay in sync.
+- [x] Install only the needed Chromium browser binary for local automated UI checks.
+- [x] Add a minimal npm script for agent handoff QA instead of relying on one-off shell snippets.
+- [x] Create the smallest Playwright script that seeds the existing chat state, clicks the new agent handoff action, and verifies mobile UI is not overlapped.
+- [x] Run the Playwright QA script, lint/build, and `git diff --check`.
+- [x] Update this review section with the result.
+
+## Review
+- Project uses npm with `package-lock.json`.
+- Playwright was not installed in the repo, which blocked automated click-path verification for the new agent handoff flow before this task.
+- `npx` is available at `/opt/homebrew/bin/npx`; use Homebrew npm first on `PATH` for install/test commands in this shell.
+- Installed `playwright` as a dev dependency and installed the Chromium browser binary in the local Playwright cache.
+- Added `npm run qa:agent-handoff`, backed by `scripts/agent-handoff-qa.mjs`.
+- The QA script starts a Vite server, seeds chat-only localStorage state, clicks the floor-plan and site-plan agent handoff actions on `390x844` mobile and `1280x720` desktop, and saves screenshots under `output/playwright/agent-handoff/`.
+- Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-handoff`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`.
+- npm install reported `15` audit findings in existing dependency tree (`6` moderate, `8` high, `1` critical). I did not run `npm audit fix` because that would change unrelated package versions.

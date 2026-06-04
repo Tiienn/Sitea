@@ -73,6 +73,7 @@ export function useAIChat({
   onFloorPlanGenerated,
   onSitePlanUploaded,
   activateComparison,
+  onVisualHandoff,
   isPaidUser = false,
   markUploadUsed = async () => ({ ok: true }),
   hasLand = false,
@@ -191,7 +192,7 @@ export function useAIChat({
     return apiMessages
   }, [])
 
-  // Build scene context so Claude knows what's already placed
+  // Build scene context so the agent knows what's already placed
   const buildSceneContext = useCallback(() => {
     const parts = []
     if (hasLand) {
@@ -295,7 +296,7 @@ export function useAIChat({
       const result = convertFloorPlanToWorld(data)
       const { stats } = result
       const stairText = stats.stairCount ? `, and ${stats.stairCount} stair${stats.stairCount === 1 ? '' : 's'}` : ''
-      const summary = `I found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.\n\nI prepared a 3D building preview from your plan. Next, click on the land to place it. Press R first if you want to rotate it.`
+      const summary = `I found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.\n\nI prepared a 3D building preview from your plan. It is ready to review on the land. You decide the final placement; I will open the scene at the right view.`
 
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -303,12 +304,17 @@ export function useAIChat({
         nextSteps: [
           { label: 'Plan geometry detected', state: 'done' },
           { label: '3D preview prepared', state: 'done' },
-          { label: 'Click the land to place it', state: 'current' },
+          { label: 'Review placement in 3D', state: 'current' },
         ],
         toolActions: [{
           name: 'analyze_floor_plan',
           input: stats,
           success: true,
+        }],
+        suggestedActions: [{
+          type: 'handoff_to_scene',
+          label: 'Place this in 3D',
+          toast: 'Preview ready • click the land to place it • R to rotate',
         }],
       }])
 
@@ -347,16 +353,16 @@ export function useAIChat({
       const confidenceText = detection?.confidence
         ? ` with ${Math.round(detection.confidence * 100)}% confidence`
         : ''
-      const countLabel = fit.count === 1 ? 'Show 1 tennis court' : 'Show tennis court comparison'
-      const summary = `I read this as a site plan${confidenceText}.\n\n${fit.text}\n\nI opened the Land panel with your uploaded plan, so you can trace or confirm the boundary next. You can also compare the land against a tennis court to make the scale easier to feel.`
+      const countLabel = fit.count === 1 ? 'Show 1 tennis court in 3D' : 'Show tennis court in 3D'
+      const summary = `I read this as a site plan${confidenceText}.\n\n${fit.text}\n\nI prepared the land workspace from your uploaded plan. You can review the boundary when needed; first, I can add a tennis court comparison so the scale is visible immediately.`
 
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: summary,
         nextSteps: [
           { label: 'Site plan recognized', state: 'done' },
-          { label: 'Land panel opened', state: 'done' },
-          { label: 'Trace boundary or compare scale', state: 'current' },
+          { label: 'Land workspace prepared', state: 'done' },
+          { label: 'Review scale in 3D', state: 'current' },
         ],
         toolActions: [{
           name: 'review_site_plan',
@@ -372,6 +378,8 @@ export function useAIChat({
           comparisonId: TENNIS_COURT.id,
           label: countLabel,
           objectName: 'tennis court',
+          handoff: true,
+          toast: 'Tennis court added • drag or rotate it to compare scale',
         }],
       }])
     } catch (err) {
@@ -522,15 +530,32 @@ export function useAIChat({
         hasImage: false,
       }, {
         role: 'assistant',
-        content: `Done. I added the ${label} comparison to the land. You can drag it around or rotate it in the scene.`,
+        content: `Done. I added the ${label} comparison to the land and opened the scene so you can inspect scale visually.`,
       }])
+      if (action.handoff) {
+        onVisualHandoff?.(action)
+      }
+      return
+    }
+
+    if (action.type === 'handoff_to_scene') {
+      setMessages(prev => [...prev, {
+        role: 'user',
+        content: action.label,
+        displayText: action.label,
+        hasImage: false,
+      }, {
+        role: 'assistant',
+        content: 'Done. I opened the prepared scene so you can review it visually.',
+      }])
+      onVisualHandoff?.(action)
       return
     }
 
     if (action.prompt) {
       sendMessage(action.prompt)
     }
-  }, [activateComparison, isLoading, sendMessage])
+  }, [activateComparison, isLoading, onVisualHandoff, sendMessage])
 
   const clearChat = useCallback(() => {
     setMessages([])

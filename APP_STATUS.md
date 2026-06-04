@@ -6,16 +6,16 @@ Production: https://sitea.live
 
 ## Current Read
 
-Sitea is demo-ready as an agent-led land and home visualization workspace. The first screen opens the 3D world with Sitea Agent available, so users can ask for help, upload a scanned plan, compare land to real objects, and move into 3D placement without a marketing landing page.
+Sitea is demo-ready as an agent-delivered land and home visualization workspace. The first screen opens the 3D world with Sitea Agent available, so users can describe what they want, upload a scanned plan, and let Sitea prepare the next visual result instead of starting from manual drawing tools.
 
-The current target audience is land buyers and homeowners. The product should feel simple, trustworthy, visual, and guided: the user talks to the agent, uploads a site plan or floor plan, then Sitea helps them understand scale and placement.
+The current target audience is land buyers and homeowners. The product should feel simple, trustworthy, visual, and guided: the user talks to the agent, Sitea prepares the land/comparison/floor-plan workspace, and the user reviews or confirms decisions only when needed.
 
 ## Production State
 
 | Area | Status | Notes |
 |---|---|---|
-| 3D workspace | Demo-ready | Land definition, 3D/2D/1P views, comparison objects, placement, exports, and mobile controls are active. |
-| Sitea Agent | Demo-ready | Agent opens by default and can route site-plan and floor-plan uploads. |
+| 3D workspace | Demo-ready | Land definition, 3D/2D/1P views, comparison objects, placement, exports, and mobile controls are active; advanced manual tools remain available after the agent handoff. |
+| Sitea Agent | Demo-ready | Agent opens by default, routes site-plan/floor-plan uploads, and should be the default way users request outcomes. |
 | Floor-plan analysis | Demo-ready with review | OpenAI-first analyzer supports scanned PDFs/images and extracts walls, doors, windows, rooms, stairs, scale, and 3D placement data. |
 | Site-plan analysis | Demo-ready | OpenAI vision extracts parcel boundary/dimensions for the land tracing flow. |
 | Saved projects | Active | Save requires sign-in and stores projects through Supabase. |
@@ -76,9 +76,9 @@ Relevant SQL is in `sql/`. Recent readiness work hardened subscription writes, m
 ## Demo Path
 
 1. Open https://sitea.live.
-2. Use Sitea Agent to ask what can fit or upload a plan.
-3. For a site plan, confirm/trace the land boundary and compare scale with a tennis court or other object.
-4. For a floor plan, let the analyzer detect the structure and place the generated 3D building on the land.
+2. Use Sitea Agent to ask what you want to see or upload a plan.
+3. For a site plan, Sitea prepares the land workspace and can add a tennis court or other comparison object for scale.
+4. For a floor plan, Sitea detects the structure, prepares the 3D building preview, and moves the user into review/placement.
 5. Use 3D orbit for overview, 2D for precision, and 1P for walkthrough scale.
 6. Sign in to save, then create a share link when ready.
 
@@ -88,6 +88,7 @@ Relevant SQL is in `sql/`. Recent readiness work hardened subscription writes, m
 - The 3D/build workspace is large and still has legacy code hotspots in `src/App.jsx` and `src/components/LandScene.jsx`.
 - Real scanned plans should keep going through QA before analyzer prompt/CV changes ship.
 - Generated floor-plan geometry can be busy when the analyzer intentionally over-segments walls to avoid missing structure.
+- The next product work should keep reducing tool-first moments: Sitea should prepare outcomes and ask for confirmation rather than expecting users to measure/draw first.
 - Mobile is good enough for the demo path, but any new modal, side panel, or camera flow needs fresh 390px viewport testing.
 
 ## Operational Notes

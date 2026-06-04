@@ -2014,13 +2014,25 @@ function App() {
   const handleAgentSitePlanUploaded = useCallback((imageData) => {
     setUploadedImage(imageData)
     setActivePanel('land')
-    setUndoRedoToast('Site plan opened in Land tools • Trace boundary or compare scale')
+    setUndoRedoToast('Site plan prepared • review boundary when needed')
   }, [])
 
   const activateAgentComparison = useCallback((comparisonId) => {
     setActiveComparisons(prev => ({ ...prev, [comparisonId]: true }))
     setActivePanel(null)
     setUndoRedoToast('Added comparison to land')
+  }, [])
+
+  const handleAgentVisualHandoff = useCallback((action = {}) => {
+    setShowAIChat(false)
+    setActivePanel(null)
+    setShowOverflow(false)
+    setShowMobileViewControls(false)
+    setViewMode('orbit')
+    setTimeout(() => setFitToLandTrigger(t => t + 1), 50)
+    if (action.toast) {
+      setUndoRedoToast(action.toast)
+    }
   }, [])
 
   // AI Chat hook
@@ -2030,6 +2042,7 @@ function App() {
     onFloorPlanGenerated: handleFloorPlanGenerated,
     onSitePlanUploaded: handleAgentSitePlanUploaded,
     activateComparison: activateAgentComparison,
+    onVisualHandoff: handleAgentVisualHandoff,
     isPaidUser,
     markUploadUsed,
     hasLand: userHasLand,
@@ -4801,26 +4814,26 @@ function App() {
 
                   {helpGuideSection === 'start' && (
                     <p className="text-gray-300 leading-relaxed">
-                      Sitea is a 3D land visualizer that lets you design buildings on your land plot. Walk around in first-person, draw walls, place rooms, and see your design come to life.
+                      Sitea is an AI planning agent for land and home ideas. Tell Sitea what you want to see, upload a plan when you have one, and Sitea will prepare the visual workspace for you to review.
                     </p>
                   )}
 
                   {helpGuideSection === 'land' && (
                     <p className="text-gray-300 leading-relaxed">
-                      Open the <span className="text-white font-medium">Land</span> panel to trace your land boundary. Click points to outline your plot shape, or upload a site plan image to trace over.
+                      Ask Sitea to prepare your land from dimensions or a site plan. The Land panel is still available when you need to correct the boundary, units, or shape manually.
                     </p>
                   )}
 
                   {helpGuideSection === 'build' && (
                     <div className="space-y-4 text-gray-300 leading-relaxed">
-                      <p>Open the <span className="text-white font-medium">Build</span> panel to access tools. Draw rooms, walls, and fences. Add doors, windows, pools, platforms, and stairs. Use the Structures tab to place pre-made buildings.</p>
-                      <p>In the Floors section, select a number of floors and click a room to stack floors on top. Use the floor selector to switch between levels.</p>
+                      <p>Upload a floor plan or describe what you want built. Sitea can detect rooms, walls, doors, and windows, then prepare a 3D preview for placement.</p>
+                      <p>Advanced build tools remain available for corrections, custom rooms, floors, pools, platforms, stairs, and manual edits after the agent prepares the first pass.</p>
                     </div>
                   )}
 
                   {helpGuideSection === 'explore' && (
                     <div className="space-y-4 text-gray-300 leading-relaxed">
-                      <p>Open the <span className="text-white font-medium">Compare</span> panel to drop reference objects (tennis court, basketball court, etc.) onto your land to understand the scale.</p>
+                      <p>Ask Sitea what fits, then use the suggested action to add a comparison object such as a tennis court or basketball court directly to the land.</p>
                       <p>Walk around in first-person (1P) to feel the scale. Switch to 3D orbit view for an overview. Use 2D view for precise placement. Save your design, export it, or share a link with others.</p>
                     </div>
                   )}

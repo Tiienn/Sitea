@@ -14,6 +14,7 @@
     "qa:floor-plans:run": "node scripts/floor-plan-qa.mjs run",
     "qa:floor-plans:record": "node scripts/floor-plan-qa.mjs record",
     "qa:floor-plans:placement": "node scripts/floor-plan-placement-qa.mjs",
+    "qa:agent-handoff": "node scripts/agent-handoff-qa.mjs",
     "cap:sync": "npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
@@ -54,6 +55,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "playwright": "^1.60.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.4"
   }

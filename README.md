@@ -1,17 +1,19 @@
 # Sitea
 
-Sitea is an agent-led 3D land and home visualization app for land buyers and homeowners. Users can define a site, upload a scanned site plan or floor plan, ask Sitea Agent for help, compare real-world objects at scale, place AI-generated floor-plan geometry, walk the scene in 3D, save projects, and share expiring read-only links.
+Sitea is an agent-delivered 3D land and home visualization app for land buyers and homeowners. Users describe what they want to understand, upload a scanned site plan or floor plan when helpful, and Sitea Agent prepares the visual workspace: land context, scale comparisons, floor-plan geometry, 3D review, saving, and expiring share links.
 
 Production: https://sitea.live
 
 ## Demo Path
 
 1. Open the app and keep the 3D world visible behind Sitea Agent.
-2. Ask the agent what can fit on the land, or upload a site plan/floor plan image or scanned PDF.
-3. For site plans, the agent helps estimate fit and can add a comparison object such as a tennis court.
-4. For floor plans, the paid analyzer extracts walls, doors, windows, rooms, stairs, and scale, then prepares a 3D building preview for placement.
-5. Switch between 3D, 2D, and first-person views to inspect scale.
+2. Tell the agent what you want to see, or upload a site plan/floor plan image or scanned PDF.
+3. For site plans, Sitea prepares the land workspace and can add a comparison object such as a tennis court.
+4. For floor plans, Sitea extracts walls, doors, windows, rooms, stairs, and scale, then prepares a 3D building preview for review/placement.
+5. Use the visual handoff actions from the agent to inspect the result in 3D, 2D, or first-person view.
 6. Sign in before saving projects. Shared links are read-only and expire after 30 days.
+
+Product rule: manual measuring, tracing, and drawing tools remain available for review and correction, but the default journey should be chat-first automation. Sitea should do the setup work and ask the user for confirmation only when the next decision needs human judgment.
 
 ## Stack
 

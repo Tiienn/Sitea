@@ -6,9 +6,9 @@ Status: Demo-ready, active hardening
 
 ## 1. Product Summary
 
-Sitea helps land buyers and homeowners understand land, floor plans, and building ideas in an interactive 3D scene. The product should feel like an AI planning partner, not a blank CAD tool: users talk to Sitea Agent, upload a scanned plan, and receive visual next steps they can inspect, place, save, and share.
+Sitea helps land buyers and homeowners understand land, floor plans, and building ideas in an interactive 3D scene. The product should feel like an AI planning agent, not a blank CAD tool: users describe the outcome they want, upload a scanned plan when useful, and Sitea prepares the visual workspace for them.
 
-Core promise: make land and plans easy to see, compare, and walk through before decisions become expensive.
+Core promise: tell Sitea what you want to understand, then Sitea does the setup, shows the result in 3D, and asks for decisions only when human judgment is needed.
 
 ## 2. Target Users
 
@@ -21,9 +21,10 @@ Sitea can support professional users later, but the primary product language sho
 
 ## 3. Product Principles
 
-- Agent-led first: the user can ask for help before understanding the tool.
+- Agent-delivered first: the user describes the outcome; Sitea prepares the land, comparisons, floor-plan preview, and next step.
 - Visual proof over explanation: show the land, object, floor plan, and placement in 3D.
-- Simple controls: every new flow should reduce uncertainty, not add panels for their own sake.
+- Simple controls: manual measuring, drawing, and tool panels remain advanced fallback paths, not the primary journey.
+- Decision checkpoints: Sitea should ask the user to confirm intent, placement, or quality only when automation should not guess.
 - Trustworthy state: paid access, upload quota, saves, and shares must be backed by server/Supabase state.
 - Mobile-polished demo path: the core flow must work on phone-sized screens, even if advanced editing remains better on desktop.
 
@@ -32,11 +33,11 @@ Sitea can support professional users later, but the primary product language sho
 The demo-ready path is:
 
 1. User opens Sitea and sees the 3D world with Sitea Agent available.
-2. User asks what can fit, chooses land dimensions, or uploads a scanned site plan/floor plan.
+2. User asks what they want to see or uploads a scanned site plan/floor plan.
 3. Sitea Agent routes the upload:
-   - Site plan: recognize it as land context, help trace/confirm boundaries, and suggest scale comparisons.
+   - Site plan: recognize it as land context, prepare the land workspace, and offer scale comparisons.
    - Floor plan: analyze walls, doors, windows, rooms, stairs, and scale, then prepare a 3D building preview.
-4. User places comparison objects or generated building geometry on the land.
+4. Sitea adds or prepares the requested visual result and moves the user into the scene to review it.
 5. User switches between 3D, 2D, and first-person walkthrough views.
 6. User signs in to save and can create an expiring read-only share link.
 
@@ -44,10 +45,11 @@ The demo-ready path is:
 
 ### Land Visualization
 
-- Define land by rectangle, templates, custom polygon, or uploaded site plan.
+- Define land through the agent, rectangle/templates, custom polygon, or uploaded site plan.
 - Calculate area and dimensions in useful units.
 - Show site boundaries clearly against the 3D environment and comparison objects.
 - Support 3D orbit, 2D top-down, and first-person views.
+- Keep manual tracing/editing available, but treat it as review and correction after Sitea prepares the workspace.
 
 ### Sitea Agent
 
@@ -55,15 +57,16 @@ The demo-ready path is:
 - Welcome the user with a practical "How can we help you?" prompt.
 - Accept text, image, and scanned PDF uploads.
 - Route site plans and floor plans differently.
-- Explain detection results in plain language and propose a next action.
-- Offer one-tap actions for useful scale comparisons.
+- Explain what Sitea did, what is ready, and what decision remains.
+- Offer one-tap actions that deliver visual results, such as adding a comparison or opening the prepared 3D preview.
+- Avoid making the user hunt for panels, measure manually, or guess the next tool when Sitea can prepare the step.
 
 ### Floor-Plan Import
 
 - Accept images and scanned PDFs.
 - Detect walls, doors, windows, rooms, stairs, scale, and dimension labels where possible.
 - Produce geometry that can be placed in the 3D scene.
-- Let users visually review placement quality.
+- Move users into a clear 3D review/placement state after detection.
 - Keep real-plan QA fixtures available for regression checks.
 
 ### Comparison Objects
@@ -71,6 +74,7 @@ The demo-ready path is:
 - Help users understand land scale by placing recognizable objects.
 - Sports objects such as tennis, basketball, and soccer should preserve realistic markings and remain visibly distinct from the site surface.
 - Objects should be draggable, rotatable, and understandable from the minimap and 3D view.
+- The agent should be able to add a relevant comparison directly from chat.
 
 ### Saving And Sharing
 
@@ -126,8 +130,9 @@ Not complete or still risky:
 - Full lint baseline cleanup
 - Continued visual QA for real scanned plans
 - Further simplification of large App/LandScene surfaces
+- More agent-delivered actions after upload/placement
 - Better long-term editing UX after AI-generated geometry is placed
-- More product-grade onboarding around what to do after upload/placement
+- More product-grade confirmation flows when automation needs human approval
 
 ## 8. Success Criteria
 
@@ -136,8 +141,8 @@ Demo success means a non-technical land buyer or homeowner can:
 - Understand the purpose of Sitea within seconds.
 - Ask Sitea Agent for help without searching through menus.
 - Upload a plan and understand what Sitea detected.
-- See at least one realistic comparison object on their land.
-- Place a generated building preview when using a floor plan.
+- Let Sitea add at least one realistic comparison object to their land.
+- Let Sitea prepare a generated building preview and guide them into 3D review/placement.
 - Save only after signing in.
 - Share a link that opens reliably at `/s/:id`.
 - Use the core flow on a mobile viewport without layout breakage.
