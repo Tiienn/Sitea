@@ -683,3 +683,26 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Supabase security/performance advisors report no `shared_scenes` RLS/grant/index issue after cleanup. Remaining advisor warnings are pre-existing: `update_updated_at_column` search path, public `assets` bucket listing, leaked-password protection disabled, auth RLS initplan warnings, unindexed `floor_plan_corrections.user_id`, and subscription/index cleanup.
 - Verification: `git diff --check` passes, `npx eslint src/services/shareScene.js --format stylish` passes, and `npm run build` passes with the existing large-chunk warning. `npx eslint src/App.jsx --format stylish` still fails on the pre-existing large-file baseline of unused imports/handlers and hook dependency warnings.
 - Linear `SIT-14` was updated with implementation and verification notes before commit/push/deploy.
+
+---
+
+# SIT-15 Clean Docs For Demo Readiness
+
+## Todo
+- [x] Read Linear `SIT-15` and current docs/status surfaces: `README.md`, `APP_STATUS.md`, `PRD.md`, package scripts, floor-plan QA notes, and recent SIT-11/SIT-12/SIT-13/SIT-14 notes.
+- [x] Replace the default Vite README with a concise Sitea README covering product overview, demo path, local setup, env vars, Supabase SQL/migrations, PayPal/Vercel config, scripts, QA commands, and deployment notes.
+- [x] Update `APP_STATUS.md` to current reality: agent-led Sitea direction, `sitea.live`, OpenAI-first AI stack, server-verified PayPal/Supabase subscription state, server upload quotas, sign-in save, expiring share links, demo readiness, and known gaps.
+- [x] Update `PRD.md` to remove stale backend-pending/payment contradictions and align product requirements with land buyers/homeowners, pricing, demo-ready scope, and remaining roadmap.
+- [x] Cross-check docs against code/package/scripts/env names so the docs do not introduce fake commands, stale model/provider claims, or secret values.
+- [x] Verify docs-only changes with `git diff --check` and a focused stale-term scan for contradictions such as `Claude`, `Anthropic`, old PayPal blockers, old backend blockers, and old production URLs.
+- [x] Update Linear `SIT-15` with documentation changes and verification notes.
+
+## Review
+- Linear `SIT-15` requires replacing the default Vite README, updating `APP_STATUS.md` and `PRD.md`, mentioning homeowner `$20` and `20 uploads forever`, documenting the demo path and known gaps, and keeping docs concise and operational.
+- Current docs are stale: `README.md` is mostly the Vite template, `APP_STATUS.md` references February 2026, `sitea-one.vercel.app`, Claude/Roboflow as the primary AI pipeline, older payment/upload claims, and `PRD.md` still says payment backend and Supabase subscription work are pending.
+- Current implemented reality from recent tasks: Sitea is agent-led for land buyers and homeowners, production lives at `https://sitea.live`, runtime AI is OpenAI-first, PayPal is server-verified, Supabase subscriptions/uploads/projects/sharing are active, homeowner is `$20` with `20` uploads forever, monthly has `3` uploads per calendar month, lifetime is unlimited, saving requires sign-in, and shared links expire after 30 days.
+- Replaced `README.md` with a Sitea-specific operator guide covering product overview, demo path, local setup, env vars, scripts, Supabase SQL, plan limits, PayPal verification flow, Vercel deployment notes, and known demo gaps.
+- Replaced `APP_STATUS.md` with a concise current status report for the agent-led product, production URL, OpenAI-first AI stack, PayPal/Supabase readiness, upload quota, sharing, mobile status, and known risks.
+- Replaced `PRD.md` with an updated product requirements doc focused on land buyers/homeowners, the agent-led demo path, functional requirements, technical requirements, implementation reality, success criteria, and non-goals.
+- Verification: focused stale-term scan over `README.md`, `APP_STATUS.md`, and `PRD.md` returns no old Vite template, Claude, Anthropic, Ralphy, backend-pending, old PayPal blocker, or old production URL claims; env names were cross-checked against code; `git diff --check` passes.
+- Linear `SIT-15` was updated with the changed files and verification notes.
