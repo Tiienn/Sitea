@@ -51,7 +51,7 @@ export function restoreScenePayload(payload, setters, buildingTypes) {
       .map(b => {
         const buildingType = buildingTypes.find(t => t.id === b.typeId)
         return buildingType
-          ? { id: b.id, type: buildingType, position: { x: b.x, z: b.z }, rotationY: b.rotationY }
+          ? { id: b.id, type: buildingType, position: { x: b.x, z: b.z }, rotationY: b.rotationY, source: b.source || null }
           : null
       })
       .filter(Boolean)

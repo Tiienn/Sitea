@@ -2043,6 +2043,64 @@ function App() {
 
   const handleAgentSceneControl = useCallback((action = {}) => {
     const getComparisonName = (id) => COMPARISON_OBJECTS.find(obj => obj.id === id)?.name || 'Comparison object'
+    const getLandPolygon = () => {
+      if ((shapeMode === 'polygon' || shapeMode === 'upload') && confirmedPolygon) {
+        return confirmedPolygon
+      }
+
+      const hw = dimensions.width / 2
+      const hl = dimensions.length / 2
+      return [
+        { x: -hw, y: -hl },
+        { x: hw, y: -hl },
+        { x: hw, y: hl },
+        { x: -hw, y: hl },
+      ]
+    }
+
+    const findStructurePlacement = (buildingType) => {
+      const polygon = getLandPolygon()
+      const xs = polygon.map(point => point.x)
+      const zs = polygon.map(point => point.z ?? point.y)
+      const minX = Math.min(...xs)
+      const maxX = Math.max(...xs)
+      const minZ = Math.min(...zs)
+      const maxZ = Math.max(...zs)
+      const center = { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 }
+      const stepX = Math.max(buildingType.width + 2, 4)
+      const stepZ = Math.max(buildingType.length + 2, 4)
+      const candidates = []
+
+      for (let ring = 0; ring <= 5; ring++) {
+        for (let ix = -ring; ix <= ring; ix++) {
+          for (let iz = -ring; iz <= ring; iz++) {
+            if (Math.max(Math.abs(ix), Math.abs(iz)) !== ring) continue
+            candidates.push({
+              x: center.x + ix * stepX,
+              z: center.z + iz * stepZ,
+              distance: Math.abs(ix) + Math.abs(iz),
+            })
+          }
+        }
+      }
+
+      candidates.sort((a, b) => a.distance - b.distance)
+      const rotationY = snapRotation(0)
+      const setback = setbacksEnabled ? setbackDistanceM : 0
+
+      for (const candidate of candidates) {
+        const { snappedPos } = applyPositionSnapping(
+          { x: candidate.x, z: candidate.z },
+          polygon,
+          { positionSnap: snapEnabled, gridSnap: gridSnapEnabled }
+        )
+        if (!isPlacementValid(snappedPos, buildingType, rotationY, polygon, setback)) continue
+        if (checkPreviewOverlap(snappedPos, buildingType, rotationY, placedBuildings)) continue
+        return { position: snappedPos, rotationY }
+      }
+
+      return null
+    }
 
     if (action.type === 'set_land_dimensions') {
       handleAgentLandDimensionsUpdated(action)
@@ -2107,8 +2165,76 @@ function App() {
       return true
     }
 
+    if (action.type === 'place_structure' && action.structureId) {
+      const buildingType = BUILDING_TYPES.find(building => building.id === action.structureId)
+      if (!buildingType) return { ok: false, reason: 'unknown_structure' }
+
+      const placement = findStructurePlacement(buildingType)
+      if (!placement) return { ok: false, reason: 'no_safe_spot' }
+
+      const newBuilding = {
+        id: crypto.randomUUID(),
+        type: buildingType,
+        position: placement.position,
+        rotationY: placement.rotationY,
+        source: 'agent',
+      }
+
+      setPlacedBuildings(prev => {
+        const next = [...prev, newBuilding]
+        if (prev.length === 0) {
+          trackFirstBuildingPlaced(buildingType.id)
+        }
+        const { coveragePercent } = computeCoverage(next, area)
+        trackCoverageThreshold(coveragePercent)
+        return next
+      })
+      setSelectedBuilding(null)
+      setSelectedPlacedBuildingId(newBuilding.id)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${buildingType.name} placed`)
+      return { ok: true, buildingId: newBuilding.id, position: placement.position, rotationY: placement.rotationY }
+    }
+
+    if (action.type === 'remove_structure' && action.structureId) {
+      const removed = placedBuildings.filter(building =>
+        building.source === 'agent' && building.type?.id === action.structureId
+      )
+      if (removed.length === 0) return { ok: false, removedCount: 0 }
+
+      const removedIds = new Set(removed.map(building => building.id))
+      setPlacedBuildings(prev => prev.filter(building => !removedIds.has(building.id)))
+      setSelectedPlacedBuildingId(prev => removedIds.has(prev) ? null : prev)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${removed.length} structure${removed.length === 1 ? '' : 's'} removed`)
+      return { ok: true, removedCount: removed.length }
+    }
+
+    if (action.type === 'clear_structures') {
+      const removed = placedBuildings.filter(building => building.source === 'agent')
+      const removedIds = new Set(removed.map(building => building.id))
+      setPlacedBuildings(prev => prev.filter(building => building.source !== 'agent'))
+      setSelectedPlacedBuildingId(prev => removedIds.has(prev) ? null : prev)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Agent structures cleared')
+      return { ok: true, removedCount: removed.length }
+    }
+
     return false
-  }, [handleAgentLandDimensionsUpdated, resetComparisonTransform])
+  }, [
+    area,
+    confirmedPolygon,
+    dimensions.length,
+    dimensions.width,
+    gridSnapEnabled,
+    handleAgentLandDimensionsUpdated,
+    placedBuildings,
+    resetComparisonTransform,
+    snapEnabled,
+    setbackDistanceM,
+    setbacksEnabled,
+    shapeMode,
+  ])
 
   const handleAgentVisualHandoff = useCallback((action = {}) => {
     setShowAIChat(false)
@@ -4790,9 +4916,9 @@ function App() {
 
       {/* AI Chat */}
       <AIChatButton
-        onClick={() => requirePaid(() => setShowAIChat(true))}
+        onClick={() => setShowAIChat(true)}
         visible={!showPricingModal && !showAuthModal && !isReadOnly && !showAIChat && !isGuidedMode && !isDefiningLand}
-        locked={!isPaidUser}
+        locked={false}
       />
       {isAIChatVisible && (
         <AIChatPanel

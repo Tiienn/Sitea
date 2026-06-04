@@ -75,7 +75,8 @@ export function buildScenePayload(state) {
       typeId: b.type.id,
       x: b.position.x,
       z: b.position.z,
-      rotationY: b.rotationY
+      rotationY: b.rotationY,
+      source: b.source || null
     })),
     generatedBuildings: (generatedBuildings || []).map(b => ({
       id: b.id,

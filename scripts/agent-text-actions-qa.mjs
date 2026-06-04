@@ -63,7 +63,7 @@ const CASES = [
   {
     name: 'desktop-remove-object',
     viewport: 'desktop',
-    prompt: 'Remove the pool',
+    prompt: 'Hide the pool comparison',
     expectedStoredText: 'I removed the swimming pool',
     expectedToast: 'Swimming pool removed',
     expectChatVisible: false,
@@ -82,6 +82,45 @@ const CASES = [
     prompt: 'Reset the garage position',
     expectedStoredText: 'I reset the garage position',
     expectedToast: 'Object selected',
+    expectChatVisible: false,
+  },
+  {
+    name: 'desktop-build-garage',
+    viewport: 'desktop',
+    prompt: 'Build a garage',
+    expectedStoredText: 'I placed a garage',
+    expectedToast: 'Garage placed',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-add-shed',
+    viewport: 'mobile',
+    prompt: 'Add a shed',
+    expectedStoredText: 'I placed a shed',
+    expectedToast: 'Shed placed',
+    expectChatVisible: false,
+  },
+  {
+    name: 'desktop-remove-structure',
+    viewport: 'desktop',
+    setupPrompts: [
+      { prompt: 'Build a garage', expectedStoredText: 'I placed a garage' },
+    ],
+    prompt: 'Remove the garage',
+    expectedStoredText: 'I removed the garage',
+    expectedToast: 'Garage removed',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-clear-structures',
+    viewport: 'mobile',
+    setupPrompts: [
+      { prompt: 'Build a garage', expectedStoredText: 'I placed a garage' },
+      { prompt: 'Add a shed', expectedStoredText: 'I placed a shed' },
+    ],
+    prompt: 'Clear all structures',
+    expectedStoredText: 'cleared 2 placed structures',
+    expectedToast: 'Placed structures cleared',
     expectChatVisible: false,
   },
 ]
@@ -127,6 +166,26 @@ async function readAudit(page, expectedToast) {
   }, expectedToast || '')
 }
 
+async function ensureChatOpen(page) {
+  const panel = page.locator('.sitea-agent-panel')
+  if (await panel.isVisible().catch(() => false)) return
+  const launcher = page.locator('.sitea-agent-launcher')
+  await launcher.waitFor({ state: 'visible', timeout: 5000 })
+  await launcher.click()
+  await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 5000 })
+}
+
+async function submitPrompt(page, prompt, expectedStoredText) {
+  await ensureChatOpen(page)
+  const input = page.getByPlaceholder('Ask Sitea or upload a plan...')
+  await input.fill(prompt)
+  await input.press('Enter')
+  await page.waitForFunction((expected) => {
+    const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
+    return messages.some(message => String(message.content || '').includes(expected))
+  }, expectedStoredText, { timeout: 5000 })
+}
+
 async function runCase(browser, baseUrl, testCase) {
   const viewport = VIEWPORTS[testCase.viewport]
   const context = await browser.newContext({
@@ -168,13 +227,12 @@ async function runCase(browser, baseUrl, testCase) {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 15000 })
 
-  const input = page.getByPlaceholder('Ask Sitea or upload a plan...')
-  await input.fill(testCase.prompt)
-  await input.press('Enter')
-  await page.waitForFunction((expected) => {
-    const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
-    return messages.some(message => String(message.content || '').includes(expected))
-  }, testCase.expectedStoredText, { timeout: 5000 })
+  for (const setup of testCase.setupPrompts || []) {
+    await submitPrompt(page, setup.prompt, setup.expectedStoredText)
+    await page.waitForTimeout(700)
+  }
+
+  await submitPrompt(page, testCase.prompt, testCase.expectedStoredText)
 
   let audit = await readAudit(page, testCase.expectedToast)
 

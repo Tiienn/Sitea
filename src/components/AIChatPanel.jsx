@@ -56,6 +56,12 @@ function ToolChip({ action }) {
         return `Reset ${input.objectName || 'comparison'}`
       case 'reset_all_comparison_transforms':
         return 'Reset comparisons'
+      case 'place_structure':
+        return `Placed ${input.structureName || 'structure'}`
+      case 'remove_structure':
+        return `Removed ${input.structureName || 'structure'}`
+      case 'clear_structures':
+        return 'Cleared structures'
       case 'set_land_dimensions':
         return `Set land ${input.length}×${input.width}m`
       case 'set_land_area':

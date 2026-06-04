@@ -885,3 +885,30 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Expanded `scripts/agent-text-actions-qa.mjs` to cover 9 mobile/desktop command paths with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
 - Updated `scripts/agent-handoff-qa.mjs` for the new selected-object handoff state and re-ran it to verify the existing floor-plan/site-plan action flow still passes.
 - Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-text-actions`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-handoff`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, focused ESLint for edited files, and `git diff --check`.
+
+---
+
+# Agent Structure Placement v1
+
+## Todo
+- [x] Inspect the existing `BUILDING_TYPES`, `placedBuildings`, placement validation, overlap detection, and save/share persistence path.
+- [x] Add a small structure-action catalog for actual placed structures: medium house, large house, shed, garage, barn, workshop, greenhouse, gazebo, carport, and pool.
+- [x] Add deterministic typed commands for placing real structures, such as "build a garage", "add a shed", and "place a medium house".
+- [x] Add remove/clear commands for agent-placed structures without disturbing uploaded floor-plan buildings or comparison objects.
+- [x] Use existing placement validity helpers where possible, with a simple fallback position strategy that keeps the first slice predictable.
+- [x] Route structure scene mutations through the existing App-level agent scene control callback.
+- [x] Extend Playwright QA to cover typed structure placement/removal on mobile and desktop with AI API routes blocked.
+- [x] Run focused lint/build/QA checks and update this review section.
+
+## Review
+- Current v2 controls land dimensions and comparison objects. That is useful for scale, but it still does not place actual `placedBuildings` from the Build system.
+- Existing `placedBuildings` already persist in save/share payloads, render in `LandScene`, participate in coverage/overlap checks, and support drag/delete. The next simplest agent step is to create those same objects directly from chat.
+- Scope guard: this pass should place/remove only catalog structures. It should not yet generate custom floor-plan walls, edit rooms, or solve complex site-layout optimization.
+- Implemented a local structure-action catalog in `src/hooks/useAIChat.js` for medium house, large house, shed, garage, barn, workshop, greenhouse, gazebo, carport, and swimming pool.
+- Added deterministic typed commands for placing, removing, and clearing agent-placed structures before the paid `/api/ai-chat` route is considered.
+- Added App-level `place_structure`, `remove_structure`, and `clear_structures` scene mutations. Placement creates real `placedBuildings` with `source: 'agent'`, uses the existing snapping, boundary, setback, and overlap helpers, selects the placed building, and hands off to the 3D scene.
+- Remove/clear commands only affect `source: 'agent'` structures, so uploaded floor-plan buildings, manual legacy buildings, and comparison objects are left alone.
+- Updated save/share restore payloads to preserve the building `source` field, so agent-placed structures remain distinguishable after sharing or loading.
+- Updated tool chips and Playwright QA coverage for build garage, add shed, remove garage, and clear all structures on desktop/mobile with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
+- Product-flow fix: the floating Sitea Agent launcher now reopens chat directly instead of opening pricing. Uploads and paid analyzer calls still keep their existing auth/quota/payment gates, but talking to the agent stays available.
+- Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-text-actions`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-handoff`, focused ESLint for edited files, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`.

@@ -125,6 +125,89 @@ const TEXT_ACTION_COMPARISONS = [
   },
 ]
 
+const TEXT_ACTION_STRUCTURES = [
+  {
+    id: 'mediumHouse',
+    name: 'medium house',
+    displayName: 'Medium house',
+    width: 12,
+    length: 15,
+    aliases: ['medium house', 'medium home', 'house', 'home'],
+  },
+  {
+    id: 'largeHouse',
+    name: 'large house',
+    displayName: 'Large house',
+    width: 15,
+    length: 20,
+    aliases: ['large house', 'large home'],
+  },
+  {
+    id: 'shed',
+    name: 'shed',
+    displayName: 'Shed',
+    width: 3,
+    length: 4,
+    aliases: ['shed'],
+  },
+  {
+    id: 'garage',
+    name: 'garage',
+    displayName: 'Garage',
+    width: 6,
+    length: 6,
+    aliases: ['garage'],
+  },
+  {
+    id: 'barn',
+    name: 'barn',
+    displayName: 'Barn',
+    width: 10,
+    length: 14,
+    aliases: ['barn'],
+  },
+  {
+    id: 'workshop',
+    name: 'workshop',
+    displayName: 'Workshop',
+    width: 6,
+    length: 8,
+    aliases: ['workshop'],
+  },
+  {
+    id: 'greenhouse',
+    name: 'greenhouse',
+    displayName: 'Greenhouse',
+    width: 4,
+    length: 6,
+    aliases: ['greenhouse'],
+  },
+  {
+    id: 'gazebo',
+    name: 'gazebo',
+    displayName: 'Gazebo',
+    width: 4,
+    length: 4,
+    aliases: ['gazebo'],
+  },
+  {
+    id: 'carport',
+    name: 'carport',
+    displayName: 'Carport',
+    width: 3,
+    length: 6,
+    aliases: ['carport'],
+  },
+  {
+    id: 'pool',
+    name: 'swimming pool',
+    displayName: 'Swimming pool',
+    width: 5,
+    length: 10,
+    aliases: ['swimming pool', 'pool'],
+  },
+]
+
 const formatMeters = (value) => Number.isFinite(value) ? `${value.toFixed(1)}m` : 'unknown'
 const formatArea = (value) => Number.isFinite(value) ? `${Math.round(value)}m²` : 'the current land'
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -212,9 +295,9 @@ function getAliasIndex(normalizedText, alias) {
   return normalizedText.search(new RegExp(`\\b${pattern}\\b`))
 }
 
-function getComparisonMatches(normalizedText) {
+function getObjectMatches(normalizedText, objects) {
   const matches = []
-  for (const object of TEXT_ACTION_COMPARISONS) {
+  for (const object of objects) {
     const aliasMatches = object.aliases
       .map(alias => ({ alias, index: getAliasIndex(normalizedText, alias) }))
       .filter(match => match.index >= 0)
@@ -228,8 +311,20 @@ function getComparisonMatches(normalizedText) {
   return matches.sort((a, b) => a.index - b.index || b.alias.length - a.alias.length)
 }
 
+function getComparisonMatches(normalizedText) {
+  return getObjectMatches(normalizedText, TEXT_ACTION_COMPARISONS)
+}
+
 function getComparisonFromCommand(normalizedText) {
   return getComparisonMatches(normalizedText)[0]?.object
+}
+
+function getStructureMatches(normalizedText) {
+  return getObjectMatches(normalizedText, TEXT_ACTION_STRUCTURES)
+}
+
+function getStructureFromCommand(normalizedText) {
+  return getStructureMatches(normalizedText)[0]?.object
 }
 
 function hasSceneAddIntent(normalizedText) {
@@ -250,6 +345,15 @@ function hasRemoveIntent(normalizedText) {
   return /\b(remove|hide|delete|take away|take out)\b/.test(normalizedText)
 }
 
+function hasStructurePlaceIntent(normalizedText) {
+  return /\b(build|construct|create|add|place|put|make)\b/.test(normalizedText) &&
+    !/\b(compare|comparison|show|display|visualize|visualise|see)\b/.test(normalizedText)
+}
+
+function hasStructureRemoveIntent(normalizedText) {
+  return /\b(remove|delete|demolish|clear)\b/.test(normalizedText)
+}
+
 function hasReplaceIntent(normalizedText) {
   return /\b(replace|swap|switch|change)\b/.test(normalizedText) &&
     /\b(with|for|to)\b/.test(normalizedText)
@@ -263,6 +367,12 @@ function isClearComparisonsRequest(normalizedText) {
   return /\b(clear|remove|hide|delete)\b/.test(normalizedText) &&
     /\b(all|everything|comparisons|objects|items)\b/.test(normalizedText) &&
     !/\bwall|walls|room|rooms|floor plan|plan\b/.test(normalizedText)
+}
+
+function isClearStructuresRequest(normalizedText) {
+  return /\b(clear|remove|delete|demolish)\b/.test(normalizedText) &&
+    /\b(all|everything|structures|buildings|builds)\b/.test(normalizedText) &&
+    !/\bfloor plan|uploaded plan|generated building|comparison|comparisons|objects\b/.test(normalizedText)
 }
 
 function isResetAllComparisonsRequest(normalizedText) {
@@ -356,6 +466,19 @@ function buildTextSceneAction(text, { landArea }) {
   const landAreaDimensions = parseLandAreaCommand(normalizedText)
   if (landAreaDimensions) {
     return { type: 'set_land_area', ...landAreaDimensions }
+  }
+
+  if (isClearStructuresRequest(normalizedText)) {
+    return { type: 'clear_structures' }
+  }
+
+  const structure = getStructureFromCommand(normalizedText)
+  if (structure && hasStructureRemoveIntent(normalizedText)) {
+    return { type: 'remove_structure', structure }
+  }
+
+  if (structure && hasStructurePlaceIntent(normalizedText)) {
+    return { type: 'place_structure', structure }
   }
 
   if (isClearComparisonsRequest(normalizedText)) {
@@ -860,6 +983,38 @@ export function useAIChat({
       return true
     }
 
+    if (action.type === 'place_structure') {
+      const result = onSceneControl?.({ type: 'place_structure', structureId: action.structure.id })
+      const placed = result?.ok !== false
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: placed
+          ? `Done. I placed a ${action.structure.name} on the land at the first safe open spot. It measures ${formatMeters(action.structure.width)} x ${formatMeters(action.structure.length)} and is ready to drag or adjust in the scene.`
+          : `I could not place the ${action.structure.name} safely on the current land without overlapping another structure or breaking the boundary/setback rules. Try a smaller structure or clear some space first.`,
+        nextSteps: placed ? [
+          { label: `${action.structure.displayName} placed`, state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: 'Drag or adjust if needed', state: 'current' },
+        ] : [
+          { label: 'Safe placement checked', state: 'done' },
+          { label: 'No open spot found', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'place_structure',
+          input: {
+            structureId: action.structure.id,
+            structureName: action.structure.name,
+            width: action.structure.width,
+            length: action.structure.length,
+            position: result?.position,
+          },
+          success: placed,
+        }],
+      }])
+      onVisualHandoff?.({ toast: placed ? `${action.structure.displayName} placed` : `${action.structure.displayName} could not be placed` })
+      return true
+    }
+
     if (action.type === 'remove_comparison') {
       onSceneControl?.({ type: 'remove_comparison', comparisonId: action.object.id })
       setMessages(prev => [...prev, userMsg, {
@@ -877,6 +1032,33 @@ export function useAIChat({
         }],
       }])
       onVisualHandoff?.({ toast: `${action.object.displayName} removed` })
+      return true
+    }
+
+    if (action.type === 'remove_structure') {
+      const result = onSceneControl?.({ type: 'remove_structure', structureId: action.structure.id })
+      const removedCount = result?.removedCount || 0
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: removedCount > 0
+          ? `Done. I removed ${removedCount === 1 ? `the ${action.structure.name}` : `${removedCount} ${action.structure.name} structures`} from the land.`
+          : `I did not find a ${action.structure.name} structure on the land to remove.`,
+        nextSteps: removedCount > 0 ? [
+          { label: `${action.structure.displayName} removed`, state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: 'Ask what to place next', state: 'current' },
+        ] : undefined,
+        toolActions: [{
+          name: 'remove_structure',
+          input: {
+            structureId: action.structure.id,
+            structureName: action.structure.name,
+            removedCount,
+          },
+          success: removedCount > 0,
+        }],
+      }])
+      onVisualHandoff?.({ toast: removedCount > 0 ? `${action.structure.displayName} removed` : `${action.structure.displayName} not found` })
       return true
     }
 
@@ -926,6 +1108,29 @@ export function useAIChat({
         }],
       }])
       onVisualHandoff?.({ toast: 'Comparison objects cleared' })
+      return true
+    }
+
+    if (action.type === 'clear_structures') {
+      const result = onSceneControl?.({ type: 'clear_structures' })
+      const removedCount = result?.removedCount || 0
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: removedCount > 0
+          ? `Done. I cleared ${removedCount} placed structure${removedCount === 1 ? '' : 's'} from the land. Uploaded floor-plan buildings and comparison objects were left alone.`
+          : 'There were no manually placed structures to clear. Uploaded floor-plan buildings and comparison objects were left alone.',
+        nextSteps: [
+          { label: 'Placed structures checked', state: 'done' },
+          { label: removedCount > 0 ? 'Structures cleared' : 'Nothing to clear', state: 'done' },
+          { label: 'Ask what to place next', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'clear_structures',
+          input: { scope: 'placed_structures', removedCount },
+          success: true,
+        }],
+      }])
+      onVisualHandoff?.({ toast: removedCount > 0 ? 'Placed structures cleared' : 'No placed structures to clear' })
       return true
     }
 
