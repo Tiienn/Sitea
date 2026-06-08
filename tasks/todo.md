@@ -1235,3 +1235,22 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Added a small UI label for the new scene-summary tool action so the chat shows `Inspected scene` instead of exposing an internal action name.
 - Extended `npm run qa:agent-text-actions` with desktop and mobile v10 scene-awareness cases, including a post-layout summary that confirms the agent can inspect structures placed by the layout advisor.
 - Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
+# Deploy Agent Scene Awareness v10
+
+## Todo
+- [x] Confirm the working tree is clean and latest commit is v10.
+- [x] Deploy v10 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test the public alias.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_DVHVCE5ZyuiuSmgdY3r5prfiYADL`.
+- Deployment URL: `https://sitea-8znh36tmt-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and aliases including `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
