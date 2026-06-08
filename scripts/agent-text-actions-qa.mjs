@@ -104,25 +104,66 @@ const CASES = [
     name: 'desktop-build-house-garage',
     viewport: 'desktop',
     prompt: 'Build a house with a garage',
-    expectedStoredText: 'I placed a starter layout with a medium house and a garage',
-    expectedToast: 'Starter layout placed',
+    expectedPromptText: 'I can lay out a medium house and a garage three ways',
+    clickActionLabel: 'Use option 1: Balanced',
+    expectedStoredText: 'I used Option 1: Balanced layout',
+    expectedToast: 'Balanced layout placed',
     expectedLayout: 'homeGarage',
-    expectChatVisible: false,
+    expectedLayoutVariant: 'default',
+    expectChatVisibleAfterClick: false,
   },
   {
     name: 'mobile-simple-home-layout',
     viewport: 'mobile',
     prompt: 'Make a simple home layout',
-    expectedStoredText: 'I placed a starter layout with a medium house, a garage, and a swimming pool',
-    expectedToast: 'Starter layout placed',
+    expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+    clickActionLabel: 'Use option 1: Balanced',
+    expectedStoredText: 'I used Option 1: Balanced layout',
+    expectedToast: 'Balanced layout placed',
     expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'default',
+    expectChatVisibleAfterClick: false,
+  },
+  {
+    name: 'desktop-layout-option-click',
+    viewport: 'desktop',
+    prompt: 'Build a house with a garage',
+    expectedPromptText: 'I can lay out a medium house and a garage three ways',
+    clickActionLabel: 'Use option 2: More backyard space',
+    expectedStoredText: 'I used Option 2: More backyard space',
+    expectedToast: 'More backyard space placed',
+    expectedLayout: 'homeGarage',
+    expectedLayoutVariant: 'open_backyard',
+    reloadBeforeClick: true,
+    expectChatVisibleAfterClick: false,
+  },
+  {
+    name: 'mobile-layout-option-text',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+      },
+    ],
+    reloadAfterSetup: true,
+    prompt: 'Choose privacy',
+    expectedStoredText: 'I used Option 3: More privacy',
+    expectedToast: 'More privacy placed',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'privacy',
     expectChatVisible: false,
   },
   {
     name: 'desktop-move-garage-behind-house',
     viewport: 'desktop',
     setupPrompts: [
-      { prompt: 'Build a house with a garage', expectedStoredText: 'I placed a starter layout with a medium house and a garage' },
+      {
+        prompt: 'Build a house with a garage',
+        expectedPromptText: 'I can lay out a medium house and a garage three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
     ],
     prompt: 'Move the garage behind the house',
     expectedStoredText: 'I moved the garage behind',
@@ -133,7 +174,12 @@ const CASES = [
     name: 'desktop-rotate-house',
     viewport: 'desktop',
     setupPrompts: [
-      { prompt: 'Build a house with a garage', expectedStoredText: 'I placed a starter layout with a medium house and a garage' },
+      {
+        prompt: 'Build a house with a garage',
+        expectedPromptText: 'I can lay out a medium house and a garage three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
     ],
     prompt: 'Rotate the house',
     expectedStoredText: 'I rotated the medium house 90 degrees',
@@ -144,7 +190,12 @@ const CASES = [
     name: 'mobile-make-house-bigger',
     viewport: 'mobile',
     setupPrompts: [
-      { prompt: 'Build a house with a garage', expectedStoredText: 'I placed a starter layout with a medium house and a garage' },
+      {
+        prompt: 'Build a house with a garage',
+        expectedPromptText: 'I can lay out a medium house and a garage three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
     ],
     prompt: 'Make the house bigger',
     expectedStoredText: 'I changed the medium house to a large house',
@@ -155,7 +206,12 @@ const CASES = [
     name: 'mobile-replace-pool-greenhouse',
     viewport: 'mobile',
     setupPrompts: [
-      { prompt: 'Make a simple home layout', expectedStoredText: 'I placed a starter layout with a medium house, a garage, and a swimming pool' },
+      {
+        prompt: 'Make a simple home layout',
+        expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
     ],
     prompt: 'Replace the pool with a greenhouse',
     expectedStoredText: 'I replaced the swimming pool with a greenhouse',
@@ -166,7 +222,12 @@ const CASES = [
     name: 'desktop-undo-agent-change',
     viewport: 'desktop',
     setupPrompts: [
-      { prompt: 'Build a house with a garage', expectedStoredText: 'I placed a starter layout with a medium house and a garage' },
+      {
+        prompt: 'Build a house with a garage',
+        expectedPromptText: 'I can lay out a medium house and a garage three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
       { prompt: 'Move the garage behind the house', expectedStoredText: 'I moved the garage behind' },
     ],
     prompt: 'Undo that',
@@ -178,7 +239,12 @@ const CASES = [
     name: 'mobile-try-again-layout',
     viewport: 'mobile',
     setupPrompts: [
-      { prompt: 'Make a simple home layout', expectedStoredText: 'I placed a starter layout with a medium house, a garage, and a swimming pool' },
+      {
+        prompt: 'Make a simple home layout',
+        expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
     ],
     prompt: 'Try again',
     expectedStoredText: 'I tried another safe layout',
@@ -243,7 +309,9 @@ async function readAudit(page, expectedToast) {
     const storedText = messages.map(message => message.content || message.displayText || '').join('\n')
     const toolActions = messages.flatMap(message => message.toolActions || [])
     const latestLayoutAction = [...toolActions].reverse().find(action =>
-      action.name === 'place_structure_layout' || action.name === 'retry_structure_layout'
+      action.name === 'place_structure_layout' ||
+      action.name === 'retry_structure_layout' ||
+      action.name === 'apply_structure_layout_option'
     )
 
     return {
@@ -299,10 +367,27 @@ async function submitPrompt(page, prompt, expectedStoredText) {
   const input = page.getByPlaceholder('Ask Sitea or upload a plan...')
   await input.fill(prompt)
   await input.press('Enter')
+  await waitForStoredText(page, expectedStoredText)
+}
+
+async function waitForStoredText(page, expectedStoredText) {
+  if (!expectedStoredText) return
   await page.waitForFunction((expected) => {
     const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
     return messages.some(message => String(message.content || '').includes(expected))
   }, expectedStoredText, { timeout: 5000 })
+}
+
+async function clickActionAndWait(page, label, expectedStoredText) {
+  const button = page.getByRole('button', { name: label })
+  await button.waitFor({ state: 'visible', timeout: 5000 })
+  await button.click()
+  await waitForStoredText(page, expectedStoredText)
+}
+
+async function reloadApp(page) {
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 15000 })
 }
 
 async function runCase(browser, baseUrl, testCase) {
@@ -314,6 +399,8 @@ async function runCase(browser, baseUrl, testCase) {
   })
 
   await context.addInitScript(() => {
+    if (sessionStorage.getItem('siteaQaInitialized') === 'true') return
+    sessionStorage.setItem('siteaQaInitialized', 'true')
     localStorage.removeItem('sitea-ai-chat')
     localStorage.removeItem('landVisualizer')
     localStorage.setItem('landVisualizerIntroSeen', 'true')
@@ -347,16 +434,27 @@ async function runCase(browser, baseUrl, testCase) {
   await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 15000 })
 
   for (const setup of testCase.setupPrompts || []) {
-    await submitPrompt(page, setup.prompt, setup.expectedStoredText)
+    await submitPrompt(page, setup.prompt, setup.expectedPromptText || setup.expectedStoredText)
+    if (setup.clickActionLabel) {
+      await clickActionAndWait(page, setup.clickActionLabel, setup.expectedStoredText)
+    }
     await page.waitForTimeout(700)
   }
 
-  await submitPrompt(page, testCase.prompt, testCase.expectedStoredText)
+  if (testCase.reloadAfterSetup) {
+    await reloadApp(page)
+  }
+
+  await submitPrompt(page, testCase.prompt, testCase.expectedPromptText || testCase.expectedStoredText)
+
+  if (testCase.reloadBeforeClick) {
+    await reloadApp(page)
+  }
 
   let audit = await readAudit(page, testCase.expectedToast)
 
   if (testCase.clickActionLabel) {
-    await page.getByRole('button', { name: testCase.clickActionLabel }).click()
+    await clickActionAndWait(page, testCase.clickActionLabel, testCase.expectedStoredText)
     await page.waitForTimeout(900)
     audit = await readAudit(page, testCase.expectedToast)
   } else {

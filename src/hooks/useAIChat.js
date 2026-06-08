@@ -219,6 +219,32 @@ const TEXT_ACTION_STRUCTURES = [
 ]
 
 const DEFAULT_HOME_LAYOUT_STRUCTURE_IDS = ['mediumHouse', 'garage', 'pool']
+const STRUCTURE_LAYOUT_OPTIONS = [
+  {
+    id: 'balanced',
+    label: 'Option 1: Balanced layout',
+    actionLabel: 'Use option 1: Balanced',
+    layoutVariant: 'default',
+    summary: 'A straightforward layout with the home near the center/front, vehicle access nearby, and amenities behind.',
+    reason: 'I balanced access, outdoor space, and a simple home-first arrangement.',
+  },
+  {
+    id: 'open_backyard',
+    label: 'Option 2: More backyard space',
+    actionLabel: 'Use option 2: More backyard space',
+    layoutVariant: 'open_backyard',
+    summary: 'Keeps the main building and access closer to the front/side so more open land remains behind.',
+    reason: 'I pulled structures toward the front and side to keep the back of the land more open.',
+  },
+  {
+    id: 'privacy',
+    label: 'Option 3: More privacy',
+    actionLabel: 'Use option 3: More privacy',
+    layoutVariant: 'privacy',
+    summary: 'Pushes the home and outdoor areas deeper into the land, with access structures acting more like a front buffer.',
+    reason: 'I pushed living and outdoor spaces deeper into the site while keeping access near the front.',
+  },
+]
 
 const formatMeters = (value) => Number.isFinite(value) ? `${value.toFixed(1)}m` : 'unknown'
 const formatArea = (value) => Number.isFinite(value) ? `${Math.round(value)}m²` : 'the current land'
@@ -233,6 +259,40 @@ function formatNameList(names) {
 
 function formatStructureNameList(names) {
   return formatNameList(names.map(name => `${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name}`))
+}
+
+function getLayoutOptionById(optionId) {
+  return STRUCTURE_LAYOUT_OPTIONS.find(option => option.id === optionId) || STRUCTURE_LAYOUT_OPTIONS[0]
+}
+
+function getLayoutOptionActions(structures) {
+  return STRUCTURE_LAYOUT_OPTIONS.map(option => ({
+    type: 'apply_structure_layout_option',
+    optionId: option.id,
+    layoutVariant: option.layoutVariant,
+    label: option.actionLabel,
+    structures: structures.map(structure => ({ id: structure.id, role: structure.role })),
+    handoff: true,
+    toast: `${option.label.replace(/^Option \d+: /, '')} placed`,
+  }))
+}
+
+function formatLayoutOptions() {
+  return STRUCTURE_LAYOUT_OPTIONS
+    .map(option => `- ${option.label.replace(':', ' -')}: ${option.summary}`)
+    .join('\n')
+}
+
+function getOfferedLayoutStructuresFromMessages(messages) {
+  const latestOffer = [...messages]
+    .flatMap(message => message.toolActions || [])
+    .reverse()
+    .find(action => action.name === 'offer_structure_layout_options')
+  const structureIds = latestOffer?.input?.structureIds || []
+  return structureIds
+    .map(structureId => TEXT_ACTION_STRUCTURES.find(structure => structure.id === structureId))
+    .filter(Boolean)
+    .map(structure => ({ id: structure.id, role: structure.role }))
 }
 
 const FLOOR_PLAN_PROCESS = {
@@ -498,6 +558,13 @@ function isRetryStructureLayoutRequest(normalizedText) {
   return /\b(try again|retry|another layout|different layout|another option|try another|try a different)\b/.test(normalizedText)
 }
 
+function parseLayoutOptionSelection(normalizedText) {
+  if (/\b(option\s*1|use\s*1|choose\s*1|balanced)\b/.test(normalizedText)) return 'balanced'
+  if (/\b(option\s*2|use\s*2|choose\s*2|backyard|open space|more space|more yard)\b/.test(normalizedText)) return 'open_backyard'
+  if (/\b(option\s*3|use\s*3|choose\s*3|privacy|private|more private)\b/.test(normalizedText)) return 'privacy'
+  return null
+}
+
 function isResetAllComparisonsRequest(normalizedText) {
   return hasResetIntent(normalizedText) &&
     /\b(all|everything|comparisons|objects|items)\b/.test(normalizedText)
@@ -638,6 +705,15 @@ function buildTextSceneAction(text, { landArea }) {
     return { type: 'undo_agent_structure_change' }
   }
 
+  const layoutOptionSelection = parseLayoutOptionSelection(normalizedText)
+  if (
+    layoutOptionSelection &&
+    /\b(use|choose|select|option|backyard|privacy|private|balanced)\b/.test(normalizedText) &&
+    !getStructureLayoutFromCommand(normalizedText)
+  ) {
+    return { type: 'apply_pending_layout_option', optionId: layoutOptionSelection }
+  }
+
   if (isRetryStructureLayoutRequest(normalizedText)) {
     return { type: 'retry_structure_layout' }
   }
@@ -653,7 +729,7 @@ function buildTextSceneAction(text, { landArea }) {
 
   const structureLayout = getStructureLayoutFromCommand(normalizedText)
   if (structureLayout && (hasStructurePlaceIntent(normalizedText) || isStarterStructureLayoutRequest(normalizedText))) {
-    return { type: 'place_structure_layout', structures: structureLayout }
+    return { type: 'offer_structure_layout_options', structures: structureLayout }
   }
 
   const structure = getStructureFromCommand(normalizedText)
@@ -788,6 +864,7 @@ export function useAIChat({
   const abortRef = useRef(false)
   const pendingLabelsRef = useRef([]) // [{centerX, centerZ, label}]
   const messagesRef = useRef(messages) // always-current messages for building API payloads
+  const pendingStructureLayoutRef = useRef(null)
 
   // Keep ref in sync + persist to localStorage
   useEffect(() => {
@@ -1096,6 +1173,93 @@ export function useAIChat({
     return analyzeFloorPlan(fileBase64, text)
   }, [analyzeFloorPlan, analyzeSitePlan, isPaidUser])
 
+  const applyStructureLayoutOption = useCallback((optionId, userMsg, fallbackStructures = []) => {
+    const restoredStructures = fallbackStructures?.length
+      ? fallbackStructures
+      : getOfferedLayoutStructuresFromMessages(messagesRef.current)
+    const pendingLayout = pendingStructureLayoutRef.current?.structures?.length
+      ? pendingStructureLayoutRef.current
+      : { structures: restoredStructures }
+    const option = getLayoutOptionById(optionId)
+
+    if (!pendingLayout?.structures?.length) {
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: 'I do not have layout options waiting yet. Ask me for a layout first, then choose an option.',
+        nextSteps: [
+          { label: 'Option checked', state: 'done' },
+          { label: 'No pending layout options', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'apply_structure_layout_option',
+          input: { optionId: option.id, reason: 'no_pending_layout' },
+          success: false,
+        }],
+      }])
+      return true
+    }
+
+    const result = onSceneControl?.({
+      type: 'place_structure_layout',
+      structures: pendingLayout.structures.map(structure => ({ id: structure.id, role: structure.role })),
+      layoutVariant: option.layoutVariant,
+      replaceAgentStructures: true,
+    })
+    const placed = Array.isArray(result?.placed) ? result.placed : []
+    const skipped = Array.isArray(result?.skipped) ? result.skipped : []
+    const success = result?.ok === true && placed.length > 0
+    const placedNames = formatStructureNameList(placed.map(item => item.name))
+    const skippedNames = formatStructureNameList(skipped.map(item => item.name))
+    const partialCopy = skipped.length > 0
+      ? ` I could not safely fit ${skippedNames} without breaking the buildable area.`
+      : ''
+    const fallbackCount = placed.filter(item => item.placementMode === 'fallback').length
+    const fallbackCopy = fallbackCount > 0
+      ? ` I used a safe fallback spot for ${fallbackCount} item${fallbackCount === 1 ? '' : 's'} where needed.`
+      : ''
+
+    setMessages(prev => [...prev, userMsg, {
+      role: 'assistant',
+      content: success
+        ? `Done. I used ${option.label}. ${option.reason} I placed ${placedNames}.${partialCopy}${fallbackCopy}`
+        : `I checked ${option.label}, but I could not place that option safely on the current land. Try a smaller layout or clear space first.`,
+      nextSteps: success ? [
+        { label: `${option.label} placed`, state: 'done' },
+        { label: 'Safety rules checked', state: 'done' },
+        { label: 'Say undo that or choose another option', state: 'current' },
+      ] : [
+        { label: `${option.label} checked`, state: 'done' },
+        { label: 'No safe option found', state: 'current' },
+      ],
+      toolActions: [{
+        name: 'apply_structure_layout_option',
+        input: {
+          optionId: option.id,
+          optionLabel: option.label,
+          layoutVariant: option.layoutVariant,
+          structureIds: pendingLayout.structures.map(structure => structure.id),
+          placedCount: placed.length,
+          skippedCount: skipped.length,
+          skippedNames: skipped.map(item => item.name),
+          fallbackCount,
+          placements: placed.map(item => ({
+            structureId: item.structureId,
+            structureName: item.name,
+            role: item.role,
+            placementMode: item.placementMode,
+            x: Number(item.position?.x?.toFixed?.(2) ?? item.position?.x ?? 0),
+            z: Number(item.position?.z?.toFixed?.(2) ?? item.position?.z ?? 0),
+          })),
+          reason: result?.reason,
+        },
+        success,
+      }],
+    }])
+
+    onVisualHandoff?.({ toast: success ? `${option.label.replace(/^Option \d+: /, '')} placed` : 'Layout option blocked' })
+    return true
+  }, [onSceneControl, onVisualHandoff])
+
   const handleTextSceneAction = useCallback((messageText) => {
     const action = buildTextSceneAction(messageText, { landArea })
     if (!action) return false
@@ -1136,6 +1300,37 @@ export function useAIChat({
       }])
       onVisualHandoff?.({ toast: action.type === 'set_land_area' ? `Land set to ${formatArea(action.area)}` : `Land set to ${dimensionText}` })
       return true
+    }
+
+    if (action.type === 'offer_structure_layout_options') {
+      pendingStructureLayoutRef.current = {
+        structures: action.structures.map(structure => ({ ...structure })),
+      }
+      const requestedNames = formatStructureNameList(action.structures.map(structure => structure.name))
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: `I can lay out ${requestedNames} three ways. Pick the direction that matches what you care about most:\n\n${formatLayoutOptions()}`,
+        nextSteps: [
+          { label: 'Layout request understood', state: 'done' },
+          { label: 'Options prepared', state: 'done' },
+          { label: 'Choose an option to place it', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'offer_structure_layout_options',
+          input: {
+            structureIds: action.structures.map(structure => structure.id),
+            structureNames: action.structures.map(structure => structure.name),
+            optionIds: STRUCTURE_LAYOUT_OPTIONS.map(option => option.id),
+          },
+          success: true,
+        }],
+        suggestedActions: getLayoutOptionActions(action.structures),
+      }])
+      return true
+    }
+
+    if (action.type === 'apply_pending_layout_option') {
+      return applyStructureLayoutOption(action.optionId, userMsg)
     }
 
     if (action.type === 'activate_comparison') {
@@ -1615,7 +1810,7 @@ export function useAIChat({
       suggestedActions: action.suggestedActions,
     }])
     return true
-  }, [activateComparison, landArea, onLandDimensionsUpdated, onSceneControl, onVisualHandoff])
+  }, [activateComparison, applyStructureLayoutOption, landArea, onLandDimensionsUpdated, onSceneControl, onVisualHandoff])
 
   const sendMessage = useCallback(async (text, fileBase64 = null, fileMeta = {}) => {
     const messageText = text || ''
@@ -1769,10 +1964,20 @@ export function useAIChat({
       return
     }
 
+    if (action.type === 'apply_structure_layout_option') {
+      applyStructureLayoutOption(action.optionId, {
+        role: 'user',
+        content: action.label,
+        displayText: action.label,
+        hasImage: false,
+      }, action.structures)
+      return
+    }
+
     if (action.prompt) {
       sendMessage(action.prompt)
     }
-  }, [activateComparison, isLoading, onSceneControl, onVisualHandoff, sendMessage])
+  }, [activateComparison, applyStructureLayoutOption, isLoading, onSceneControl, onVisualHandoff, sendMessage])
 
   const clearChat = useCallback(() => {
     setMessages([])

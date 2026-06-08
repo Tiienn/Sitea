@@ -2154,6 +2154,116 @@ function App() {
         }))
       }
 
+      if (layoutVariant === 'open_backyard') {
+        if (role === 'primary_home') {
+          add(center.x - sideX * 0.2, center.z - frontZ * 0.4, 0)
+          add(center.x + sideX * 0.2, center.z - frontZ * 0.4, 1)
+          add(center.x, center.z - frontZ * 0.32, 2)
+          return finish()
+        }
+
+        if (role === 'vehicle_storage') {
+          if (primaryHome) {
+            const gap = 3
+            add(
+              primaryHome.position.x - primaryHome.type.width / 2 - buildingType.width / 2 - gap,
+              primaryHome.position.z - Math.max(buildingType.length * 0.2, 1),
+              0
+            )
+            add(
+              primaryHome.position.x + primaryHome.type.width / 2 + buildingType.width / 2 + gap,
+              primaryHome.position.z - Math.max(buildingType.length * 0.2, 1),
+              1
+            )
+            add(primaryHome.position.x, primaryHome.position.z - primaryHome.type.length / 2 - buildingType.length / 2 - gap, 2)
+          }
+          add(center.x - sideX, center.z - frontZ * 0.4, 3)
+          add(center.x + sideX, center.z - frontZ * 0.4, 4)
+          return finish()
+        }
+
+        if (role === 'outdoor_amenity') {
+          if (primaryHome) {
+            add(primaryHome.position.x + sideX * 0.75, primaryHome.position.z + backZ * 0.1, 0)
+            add(primaryHome.position.x - sideX * 0.75, primaryHome.position.z + backZ * 0.1, 1)
+            add(primaryHome.position.x + sideX, primaryHome.position.z - frontZ * 0.15, 2)
+          }
+          add(center.x + sideX, center.z - frontZ * 0.2, 3)
+          add(center.x - sideX, center.z - frontZ * 0.2, 4)
+          return finish()
+        }
+
+        if (role === 'work_agricultural') {
+          add(center.x + sideX, center.z - frontZ * 0.1, 0)
+          add(center.x - sideX, center.z - frontZ * 0.1, 1)
+          add(center.x + sideX * 1.2, center.z + backZ * 0.15, 2)
+          add(center.x - sideX * 1.2, center.z + backZ * 0.15, 2)
+          return finish()
+        }
+
+        add(center.x + sideX, center.z - frontZ * 0.15, 0)
+        add(center.x - sideX, center.z - frontZ * 0.15, 1)
+        add(center.x + sideX * 1.1, center.z + backZ * 0.1, 2)
+        add(center.x - sideX * 1.1, center.z + backZ * 0.1, 2)
+        return finish()
+      }
+
+      if (layoutVariant === 'privacy') {
+        if (role === 'primary_home') {
+          add(center.x, center.z + backZ * 0.25, 0)
+          add(center.x - sideX * 0.25, center.z + backZ * 0.18, 1)
+          add(center.x + sideX * 0.25, center.z + backZ * 0.18, 1)
+          add(center.x, center.z, 2)
+          return finish()
+        }
+
+        if (role === 'vehicle_storage') {
+          if (primaryHome) {
+            const gap = 3
+            add(primaryHome.position.x, primaryHome.position.z - primaryHome.type.length / 2 - buildingType.length / 2 - gap, 0)
+            add(
+              primaryHome.position.x - primaryHome.type.width / 2 - buildingType.width / 2 - gap,
+              primaryHome.position.z - Math.max(primaryHome.type.length, buildingType.length) * 0.35,
+              1
+            )
+            add(
+              primaryHome.position.x + primaryHome.type.width / 2 + buildingType.width / 2 + gap,
+              primaryHome.position.z - Math.max(primaryHome.type.length, buildingType.length) * 0.35,
+              2
+            )
+          }
+          add(center.x, center.z - frontZ * 0.65, 3)
+          add(center.x - sideX, center.z - frontZ * 0.45, 4)
+          add(center.x + sideX, center.z - frontZ * 0.45, 4)
+          return finish()
+        }
+
+        if (role === 'outdoor_amenity') {
+          if (primaryHome) {
+            add(primaryHome.position.x + sideX * 0.65, primaryHome.position.z + backZ * 0.22, 0)
+            add(primaryHome.position.x - sideX * 0.65, primaryHome.position.z + backZ * 0.22, 1)
+            add(primaryHome.position.x, primaryHome.position.z + backZ * 0.35, 2)
+          }
+          add(center.x + sideX, center.z + backZ * 0.35, 3)
+          add(center.x - sideX, center.z + backZ * 0.35, 3)
+          return finish()
+        }
+
+        if (role === 'work_agricultural') {
+          add(center.x + sideX, center.z + backZ * 0.75, 0)
+          add(center.x - sideX, center.z + backZ * 0.75, 1)
+          add(center.x + sideX * 1.2, center.z + backZ * 0.2, 2)
+          add(center.x - sideX * 1.2, center.z + backZ * 0.2, 2)
+          return finish()
+        }
+
+        add(center.x - sideX, center.z + backZ * 0.55, 0)
+        add(center.x + sideX, center.z + backZ * 0.55, 1)
+        add(center.x - sideX * 1.1, center.z + backZ * 0.1, 2)
+        add(center.x + sideX * 1.1, center.z + backZ * 0.1, 2)
+        return finish()
+      }
+
       if (role === 'primary_home') {
         add(center.x, center.z - frontZ * 0.35, 0)
         add(center.x - sideX * 0.35, center.z - frontZ * 0.25, 1)
@@ -2465,9 +2575,12 @@ function App() {
 
     if (action.type === 'place_structure_layout' && (Array.isArray(action.structures) || Array.isArray(action.structureIds))) {
       const requestedStructures = normalizeRequestedStructures()
+      const baseBuildings = action.replaceAgentStructures
+        ? placedBuildings.filter(building => building.source !== 'agent')
+        : placedBuildings
       const { nextBuildings, placed, skipped } = buildAgentStructureLayout(
         requestedStructures,
-        placedBuildings,
+        baseBuildings,
         action.layoutVariant || 'default'
       )
 

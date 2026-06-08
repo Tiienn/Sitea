@@ -60,6 +60,10 @@ function ToolChip({ action }) {
         return `Placed ${input.structureName || 'structure'}`
       case 'place_structure_layout':
         return `Placed ${input.placedCount || 0} structures`
+      case 'offer_structure_layout_options':
+        return 'Prepared layout options'
+      case 'apply_structure_layout_option':
+        return input.optionLabel ? `Used ${input.optionLabel}` : 'Used layout option'
       case 'move_structure':
         return `Moved ${input.structureName || 'structure'}`
       case 'rotate_structure':

@@ -1020,3 +1020,35 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - `try again` reruns the last successful agent layout request with a mirrored role-aware placement preference, preserving non-agent scene data and storing the previous agent layout for undo.
 - Updated agent action chips and Playwright QA coverage for desktop undo and mobile retry.
 - Verification passed: focused ESLint for edited files, `npx eslint src/App.jsx --quiet --format stylish`, `git diff --check`, `npm run build`, `npm run qa:agent-text-actions`, and `npm run qa:agent-handoff`.
+
+---
+
+# Vercel Deploy + Agent Layout Options v6
+
+## Todo
+- [x] Read `DESIGN.md`, the `frontend-design` skill, current agent parser, scene-control layout code, and recent v1-v5 notes.
+- [x] Upgrade Vercel CLI from `54.9.1` to the latest available version and verify `vercel --version`.
+- [x] Deploy the pushed v5 commit to Vercel Production and smoke-test `sitea.live`.
+- [x] Add deterministic layout-option presets for agent starter layouts: balanced, backyard/open-space, and privacy.
+- [x] Let text commands like `use option 2`, `choose privacy`, and `more backyard space` apply a specific option without hitting the paid AI route.
+- [x] Have the agent offer 2-3 layout options after multi-structure layout requests instead of immediately feeling like there is only one answer.
+- [x] Apply the selected option through existing `place_structure_layout` safety checks, undo history, and retry path.
+- [x] Add clear agent explanations for why the chosen layout placed home, garage, pool/amenities, and accessory structures where it did.
+- [x] Keep the UI minimal: reuse existing agent action buttons/chips and `DESIGN.md` spacing; no new modal or large redesign.
+- [x] Extend Playwright QA for desktop/mobile option selection with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
+- [x] Run focused lint/build/QA checks, update Linear, and complete this review section.
+
+## Review
+- Direction: Sitea should feel less like a command parser and more like an agent that proposes sensible site-planning choices.
+- Scope guard: v6 should not introduce full optimization, roads/driveways, terrain analysis, new building catalogs, or paid AI calls. It should build on the existing deterministic role-aware placement engine.
+- Product goal: when a user asks for a layout, Sitea offers a small set of understandable choices, then executes the selected option safely in the 3D scene.
+- Vercel CLI is now `54.10.0`.
+- Deployed pushed v5 to Vercel Production before starting v6. `https://sitea.live` is live on deployment `dpl_AcgCoArT8pJqoCSUz4BBAxBKNA5z`; production smoke checks returned HTTP 200, Ready deployment status, and a clean mobile headless canvas/agent-panel check.
+- `src/hooks/useAIChat.js` now offers three deterministic layout options for multi-structure requests: balanced, more backyard/open space, and more privacy.
+- Layout options can be applied by agent buttons or by plain text such as `use option 2`, `choose privacy`, or `more backyard space`, without calling the paid AI chat route.
+- Reload behavior is covered: visible option buttons and typed option commands can recover the latest stored layout offer after a page reload.
+- `src/App.jsx` now supports the new layout variants through the existing role-aware placement engine and can replace previous agent structures when applying a different option.
+- `src/components/AIChatPanel.jsx` now labels the new layout-option tool chips clearly without adding a new modal or UI surface.
+- `scripts/agent-text-actions-qa.mjs` now verifies desktop and mobile option selection with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
+- Verification passed after the reload-persistence fix: `npx eslint src/hooks/useAIChat.js src/components/AIChatPanel.jsx scripts/agent-text-actions-qa.mjs --format stylish`, `npx eslint src/App.jsx --quiet --format stylish`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check`.
+- Linear updated: added a v6 progress comment to `SIT-8`.
