@@ -106,6 +106,7 @@ const CASES = [
     prompt: 'Build a house with a garage',
     expectedStoredText: 'I placed a starter layout with a medium house and a garage',
     expectedToast: 'Starter layout placed',
+    expectedLayout: 'homeGarage',
     expectChatVisible: false,
   },
   {
@@ -114,6 +115,7 @@ const CASES = [
     prompt: 'Make a simple home layout',
     expectedStoredText: 'I placed a starter layout with a medium house, a garage, and a swimming pool',
     expectedToast: 'Starter layout placed',
+    expectedLayout: 'homeGaragePool',
     expectChatVisible: false,
   },
   {
@@ -214,6 +216,8 @@ async function readAudit(page, expectedToast) {
 
     const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
     const storedText = messages.map(message => message.content || message.displayText || '').join('\n')
+    const toolActions = messages.flatMap(message => message.toolActions || [])
+    const latestLayoutAction = [...toolActions].reverse().find(action => action.name === 'place_structure_layout')
 
     return {
       canvasCount: document.querySelectorAll('canvas').length,
@@ -221,9 +225,35 @@ async function readAudit(page, expectedToast) {
       expectedToastVisible: toastText ? hasText(toastText) : true,
       horizontalOverflow: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - innerWidth,
       storedText,
+      layoutPlacements: latestLayoutAction?.input?.placements || [],
       visibleText: document.body.innerText.replace(/\s+/g, ' ').slice(0, 500),
     }
   }, expectedToast || '')
+}
+
+function validateExpectedLayout(audit, expectedLayout, testCaseName) {
+  if (!expectedLayout) return
+
+  const placements = audit.layoutPlacements || []
+  const byId = Object.fromEntries(placements.map(item => [item.structureId, item]))
+  const home = byId.mediumHouse || byId.largeHouse
+  const garage = byId.garage
+  const pool = byId.pool
+
+  if (!home) fail('Expected layout is missing a home placement', { audit, testCase: testCaseName })
+  if (!garage) fail('Expected layout is missing a garage placement', { audit, testCase: testCaseName })
+  if (expectedLayout === 'homeGaragePool' && !pool) {
+    fail('Expected layout is missing a pool placement', { audit, testCase: testCaseName })
+  }
+  if (placements.some(item => item.placementMode !== 'role_aware')) {
+    fail('Expected role-aware placement without fallback', { audit, testCase: testCaseName })
+  }
+  if (Math.abs(garage.x - home.x) < 1 && Math.abs(garage.z - home.z) < 1) {
+    fail('Garage was not separated from the home', { audit, testCase: testCaseName })
+  }
+  if (pool && pool.z <= home.z) {
+    fail('Pool was not placed behind the home', { audit, testCase: testCaseName })
+  }
 }
 
 async function ensureChatOpen(page) {
@@ -337,6 +367,7 @@ async function runCase(browser, baseUrl, testCase) {
   if (audit.canvasCount < 1) {
     fail('3D canvas was not rendered', { audit, testCase: testCase.name })
   }
+  validateExpectedLayout(audit, testCase.expectedLayout, testCase.name)
 
   return {
     case: testCase.name,

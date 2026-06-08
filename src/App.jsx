@@ -2058,7 +2058,7 @@ function App() {
       ]
     }
 
-    const findStructurePlacement = (buildingType, existingBuildings = placedBuildings) => {
+    const getLandBounds = () => {
       const polygon = getLandPolygon()
       const xs = polygon.map(point => point.x)
       const zs = polygon.map(point => point.z ?? point.y)
@@ -2066,7 +2066,38 @@ function App() {
       const maxX = Math.max(...xs)
       const minZ = Math.min(...zs)
       const maxZ = Math.max(...zs)
-      const center = { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 }
+      return {
+        polygon,
+        minX,
+        maxX,
+        minZ,
+        maxZ,
+        width: maxX - minX,
+        length: maxZ - minZ,
+        center: { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 },
+      }
+    }
+
+    const tryStructureCandidates = (buildingType, existingBuildings, candidates, rotationY = snapRotation(0)) => {
+      const { polygon } = getLandBounds()
+      const setback = setbacksEnabled ? setbackDistanceM : 0
+
+      for (const candidate of candidates) {
+        const { snappedPos } = applyPositionSnapping(
+          { x: candidate.x, z: candidate.z },
+          polygon,
+          { positionSnap: snapEnabled, gridSnap: gridSnapEnabled }
+        )
+        if (!isPlacementValid(snappedPos, buildingType, rotationY, polygon, setback)) continue
+        if (checkPreviewOverlap(snappedPos, buildingType, rotationY, existingBuildings)) continue
+        return { position: snappedPos, rotationY }
+      }
+
+      return null
+    }
+
+    const findStructurePlacement = (buildingType, existingBuildings = placedBuildings) => {
+      const { center } = getLandBounds()
       const stepX = Math.max(buildingType.width + 2, 4)
       const stepZ = Math.max(buildingType.length + 2, 4)
       const candidates = []
@@ -2085,21 +2116,91 @@ function App() {
       }
 
       candidates.sort((a, b) => a.distance - b.distance)
-      const rotationY = snapRotation(0)
-      const setback = setbacksEnabled ? setbackDistanceM : 0
+      return tryStructureCandidates(buildingType, existingBuildings, candidates)
+    }
 
-      for (const candidate of candidates) {
-        const { snappedPos } = applyPositionSnapping(
-          { x: candidate.x, z: candidate.z },
-          polygon,
-          { positionSnap: snapEnabled, gridSnap: gridSnapEnabled }
-        )
-        if (!isPlacementValid(snappedPos, buildingType, rotationY, polygon, setback)) continue
-        if (checkPreviewOverlap(snappedPos, buildingType, rotationY, existingBuildings)) continue
-        return { position: snappedPos, rotationY }
+    const getStructureRole = (buildingType, requestedRole) => {
+      if (requestedRole) return requestedRole
+      if (['mediumHouse', 'largeHouse'].includes(buildingType.id)) return 'primary_home'
+      if (['garage', 'carport'].includes(buildingType.id)) return 'vehicle_storage'
+      if (['pool', 'greenhouse', 'gazebo'].includes(buildingType.id)) return 'outdoor_amenity'
+      if (['barn', 'workshop'].includes(buildingType.id)) return 'work_agricultural'
+      return 'small_accessory'
+    }
+
+    const getPrimaryHome = (buildings) => buildings.find(building =>
+      building.source === 'agent' && ['mediumHouse', 'largeHouse'].includes(building.type?.id)
+    )
+
+    const buildRoleAwareCandidates = (buildingType, role, existingBuildings) => {
+      const bounds = getLandBounds()
+      const { center, width, length } = bounds
+      const primaryHome = getPrimaryHome(existingBuildings)
+      const sideX = Math.max(width * 0.18, buildingType.width + 3)
+      const frontZ = Math.max(length * 0.14, buildingType.length + 3)
+      const backZ = Math.max(length * 0.18, buildingType.length + 4)
+      const candidates = []
+      const add = (x, z, priority = 0) => candidates.push({ x, z, distance: priority })
+
+      if (role === 'primary_home') {
+        add(center.x, center.z - frontZ * 0.35, 0)
+        add(center.x - sideX * 0.35, center.z - frontZ * 0.25, 1)
+        add(center.x + sideX * 0.35, center.z - frontZ * 0.25, 1)
+        add(center.x, center.z, 2)
+        return candidates
       }
 
-      return null
+      if (role === 'vehicle_storage') {
+        if (primaryHome) {
+          const gap = 3
+          add(
+            primaryHome.position.x - (primaryHome.type.width / 2) - (buildingType.width / 2) - gap,
+            primaryHome.position.z - Math.max(primaryHome.type.length, buildingType.length) * 0.12,
+            0
+          )
+          add(
+            primaryHome.position.x + (primaryHome.type.width / 2) + (buildingType.width / 2) + gap,
+            primaryHome.position.z - Math.max(primaryHome.type.length, buildingType.length) * 0.12,
+            1
+          )
+          add(primaryHome.position.x, primaryHome.position.z - primaryHome.type.length / 2 - buildingType.length / 2 - gap, 2)
+        }
+        add(center.x - sideX, center.z - frontZ * 0.45, 3)
+        add(center.x + sideX, center.z - frontZ * 0.45, 4)
+        return candidates
+      }
+
+      if (role === 'outdoor_amenity') {
+        if (primaryHome) {
+          const gap = 4
+          add(primaryHome.position.x, primaryHome.position.z + primaryHome.type.length / 2 + buildingType.length / 2 + gap, 0)
+          add(primaryHome.position.x + sideX * 0.75, primaryHome.position.z + backZ * 0.65, 1)
+          add(primaryHome.position.x - sideX * 0.75, primaryHome.position.z + backZ * 0.65, 1)
+        }
+        add(center.x, center.z + backZ * 0.65, 2)
+        add(center.x + sideX, center.z + backZ * 0.45, 3)
+        add(center.x - sideX, center.z + backZ * 0.45, 3)
+        return candidates
+      }
+
+      if (role === 'work_agricultural') {
+        add(center.x + sideX, center.z + backZ * 0.7, 0)
+        add(center.x - sideX, center.z + backZ * 0.7, 1)
+        add(center.x + sideX * 1.2, center.z, 2)
+        add(center.x - sideX * 1.2, center.z, 2)
+        return candidates
+      }
+
+      add(center.x - sideX, center.z + backZ * 0.7, 0)
+      add(center.x + sideX, center.z + backZ * 0.7, 1)
+      add(center.x - sideX * 1.1, center.z - frontZ * 0.15, 2)
+      add(center.x + sideX * 1.1, center.z - frontZ * 0.15, 2)
+      return candidates
+    }
+
+    const findRoleAwareStructurePlacement = (buildingType, role, existingBuildings = placedBuildings) => {
+      const candidates = buildRoleAwareCandidates(buildingType, role, existingBuildings)
+      return tryStructureCandidates(buildingType, existingBuildings, candidates)
     }
 
     const createAgentBuilding = (buildingType, placement) => ({
@@ -2289,19 +2390,29 @@ function App() {
       return true
     }
 
-    if (action.type === 'place_structure_layout' && Array.isArray(action.structureIds)) {
+    if (action.type === 'place_structure_layout' && (Array.isArray(action.structures) || Array.isArray(action.structureIds))) {
       const nextBuildings = [...placedBuildings]
       const placed = []
       const skipped = []
+      const requestedStructures = Array.isArray(action.structures)
+        ? action.structures
+        : action.structureIds.map(structureId => ({ id: structureId }))
 
-      for (const structureId of action.structureIds) {
+      for (const requestedStructure of requestedStructures) {
+        const structureId = requestedStructure.id
         const buildingType = BUILDING_TYPES.find(building => building.id === structureId)
         if (!buildingType) {
           skipped.push({ structureId, name: structureId, reason: 'unknown_structure' })
           continue
         }
 
-        const placement = findStructurePlacement(buildingType, nextBuildings)
+        const role = getStructureRole(buildingType, requestedStructure.role)
+        let placement = findRoleAwareStructurePlacement(buildingType, role, nextBuildings)
+        let placementMode = 'role_aware'
+        if (!placement) {
+          placement = findStructurePlacement(buildingType, nextBuildings)
+          placementMode = placement ? 'fallback' : 'blocked'
+        }
         if (!placement) {
           skipped.push({ structureId, name: buildingType.name.toLowerCase(), reason: 'no_safe_spot' })
           continue
@@ -2315,6 +2426,8 @@ function App() {
           buildingId: newBuilding.id,
           position: placement.position,
           rotationY: placement.rotationY,
+          role,
+          placementMode,
         })
       }
 

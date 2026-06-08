@@ -130,6 +130,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'mediumHouse',
     name: 'medium house',
     displayName: 'Medium house',
+    role: 'primary_home',
     width: 12,
     length: 15,
     aliases: ['medium house', 'medium home', 'house', 'home'],
@@ -138,6 +139,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'largeHouse',
     name: 'large house',
     displayName: 'Large house',
+    role: 'primary_home',
     width: 15,
     length: 20,
     aliases: ['large house', 'large home'],
@@ -146,6 +148,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'shed',
     name: 'shed',
     displayName: 'Shed',
+    role: 'small_accessory',
     width: 3,
     length: 4,
     aliases: ['shed'],
@@ -154,6 +157,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'garage',
     name: 'garage',
     displayName: 'Garage',
+    role: 'vehicle_storage',
     width: 6,
     length: 6,
     aliases: ['garage'],
@@ -162,6 +166,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'barn',
     name: 'barn',
     displayName: 'Barn',
+    role: 'work_agricultural',
     width: 10,
     length: 14,
     aliases: ['barn'],
@@ -170,6 +175,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'workshop',
     name: 'workshop',
     displayName: 'Workshop',
+    role: 'work_agricultural',
     width: 6,
     length: 8,
     aliases: ['workshop'],
@@ -178,6 +184,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'greenhouse',
     name: 'greenhouse',
     displayName: 'Greenhouse',
+    role: 'outdoor_amenity',
     width: 4,
     length: 6,
     aliases: ['greenhouse'],
@@ -186,6 +193,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'gazebo',
     name: 'gazebo',
     displayName: 'Gazebo',
+    role: 'outdoor_amenity',
     width: 4,
     length: 4,
     aliases: ['gazebo'],
@@ -194,6 +202,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'carport',
     name: 'carport',
     displayName: 'Carport',
+    role: 'vehicle_storage',
     width: 3,
     length: 6,
     aliases: ['carport'],
@@ -202,6 +211,7 @@ const TEXT_ACTION_STRUCTURES = [
     id: 'pool',
     name: 'swimming pool',
     displayName: 'Swimming pool',
+    role: 'outdoor_amenity',
     width: 5,
     length: 10,
     aliases: ['swimming pool', 'pool'],
@@ -1260,7 +1270,7 @@ export function useAIChat({
     if (action.type === 'place_structure_layout') {
       const result = onSceneControl?.({
         type: 'place_structure_layout',
-        structureIds: action.structures.map(structure => structure.id),
+        structures: action.structures.map(structure => ({ id: structure.id, role: structure.role })),
       })
       const placed = Array.isArray(result?.placed) ? result.placed : []
       const skipped = Array.isArray(result?.skipped) ? result.skipped : []
@@ -1271,11 +1281,15 @@ export function useAIChat({
       const partialCopy = skipped.length > 0
         ? ` I could not safely fit ${skippedNames} without overlapping another structure or breaking the boundary/setback rules.`
         : ''
+      const fallbackCount = placed.filter(item => item.placementMode === 'fallback').length
+      const fallbackCopy = fallbackCount > 0
+        ? ` I used a safe fallback spot for ${fallbackCount} item${fallbackCount === 1 ? '' : 's'} where the natural role-aware position was blocked.`
+        : ''
 
       setMessages(prev => [...prev, userMsg, {
         role: 'assistant',
         content: success
-          ? `Done. I placed a starter layout with ${placedNames}.${partialCopy} The placed structures are real 3D buildings, so you can drag or adjust them in the scene.`
+          ? `Done. I placed a starter layout with ${placedNames}.${partialCopy}${fallbackCopy} The placed structures are real 3D buildings, so you can drag or adjust them in the scene.`
           : `I checked ${requestedNames}, but I could not place the starter layout safely on the current land without overlap or boundary/setback issues. Try clearing space or asking for a smaller layout.`,
         nextSteps: success ? [
           { label: `${placed.length} structure${placed.length === 1 ? '' : 's'} placed`, state: 'done' },
@@ -1293,6 +1307,15 @@ export function useAIChat({
             placedCount: placed.length,
             skippedCount: skipped.length,
             skippedNames: skipped.map(item => item.name),
+            fallbackCount,
+            placements: placed.map(item => ({
+              structureId: item.structureId,
+              structureName: item.name,
+              role: item.role,
+              placementMode: item.placementMode,
+              x: Number(item.position?.x?.toFixed?.(2) ?? item.position?.x ?? 0),
+              z: Number(item.position?.z?.toFixed?.(2) ?? item.position?.z ?? 0),
+            })),
           },
           success,
         }],

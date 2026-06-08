@@ -974,16 +974,23 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 
 ## Todo
 - [x] Inspect the current structure layout placement path, relative move logic, and v3 refinement validation.
-- [ ] Add structure-role metadata for the existing catalog: primary home, vehicle/storage, outdoor amenity, work/agricultural, and small accessory.
-- [ ] Replace the center-out batch layout with a role-aware starter layout for multi-structure requests.
-- [ ] Use simple land orientation rules: front is negative Z, back is positive Z, side is X, and fallback to current center-out placement if a role position is blocked.
-- [ ] Prefer natural starter positions: house near center/front, garage beside/front of house, pool/gazebo/greenhouse behind, shed/workshop/barn toward side/back, carport beside vehicle access.
-- [ ] Keep all role-aware placements validated through the same snapping, boundary, setback, and overlap checks as v3.
-- [ ] Return clear partial-success feedback when Sitea uses fallback placement or cannot safely fit part of the layout.
-- [ ] Extend QA to prove `Make a simple home layout` creates separated role-aware structure positions on desktop/mobile without AI API calls.
-- [ ] Run focused lint/build/QA checks and update this review section.
+- [x] Add structure-role metadata for the existing catalog: primary home, vehicle/storage, outdoor amenity, work/agricultural, and small accessory.
+- [x] Replace the center-out batch layout with a role-aware starter layout for multi-structure requests.
+- [x] Use simple land orientation rules: front is negative Z, back is positive Z, side is X, and fallback to current center-out placement if a role position is blocked.
+- [x] Prefer natural starter positions: house near center/front, garage beside/front of house, pool/gazebo/greenhouse behind, shed/workshop/barn toward side/back, carport beside vehicle access.
+- [x] Keep all role-aware placements validated through the same snapping, boundary, setback, and overlap checks as v3.
+- [x] Return clear partial-success feedback when Sitea uses fallback placement or cannot safely fit part of the layout.
+- [x] Extend QA to prove `Make a simple home layout` creates separated role-aware structure positions on desktop/mobile without AI API calls.
+- [x] Run focused lint/build/QA checks and update this review section.
 
 ## Review
 - Current v2/v3 can create and refine layouts, but initial placement is still generic. The agent can feel smarter if the first layout already understands house/garage/pool relationships.
 - Scope guard: this pass should not introduce full optimization, roads, terrain analysis, generated floor plans, or learned site-planning logic. It should be a deterministic role-aware improvement using existing structures.
 - Product goal: a user asks for a starter layout and Sitea’s first attempt should look intentional before the user starts refining it.
+- Added role metadata to the structure action catalog in `src/hooks/useAIChat.js`: primary home, vehicle/storage, outdoor amenity, work/agricultural, and small accessory.
+- Updated the App batch layout action so it tries role-aware candidates before falling back to the existing center-out safe placement.
+- Natural layout rules now place homes near center/front, garages/carports beside or front-side of the home, outdoor amenities behind, work/agricultural structures to side/back, and accessories toward side/back.
+- All role-aware candidates still run through the same snapping, boundary, setback, and overlap validation before any structure is placed.
+- The layout tool action now records role, placement mode, and positions, allowing QA to verify that starter layouts are separated and role-aware rather than merely text-matching.
+- Extended `npm run qa:agent-text-actions` to assert the garage is separated from the home, the pool is behind the home, and the tested starter layouts do not use fallback placement.
+- Verification passed: `source "$HOME/.zprofile" && npm run qa:agent-text-actions`, `source "$HOME/.zprofile" && npm run qa:agent-handoff`, focused ESLint for edited files, `source "$HOME/.zprofile" && npm run lint -- --quiet`, `source "$HOME/.zprofile" && npm run build`, and `git diff --check`.
