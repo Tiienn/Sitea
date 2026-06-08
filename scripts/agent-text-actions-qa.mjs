@@ -331,6 +331,41 @@ const CASES = [
     expectChatVisible: true,
   },
   {
+    name: 'desktop-scene-summary-empty',
+    viewport: 'desktop',
+    prompt: 'What is on my land?',
+    expectedStoredText: 'Placed structures: none yet',
+    expectedToolActionName: 'summarize_scene',
+    expectChatVisible: true,
+  },
+  {
+    name: 'mobile-scene-next-step-empty',
+    viewport: 'mobile',
+    prompt: 'What should I do next?',
+    expectedStoredText: 'Next best step: ask me for a simple home layout',
+    expectedToolActionName: 'summarize_scene',
+    expectChatVisible: true,
+  },
+  {
+    name: 'desktop-scene-summary-after-layout',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+        clickActionLabel: 'Use option 2: More backyard space',
+        expectedStoredText: 'I used Option 2: More backyard space',
+      },
+    ],
+    prompt: 'Summarize the site',
+    expectedStoredText: 'Placed structures: a medium house, a garage, and a swimming pool',
+    expectedToolActionName: 'summarize_scene',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'open_backyard',
+    allowPoolAhead: true,
+    expectChatVisible: true,
+  },
+  {
     name: 'desktop-move-garage-behind-house',
     viewport: 'desktop',
     setupPrompts: [
@@ -489,6 +524,7 @@ async function readAudit(page, expectedToast) {
       action.name === 'explain_last_layout_change' ||
       action.name === 'compare_layout_options' ||
       action.name === 'apply_latest_layout_recommendation' ||
+      action.name === 'summarize_scene' ||
       action.name === 'apply_structure_layout_option' ||
       action.name === 'place_structure_layout' ||
       action.name === 'retry_structure_layout'

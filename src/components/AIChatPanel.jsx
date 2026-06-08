@@ -70,6 +70,8 @@ function ToolChip({ action }) {
         return 'Compared layouts'
       case 'apply_latest_layout_recommendation':
         return 'Checked recommendation'
+      case 'summarize_scene':
+        return 'Inspected scene'
       case 'move_structure':
         return `Moved ${input.structureName || 'structure'}`
       case 'rotate_structure':

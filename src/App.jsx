@@ -2859,6 +2859,7 @@ function App() {
     confirmedPolygon,
     placedBuildings,
     generatedBuildings: buildings,
+    activeComparisons,
     setbacksEnabled,
     setbackDistanceM,
   })

@@ -1190,3 +1190,48 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - `src/components/AIChatPanel.jsx` now labels the fallback tool chip as `Checked recommendation` instead of exposing an internal action name.
 - `scripts/agent-text-actions-qa.mjs` now covers desktop follow-through, mobile follow-through after reload, and empty follow-through fallback with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
 - Verification passed: `npx eslint src/hooks/useAIChat.js src/components/AIChatPanel.jsx scripts/agent-text-actions-qa.mjs --format stylish`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check`.
+
+---
+
+# Deploy Agent Recommendation Follow-Through v9
+
+## Todo
+- [x] Confirm the working tree is clean and latest pushed commit is v9.
+- [x] Deploy v9 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test `sitea.live` with the v9 follow-through prompt.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_G9CTEDmTrzh6ZYLBPrJR1sNzcBVW`.
+- Deployment URL: `https://sitea-e75hnwz67-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and alias `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- The deployment URL itself returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Production browser smoke passed on desktop: `Make a simple home layout` -> `Which option gives more open land?` -> `Do that` applied `Option 2: More backyard space`, placed 3 structures, made no blocked AI/analyzer API calls, rendered 2 canvases, and had no horizontal overflow.
+
+---
+
+# Agent Scene Awareness v10
+
+## Todo
+- [x] Read the current scene context wiring in `useAIChat`, the App scene-control handoff, placed structure state, and QA harness.
+- [x] Add local parser support for scene-awareness prompts without paid AI calls: `what is on my land`, `what did you place`, `summarize the site`, and `what should I do next`.
+- [x] Build a deterministic scene summary from existing props: land size/shape, placed agent structures, generated floor-plan buildings, rooms/walls, and active layout history.
+- [x] Add one practical recommendation in the summary based on current state, such as compare layout options when no structures exist, explain the latest layout when structures exist, or suggest privacy/open-yard refinement.
+- [x] Add optional safe actions to summary responses only when they map to existing local actions, such as `compare layouts`, `make more private`, `open backyard`, or `show tennis court`.
+- [x] Keep the first pass non-mutating unless the user explicitly asks for an action, and preserve v6-v9 commands.
+- [x] Extend `npm run qa:agent-text-actions` with desktop/mobile scene-awareness prompts and AI/analyzer routes blocked.
+- [x] Run focused lint/build/QA checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v10 should make Sitea Agent aware of the current scene, not just the last message. The user should be able to ask what is on the land and what to do next.
+- Scope guard: this pass should derive answers from existing local state and prior tool-action metadata. No new AI route, no new UI surface, no solver, and no 3D engine changes.
+- Product goal: make Sitea feel like an agent that can inspect the land, summarize the current plan, and suggest the next useful step.
+- Implemented local scene-awareness handling in `useAIChat`: Sitea Agent now answers `What is on my land?`, `What did you place?`, `Summarize the site`, and `What should I do next?` from existing app state without calling paid AI or analyzer routes.
+- Scene summaries now include land status, boundary points, placed agent structures, latest applied layout option, uploaded/generated floor-plan building count, room/wall drawing status, furniture count, and active comparison objects.
+- The first scene summary is intentionally non-mutating. It suggests safe next actions only when they map to existing local agent commands, such as making a simple layout, seeing what fits, comparing privacy vs backyard, making the layout more private, or opening the backyard.
+- Added a small UI label for the new scene-summary tool action so the chat shows `Inspected scene` instead of exposing an internal action name.
+- Extended `npm run qa:agent-text-actions` with desktop and mobile v10 scene-awareness cases, including a post-layout summary that confirms the agent can inspect structures placed by the layout advisor.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, and `npm run build`.

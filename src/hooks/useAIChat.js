@@ -751,6 +751,184 @@ function parseLayoutRecommendationFollowThrough(normalizedText) {
   return null
 }
 
+function parseSceneAwarenessRequest(normalizedText) {
+  if (/\b(what is|whats|what's|what do i have|show me|tell me).*\b(on my|on the|in my|in the).*\b(land|site|plot|property)\b/.test(normalizedText)) {
+    return { type: 'summarize_scene', intent: 'summary' }
+  }
+  if (/\bwhat did you place\b|\bwhat have you placed\b|\bwhat did sitea place\b|\bplaced on (my|the) (land|site|plot)\b/.test(normalizedText)) {
+    return { type: 'summarize_scene', intent: 'summary' }
+  }
+  if (/\b(summari[sz]e|review|describe).*\b(site|land|plot|property|scene|layout)\b/.test(normalizedText)) {
+    return { type: 'summarize_scene', intent: 'summary' }
+  }
+  if (/\b(what should i do next|what do i do next|what next|whats next|what's next|next step|next move|what is next)\b/.test(normalizedText)) {
+    return { type: 'summarize_scene', intent: 'next_step' }
+  }
+  return null
+}
+
+function getActiveComparisonNames(activeComparisons = {}) {
+  return Object.entries(activeComparisons)
+    .filter(([, isActive]) => isActive)
+    .map(([comparisonId]) => {
+      const comparison = TEXT_ACTION_COMPARISONS.find(object => object.id === comparisonId)
+      return comparison?.displayName || comparisonId
+    })
+}
+
+function formatSceneObjectName(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function getPlacedStructureNames(placedBuildings = []) {
+  return placedBuildings
+    .map((building, index) => formatSceneObjectName(building.type?.name || building.type?.id || `structure ${index + 1}`))
+    .filter(Boolean)
+}
+
+function getLatestLayoutOptionFromMessages(messages) {
+  const latestLayoutAction = getLatestLayoutToolAction(messages)
+  const input = latestLayoutAction?.input || {}
+  if (input.optionId) return getLayoutOptionById(input.optionId)
+  if (input.layoutVariant) return getLayoutOptionByVariant(input.layoutVariant)
+  return null
+}
+
+function getSceneSummaryRecommendation({ hasPlacedStructures, hasGeneratedBuildings, hasRooms, latestLayoutOption }) {
+  if (!hasPlacedStructures && !hasGeneratedBuildings && !hasRooms) {
+    return 'Next best step: ask me for a simple home layout or ask what can fit, then I can start shaping the land with you.'
+  }
+  if (latestLayoutOption) {
+    return `Next best step: review ${latestLayoutOption.label} and decide whether you want more privacy, more open backyard space, or a more balanced layout.`
+  }
+  if (hasGeneratedBuildings) {
+    return 'Next best step: review the uploaded floor-plan building in 3D, then ask me what else fits around it.'
+  }
+  return 'Next best step: ask me to compare privacy vs backyard space, or ask what to improve next.'
+}
+
+function getSceneSummarySuggestedActions({ hasPlacedStructures, hasGeneratedBuildings, latestLayoutOption }) {
+  if (!hasPlacedStructures && !hasGeneratedBuildings) {
+    return [
+      { label: 'Make a simple home layout', prompt: 'Make a simple home layout' },
+      { label: 'See what fits', prompt: 'What can fit on my land?' },
+    ]
+  }
+
+  const actions = [
+    { label: 'Explain this layout', prompt: 'What changed?' },
+    { label: 'Compare privacy vs backyard', prompt: 'Compare privacy vs backyard' },
+  ]
+  if (latestLayoutOption?.id !== 'privacy') {
+    actions.push({ label: 'Make more private', prompt: 'Make this more private' })
+  }
+  if (latestLayoutOption?.id !== 'open_backyard') {
+    actions.push({ label: 'Open backyard', prompt: 'Leave the backyard open' })
+  }
+  return actions.slice(0, 3)
+}
+
+function buildSceneSummary({
+  hasLand,
+  dimensions,
+  landArea,
+  shapeMode,
+  confirmedPolygon,
+  setbacksEnabled,
+  setbackDistanceM,
+  placedBuildings,
+  generatedBuildings,
+  walls,
+  rooms,
+  furnitureItems,
+  activeComparisons,
+  messages,
+}) {
+  const placedStructureNames = getPlacedStructureNames(placedBuildings)
+  const comparisonNames = getActiveComparisonNames(activeComparisons)
+  const latestLayoutOption = getLatestLayoutOptionFromMessages(messages)
+  const hasPlacedStructures = placedStructureNames.length > 0
+  const hasGeneratedBuildings = generatedBuildings.length > 0
+  const hasRooms = rooms.length > 0 || walls.length > 0
+  const landShape = shapeMode === 'upload' ? 'uploaded boundary' : shapeMode || 'rectangle'
+  const landLine = hasLand
+    ? `Land: ${formatArea(landArea)}, ${landShape}, about ${formatMeters(dimensions?.width)} wide x ${formatMeters(dimensions?.length)} long.`
+    : 'Land: not confirmed yet.'
+  const boundaryLine = confirmedPolygon?.length >= 3
+    ? `Boundary: ${confirmedPolygon.length} points.`
+    : null
+  const setbackLine = setbacksEnabled
+    ? `Setbacks: ${formatMeters(setbackDistanceM)} from the land boundary.`
+    : null
+  const structuresLine = hasPlacedStructures
+    ? `Placed structures: ${formatStructureNameList(placedStructureNames)}.`
+    : 'Placed structures: none yet.'
+  const latestLayoutLine = latestLayoutOption
+    ? `Latest agent layout: ${latestLayoutOption.label}.`
+    : null
+  const generatedLine = hasGeneratedBuildings
+    ? `Uploaded floor-plan buildings: ${generatedBuildings.length} preview${generatedBuildings.length === 1 ? '' : 's'} prepared.`
+    : 'Uploaded floor-plan buildings: none.'
+  const drawingLine = hasRooms
+    ? `Floor-plan drawing: ${walls.length} wall${walls.length === 1 ? '' : 's'} and ${rooms.length} room${rooms.length === 1 ? '' : 's'}.`
+    : 'Floor-plan drawing: no rooms or walls yet.'
+  const furnitureLine = furnitureItems.length > 0
+    ? `Furniture: ${furnitureItems.length} item${furnitureItems.length === 1 ? '' : 's'}.`
+    : null
+  const comparisonLine = comparisonNames.length > 0
+    ? `Scale comparisons: ${formatNameList(comparisonNames)}.`
+    : 'Scale comparisons: none active.'
+  const recommendation = getSceneSummaryRecommendation({
+    hasPlacedStructures,
+    hasGeneratedBuildings,
+    hasRooms,
+    latestLayoutOption,
+  })
+  const lines = [
+    'Here is what I see on your land right now:',
+    '',
+    `- ${landLine}`,
+    boundaryLine ? `- ${boundaryLine}` : null,
+    setbackLine ? `- ${setbackLine}` : null,
+    `- ${structuresLine}`,
+    latestLayoutLine ? `- ${latestLayoutLine}` : null,
+    `- ${generatedLine}`,
+    `- ${drawingLine}`,
+    furnitureLine ? `- ${furnitureLine}` : null,
+    `- ${comparisonLine}`,
+    '',
+    recommendation,
+  ].filter(Boolean)
+
+  return {
+    content: lines.join('\n'),
+    nextSteps: [
+      { label: 'Scene inspected', state: 'done' },
+      { label: hasPlacedStructures || hasGeneratedBuildings || hasRooms ? 'Current plan summarized' : 'Empty land confirmed', state: 'done' },
+      { label: 'Choose a next step or ask for an improvement', state: 'current' },
+    ],
+    suggestedActions: getSceneSummarySuggestedActions({
+      hasPlacedStructures,
+      hasGeneratedBuildings,
+      latestLayoutOption,
+    }),
+    toolInput: {
+      landArea: Math.round(landArea || 0),
+      hasLand,
+      shapeMode: landShape,
+      placedStructureCount: placedStructureNames.length,
+      placedStructureNames,
+      generatedBuildingCount: generatedBuildings.length,
+      wallCount: walls.length,
+      roomCount: rooms.length,
+      furnitureCount: furnitureItems.length,
+      activeComparisonCount: comparisonNames.length,
+      activeComparisonNames: comparisonNames,
+      latestLayoutOptionId: latestLayoutOption?.id || null,
+    },
+  }
+}
+
 function formatLayoutOptionComparisonLine(option) {
   return `- ${option.label.replace(':', ' -')}: best for ${option.advisor.bestFor}. Tradeoff: ${option.advisor.tradeoff}`
 }
@@ -1019,6 +1197,11 @@ function buildTextSceneAction(text, { landArea }) {
     return layoutRecommendationFollowThrough
   }
 
+  const sceneAwarenessRequest = parseSceneAwarenessRequest(normalizedText)
+  if (sceneAwarenessRequest) {
+    return sceneAwarenessRequest
+  }
+
   const layoutAdvisorRequest = parseLayoutAdvisorRequest(normalizedText)
   if (layoutAdvisorRequest) {
     return layoutAdvisorRequest
@@ -1144,6 +1327,7 @@ export function useAIChat({
   confirmedPolygon,
   placedBuildings = [],
   generatedBuildings = [],
+  activeComparisons = {},
   setbacksEnabled = false,
   setbackDistanceM = 0,
 }) {
@@ -1682,6 +1866,40 @@ export function useAIChat({
       return true
     }
 
+    if (action.type === 'summarize_scene') {
+      const summary = buildSceneSummary({
+        hasLand,
+        dimensions,
+        landArea,
+        shapeMode,
+        confirmedPolygon,
+        setbacksEnabled,
+        setbackDistanceM,
+        placedBuildings,
+        generatedBuildings,
+        walls,
+        rooms,
+        furnitureItems,
+        activeComparisons,
+        messages: messagesRef.current,
+      })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: summary.content,
+        nextSteps: summary.nextSteps,
+        toolActions: [{
+          name: 'summarize_scene',
+          input: {
+            intent: action.intent,
+            ...summary.toolInput,
+          },
+          success: true,
+        }],
+        suggestedActions: summary.suggestedActions,
+      }])
+      return true
+    }
+
     if (action.type === 'apply_latest_layout_recommendation') {
       const recommendation = getLatestLayoutRecommendationAction(messagesRef.current)
       if (!recommendation) {
@@ -2198,7 +2416,26 @@ export function useAIChat({
       suggestedActions: action.suggestedActions,
     }])
     return true
-  }, [activateComparison, applyStructureLayoutOption, landArea, onLandDimensionsUpdated, onSceneControl, onVisualHandoff])
+  }, [
+    activateComparison,
+    activeComparisons,
+    applyStructureLayoutOption,
+    confirmedPolygon,
+    dimensions,
+    furnitureItems,
+    generatedBuildings,
+    hasLand,
+    landArea,
+    onLandDimensionsUpdated,
+    onSceneControl,
+    onVisualHandoff,
+    placedBuildings,
+    rooms,
+    setbackDistanceM,
+    setbacksEnabled,
+    shapeMode,
+    walls,
+  ])
 
   const sendMessage = useCallback(async (text, fileBase64 = null, fileMeta = {}) => {
     const messageText = text || ''
