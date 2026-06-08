@@ -278,6 +278,59 @@ const CASES = [
     expectChatVisibleAfterClick: false,
   },
   {
+    name: 'desktop-recommendation-follow-through',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+      },
+      {
+        prompt: 'Which option gives more open land?',
+        expectedStoredText: 'Option 2 gives you the most open land',
+      },
+    ],
+    prompt: 'Do that',
+    expectedStoredText: 'I used Option 2: More backyard space',
+    expectedToast: 'More backyard space placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'open_backyard',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-recommendation-follow-through-reload',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+      },
+      {
+        prompt: 'Which option gives more open land?',
+        expectedStoredText: 'Option 2 gives you the most open land',
+      },
+    ],
+    reloadAfterSetup: true,
+    prompt: 'Yes please',
+    expectedStoredText: 'I used Option 2: More backyard space',
+    expectedToast: 'More backyard space placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'open_backyard',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
+    name: 'desktop-recommendation-follow-through-empty',
+    viewport: 'desktop',
+    prompt: 'Do that',
+    expectedStoredText: 'I do not have a layout recommendation waiting yet',
+    expectedToolActionName: 'apply_latest_layout_recommendation',
+    expectChatVisible: true,
+  },
+  {
     name: 'desktop-move-garage-behind-house',
     viewport: 'desktop',
     setupPrompts: [
@@ -435,6 +488,7 @@ async function readAudit(page, expectedToast) {
       action.name === 'move_structure' ||
       action.name === 'explain_last_layout_change' ||
       action.name === 'compare_layout_options' ||
+      action.name === 'apply_latest_layout_recommendation' ||
       action.name === 'apply_structure_layout_option' ||
       action.name === 'place_structure_layout' ||
       action.name === 'retry_structure_layout'

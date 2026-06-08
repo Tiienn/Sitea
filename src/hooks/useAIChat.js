@@ -352,6 +352,24 @@ function getLatestLayoutToolAction(messages) {
     ))
 }
 
+function getLatestLayoutRecommendationAction(messages) {
+  const latestAssistantMessage = [...messages]
+    .reverse()
+    .find(message => message.role === 'assistant' && !message.error && message.content)
+  const comparisonAction = latestAssistantMessage?.toolActions?.find(action =>
+    action.name === 'compare_layout_options' &&
+    action.success !== false &&
+    action.input?.canApplyRecommendation
+  )
+  if (!comparisonAction) return null
+
+  const recommendationId = comparisonAction.input?.recommendationId
+  return latestAssistantMessage?.suggestedActions?.find(action =>
+    action.type === 'apply_structure_layout_option' &&
+    action.optionId === recommendationId
+  ) || null
+}
+
 const FLOOR_PLAN_PROCESS = {
   title: 'Reading your floor plan',
   subtitle: 'Detecting structure first, then preparing a 3D preview you can place on the land.',
@@ -713,6 +731,26 @@ function parseLayoutAdvisorRequest(normalizedText) {
   }
 }
 
+function parseLayoutRecommendationFollowThrough(normalizedText) {
+  const cleanedText = normalizedText
+    .trim()
+    .replace(/\bplease\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleanedText) return null
+
+  if (/^(yes|yeah|yep|ok|okay|sure|confirm|confirmed)$/.test(cleanedText)) {
+    return { type: 'apply_latest_layout_recommendation' }
+  }
+  if (/^(do that|do it|apply it|apply that|go with that|go ahead|use that|use it|that one|looks good|sounds good|lets do it)$/.test(cleanedText)) {
+    return { type: 'apply_latest_layout_recommendation' }
+  }
+  if (/^(use the recommendation|use recommendation|use the recommended option|apply the recommendation|apply recommendation|apply the recommended option)$/.test(cleanedText)) {
+    return { type: 'apply_latest_layout_recommendation' }
+  }
+  return null
+}
+
 function formatLayoutOptionComparisonLine(option) {
   return `- ${option.label.replace(':', ' -')}: best for ${option.advisor.bestFor}. Tradeoff: ${option.advisor.tradeoff}`
 }
@@ -974,6 +1012,11 @@ function buildTextSceneAction(text, { landArea }) {
   const structureLayout = getStructureLayoutFromCommand(normalizedText)
   if (structureLayout && (hasStructurePlaceIntent(normalizedText) || isStarterStructureLayoutRequest(normalizedText))) {
     return { type: 'offer_structure_layout_options', structures: structureLayout }
+  }
+
+  const layoutRecommendationFollowThrough = parseLayoutRecommendationFollowThrough(normalizedText)
+  if (layoutRecommendationFollowThrough) {
+    return layoutRecommendationFollowThrough
   }
 
   const layoutAdvisorRequest = parseLayoutAdvisorRequest(normalizedText)
@@ -1637,6 +1680,30 @@ export function useAIChat({
         suggestedActions: recommendedAction,
       }])
       return true
+    }
+
+    if (action.type === 'apply_latest_layout_recommendation') {
+      const recommendation = getLatestLayoutRecommendationAction(messagesRef.current)
+      if (!recommendation) {
+        setMessages(prev => [...prev, userMsg, {
+          role: 'assistant',
+          content: 'I do not have a layout recommendation waiting yet. Ask me to compare layout options first, then you can say yes, do that, or apply it.',
+          nextSteps: [
+            { label: 'Recommendation checked', state: 'done' },
+            { label: 'No pending recommendation', state: 'current' },
+          ],
+          toolActions: [{
+            name: 'apply_latest_layout_recommendation',
+            input: { reason: 'no_pending_recommendation' },
+            success: false,
+          }],
+        }])
+        return true
+      }
+
+      return applyStructureLayoutOption(recommendation.optionId, userMsg, recommendation.structures, {
+        preferenceLabel: null,
+      })
     }
 
     if (action.type === 'apply_pending_layout_option') {

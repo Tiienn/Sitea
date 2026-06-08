@@ -1142,3 +1142,51 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Live local browser smoke passed at `http://127.0.0.1:5173/`: `Make a simple home layout` -> `Which option gives more open land?` produced the v8 advisor copy and recommendation button without moving the scene.
 - Verification passed: `npx eslint src/hooks/useAIChat.js src/components/AIChatPanel.jsx scripts/agent-text-actions-qa.mjs --format stylish`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check`.
 - Linear updated: added a v8 progress comment to `SIT-8`.
+
+---
+
+# Deploy Agent Compare + Explain v8
+
+## Todo
+- [x] Upgrade Vercel CLI to the latest patch release before deploying.
+- [x] Confirm the working tree is clean and latest pushed commit is v8.
+- [x] Deploy v8 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test `sitea.live` with the v8 advisor prompt.
+- [x] Add deployment review notes.
+
+## Review
+- Upgraded Vercel CLI from `54.10.0` to `54.10.1`.
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_41giPbC1SSZ7625psjVT5eX3YCXq`.
+- Deployment URL: `https://sitea-re5w6j4py-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and alias `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- The deployment URL itself returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Production browser smoke passed on desktop: `Make a simple home layout` -> `Which option gives more open land?` produced the v8 advisor copy and recommendation button, made no blocked AI/analyzer API calls, rendered 2 canvases, and had no horizontal overflow.
+
+---
+
+# Agent Recommendation Follow-Through v9
+
+## Todo
+- [x] Read the current v8 advisor parser, recommendation action metadata, and text-action QA harness.
+- [x] Add local parser support for short follow-through prompts after a recommendation: `yes`, `do that`, `apply it`, `go with that`, and `use the recommendation`.
+- [x] Recover the latest recommended layout action from prior assistant messages, including after reload, without calling `/api/ai-chat`.
+- [x] Route follow-through prompts through the existing safe `apply_structure_layout_option` path so boundary, setback, overlap, and handoff behavior stay unchanged.
+- [x] Keep explicit commands higher priority than follow-through, so `use option 3`, `make it private`, `undo that`, and direct move/resize commands still behave exactly as before.
+- [x] Add clear fallback copy when there is no pending recommendation: ask the user to request or compare a layout first.
+- [x] Extend `npm run qa:agent-text-actions` with desktop/mobile follow-through cases and AI/analyzer routes blocked.
+- [x] Run focused lint/build/QA checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v9 should make Sitea Agent feel less button-driven. If the agent recommends a layout, the user should be able to answer naturally and Sitea should act.
+- Scope guard: reuse v8 suggested-action metadata and v6/v7 safe layout placement. No new UI surface, no new planner, no paid route, and no change to the 3D placement engine.
+- Product goal: reduce friction in the chat flow so Sitea feels like an agent that remembers what it just recommended.
+- `src/hooks/useAIChat.js` now recognizes short follow-through prompts such as `yes`, `yes please`, `do that`, `apply it`, `go with that`, and `use the recommendation`.
+- Follow-through only applies the most recent assistant message when that message contains a successful `compare_layout_options` recommendation, preventing stale recommendations from being applied after unrelated chat.
+- The recovered recommendation is passed into the existing `applyStructureLayoutOption` path, so placement safety, replacement behavior, toast copy, and visual handoff stay unchanged.
+- When there is no pending recommendation, Sitea gives clear fallback copy asking the user to compare layout options first.
+- `src/components/AIChatPanel.jsx` now labels the fallback tool chip as `Checked recommendation` instead of exposing an internal action name.
+- `scripts/agent-text-actions-qa.mjs` now covers desktop follow-through, mobile follow-through after reload, and empty follow-through fallback with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
+- Verification passed: `npx eslint src/hooks/useAIChat.js src/components/AIChatPanel.jsx scripts/agent-text-actions-qa.mjs --format stylish`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check`.
