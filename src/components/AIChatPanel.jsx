@@ -64,6 +64,10 @@ function ToolChip({ action }) {
         return 'Prepared layout options'
       case 'apply_structure_layout_option':
         return input.optionLabel ? `Used ${input.optionLabel}` : 'Used layout option'
+      case 'explain_last_layout_change':
+        return 'Explained layout'
+      case 'compare_layout_options':
+        return 'Compared layouts'
       case 'move_structure':
         return `Moved ${input.structureName || 'structure'}`
       case 'rotate_structure':

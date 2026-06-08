@@ -1096,3 +1096,49 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Backyard placement language such as `put the pool in the backyard` now maps outdoor amenities behind the home instead of accidentally re-applying the whole open-backyard layout.
 - `scripts/agent-text-actions-qa.mjs` now covers desktop privacy intent, mobile open-backyard intent, desktop garage-road access, and mobile pool-backyard placement with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
 - Verification passed: `npx eslint src/hooks/useAIChat.js scripts/agent-text-actions-qa.mjs --format stylish`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npx eslint src/App.jsx --quiet --format stylish`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check`.
+
+---
+
+# Deploy Agent Intent Placement v7
+
+## Todo
+- [x] Confirm the working tree is clean and latest pushed commit is v7.
+- [x] Deploy v7 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test `sitea.live` with a v7 intent command.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_BgyiL6Axm9B7WQpGJYcP7yNGS4wE`.
+- Deployment URL: `https://sitea-1zx42tpvd-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and alias `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- Production browser smoke passed on mobile: `Make a simple home layout` -> `Use option 1: Balanced` -> `Leave the backyard open` produced the v7 copy, applied `open_backyard`, placed 3 structures, made no blocked AI/analyzer API calls, and had no console errors or horizontal overflow.
+
+---
+
+# Agent Compare + Explain v8
+
+## Todo
+- [x] Read the current v6/v7 agent layout, tool-action metadata, and QA harness.
+- [x] Add local parser support for explanation/comparison prompts without paid AI calls: `what changed`, `why this option`, `compare privacy vs backyard`, and `which gives more open land`.
+- [x] Reuse existing layout variant metadata and tool-action placements to answer with clear tradeoffs: privacy, open backyard, balanced access, parking, and outdoor space.
+- [x] Add non-mutating compare responses first, so users can ask before changing the scene.
+- [x] Add one optional action per compare response to apply the recommended option through existing safe `apply_structure_layout_option`.
+- [x] Preserve existing v6/v7 mutation commands and avoid a new UI surface, optimizer, road drawing, or paid route.
+- [x] Extend `npm run qa:agent-text-actions` for desktop/mobile compare/explain prompts with AI/analyzer routes blocked.
+- [x] Run focused lint/build/QA checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v8 should make Sitea Agent feel like an advisor. It should explain tradeoffs and compare choices before or after changing the scene.
+- Scope guard: compare/explain should be deterministic and derived from known option metadata plus recent tool actions. No new planner, generated drawings, or paid AI route.
+- Product goal: users should understand why one layout is better for privacy, backyard space, access, or parking, not just see objects move.
+- `src/hooks/useAIChat.js` now answers advisor prompts locally: `what changed`, `why this option`, `compare privacy vs backyard`, and `which option gives more open land`.
+- The new advisor responses read from existing layout option metadata and prior tool actions, so the agent can explain the latest applied option and compare balanced, open-backyard, and privacy tradeoffs without `/api/ai-chat`.
+- Compare answers are non-mutating by default and keep the chat open. When Sitea has layout context, the response includes one recommended `apply_structure_layout_option` action that reuses the existing safe placement path.
+- `src/components/AIChatPanel.jsx` now labels the new explain/compare tool chips without adding another modal or control surface.
+- `scripts/agent-text-actions-qa.mjs` now verifies desktop explain, mobile compare, and desktop open-land recommendation flows with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
+- Live local browser smoke passed at `http://127.0.0.1:5173/`: `Make a simple home layout` -> `Which option gives more open land?` produced the v8 advisor copy and recommendation button without moving the scene.
+- Verification passed: `npx eslint src/hooks/useAIChat.js src/components/AIChatPanel.jsx scripts/agent-text-actions-qa.mjs --format stylish`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check`.
+- Linear updated: added a v8 progress comment to `SIT-8`.

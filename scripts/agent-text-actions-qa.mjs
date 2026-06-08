@@ -229,6 +229,55 @@ const CASES = [
     expectChatVisible: false,
   },
   {
+    name: 'desktop-explain-last-layout-change',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+        clickActionLabel: 'Use option 2: More backyard space',
+        expectedStoredText: 'I used Option 2: More backyard space',
+      },
+    ],
+    prompt: 'What changed?',
+    expectedStoredText: 'I last applied Option 2: More backyard space',
+    expectedToolActionName: 'explain_last_layout_change',
+    expectChatVisible: true,
+  },
+  {
+    name: 'mobile-compare-privacy-backyard',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+      },
+    ],
+    prompt: 'Compare privacy vs backyard',
+    expectedStoredText: 'Option 2 keeps the most backyard',
+    expectedToolActionName: 'compare_layout_options',
+    expectChatVisible: true,
+  },
+  {
+    name: 'desktop-open-land-recommendation',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+      },
+    ],
+    prompt: 'Which option gives more open land?',
+    expectedPromptText: 'Option 2 gives you the most open land',
+    clickActionLabel: 'Use option 2: More backyard space',
+    expectedStoredText: 'I used Option 2: More backyard space',
+    expectedToast: 'More backyard space placed',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'open_backyard',
+    allowPoolAhead: true,
+    expectChatVisibleAfterClick: false,
+  },
+  {
     name: 'desktop-move-garage-behind-house',
     viewport: 'desktop',
     setupPrompts: [
@@ -384,6 +433,8 @@ async function readAudit(page, expectedToast) {
     const toolActions = messages.flatMap(message => message.toolActions || [])
     const latestToolAction = [...toolActions].reverse().find(action =>
       action.name === 'move_structure' ||
+      action.name === 'explain_last_layout_change' ||
+      action.name === 'compare_layout_options' ||
       action.name === 'apply_structure_layout_option' ||
       action.name === 'place_structure_layout' ||
       action.name === 'retry_structure_layout'
@@ -461,7 +512,7 @@ async function waitForStoredText(page, expectedStoredText) {
 }
 
 async function clickActionAndWait(page, label, expectedStoredText) {
-  const button = page.getByRole('button', { name: label })
+  const button = page.getByRole('button', { name: label }).last()
   await button.waitFor({ state: 'visible', timeout: 5000 })
   await button.click()
   await waitForStoredText(page, expectedStoredText)

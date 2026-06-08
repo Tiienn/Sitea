@@ -227,6 +227,11 @@ const STRUCTURE_LAYOUT_OPTIONS = [
     layoutVariant: 'default',
     summary: 'A straightforward layout with the home near the center/front, vehicle access nearby, and amenities behind.',
     reason: 'I balanced access, outdoor space, and a simple home-first arrangement.',
+    advisor: {
+      bestFor: 'a safe first pass with simple access and room to adjust later',
+      change: 'It keeps the home, access, and outdoor space in a middle-ground arrangement instead of pushing everything to one edge.',
+      tradeoff: 'It is not the strongest choice if you want maximum privacy or the largest uninterrupted backyard.',
+    },
   },
   {
     id: 'open_backyard',
@@ -235,6 +240,11 @@ const STRUCTURE_LAYOUT_OPTIONS = [
     layoutVariant: 'open_backyard',
     summary: 'Keeps the main building and access closer to the front/side so more open land remains behind.',
     reason: 'I pulled structures toward the front and side to keep the back of the land more open.',
+    advisor: {
+      bestFor: 'the most open backyard, garden space, or future outdoor use',
+      change: 'It pulls the home and access toward the front/side so the rear of the land stays more open.',
+      tradeoff: 'It can feel less private because more of the layout sits closer to the front or side access edge.',
+    },
   },
   {
     id: 'privacy',
@@ -243,6 +253,11 @@ const STRUCTURE_LAYOUT_OPTIONS = [
     layoutVariant: 'privacy',
     summary: 'Pushes the home and outdoor areas deeper into the land, with access structures acting more like a front buffer.',
     reason: 'I pushed living and outdoor spaces deeper into the site while keeping access near the front.',
+    advisor: {
+      bestFor: 'more separation from the road/front edge and a quieter living zone',
+      change: 'It pushes the home and outdoor space deeper into the site while keeping vehicle access closer to the front.',
+      tradeoff: 'It uses more depth, so it gives up some of the simple open-backyard feel.',
+    },
   },
 ]
 
@@ -265,8 +280,13 @@ function getLayoutOptionById(optionId) {
   return STRUCTURE_LAYOUT_OPTIONS.find(option => option.id === optionId) || STRUCTURE_LAYOUT_OPTIONS[0]
 }
 
-function getLayoutOptionActions(structures) {
-  return STRUCTURE_LAYOUT_OPTIONS.map(option => ({
+function getLayoutOptionByVariant(layoutVariant) {
+  return STRUCTURE_LAYOUT_OPTIONS.find(option => option.layoutVariant === layoutVariant) || null
+}
+
+function createLayoutOptionAction(optionId, structures) {
+  const option = getLayoutOptionById(optionId)
+  return {
     type: 'apply_structure_layout_option',
     optionId: option.id,
     layoutVariant: option.layoutVariant,
@@ -274,7 +294,11 @@ function getLayoutOptionActions(structures) {
     structures: structures.map(structure => ({ id: structure.id, role: structure.role })),
     handoff: true,
     toast: `${option.label.replace(/^Option \d+: /, '')} placed`,
-  }))
+  }
+}
+
+function getLayoutOptionActions(structures) {
+  return STRUCTURE_LAYOUT_OPTIONS.map(option => createLayoutOptionAction(option.id, structures))
 }
 
 function formatLayoutOptions() {
@@ -293,6 +317,39 @@ function getOfferedLayoutStructuresFromMessages(messages) {
     .map(structureId => TEXT_ACTION_STRUCTURES.find(structure => structure.id === structureId))
     .filter(Boolean)
     .map(structure => ({ id: structure.id, role: structure.role }))
+}
+
+function getLayoutStructuresFromAction(action) {
+  const structureIds = action?.input?.structureIds || []
+  return structureIds
+    .map(structureId => TEXT_ACTION_STRUCTURES.find(structure => structure.id === structureId))
+    .filter(Boolean)
+    .map(structure => ({ id: structure.id, role: structure.role }))
+}
+
+function getAdvisorLayoutStructuresFromMessages(messages) {
+  const offeredStructures = getOfferedLayoutStructuresFromMessages(messages)
+  if (offeredStructures.length > 0) return offeredStructures
+
+  const latestLayoutAction = [...messages]
+    .flatMap(message => message.toolActions || [])
+    .reverse()
+    .find(action => (
+      action.success !== false &&
+      ['apply_structure_layout_option', 'place_structure_layout'].includes(action.name)
+    ))
+
+  return getLayoutStructuresFromAction(latestLayoutAction)
+}
+
+function getLatestLayoutToolAction(messages) {
+  return [...messages]
+    .flatMap(message => message.toolActions || [])
+    .reverse()
+    .find(action => (
+      action.success !== false &&
+      ['apply_structure_layout_option', 'place_structure_layout', 'retry_structure_layout'].includes(action.name)
+    ))
 }
 
 const FLOOR_PLAN_PROCESS = {
@@ -580,6 +637,153 @@ function getLayoutPreferenceOpening(optionId, preferenceLabel) {
   return `Done. I made the layout ${preferenceLabel}.`
 }
 
+function getLayoutAdvisorTopic(normalizedText) {
+  const mentionsPrivacy = /\b(privacy|private|more private|secluded|seclusion|less exposed|quiet)\b/.test(normalizedText)
+  const mentionsOpenLand = /\b(open land|open space|open backyard|backyard|yard|garden|outdoor space|more space|more yard)\b/.test(normalizedText)
+  if (mentionsPrivacy && mentionsOpenLand) return 'privacy_vs_open_land'
+  if (mentionsOpenLand) return 'open_land'
+  if (mentionsPrivacy) return 'privacy'
+  if (/\b(road|street|driveway|parking|park|vehicle access|car access|front access|access)\b/.test(normalizedText)) return 'access'
+  if (/\b(balanced|balance|simple|default|straightforward)\b/.test(normalizedText)) return 'balanced'
+  return 'general'
+}
+
+function getRecommendedLayoutOptionId(topic) {
+  if (topic === 'privacy') return 'privacy'
+  if (topic === 'open_land' || topic === 'privacy_vs_open_land') return 'open_backyard'
+  return 'balanced'
+}
+
+function getMentionedLayoutOptionIds(normalizedText) {
+  const optionIds = []
+  const addOption = (optionId) => {
+    if (!optionIds.includes(optionId)) optionIds.push(optionId)
+  }
+
+  if (/\b(option\s*1|balanced|balance|simple|default|straightforward)\b/.test(normalizedText)) {
+    addOption('balanced')
+  }
+  if (/\b(option\s*2|backyard|open land|open space|more space|more yard|open backyard|backyard open|outdoor space|garden space)\b/.test(normalizedText)) {
+    addOption('open_backyard')
+  }
+  if (/\b(option\s*3|privacy|private|more private|secluded|seclusion|less exposed)\b/.test(normalizedText)) {
+    addOption('privacy')
+  }
+
+  return optionIds
+}
+
+function getAdvisorOptionIds(normalizedText) {
+  const mentionedOptionIds = getMentionedLayoutOptionIds(normalizedText)
+  const asksWhich = /\b(which|best|better|recommend|recommended|most)\b/.test(normalizedText)
+  if (asksWhich) {
+    return STRUCTURE_LAYOUT_OPTIONS.map(option => option.id)
+  }
+  if (mentionedOptionIds.length >= 2) return mentionedOptionIds
+  if (mentionedOptionIds.length === 1) {
+    return [...new Set([mentionedOptionIds[0], 'balanced'])]
+  }
+  return STRUCTURE_LAYOUT_OPTIONS.map(option => option.id)
+}
+
+function hasLayoutAdvisorSubject(normalizedText) {
+  return /\b(option|layout|choice|privacy|private|backyard|yard|garden|open land|open space|outdoor space|access|parking|road|driveway|balanced)\b/.test(normalizedText)
+}
+
+function parseLayoutAdvisorRequest(normalizedText) {
+  const asksWhatChanged = /\b(what changed|what did you change|what was changed|summari[sz]e the change|explain the change)\b/.test(normalizedText)
+  const asksWhy = /\b(why|explain|reason|rationale)\b/.test(normalizedText) &&
+    (hasLayoutAdvisorSubject(normalizedText) || /\b(this|that|better)\b/.test(normalizedText))
+  if (asksWhatChanged || asksWhy) {
+    return { type: 'explain_last_layout_change' }
+  }
+
+  const asksCompare = /\b(compare|comparison|difference|differences|versus|vs|tradeoff|trade off|trade-offs)\b/.test(normalizedText) &&
+    hasLayoutAdvisorSubject(normalizedText)
+  const asksWhich = /\b(which|best|better|recommend|recommended|most)\b/.test(normalizedText) &&
+    hasLayoutAdvisorSubject(normalizedText)
+  if (!asksCompare && !asksWhich) return null
+
+  const topic = getLayoutAdvisorTopic(normalizedText)
+  return {
+    type: 'compare_layout_options',
+    topic,
+    optionIds: getAdvisorOptionIds(normalizedText),
+    recommendationId: getRecommendedLayoutOptionId(topic),
+  }
+}
+
+function formatLayoutOptionComparisonLine(option) {
+  return `- ${option.label.replace(':', ' -')}: best for ${option.advisor.bestFor}. Tradeoff: ${option.advisor.tradeoff}`
+}
+
+function formatLayoutComparison({ optionIds, recommendationId, topic }) {
+  const options = optionIds
+    .map(optionId => getLayoutOptionById(optionId))
+    .filter((option, index, allOptions) => allOptions.findIndex(candidate => candidate.id === option.id) === index)
+  const recommendation = getLayoutOptionById(recommendationId)
+  const comparisonLines = options.map(formatLayoutOptionComparisonLine).join('\n')
+
+  const opening = (() => {
+    if (topic === 'open_land') return 'Option 2 gives you the most open land because it keeps more of the rear of the site clear.'
+    if (topic === 'privacy') return 'Option 3 gives you the strongest privacy because it moves the living zone deeper into the land.'
+    if (topic === 'privacy_vs_open_land') return 'Option 2 keeps the most backyard; Option 3 gives more privacy. The right choice depends on what matters more for this site.'
+    if (topic === 'access') return 'Option 1 is the safest access-first choice because it keeps the layout simple and easy to adjust.'
+    if (topic === 'balanced') return 'Option 1 is the cleanest balanced choice because it avoids over-optimizing for only one goal.'
+    return `${recommendation.label} is the safest recommendation from the current options.`
+  })()
+
+  return `${opening}\n\n${comparisonLines}\n\nMy recommendation: ${recommendation.label}. ${recommendation.reason}`
+}
+
+function formatLastLayoutExplanation(messages) {
+  const latestAction = getLatestLayoutToolAction(messages)
+  if (!latestAction) {
+    return {
+      success: false,
+      content: 'I have not changed the layout yet. Ask me for a simple home layout first, then I can explain what I changed and why.',
+      input: { reason: 'no_layout_action' },
+    }
+  }
+
+  const input = latestAction.input || {}
+  const option = input.optionId
+    ? getLayoutOptionById(input.optionId)
+    : getLayoutOptionByVariant(input.layoutVariant)
+  const placementNames = (input.placements || [])
+    .map(item => item.structureName)
+    .filter(Boolean)
+  const placedCopy = placementNames.length > 0
+    ? `It placed ${formatStructureNameList(placementNames)} inside the buildable area.`
+    : input.placedCount
+      ? `It placed ${input.placedCount} structure${input.placedCount === 1 ? '' : 's'} inside the buildable area.`
+      : 'It checked the available buildable area before changing the scene.'
+
+  if (option) {
+    return {
+      success: true,
+      content: `I last applied ${option.label}. ${option.advisor.change}\n\nWhy: this is best for ${option.advisor.bestFor}. ${option.advisor.tradeoff}\n\n${placedCopy}`,
+      input: {
+        latestAction: latestAction.name,
+        optionId: option.id,
+        optionLabel: option.label,
+        layoutVariant: option.layoutVariant,
+        placedCount: input.placedCount || placementNames.length || 0,
+      },
+    }
+  }
+
+  return {
+    success: true,
+    content: `I last changed the structure layout with a safe scene adjustment. ${placedCopy} Uploaded plans, comparison objects, land dimensions, and floor-plan geometry were left alone.`,
+    input: {
+      latestAction: latestAction.name,
+      layoutVariant: input.layoutVariant,
+      placedCount: input.placedCount || placementNames.length || 0,
+    },
+  }
+}
+
 function isAccessParkingRequest(normalizedText) {
   return /\b(road|street|driveway|parking|park|vehicle access|car access|front access)\b/.test(normalizedText) &&
     /\b(make|put|place|move|shift|bring|keep|near|closer|easy|easier|access)\b/.test(normalizedText)
@@ -770,6 +974,11 @@ function buildTextSceneAction(text, { landArea }) {
   const structureLayout = getStructureLayoutFromCommand(normalizedText)
   if (structureLayout && (hasStructurePlaceIntent(normalizedText) || isStarterStructureLayoutRequest(normalizedText))) {
     return { type: 'offer_structure_layout_options', structures: structureLayout }
+  }
+
+  const layoutAdvisorRequest = parseLayoutAdvisorRequest(normalizedText)
+  if (layoutAdvisorRequest) {
+    return layoutAdvisorRequest
   }
 
   const layoutPreferenceSelection = parseLayoutPreferenceSelection(normalizedText)
@@ -1372,6 +1581,60 @@ export function useAIChat({
           success: true,
         }],
         suggestedActions: getLayoutOptionActions(action.structures),
+      }])
+      return true
+    }
+
+    if (action.type === 'explain_last_layout_change') {
+      const explanation = formatLastLayoutExplanation(messagesRef.current)
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: explanation.content,
+        nextSteps: explanation.success ? [
+          { label: 'Last layout reviewed', state: 'done' },
+          { label: 'Tradeoff explained', state: 'done' },
+          { label: 'Ask me to compare options if you want alternatives', state: 'current' },
+        ] : [
+          { label: 'Layout history checked', state: 'done' },
+          { label: 'No layout change yet', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'explain_last_layout_change',
+          input: explanation.input,
+          success: explanation.success,
+        }],
+      }])
+      return true
+    }
+
+    if (action.type === 'compare_layout_options') {
+      const layoutStructures = pendingStructureLayoutRef.current?.structures?.length
+        ? pendingStructureLayoutRef.current.structures
+        : getAdvisorLayoutStructuresFromMessages(messagesRef.current)
+      const recommendedAction = action.recommendationId && layoutStructures.length > 0
+        ? [createLayoutOptionAction(action.recommendationId, layoutStructures)]
+        : []
+
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: formatLayoutComparison(action),
+        nextSteps: [
+          { label: 'Layout options compared', state: 'done' },
+          { label: 'Tradeoffs explained', state: 'done' },
+          { label: recommendedAction.length ? 'Apply the recommendation or ask another question' : 'Ask for a layout to apply this recommendation', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'compare_layout_options',
+          input: {
+            topic: action.topic,
+            optionIds: action.optionIds,
+            recommendationId: action.recommendationId,
+            structureIds: layoutStructures.map(structure => structure.id),
+            canApplyRecommendation: recommendedAction.length > 0,
+          },
+          success: true,
+        }],
+        suggestedActions: recommendedAction,
       }])
       return true
     }
