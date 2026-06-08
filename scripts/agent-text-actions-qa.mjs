@@ -117,6 +117,50 @@ const CASES = [
     expectChatVisible: false,
   },
   {
+    name: 'desktop-move-garage-behind-house',
+    viewport: 'desktop',
+    setupPrompts: [
+      { prompt: 'Build a house with a garage', expectedStoredText: 'I placed a starter layout with a medium house and a garage' },
+    ],
+    prompt: 'Move the garage behind the house',
+    expectedStoredText: 'I moved the garage behind',
+    expectedToast: 'garage moved',
+    expectChatVisible: false,
+  },
+  {
+    name: 'desktop-rotate-house',
+    viewport: 'desktop',
+    setupPrompts: [
+      { prompt: 'Build a house with a garage', expectedStoredText: 'I placed a starter layout with a medium house and a garage' },
+    ],
+    prompt: 'Rotate the house',
+    expectedStoredText: 'I rotated the medium house 90 degrees',
+    expectedToast: 'medium house rotated',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-make-house-bigger',
+    viewport: 'mobile',
+    setupPrompts: [
+      { prompt: 'Build a house with a garage', expectedStoredText: 'I placed a starter layout with a medium house and a garage' },
+    ],
+    prompt: 'Make the house bigger',
+    expectedStoredText: 'I changed the medium house to a large house',
+    expectedToast: 'medium house updated',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-replace-pool-greenhouse',
+    viewport: 'mobile',
+    setupPrompts: [
+      { prompt: 'Make a simple home layout', expectedStoredText: 'I placed a starter layout with a medium house, a garage, and a swimming pool' },
+    ],
+    prompt: 'Replace the pool with a greenhouse',
+    expectedStoredText: 'I replaced the swimming pool with a greenhouse',
+    expectedToast: 'swimming pool updated',
+    expectChatVisible: false,
+  },
+  {
     name: 'desktop-remove-structure',
     viewport: 'desktop',
     setupPrompts: [

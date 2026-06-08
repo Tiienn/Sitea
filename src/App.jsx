@@ -2110,6 +2110,122 @@ function App() {
       source: 'agent',
     })
 
+    const getStructureName = (buildingType) => buildingType?.name?.toLowerCase() || 'structure'
+    const getAgentPlacedBuildings = () => placedBuildings.filter(building => building.source === 'agent')
+    const getLandCenter = () => {
+      const polygon = getLandPolygon()
+      const xs = polygon.map(point => point.x)
+      const zs = polygon.map(point => point.z ?? point.y)
+      return {
+        x: (Math.min(...xs) + Math.max(...xs)) / 2,
+        z: (Math.min(...zs) + Math.max(...zs)) / 2,
+      }
+    }
+
+    const resolveAgentStructureTarget = (structureId, excludedIds = new Set()) => {
+      const agentBuildings = getAgentPlacedBuildings().filter(building => !excludedIds.has(building.id))
+      if (structureId) {
+        const matches = agentBuildings.filter(building => building.type?.id === structureId)
+        const structureName = getStructureName(BUILDING_TYPES.find(building => building.id === structureId))
+        if (matches.length === 1) return { ok: true, building: matches[0] }
+        if (matches.length > 1) {
+          return {
+            ok: false,
+            reason: 'ambiguous_target',
+            message: `I found ${matches.length} agent-placed ${structureName} structures. Select one in the scene or remove duplicates first.`,
+          }
+        }
+        return {
+          ok: false,
+          reason: 'missing_target',
+          message: `I could not find an agent-placed ${structureName} to adjust.`,
+        }
+      }
+
+      const selected = agentBuildings.find(building => building.id === selectedPlacedBuildingId)
+      if (selected) return { ok: true, building: selected }
+      if (agentBuildings.length > 0) return { ok: true, building: agentBuildings[agentBuildings.length - 1] }
+      return {
+        ok: false,
+        reason: 'missing_target',
+        message: 'I could not find an agent-placed structure to adjust yet.',
+      }
+    }
+
+    const validateStructureCandidate = (building, position, buildingType, rotationY, { snapPosition = false } = {}) => {
+      const polygon = getLandPolygon()
+      const nextPosition = snapPosition
+        ? applyPositionSnapping(
+            { x: position.x, z: position.z },
+            polygon,
+            { positionSnap: snapEnabled, gridSnap: gridSnapEnabled }
+          ).snappedPos
+        : { x: position.x, z: position.z }
+      const setback = setbacksEnabled ? setbackDistanceM : 0
+
+      if (!isPlacementValid(nextPosition, buildingType, rotationY, polygon, setback)) {
+        return {
+          ok: false,
+          reason: 'boundary_or_setback',
+          message: 'That would break the land boundary or setback rules.',
+        }
+      }
+
+      const otherBuildings = placedBuildings.filter(other => other.id !== building.id)
+      if (checkPreviewOverlap(nextPosition, buildingType, rotationY, otherBuildings)) {
+        return {
+          ok: false,
+          reason: 'overlap',
+          message: 'That would overlap another placed structure.',
+        }
+      }
+
+      return { ok: true, position: nextPosition }
+    }
+
+    const getRelativeStructurePosition = (target, direction, distanceM, reference = null) => {
+      const gap = distanceM || (reference ? 2 : Math.max(target.type?.width || 4, target.type?.length || 4, 4))
+      const targetWidth = target.type?.width || 0
+      const targetLength = target.type?.length || 0
+
+      if (reference) {
+        const referenceWidth = reference.type?.width || 0
+        const referenceLength = reference.type?.length || 0
+        if (direction === 'left') {
+          return { x: reference.position.x - referenceWidth / 2 - targetWidth / 2 - gap, z: reference.position.z }
+        }
+        if (direction === 'right') {
+          return { x: reference.position.x + referenceWidth / 2 + targetWidth / 2 + gap, z: reference.position.z }
+        }
+        if (direction === 'front') {
+          return { x: reference.position.x, z: reference.position.z - referenceLength / 2 - targetLength / 2 - gap }
+        }
+        if (direction === 'behind') {
+          return { x: reference.position.x, z: reference.position.z + referenceLength / 2 + targetLength / 2 + gap }
+        }
+        if (direction === 'away') {
+          const dx = target.position.x - reference.position.x
+          const dz = target.position.z - reference.position.z
+          const length = Math.hypot(dx, dz) || 1
+          return { x: target.position.x + (dx / length) * gap, z: target.position.z + (dz / length) * gap }
+        }
+      }
+
+      if (direction === 'left') return { x: target.position.x - gap, z: target.position.z }
+      if (direction === 'right') return { x: target.position.x + gap, z: target.position.z }
+      if (direction === 'front') return { x: target.position.x, z: target.position.z - gap }
+      if (direction === 'behind') return { x: target.position.x, z: target.position.z + gap }
+      if (direction === 'away') {
+        const center = getLandCenter()
+        const dx = target.position.x - center.x
+        const dz = target.position.z - center.z
+        const length = Math.hypot(dx, dz) || 1
+        return { x: target.position.x + (dx / length) * gap, z: target.position.z + (dz / length) * gap }
+      }
+
+      return target.position
+    }
+
     if (action.type === 'set_land_dimensions') {
       handleAgentLandDimensionsUpdated(action)
       return true
@@ -2244,6 +2360,89 @@ function App() {
       return { ok: true, buildingId: newBuilding.id, position: placement.position, rotationY: placement.rotationY }
     }
 
+    if (action.type === 'move_structure') {
+      const target = resolveAgentStructureTarget(action.structureId)
+      if (!target.ok) return { ok: false, ...target }
+
+      let reference = null
+      if (action.referenceStructureId) {
+        const resolvedReference = resolveAgentStructureTarget(action.referenceStructureId, new Set([target.building.id]))
+        if (!resolvedReference.ok) return { ok: false, ...resolvedReference }
+        reference = resolvedReference.building
+      }
+
+      const nextPosition = getRelativeStructurePosition(target.building, action.direction, action.distanceM, reference)
+      const validation = validateStructureCandidate(
+        target.building,
+        nextPosition,
+        target.building.type,
+        target.building.rotationY || 0,
+        { snapPosition: true }
+      )
+      if (!validation.ok) return { ok: false, ...validation, name: getStructureName(target.building.type) }
+
+      setPlacedBuildings(prev => prev.map(building =>
+        building.id === target.building.id ? { ...building, position: validation.position } : building
+      ))
+      setSelectedPlacedBuildingId(target.building.id)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${target.building.type.name} moved`)
+      return { ok: true, name: getStructureName(target.building.type), position: validation.position }
+    }
+
+    if (action.type === 'rotate_structure') {
+      const target = resolveAgentStructureTarget(action.structureId)
+      if (!target.ok) return { ok: false, ...target }
+
+      const nextRotation = snapRotation((target.building.rotationY || 0) + (action.degrees || 90))
+      const validation = validateStructureCandidate(
+        target.building,
+        target.building.position,
+        target.building.type,
+        nextRotation
+      )
+      if (!validation.ok) return { ok: false, ...validation, name: getStructureName(target.building.type) }
+
+      setPlacedBuildings(prev => prev.map(building =>
+        building.id === target.building.id ? { ...building, rotationY: nextRotation } : building
+      ))
+      setSelectedPlacedBuildingId(target.building.id)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${target.building.type.name} rotated`)
+      return { ok: true, name: getStructureName(target.building.type), rotationY: nextRotation }
+    }
+
+    if ((action.type === 'resize_structure' || action.type === 'replace_structure') && action.replacementStructureId) {
+      const target = resolveAgentStructureTarget(action.structureId)
+      if (!target.ok) return { ok: false, ...target }
+
+      const replacementType = BUILDING_TYPES.find(building => building.id === action.replacementStructureId)
+      if (!replacementType) {
+        return { ok: false, reason: 'unknown_structure', message: 'I do not know that replacement structure yet.' }
+      }
+
+      const oldName = getStructureName(target.building.type)
+      const newName = getStructureName(replacementType)
+      const validation = validateStructureCandidate(
+        target.building,
+        target.building.position,
+        replacementType,
+        target.building.rotationY || 0
+      )
+      if (!validation.ok) return { ok: false, ...validation, oldName, newName }
+
+      const nextBuildings = placedBuildings.map(building =>
+        building.id === target.building.id ? { ...building, type: replacementType } : building
+      )
+      setPlacedBuildings(nextBuildings)
+      const { coveragePercent } = computeCoverage(nextBuildings, area)
+      trackCoverageThreshold(coveragePercent)
+      setSelectedPlacedBuildingId(target.building.id)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${target.building.type.name} updated`)
+      return { ok: true, oldName, newName }
+    }
+
     if (action.type === 'remove_structure' && action.structureId) {
       const removed = placedBuildings.filter(building =>
         building.source === 'agent' && building.type?.id === action.structureId
@@ -2278,6 +2477,7 @@ function App() {
     handleAgentLandDimensionsUpdated,
     placedBuildings,
     resetComparisonTransform,
+    selectedPlacedBuildingId,
     snapEnabled,
     setbackDistanceM,
     setbacksEnabled,

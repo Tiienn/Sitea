@@ -360,6 +360,20 @@ function getStructuresByIds(ids) {
     .filter(Boolean)
 }
 
+function getStructureById(id) {
+  return TEXT_ACTION_STRUCTURES.find(structure => structure.id === id)
+}
+
+function parseDistanceCommand(normalizedText) {
+  const match = normalizedText.match(/\b(\d+(?:\.\d+)?)\s*(m|meter|meters|metre|metres|ft|feet|foot)\b/)
+  if (!match) return null
+  const value = Number.parseFloat(match[1])
+  if (!Number.isFinite(value)) return null
+  const unitMultiplier = /^(ft|feet|foot)$/.test(match[2]) ? 1 / 3.28084 : 1
+  const distance = value * unitMultiplier
+  return distance > 0 && distance <= 200 ? distance : null
+}
+
 function hasSceneAddIntent(normalizedText) {
   return /\b(add|show|place|put|display|compare|visualize|visualise|see)\b/.test(normalizedText)
 }
@@ -400,6 +414,50 @@ function hasStructureRemoveIntent(normalizedText) {
   return /\b(remove|delete|demolish|clear)\b/.test(normalizedText)
 }
 
+function hasStructureMoveIntent(normalizedText) {
+  return /\b(move|shift|slide|put|place)\b/.test(normalizedText) &&
+    /\b(left|right|front|behind|back|backward|forward|away)\b/.test(normalizedText)
+}
+
+function getStructureMoveDirection(normalizedText) {
+  if (/\b(to the )?left\b/.test(normalizedText)) return 'left'
+  if (/\b(to the )?right\b/.test(normalizedText)) return 'right'
+  if (/\bbehind\b|\bback of\b|\bback\b|\bbackward\b/.test(normalizedText)) return 'behind'
+  if (/\bin front\b|\bfront of\b|\bfront\b|\bforward\b/.test(normalizedText)) return 'front'
+  if (/\baway\b/.test(normalizedText)) return 'away'
+  return null
+}
+
+function hasStructureRotateIntent(normalizedText) {
+  return /\b(rotate|turn|spin)\b/.test(normalizedText)
+}
+
+function parseRotationDegrees(normalizedText) {
+  const match = normalizedText.match(/\b(\d{1,3})\s*(degrees?|deg)?\b/)
+  if (match) {
+    const degrees = Number.parseInt(match[1], 10)
+    if (Number.isFinite(degrees) && degrees > 0 && degrees <= 360) return degrees
+  }
+  if (/\bleft\b|\bcounterclockwise\b|\banticlockwise\b/.test(normalizedText)) return -90
+  return 90
+}
+
+function hasStructureResizeIntent(normalizedText) {
+  return /\b(make|resize|change|turn)\b/.test(normalizedText) &&
+    /\b(bigger|larger|large|smaller|medium)\b/.test(normalizedText)
+}
+
+function getResizeReplacementStructure(normalizedText, targetStructure) {
+  if (!targetStructure) return null
+  if (/\b(bigger|larger|large)\b/.test(normalizedText) && ['mediumHouse'].includes(targetStructure.id)) {
+    return getStructureById('largeHouse')
+  }
+  if (/\b(smaller|medium)\b/.test(normalizedText) && targetStructure.id === 'largeHouse') {
+    return getStructureById('mediumHouse')
+  }
+  return null
+}
+
 function hasReplaceIntent(normalizedText) {
   return /\b(replace|swap|switch|change)\b/.test(normalizedText) &&
     /\b(with|for|to)\b/.test(normalizedText)
@@ -437,6 +495,49 @@ function parseReplaceCommand(normalizedText) {
   }
   if (uniqueMatches.length < 2) return null
   return { fromObject: uniqueMatches[0].object, toObject: uniqueMatches[1].object }
+}
+
+function parseStructureRefinementCommand(normalizedText) {
+  const matches = getUniqueStructureMatches(normalizedText)
+  const targetStructure = matches[0]?.object || null
+
+  if (hasReplaceIntent(normalizedText) && matches.length >= 2) {
+    return {
+      type: 'replace_structure',
+      structure: matches[0].object,
+      replacement: matches[1].object,
+    }
+  }
+
+  if (hasStructureResizeIntent(normalizedText)) {
+    const replacement = getResizeReplacementStructure(normalizedText, targetStructure)
+    if (replacement) {
+      return { type: 'resize_structure', structure: targetStructure, replacement }
+    }
+  }
+
+  if (hasStructureMoveIntent(normalizedText)) {
+    const direction = getStructureMoveDirection(normalizedText)
+    if (direction) {
+      return {
+        type: 'move_structure',
+        structure: targetStructure,
+        referenceStructure: matches[1]?.object || null,
+        direction,
+        distanceM: parseDistanceCommand(normalizedText),
+      }
+    }
+  }
+
+  if (hasStructureRotateIntent(normalizedText)) {
+    return {
+      type: 'rotate_structure',
+      structure: targetStructure,
+      degrees: parseRotationDegrees(normalizedText),
+    }
+  }
+
+  return null
 }
 
 function createComparisonAction(object, label = `Show ${object.name} in 3D`) {
@@ -516,6 +617,11 @@ function buildTextSceneAction(text, { landArea }) {
 
   if (isClearStructuresRequest(normalizedText)) {
     return { type: 'clear_structures' }
+  }
+
+  const structureRefinement = parseStructureRefinementCommand(normalizedText)
+  if (structureRefinement) {
+    return structureRefinement
   }
 
   const structureLayout = getStructureLayoutFromCommand(normalizedText)
@@ -1031,6 +1137,123 @@ export function useAIChat({
         }],
       }])
       onVisualHandoff?.({ toast: `${action.object.displayName} added • drag or rotate it to compare scale` })
+      return true
+    }
+
+    if (action.type === 'move_structure') {
+      const result = onSceneControl?.({
+        type: 'move_structure',
+        structureId: action.structure?.id || null,
+        referenceStructureId: action.referenceStructure?.id || null,
+        direction: action.direction,
+        distanceM: action.distanceM,
+      })
+      const moved = result?.ok === true
+      const structureName = result?.name || action.structure?.name || 'structure'
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: moved
+          ? `Done. I moved the ${structureName} ${action.direction} and kept it inside the valid buildable area.`
+          : `I could not move that structure safely. ${result?.message || 'I need a clear target structure and enough open space inside the boundary/setback rules.'}`,
+        nextSteps: moved ? [
+          { label: `${structureName} moved`, state: 'done' },
+          { label: 'Placement rules checked', state: 'done' },
+          { label: 'Ask for the next adjustment', state: 'current' },
+        ] : [
+          { label: 'Move checked', state: 'done' },
+          { label: 'Adjustment blocked', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'move_structure',
+          input: {
+            structureId: action.structure?.id,
+            structureName,
+            direction: action.direction,
+            distanceM: action.distanceM,
+            reason: result?.reason,
+          },
+          success: moved,
+        }],
+      }])
+      onVisualHandoff?.({ toast: moved ? `${structureName} moved` : 'Move blocked' })
+      return true
+    }
+
+    if (action.type === 'rotate_structure') {
+      const result = onSceneControl?.({
+        type: 'rotate_structure',
+        structureId: action.structure?.id || null,
+        degrees: action.degrees,
+      })
+      const rotated = result?.ok === true
+      const structureName = result?.name || action.structure?.name || 'structure'
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: rotated
+          ? `Done. I rotated the ${structureName} ${Math.abs(action.degrees)} degrees and checked it still fits safely.`
+          : `I could not rotate that structure safely. ${result?.message || 'It may overlap another structure or break the boundary/setback rules.'}`,
+        nextSteps: rotated ? [
+          { label: `${structureName} rotated`, state: 'done' },
+          { label: 'Fit checked', state: 'done' },
+          { label: 'Keep refining the layout', state: 'current' },
+        ] : [
+          { label: 'Rotation checked', state: 'done' },
+          { label: 'Adjustment blocked', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'rotate_structure',
+          input: {
+            structureId: action.structure?.id,
+            structureName,
+            degrees: action.degrees,
+            reason: result?.reason,
+          },
+          success: rotated,
+        }],
+      }])
+      onVisualHandoff?.({ toast: rotated ? `${structureName} rotated` : 'Rotation blocked' })
+      return true
+    }
+
+    if (action.type === 'resize_structure' || action.type === 'replace_structure') {
+      const result = onSceneControl?.({
+        type: action.type,
+        structureId: action.structure?.id || null,
+        replacementStructureId: action.replacement.id,
+      })
+      const changed = result?.ok === true
+      const oldName = result?.oldName || action.structure?.name || 'structure'
+      const newName = result?.newName || action.replacement.name
+      const verb = action.type === 'resize_structure' ? 'changed' : 'replaced'
+      const successCopy = action.type === 'resize_structure'
+        ? `I changed the ${oldName} to a ${newName}`
+        : `I replaced the ${oldName} with a ${newName}`
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: changed
+          ? `Done. ${successCopy} and checked the new footprint still fits safely.`
+          : `I could not ${verb} that structure safely. ${result?.message || 'The new footprint may overlap another structure or break the boundary/setback rules.'}`,
+        nextSteps: changed ? [
+          { label: `${oldName} updated`, state: 'done' },
+          { label: 'New footprint checked', state: 'done' },
+          { label: 'Review it in 3D', state: 'current' },
+        ] : [
+          { label: 'New footprint checked', state: 'done' },
+          { label: 'Adjustment blocked', state: 'current' },
+        ],
+        toolActions: [{
+          name: action.type,
+          input: {
+            structureId: action.structure?.id,
+            structureName: oldName,
+            replacementStructureId: action.replacement.id,
+            replacementStructureName: newName,
+            reason: result?.reason,
+          },
+          success: changed,
+        }],
+      }])
+      onVisualHandoff?.({ toast: changed ? `${oldName} updated` : 'Structure update blocked' })
       return true
     }
 

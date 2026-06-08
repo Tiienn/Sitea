@@ -937,3 +937,53 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Preserved separation between real structures and comparison objects. For example, `Show me a pool` still uses the comparison object path, while `Add a house, pool, and shed` places real structures.
 - Extended `npm run qa:agent-text-actions` with desktop and mobile batch-layout cases while blocking `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan`.
 - Verification passed: `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-text-actions`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run qa:agent-handoff`, focused ESLint for edited files, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run lint -- --quiet`, `PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /opt/homebrew/bin/npm run build`, and `git diff --check`.
+
+---
+
+# Agent Layout Refinement v3
+
+## Todo
+- [x] Re-read `frontend-design`, `DESIGN.md`, the current text-action parser, App scene-control callback, and placed-building move/persistence path.
+- [x] Add deterministic parser support for refining existing agent-placed structures: move left/right/front/back/behind/forward, rotate, make bigger/smaller, and replace one catalog structure with another.
+- [x] Resolve the target structure safely from the user's words: named structure first, selected/latest agent structure second, and no mutation if the target is ambiguous.
+- [x] Add App-level scene actions for `move_structure`, `rotate_structure`, `resize_structure`, and `replace_structure` that reuse the same boundary, setback, snapping, and overlap checks as placement.
+- [x] Keep refinements scoped to `source: 'agent'` structures so uploaded floor-plan buildings and manual legacy buildings are not changed by casual chat commands.
+- [x] Return clear agent feedback when a requested refinement is blocked by overlap, boundary, setback, missing target, or ambiguity.
+- [x] Update tool-chip labels only where needed, staying inside the existing Sitea Agent UI tokens and `DESIGN.md` spacing rules.
+- [x] Extend Playwright QA for desktop/mobile commands such as "move the garage behind the house", "rotate the house", "make the house bigger", and "replace the pool with a greenhouse" with AI/analyzer routes blocked.
+- [x] Run focused lint/build/QA checks and update this review section.
+
+## Review
+- Current v2 can create real starter layouts, but the user cannot yet refine them conversationally.
+- The smallest useful v3 is deterministic refinement of existing agent-created structures, not freeform site planning.
+- Scope guard: this pass should not edit uploaded floor-plan geometry, generated walls, comparison objects, or manually placed legacy structures unless the user explicitly uses existing manual tools.
+- Product goal: the user should be able to keep talking after a starter layout appears and watch Sitea adjust the same real 3D objects.
+- Added local parser support in `src/hooks/useAIChat.js` for structure refinements before the paid `/api/ai-chat` path: move, rotate, resize, and replace.
+- Supported tested commands include `Move the garage behind the house`, `Rotate the house`, `Make the house bigger`, and `Replace the pool with a greenhouse`.
+- Added App-level validated scene actions in `src/App.jsx`: `move_structure`, `rotate_structure`, `resize_structure`, and `replace_structure`.
+- Target resolution is conservative: named agent-placed structures first; otherwise the selected or latest agent-placed structure. Named duplicates are treated as ambiguous and are not mutated.
+- All refinements only touch `source: 'agent'` buildings and validate against land boundary, setbacks, snapping, and overlap before updating state.
+- Resize currently uses catalog-safe swaps, such as medium house to large house; replace uses the requested catalog structure at the existing position if the new footprint fits.
+- Updated Sitea Agent tool chips for move, rotate, resize, and replace actions.
+- Extended `npm run qa:agent-text-actions` with desktop/mobile refinement cases while blocking `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan`.
+- Verification passed: `source "$HOME/.zprofile" && npm run qa:agent-text-actions`, `source "$HOME/.zprofile" && npm run qa:agent-handoff`, focused ESLint for edited files, `source "$HOME/.zprofile" && npm run lint -- --quiet`, `source "$HOME/.zprofile" && npm run build`, and `git diff --check`.
+
+---
+
+# Agent Smart Site Layout v4
+
+## Todo
+- [x] Inspect the current structure layout placement path, relative move logic, and v3 refinement validation.
+- [ ] Add structure-role metadata for the existing catalog: primary home, vehicle/storage, outdoor amenity, work/agricultural, and small accessory.
+- [ ] Replace the center-out batch layout with a role-aware starter layout for multi-structure requests.
+- [ ] Use simple land orientation rules: front is negative Z, back is positive Z, side is X, and fallback to current center-out placement if a role position is blocked.
+- [ ] Prefer natural starter positions: house near center/front, garage beside/front of house, pool/gazebo/greenhouse behind, shed/workshop/barn toward side/back, carport beside vehicle access.
+- [ ] Keep all role-aware placements validated through the same snapping, boundary, setback, and overlap checks as v3.
+- [ ] Return clear partial-success feedback when Sitea uses fallback placement or cannot safely fit part of the layout.
+- [ ] Extend QA to prove `Make a simple home layout` creates separated role-aware structure positions on desktop/mobile without AI API calls.
+- [ ] Run focused lint/build/QA checks and update this review section.
+
+## Review
+- Current v2/v3 can create and refine layouts, but initial placement is still generic. The agent can feel smarter if the first layout already understands house/garage/pool relationships.
+- Scope guard: this pass should not introduce full optimization, roads, terrain analysis, generated floor plans, or learned site-planning logic. It should be a deterministic role-aware improvement using existing structures.
+- Product goal: a user asks for a starter layout and Sitea’s first attempt should look intentional before the user starts refining it.

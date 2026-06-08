@@ -60,6 +60,14 @@ function ToolChip({ action }) {
         return `Placed ${input.structureName || 'structure'}`
       case 'place_structure_layout':
         return `Placed ${input.placedCount || 0} structures`
+      case 'move_structure':
+        return `Moved ${input.structureName || 'structure'}`
+      case 'rotate_structure':
+        return `Rotated ${input.structureName || 'structure'}`
+      case 'resize_structure':
+        return `Resized ${input.structureName || 'structure'}`
+      case 'replace_structure':
+        return `Replaced ${input.structureName || 'structure'}`
       case 'remove_structure':
         return `Removed ${input.structureName || 'structure'}`
       case 'clear_structures':
