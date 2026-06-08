@@ -486,13 +486,13 @@ function hasStructureRemoveIntent(normalizedText) {
 
 function hasStructureMoveIntent(normalizedText) {
   return /\b(move|shift|slide|put|place)\b/.test(normalizedText) &&
-    /\b(left|right|front|behind|back|backward|forward|away)\b/.test(normalizedText)
+    /\b(left|right|front|behind|back|backyard|backward|forward|away)\b/.test(normalizedText)
 }
 
 function getStructureMoveDirection(normalizedText) {
   if (/\b(to the )?left\b/.test(normalizedText)) return 'left'
   if (/\b(to the )?right\b/.test(normalizedText)) return 'right'
-  if (/\bbehind\b|\bback of\b|\bback\b|\bbackward\b/.test(normalizedText)) return 'behind'
+  if (/\bbehind\b|\bback of\b|\bback\b|\bbackyard\b|\bbackward\b/.test(normalizedText)) return 'behind'
   if (/\bin front\b|\bfront of\b|\bfront\b|\bforward\b/.test(normalizedText)) return 'front'
   if (/\baway\b/.test(normalizedText)) return 'away'
   return null
@@ -558,11 +558,48 @@ function isRetryStructureLayoutRequest(normalizedText) {
   return /\b(try again|retry|another layout|different layout|another option|try another|try a different)\b/.test(normalizedText)
 }
 
-function parseLayoutOptionSelection(normalizedText) {
-  if (/\b(option\s*1|use\s*1|choose\s*1|balanced)\b/.test(normalizedText)) return 'balanced'
-  if (/\b(option\s*2|use\s*2|choose\s*2|backyard|open space|more space|more yard)\b/.test(normalizedText)) return 'open_backyard'
-  if (/\b(option\s*3|use\s*3|choose\s*3|privacy|private|more private)\b/.test(normalizedText)) return 'privacy'
+function parseLayoutPreferenceSelection(normalizedText) {
+  const isExplicitSelection = /\b(option\s*[123]|use|choose|select)\b/.test(normalizedText)
+  if (/\b(option\s*1|use\s*1|choose\s*1|select\s*1|balanced|balance|simple|default|straightforward)\b/.test(normalizedText)) {
+    return { optionId: 'balanced', preferenceLabel: isExplicitSelection ? null : 'balanced' }
+  }
+  if (/\b(option\s*3|use\s*3|choose\s*3|select\s*3|privacy|private|more private|secluded|seclusion|less exposed)\b/.test(normalizedText)) {
+    return { optionId: 'privacy', preferenceLabel: isExplicitSelection ? null : 'more private' }
+  }
+  if (/\b(option\s*2|use\s*2|choose\s*2|select\s*2|backyard|open space|more space|more yard|open backyard|backyard open|outdoor space|garden space)\b/.test(normalizedText)) {
+    return { optionId: 'open_backyard', preferenceLabel: isExplicitSelection ? null : 'more open in the backyard' }
+  }
   return null
+}
+
+function getLayoutPreferenceOpening(optionId, preferenceLabel) {
+  if (!preferenceLabel) return null
+  if (optionId === 'privacy') return 'Done. I made the layout more private.'
+  if (optionId === 'open_backyard') return 'Done. I opened up more backyard space.'
+  if (optionId === 'balanced') return 'Done. I made the layout balanced.'
+  return `Done. I made the layout ${preferenceLabel}.`
+}
+
+function isAccessParkingRequest(normalizedText) {
+  return /\b(road|street|driveway|parking|park|vehicle access|car access|front access)\b/.test(normalizedText) &&
+    /\b(make|put|place|move|shift|bring|keep|near|closer|easy|easier|access)\b/.test(normalizedText)
+}
+
+function parseAccessStructureCommand(normalizedText, matches) {
+  if (!isAccessParkingRequest(normalizedText)) return null
+  const targetStructure = matches.find(match => ['garage', 'carport'].includes(match.object.id))?.object ||
+    getStructureById('garage')
+  if (!targetStructure) return null
+
+  return {
+    type: 'move_structure',
+    structure: targetStructure,
+    referenceStructure: null,
+    direction: 'front',
+    distanceM: parseDistanceCommand(normalizedText),
+    intentLabel: 'parking access',
+    intentCopy: 'toward the road/front edge for easier parking access',
+  }
 }
 
 function isResetAllComparisonsRequest(normalizedText) {
@@ -602,15 +639,27 @@ function parseStructureRefinementCommand(normalizedText) {
     }
   }
 
+  const accessStructureCommand = parseAccessStructureCommand(normalizedText, matches)
+  if (accessStructureCommand) {
+    return accessStructureCommand
+  }
+
   if (hasStructureMoveIntent(normalizedText)) {
     const direction = getStructureMoveDirection(normalizedText)
     if (direction) {
+      const backyardReference = direction === 'behind' &&
+        /\bbackyard\b/.test(normalizedText) &&
+        targetStructure?.role === 'outdoor_amenity'
+        ? getStructureById('mediumHouse')
+        : null
       return {
         type: 'move_structure',
         structure: targetStructure,
-        referenceStructure: matches[1]?.object || null,
+        referenceStructure: matches[1]?.object || backyardReference,
         direction,
         distanceM: parseDistanceCommand(normalizedText),
+        intentLabel: null,
+        intentCopy: null,
       }
     }
   }
@@ -705,15 +754,6 @@ function buildTextSceneAction(text, { landArea }) {
     return { type: 'undo_agent_structure_change' }
   }
 
-  const layoutOptionSelection = parseLayoutOptionSelection(normalizedText)
-  if (
-    layoutOptionSelection &&
-    /\b(use|choose|select|option|backyard|privacy|private|balanced)\b/.test(normalizedText) &&
-    !getStructureLayoutFromCommand(normalizedText)
-  ) {
-    return { type: 'apply_pending_layout_option', optionId: layoutOptionSelection }
-  }
-
   if (isRetryStructureLayoutRequest(normalizedText)) {
     return { type: 'retry_structure_layout' }
   }
@@ -730,6 +770,11 @@ function buildTextSceneAction(text, { landArea }) {
   const structureLayout = getStructureLayoutFromCommand(normalizedText)
   if (structureLayout && (hasStructurePlaceIntent(normalizedText) || isStarterStructureLayoutRequest(normalizedText))) {
     return { type: 'offer_structure_layout_options', structures: structureLayout }
+  }
+
+  const layoutPreferenceSelection = parseLayoutPreferenceSelection(normalizedText)
+  if (layoutPreferenceSelection) {
+    return { type: 'apply_layout_preference', ...layoutPreferenceSelection }
   }
 
   const structure = getStructureFromCommand(normalizedText)
@@ -1173,7 +1218,7 @@ export function useAIChat({
     return analyzeFloorPlan(fileBase64, text)
   }, [analyzeFloorPlan, analyzeSitePlan, isPaidUser])
 
-  const applyStructureLayoutOption = useCallback((optionId, userMsg, fallbackStructures = []) => {
+  const applyStructureLayoutOption = useCallback((optionId, userMsg, fallbackStructures = [], preference = {}) => {
     const restoredStructures = fallbackStructures?.length
       ? fallbackStructures
       : getOfferedLayoutStructuresFromMessages(messagesRef.current)
@@ -1217,14 +1262,15 @@ export function useAIChat({
     const fallbackCopy = fallbackCount > 0
       ? ` I used a safe fallback spot for ${fallbackCount} item${fallbackCount === 1 ? '' : 's'} where needed.`
       : ''
+    const preferenceOpening = getLayoutPreferenceOpening(option.id, preference.preferenceLabel)
 
     setMessages(prev => [...prev, userMsg, {
       role: 'assistant',
       content: success
-        ? `Done. I used ${option.label}. ${option.reason} I placed ${placedNames}.${partialCopy}${fallbackCopy}`
+        ? `${preferenceOpening || `Done. I used ${option.label}.`} ${option.reason} I placed ${placedNames}.${partialCopy}${fallbackCopy}`
         : `I checked ${option.label}, but I could not place that option safely on the current land. Try a smaller layout or clear space first.`,
       nextSteps: success ? [
-        { label: `${option.label} placed`, state: 'done' },
+        { label: preference.preferenceLabel ? `${preference.preferenceLabel} layout applied` : `${option.label} placed`, state: 'done' },
         { label: 'Safety rules checked', state: 'done' },
         { label: 'Say undo that or choose another option', state: 'current' },
       ] : [
@@ -1236,6 +1282,7 @@ export function useAIChat({
         input: {
           optionId: option.id,
           optionLabel: option.label,
+          preferenceLabel: preference.preferenceLabel,
           layoutVariant: option.layoutVariant,
           structureIds: pendingLayout.structures.map(structure => structure.id),
           placedCount: placed.length,
@@ -1331,6 +1378,12 @@ export function useAIChat({
 
     if (action.type === 'apply_pending_layout_option') {
       return applyStructureLayoutOption(action.optionId, userMsg)
+    }
+
+    if (action.type === 'apply_layout_preference') {
+      return applyStructureLayoutOption(action.optionId, userMsg, [], {
+        preferenceLabel: action.preferenceLabel,
+      })
     }
 
     if (action.type === 'activate_comparison') {
@@ -1454,10 +1507,11 @@ export function useAIChat({
       })
       const moved = result?.ok === true
       const structureName = result?.name || action.structure?.name || 'structure'
+      const movementCopy = action.intentCopy || action.direction
       setMessages(prev => [...prev, userMsg, {
         role: 'assistant',
         content: moved
-          ? `Done. I moved the ${structureName} ${action.direction} and kept it inside the valid buildable area.`
+          ? `Done. I moved the ${structureName} ${movementCopy} and kept it inside the valid buildable area.`
           : `I could not move that structure safely. ${result?.message || 'I need a clear target structure and enough open space inside the boundary/setback rules.'}`,
         nextSteps: moved ? [
           { label: `${structureName} moved`, state: 'done' },
@@ -1474,6 +1528,10 @@ export function useAIChat({
             structureName,
             direction: action.direction,
             distanceM: action.distanceM,
+            intentLabel: action.intentLabel,
+            intentCopy: action.intentCopy,
+            x: Number(result?.position?.x?.toFixed?.(2) ?? result?.position?.x ?? 0),
+            z: Number(result?.position?.z?.toFixed?.(2) ?? result?.position?.z ?? 0),
             reason: result?.reason,
           },
           success: moved,

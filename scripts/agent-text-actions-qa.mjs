@@ -155,6 +155,80 @@ const CASES = [
     expectChatVisible: false,
   },
   {
+    name: 'desktop-layout-privacy-intent',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Build a house with a garage',
+        expectedPromptText: 'I can lay out a medium house and a garage three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
+    ],
+    prompt: 'Make this more private',
+    expectedStoredText: 'I made the layout more private',
+    expectedToast: 'More privacy placed',
+    expectedLayout: 'homeGarage',
+    expectedLayoutVariant: 'privacy',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-layout-open-backyard-intent',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
+    ],
+    prompt: 'Leave the backyard open',
+    expectedStoredText: 'I opened up more backyard space',
+    expectedToast: 'More backyard space placed',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'open_backyard',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
+    name: 'desktop-garage-road-access',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Build a house with a garage',
+        expectedPromptText: 'I can lay out a medium house and a garage three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
+    ],
+    prompt: 'Put the garage near the road',
+    expectedStoredText: 'I moved the garage toward the road/front edge',
+    expectedToast: 'garage moved',
+    expectedToolActionName: 'move_structure',
+    expectedMoveDirection: 'front',
+    expectedIntentLabel: 'parking access',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-pool-backyard-placement',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
+    ],
+    prompt: 'Put the pool in the backyard',
+    expectedStoredText: 'I moved the swimming pool behind',
+    expectedToast: 'swimming pool moved',
+    expectedToolActionName: 'move_structure',
+    expectedMoveDirection: 'behind',
+    expectChatVisible: false,
+  },
+  {
     name: 'desktop-move-garage-behind-house',
     viewport: 'desktop',
     setupPrompts: [
@@ -308,6 +382,12 @@ async function readAudit(page, expectedToast) {
     const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
     const storedText = messages.map(message => message.content || message.displayText || '').join('\n')
     const toolActions = messages.flatMap(message => message.toolActions || [])
+    const latestToolAction = [...toolActions].reverse().find(action =>
+      action.name === 'move_structure' ||
+      action.name === 'apply_structure_layout_option' ||
+      action.name === 'place_structure_layout' ||
+      action.name === 'retry_structure_layout'
+    )
     const latestLayoutAction = [...toolActions].reverse().find(action =>
       action.name === 'place_structure_layout' ||
       action.name === 'retry_structure_layout' ||
@@ -320,6 +400,8 @@ async function readAudit(page, expectedToast) {
       expectedToastVisible: toastText ? hasText(toastText) : true,
       horizontalOverflow: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - innerWidth,
       storedText,
+      latestToolActionName: latestToolAction?.name || null,
+      latestToolActionInput: latestToolAction?.input || {},
       layoutActionName: latestLayoutAction?.name || null,
       layoutVariant: latestLayoutAction?.input?.layoutVariant || 'default',
       layoutPlacements: latestLayoutAction?.input?.placements || [],
@@ -328,7 +410,7 @@ async function readAudit(page, expectedToast) {
   }, expectedToast || '')
 }
 
-function validateExpectedLayout(audit, expectedLayout, testCaseName) {
+function validateExpectedLayout(audit, expectedLayout, testCaseName, { allowPoolAhead = false } = {}) {
   if (!expectedLayout) return
 
   const placements = audit.layoutPlacements || []
@@ -348,7 +430,7 @@ function validateExpectedLayout(audit, expectedLayout, testCaseName) {
   if (Math.abs(garage.x - home.x) < 1 && Math.abs(garage.z - home.z) < 1) {
     fail('Garage was not separated from the home', { audit, testCase: testCaseName })
   }
-  if (pool && pool.z <= home.z) {
+  if (pool && !allowPoolAhead && pool.z <= home.z) {
     fail('Pool was not placed behind the home', { audit, testCase: testCaseName })
   }
 }
@@ -494,9 +576,20 @@ async function runCase(browser, baseUrl, testCase) {
   if (audit.canvasCount < 1) {
     fail('3D canvas was not rendered', { audit, testCase: testCase.name })
   }
-  validateExpectedLayout(audit, testCase.expectedLayout, testCase.name)
+  validateExpectedLayout(audit, testCase.expectedLayout, testCase.name, {
+    allowPoolAhead: testCase.allowPoolAhead === true,
+  })
   if (testCase.expectedLayoutVariant && audit.layoutVariant !== testCase.expectedLayoutVariant) {
     fail('Unexpected retry layout variant', { audit, testCase: testCase.name, expectedLayoutVariant: testCase.expectedLayoutVariant })
+  }
+  if (testCase.expectedToolActionName && audit.latestToolActionName !== testCase.expectedToolActionName) {
+    fail('Unexpected latest tool action', { audit, testCase: testCase.name, expectedToolActionName: testCase.expectedToolActionName })
+  }
+  if (testCase.expectedMoveDirection && audit.latestToolActionInput.direction !== testCase.expectedMoveDirection) {
+    fail('Unexpected move direction', { audit, testCase: testCase.name, expectedMoveDirection: testCase.expectedMoveDirection })
+  }
+  if (testCase.expectedIntentLabel && audit.latestToolActionInput.intentLabel !== testCase.expectedIntentLabel) {
+    fail('Unexpected intent label', { audit, testCase: testCase.name, expectedIntentLabel: testCase.expectedIntentLabel })
   }
 
   return {

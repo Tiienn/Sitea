@@ -1052,3 +1052,47 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - `scripts/agent-text-actions-qa.mjs` now verifies desktop and mobile option selection with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
 - Verification passed after the reload-persistence fix: `npx eslint src/hooks/useAIChat.js src/components/AIChatPanel.jsx scripts/agent-text-actions-qa.mjs --format stylish`, `npx eslint src/App.jsx --quiet --format stylish`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check`.
 - Linear updated: added a v6 progress comment to `SIT-8`.
+
+---
+
+# Deploy Agent Layout Options v6
+
+## Todo
+- [x] Confirm the working tree is clean and the latest commit is v6.
+- [x] Deploy v6 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test `sitea.live`.
+- [x] Add a short review note with deployment URL and verification.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_AW8oC4sf4xpua3Ng5TK6JN9rTL19`.
+- Deployment URL: `https://sitea-2z9z68vr1-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and alias `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- Production browser smoke passed on mobile: canvas rendered, no horizontal overflow, no console errors, and the v6 agent option flow applied `Use option 2: More backyard space` with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
+
+---
+
+# Agent Intent Placement v7
+
+## Todo
+- [x] Read the current agent text parser, v6 layout-option flow, scene-control placement/refinement actions, and Playwright text-action QA.
+- [x] Add local parser support for preference-style commands without calling `/api/ai-chat`: privacy, open backyard/open space, balanced/simple, road/front access, parking, and outdoor/backyard placement.
+- [x] Let preference commands re-apply the latest agent layout with the matching safe variant when the user says things like `make this more private`, `leave the backyard open`, or `make it balanced`.
+- [x] Add focused role-aware refinement support for access/parking commands such as `put the garage near the road` or `make parking easier`, using existing boundary/setback/overlap validation.
+- [x] Preserve existing explicit commands like `move the garage behind the house`, `undo that`, `try again`, and v6 option buttons.
+- [x] Keep v7 code simple and deterministic: no new UI, no new building catalog, no new paid AI calls, no road/driveway drawing, and no broad optimization engine.
+- [x] Extend `npm run qa:agent-text-actions` with desktop/mobile cases for privacy, open backyard, road/access, and outdoor placement while blocking AI/analyzer API routes.
+- [x] Run focused lint/build/QA checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v7 should make Sitea Agent understand intent, not just exact commands. The user should be able to say what outcome they want and watch the existing safe scene engine adjust the layout.
+- Scope guard: this pass should reuse the current role-aware placement, movement, undo, retry, and layout-option paths. It should not introduce generated roads, terrain analysis, a planner/solver, or new visual surfaces.
+- Product goal: make the agent feel more natural for land buyers and homeowners by supporting practical phrases like `more private`, `open backyard`, `near the road`, `easier parking`, and `pool behind the house`.
+- `src/hooks/useAIChat.js` now recognizes layout intent phrases such as `make this more private`, `leave the backyard open`, `make it balanced`, and keeps explicit option commands such as `choose privacy` on the existing v6 option copy.
+- Preference commands reuse the v6 safe layout variants and can recover the latest stored layout offer after reload through the existing persisted-message path.
+- Access/parking commands such as `put the garage near the road` now resolve to the garage/carport and move it toward the front/road edge through the existing validated `move_structure` scene action.
+- Backyard placement language such as `put the pool in the backyard` now maps outdoor amenities behind the home instead of accidentally re-applying the whole open-backyard layout.
+- `scripts/agent-text-actions-qa.mjs` now covers desktop privacy intent, mobile open-backyard intent, desktop garage-road access, and mobile pool-backyard placement with `/api/ai-chat`, `/api/analyze-floor-plan`, and `/api/analyze-site-plan` blocked.
+- Verification passed: `npx eslint src/hooks/useAIChat.js scripts/agent-text-actions-qa.mjs --format stylish`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npx eslint src/App.jsx --quiet --format stylish`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check`.
