@@ -251,6 +251,8 @@ const GRID_SIZE_M = 1.0     // meters - grid cell size
 const ROT_SNAP_DEG = 15     // degrees - rotation snap increment
 const PENDING_SAVE_AFTER_AUTH_KEY = 'siteaPendingSaveAfterAuth'
 const PENDING_SAVE_PAYLOAD_KEY = 'siteaPendingSavePayload'
+const AGENT_STRUCTURE_HISTORY_LIMIT = 10
+const AGENT_RETRY_LAYOUT_VARIANT = 'mirror_x'
 
 // Snap utility: get closest point on line segment (XZ plane)
 const getClosestPointOnSegment = (p, a, b) => {
@@ -599,6 +601,9 @@ function App() {
   const [confirmedPolygon, setConfirmedPolygon] = useState(null)
   const [selectedBuilding, setSelectedBuilding] = useState(null)
   const [placedBuildings, setPlacedBuildings] = useState([])
+  const agentStructureHistoryRef = useRef([])
+  const lastAgentLayoutRequestRef = useRef(null)
+  const lastAgentLayoutVariantRef = useRef('default')
   const [saveStatus, setSaveStatus] = useState(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [activePanel, setActivePanel] = useState(null) // 'land', 'compare', 'build', or null
@@ -2132,7 +2137,7 @@ function App() {
       building.source === 'agent' && ['mediumHouse', 'largeHouse'].includes(building.type?.id)
     )
 
-    const buildRoleAwareCandidates = (buildingType, role, existingBuildings) => {
+    const buildRoleAwareCandidates = (buildingType, role, existingBuildings, layoutVariant = 'default') => {
       const bounds = getLandBounds()
       const { center, width, length } = bounds
       const primaryHome = getPrimaryHome(existingBuildings)
@@ -2141,13 +2146,20 @@ function App() {
       const backZ = Math.max(length * 0.18, buildingType.length + 4)
       const candidates = []
       const add = (x, z, priority = 0) => candidates.push({ x, z, distance: priority })
+      const finish = () => {
+        if (layoutVariant !== AGENT_RETRY_LAYOUT_VARIANT) return candidates
+        return candidates.map(candidate => ({
+          ...candidate,
+          x: center.x - (candidate.x - center.x),
+        }))
+      }
 
       if (role === 'primary_home') {
         add(center.x, center.z - frontZ * 0.35, 0)
         add(center.x - sideX * 0.35, center.z - frontZ * 0.25, 1)
         add(center.x + sideX * 0.35, center.z - frontZ * 0.25, 1)
         add(center.x, center.z, 2)
-        return candidates
+        return finish()
       }
 
       if (role === 'vehicle_storage') {
@@ -2167,7 +2179,7 @@ function App() {
         }
         add(center.x - sideX, center.z - frontZ * 0.45, 3)
         add(center.x + sideX, center.z - frontZ * 0.45, 4)
-        return candidates
+        return finish()
       }
 
       if (role === 'outdoor_amenity') {
@@ -2180,7 +2192,7 @@ function App() {
         add(center.x, center.z + backZ * 0.65, 2)
         add(center.x + sideX, center.z + backZ * 0.45, 3)
         add(center.x - sideX, center.z + backZ * 0.45, 3)
-        return candidates
+        return finish()
       }
 
       if (role === 'work_agricultural') {
@@ -2188,18 +2200,18 @@ function App() {
         add(center.x - sideX, center.z + backZ * 0.7, 1)
         add(center.x + sideX * 1.2, center.z, 2)
         add(center.x - sideX * 1.2, center.z, 2)
-        return candidates
+        return finish()
       }
 
       add(center.x - sideX, center.z + backZ * 0.7, 0)
       add(center.x + sideX, center.z + backZ * 0.7, 1)
       add(center.x - sideX * 1.1, center.z - frontZ * 0.15, 2)
       add(center.x + sideX * 1.1, center.z - frontZ * 0.15, 2)
-      return candidates
+      return finish()
     }
 
-    const findRoleAwareStructurePlacement = (buildingType, role, existingBuildings = placedBuildings) => {
-      const candidates = buildRoleAwareCandidates(buildingType, role, existingBuildings)
+    const findRoleAwareStructurePlacement = (buildingType, role, existingBuildings = placedBuildings, layoutVariant = 'default') => {
+      const candidates = buildRoleAwareCandidates(buildingType, role, existingBuildings, layoutVariant)
       return tryStructureCandidates(buildingType, existingBuildings, candidates)
     }
 
@@ -2213,6 +2225,67 @@ function App() {
 
     const getStructureName = (buildingType) => buildingType?.name?.toLowerCase() || 'structure'
     const getAgentPlacedBuildings = () => placedBuildings.filter(building => building.source === 'agent')
+    const cloneAgentStructure = (building) => ({
+      ...building,
+      type: building.type ? { ...building.type } : building.type,
+      position: {
+        x: building.position?.x || 0,
+        z: building.position?.z || 0,
+      },
+    })
+    const getAgentStructureSnapshot = () => getAgentPlacedBuildings().map(cloneAgentStructure)
+    const pushAgentStructureHistory = () => {
+      const history = [...agentStructureHistoryRef.current, getAgentStructureSnapshot()]
+      agentStructureHistoryRef.current = history.slice(-AGENT_STRUCTURE_HISTORY_LIMIT)
+    }
+    const normalizeRequestedStructures = () => {
+      const rawStructures = Array.isArray(action.structures)
+        ? action.structures
+        : (action.structureIds || []).map(structureId => ({ id: structureId }))
+      return rawStructures
+        .map(structure => typeof structure === 'string' ? { id: structure } : structure)
+        .filter(structure => structure?.id)
+    }
+    const buildAgentStructureLayout = (requestedStructures, baseBuildings, layoutVariant = 'default') => {
+      const nextBuildings = [...baseBuildings]
+      const placed = []
+      const skipped = []
+
+      for (const requestedStructure of requestedStructures) {
+        const structureId = requestedStructure.id
+        const buildingType = BUILDING_TYPES.find(building => building.id === structureId)
+        if (!buildingType) {
+          skipped.push({ structureId, name: structureId, reason: 'unknown_structure' })
+          continue
+        }
+
+        const role = getStructureRole(buildingType, requestedStructure.role)
+        let placement = findRoleAwareStructurePlacement(buildingType, role, nextBuildings, layoutVariant)
+        let placementMode = 'role_aware'
+        if (!placement) {
+          placement = findStructurePlacement(buildingType, nextBuildings)
+          placementMode = placement ? 'fallback' : 'blocked'
+        }
+        if (!placement) {
+          skipped.push({ structureId, name: buildingType.name.toLowerCase(), reason: 'no_safe_spot' })
+          continue
+        }
+
+        const newBuilding = createAgentBuilding(buildingType, placement)
+        nextBuildings.push(newBuilding)
+        placed.push({
+          structureId,
+          name: buildingType.name.toLowerCase(),
+          buildingId: newBuilding.id,
+          position: placement.position,
+          rotationY: placement.rotationY,
+          role,
+          placementMode,
+        })
+      }
+
+      return { nextBuildings, placed, skipped }
+    }
     const getLandCenter = () => {
       const polygon = getLandPolygon()
       const xs = polygon.map(point => point.x)
@@ -2391,50 +2464,18 @@ function App() {
     }
 
     if (action.type === 'place_structure_layout' && (Array.isArray(action.structures) || Array.isArray(action.structureIds))) {
-      const nextBuildings = [...placedBuildings]
-      const placed = []
-      const skipped = []
-      const requestedStructures = Array.isArray(action.structures)
-        ? action.structures
-        : action.structureIds.map(structureId => ({ id: structureId }))
-
-      for (const requestedStructure of requestedStructures) {
-        const structureId = requestedStructure.id
-        const buildingType = BUILDING_TYPES.find(building => building.id === structureId)
-        if (!buildingType) {
-          skipped.push({ structureId, name: structureId, reason: 'unknown_structure' })
-          continue
-        }
-
-        const role = getStructureRole(buildingType, requestedStructure.role)
-        let placement = findRoleAwareStructurePlacement(buildingType, role, nextBuildings)
-        let placementMode = 'role_aware'
-        if (!placement) {
-          placement = findStructurePlacement(buildingType, nextBuildings)
-          placementMode = placement ? 'fallback' : 'blocked'
-        }
-        if (!placement) {
-          skipped.push({ structureId, name: buildingType.name.toLowerCase(), reason: 'no_safe_spot' })
-          continue
-        }
-
-        const newBuilding = createAgentBuilding(buildingType, placement)
-        nextBuildings.push(newBuilding)
-        placed.push({
-          structureId,
-          name: buildingType.name.toLowerCase(),
-          buildingId: newBuilding.id,
-          position: placement.position,
-          rotationY: placement.rotationY,
-          role,
-          placementMode,
-        })
-      }
+      const requestedStructures = normalizeRequestedStructures()
+      const { nextBuildings, placed, skipped } = buildAgentStructureLayout(
+        requestedStructures,
+        placedBuildings,
+        action.layoutVariant || 'default'
+      )
 
       if (placed.length === 0) {
         return { ok: false, placed, skipped }
       }
 
+      pushAgentStructureHistory()
       setPlacedBuildings(nextBuildings)
       if (placedBuildings.length === 0) {
         trackFirstBuildingPlaced(placed[0].structureId)
@@ -2445,7 +2486,76 @@ function App() {
       setSelectedPlacedBuildingId(placed[placed.length - 1].buildingId)
       setActivePanel(null)
       setUndoRedoToast(action.toast || 'Starter layout placed')
-      return { ok: true, placed, skipped }
+      lastAgentLayoutRequestRef.current = requestedStructures.map(structure => ({ ...structure }))
+      lastAgentLayoutVariantRef.current = action.layoutVariant || 'default'
+      return { ok: true, placed, skipped, layoutVariant: action.layoutVariant || 'default' }
+    }
+
+    if (action.type === 'undo_agent_structure_change') {
+      const snapshot = agentStructureHistoryRef.current[agentStructureHistoryRef.current.length - 1]
+      if (!snapshot) {
+        return {
+          ok: false,
+          reason: 'empty_history',
+          message: 'There is no agent layout change to undo yet.',
+        }
+      }
+
+      agentStructureHistoryRef.current = agentStructureHistoryRef.current.slice(0, -1)
+      const restoredAgentStructures = snapshot.map(cloneAgentStructure)
+      const restoredIds = new Set(restoredAgentStructures.map(building => building.id))
+      setPlacedBuildings(prev => [
+        ...prev.filter(building => building.source !== 'agent'),
+        ...restoredAgentStructures,
+      ])
+      setSelectedPlacedBuildingId(prev =>
+        restoredIds.has(prev) ? prev : (restoredAgentStructures[restoredAgentStructures.length - 1]?.id || null)
+      )
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Agent change undone')
+      return { ok: true, restoredCount: restoredAgentStructures.length }
+    }
+
+    if (action.type === 'retry_structure_layout') {
+      const requestedStructures = lastAgentLayoutRequestRef.current
+      if (!Array.isArray(requestedStructures) || requestedStructures.length === 0) {
+        return {
+          ok: false,
+          reason: 'no_last_layout',
+          message: 'I do not have a recent agent layout to retry yet.',
+        }
+      }
+
+      const nextVariant = lastAgentLayoutVariantRef.current === AGENT_RETRY_LAYOUT_VARIANT
+        ? 'default'
+        : AGENT_RETRY_LAYOUT_VARIANT
+      const baseBuildings = placedBuildings.filter(building => building.source !== 'agent')
+      const { nextBuildings, placed, skipped } = buildAgentStructureLayout(
+        requestedStructures,
+        baseBuildings,
+        nextVariant
+      )
+
+      if (placed.length === 0) {
+        return {
+          ok: false,
+          placed,
+          skipped,
+          reason: 'no_safe_spot',
+          message: 'I tried another layout, but no safe alternate placement was available.',
+        }
+      }
+
+      pushAgentStructureHistory()
+      setPlacedBuildings(nextBuildings)
+      const { coveragePercent } = computeCoverage(nextBuildings, area)
+      trackCoverageThreshold(coveragePercent)
+      setSelectedBuilding(null)
+      setSelectedPlacedBuildingId(placed[placed.length - 1].buildingId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Tried another layout')
+      lastAgentLayoutVariantRef.current = nextVariant
+      return { ok: true, placed, skipped, layoutVariant: nextVariant }
     }
 
     if (action.type === 'place_structure' && action.structureId) {
@@ -2457,6 +2567,7 @@ function App() {
 
       const newBuilding = createAgentBuilding(buildingType, placement)
 
+      pushAgentStructureHistory()
       setPlacedBuildings(prev => {
         const next = [...prev, newBuilding]
         if (prev.length === 0) {
@@ -2494,6 +2605,7 @@ function App() {
       )
       if (!validation.ok) return { ok: false, ...validation, name: getStructureName(target.building.type) }
 
+      pushAgentStructureHistory()
       setPlacedBuildings(prev => prev.map(building =>
         building.id === target.building.id ? { ...building, position: validation.position } : building
       ))
@@ -2516,6 +2628,7 @@ function App() {
       )
       if (!validation.ok) return { ok: false, ...validation, name: getStructureName(target.building.type) }
 
+      pushAgentStructureHistory()
       setPlacedBuildings(prev => prev.map(building =>
         building.id === target.building.id ? { ...building, rotationY: nextRotation } : building
       ))
@@ -2547,6 +2660,7 @@ function App() {
       const nextBuildings = placedBuildings.map(building =>
         building.id === target.building.id ? { ...building, type: replacementType } : building
       )
+      pushAgentStructureHistory()
       setPlacedBuildings(nextBuildings)
       const { coveragePercent } = computeCoverage(nextBuildings, area)
       trackCoverageThreshold(coveragePercent)
@@ -2563,6 +2677,7 @@ function App() {
       if (removed.length === 0) return { ok: false, removedCount: 0 }
 
       const removedIds = new Set(removed.map(building => building.id))
+      pushAgentStructureHistory()
       setPlacedBuildings(prev => prev.filter(building => !removedIds.has(building.id)))
       setSelectedPlacedBuildingId(prev => removedIds.has(prev) ? null : prev)
       setActivePanel(null)
@@ -2573,6 +2688,9 @@ function App() {
     if (action.type === 'clear_structures') {
       const removed = placedBuildings.filter(building => building.source === 'agent')
       const removedIds = new Set(removed.map(building => building.id))
+      if (removed.length > 0) {
+        pushAgentStructureHistory()
+      }
       setPlacedBuildings(prev => prev.filter(building => building.source !== 'agent'))
       setSelectedPlacedBuildingId(prev => removedIds.has(prev) ? null : prev)
       setActivePanel(null)

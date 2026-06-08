@@ -163,6 +163,31 @@ const CASES = [
     expectChatVisible: false,
   },
   {
+    name: 'desktop-undo-agent-change',
+    viewport: 'desktop',
+    setupPrompts: [
+      { prompt: 'Build a house with a garage', expectedStoredText: 'I placed a starter layout with a medium house and a garage' },
+      { prompt: 'Move the garage behind the house', expectedStoredText: 'I moved the garage behind' },
+    ],
+    prompt: 'Undo that',
+    expectedStoredText: 'I undid the last agent layout change',
+    expectedToast: 'Agent change undone',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-try-again-layout',
+    viewport: 'mobile',
+    setupPrompts: [
+      { prompt: 'Make a simple home layout', expectedStoredText: 'I placed a starter layout with a medium house, a garage, and a swimming pool' },
+    ],
+    prompt: 'Try again',
+    expectedStoredText: 'I tried another safe layout',
+    expectedToast: 'Tried another layout',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'mirror_x',
+    expectChatVisible: false,
+  },
+  {
     name: 'desktop-remove-structure',
     viewport: 'desktop',
     setupPrompts: [
@@ -217,7 +242,9 @@ async function readAudit(page, expectedToast) {
     const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
     const storedText = messages.map(message => message.content || message.displayText || '').join('\n')
     const toolActions = messages.flatMap(message => message.toolActions || [])
-    const latestLayoutAction = [...toolActions].reverse().find(action => action.name === 'place_structure_layout')
+    const latestLayoutAction = [...toolActions].reverse().find(action =>
+      action.name === 'place_structure_layout' || action.name === 'retry_structure_layout'
+    )
 
     return {
       canvasCount: document.querySelectorAll('canvas').length,
@@ -225,6 +252,8 @@ async function readAudit(page, expectedToast) {
       expectedToastVisible: toastText ? hasText(toastText) : true,
       horizontalOverflow: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - innerWidth,
       storedText,
+      layoutActionName: latestLayoutAction?.name || null,
+      layoutVariant: latestLayoutAction?.input?.layoutVariant || 'default',
       layoutPlacements: latestLayoutAction?.input?.placements || [],
       visibleText: document.body.innerText.replace(/\s+/g, ' ').slice(0, 500),
     }
@@ -368,6 +397,9 @@ async function runCase(browser, baseUrl, testCase) {
     fail('3D canvas was not rendered', { audit, testCase: testCase.name })
   }
   validateExpectedLayout(audit, testCase.expectedLayout, testCase.name)
+  if (testCase.expectedLayoutVariant && audit.layoutVariant !== testCase.expectedLayoutVariant) {
+    fail('Unexpected retry layout variant', { audit, testCase: testCase.name, expectedLayoutVariant: testCase.expectedLayoutVariant })
+  }
 
   return {
     case: testCase.name,

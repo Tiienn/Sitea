@@ -994,3 +994,29 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - The layout tool action now records role, placement mode, and positions, allowing QA to verify that starter layouts are separated and role-aware rather than merely text-matching.
 - Extended `npm run qa:agent-text-actions` to assert the garage is separated from the home, the pool is behind the home, and the tested starter layouts do not use fallback placement.
 - Verification passed: `source "$HOME/.zprofile" && npm run qa:agent-text-actions`, `source "$HOME/.zprofile" && npm run qa:agent-handoff`, focused ESLint for edited files, `source "$HOME/.zprofile" && npm run lint -- --quiet`, `source "$HOME/.zprofile" && npm run build`, and `git diff --check`.
+
+---
+
+# Agent Layout Undo + Retry v5
+
+## Todo
+- [x] Inspect the current agent scene mutation path, placed-building state updates, and existing undo/redo surfaces.
+- [x] Add a tiny agent-only structure history snapshot for `placedBuildings` before agent scene mutations.
+- [x] Add local text commands for `undo that`, `undo last change`, and `try again`.
+- [x] Make `undo` restore the previous agent-structure state without touching uploaded floor-plan buildings, manual legacy buildings, walls, rooms, comparisons, or land dimensions.
+- [x] Make `try again` rerun the last layout request with an alternate placement preference or safe fallback if available.
+- [x] Keep history bounded and simple so it does not grow indefinitely or collide with the wall-builder undo stack.
+- [x] Return clear agent feedback when there is nothing to undo or no alternate layout available.
+- [x] Extend Playwright QA for desktop/mobile undo and retry with AI/analyzer routes blocked.
+- [x] Run focused lint/build/QA checks and update this review section.
+
+## Review
+- Current v3/v4 lets the agent mutate real structures, but users need an easy conversational escape hatch when an agent change is not what they wanted.
+- Scope guard: this pass should only cover agent-created structures and should not merge with the existing wall/polygon/floor-plan undo systems.
+- Product goal: make the agent feel safe to experiment with. A user can ask for a layout, refine it, then say `undo that` or `try again` without hunting for manual controls.
+- Added a bounded agent-only structure history in `src/App.jsx` that snapshots `placedBuildings` entries with `source: 'agent'` before successful agent mutations.
+- Added local parser/actions for `undo that`, `undo last change`, and `try again` in `src/hooks/useAIChat.js`, keeping those commands off the paid chat/analyzer routes.
+- `undo` restores only agent-created structures and leaves uploaded floor-plan buildings, manual scene data, walls, rooms, comparisons, and land dimensions untouched.
+- `try again` reruns the last successful agent layout request with a mirrored role-aware placement preference, preserving non-agent scene data and storing the previous agent layout for undo.
+- Updated agent action chips and Playwright QA coverage for desktop undo and mobile retry.
+- Verification passed: focused ESLint for edited files, `npx eslint src/App.jsx --quiet --format stylish`, `git diff --check`, `npm run build`, `npm run qa:agent-text-actions`, and `npm run qa:agent-handoff`.

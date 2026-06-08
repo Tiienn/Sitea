@@ -72,6 +72,10 @@ function ToolChip({ action }) {
         return `Removed ${input.structureName || 'structure'}`
       case 'clear_structures':
         return 'Cleared structures'
+      case 'undo_agent_structure_change':
+        return 'Undid layout'
+      case 'retry_structure_layout':
+        return `Tried ${input.placedCount || 0} structures`
       case 'set_land_dimensions':
         return `Set land ${input.length}×${input.width}m`
       case 'set_land_area':

@@ -489,6 +489,15 @@ function isClearStructuresRequest(normalizedText) {
     !/\bfloor plan|uploaded plan|generated building|comparison|comparisons|objects\b/.test(normalizedText)
 }
 
+function isUndoAgentStructureRequest(normalizedText) {
+  return /\bundo\b/.test(normalizedText) &&
+    /\b(that|last|change|layout|placement|move|adjustment|structure|building)\b/.test(normalizedText)
+}
+
+function isRetryStructureLayoutRequest(normalizedText) {
+  return /\b(try again|retry|another layout|different layout|another option|try another|try a different)\b/.test(normalizedText)
+}
+
 function isResetAllComparisonsRequest(normalizedText) {
   return hasResetIntent(normalizedText) &&
     /\b(all|everything|comparisons|objects|items)\b/.test(normalizedText)
@@ -623,6 +632,14 @@ function buildTextSceneAction(text, { landArea }) {
   const landAreaDimensions = parseLandAreaCommand(normalizedText)
   if (landAreaDimensions) {
     return { type: 'set_land_area', ...landAreaDimensions }
+  }
+
+  if (isUndoAgentStructureRequest(normalizedText)) {
+    return { type: 'undo_agent_structure_change' }
+  }
+
+  if (isRetryStructureLayoutRequest(normalizedText)) {
+    return { type: 'retry_structure_layout' }
   }
 
   if (isClearStructuresRequest(normalizedText)) {
@@ -1147,6 +1164,88 @@ export function useAIChat({
         }],
       }])
       onVisualHandoff?.({ toast: `${action.object.displayName} added • drag or rotate it to compare scale` })
+      return true
+    }
+
+    if (action.type === 'undo_agent_structure_change') {
+      const result = onSceneControl?.({ type: 'undo_agent_structure_change' })
+      const undone = result?.ok === true
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: undone
+          ? 'Done. I undid the last agent layout change. Uploaded floor-plan buildings, comparisons, walls, rooms, and land dimensions were left alone.'
+          : `There is nothing to undo yet. ${result?.message || 'Ask me to place or adjust a layout first, then I can roll back that agent change.'}`,
+        nextSteps: undone ? [
+          { label: 'Last agent change undone', state: 'done' },
+          { label: 'Other scene data preserved', state: 'done' },
+          { label: 'Ask for another layout or adjustment', state: 'current' },
+        ] : [
+          { label: 'Undo checked', state: 'done' },
+          { label: 'No agent history yet', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'undo_agent_structure_change',
+          input: {
+            restoredCount: result?.restoredCount || 0,
+            reason: result?.reason,
+          },
+          success: undone,
+        }],
+      }])
+      onVisualHandoff?.({ toast: undone ? 'Agent change undone' : 'Nothing to undo' })
+      return true
+    }
+
+    if (action.type === 'retry_structure_layout') {
+      const result = onSceneControl?.({ type: 'retry_structure_layout' })
+      const placed = Array.isArray(result?.placed) ? result.placed : []
+      const skipped = Array.isArray(result?.skipped) ? result.skipped : []
+      const retried = result?.ok === true && placed.length > 0
+      const placedNames = formatStructureNameList(placed.map(item => item.name))
+      const skippedNames = formatStructureNameList(skipped.map(item => item.name))
+      const partialCopy = skipped.length > 0
+        ? ` I still could not safely fit ${skippedNames} without breaking the buildable area.`
+        : ''
+      const fallbackCount = placed.filter(item => item.placementMode === 'fallback').length
+      const fallbackCopy = fallbackCount > 0
+        ? ` I used a safe fallback spot for ${fallbackCount} item${fallbackCount === 1 ? '' : 's'} where needed.`
+        : ''
+
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: retried
+          ? `Done. I tried another safe layout with ${placedNames}.${partialCopy}${fallbackCopy} The uploaded plans, comparisons, walls, rooms, and land dimensions were left alone.`
+          : `I could not try another layout yet. ${result?.message || 'Ask me to create a starter layout first, then say "try again".'}`,
+        nextSteps: retried ? [
+          { label: 'Alternate layout placed', state: 'done' },
+          { label: 'Safety rules checked', state: 'done' },
+          { label: 'Say undo that if you prefer the previous layout', state: 'current' },
+        ] : [
+          { label: 'Retry checked', state: 'done' },
+          { label: 'No alternate layout available', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'retry_structure_layout',
+          input: {
+            layoutVariant: result?.layoutVariant,
+            placedCount: placed.length,
+            skippedCount: skipped.length,
+            skippedNames: skipped.map(item => item.name),
+            fallbackCount,
+            placements: placed.map(item => ({
+              structureId: item.structureId,
+              structureName: item.name,
+              role: item.role,
+              placementMode: item.placementMode,
+              x: Number(item.position?.x?.toFixed?.(2) ?? item.position?.x ?? 0),
+              z: Number(item.position?.z?.toFixed?.(2) ?? item.position?.z ?? 0),
+            })),
+            reason: result?.reason,
+          },
+          success: retried,
+        }],
+      }])
+      onVisualHandoff?.({ toast: retried ? 'Tried another layout' : 'No alternate layout yet' })
       return true
     }
 
