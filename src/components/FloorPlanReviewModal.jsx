@@ -10,6 +10,7 @@ import {
   getManualOpeningPresetOptions,
   isDetectionHidden,
   nudgeManualOpeningAlongWall,
+  retargetManualOpeningToWall,
   snapOpeningToNearestReviewWall,
   toggleHiddenDetection,
 } from '../utils/floorPlanReviewCorrections'
@@ -167,9 +168,11 @@ function FloorPlanReviewCanvas({
   selectedDetection,
   addWallMode,
   addOpeningMode,
+  retargetWallMode,
   pendingWallPoint,
   onAddWallPoint,
   onAddOpeningPoint,
+  onRetargetWall,
   onSelectDetection,
 }) {
   const canvasRef = useRef(null)
@@ -340,6 +343,21 @@ function FloorPlanReviewCanvas({
       return
     }
 
+    if (retargetWallMode) {
+      let bestWall = null
+      let bestWallDistance = Infinity
+      interactiveItemsRef.current.forEach(item => {
+        if (item.type !== 'walls' && item.type !== 'addedWalls') return
+        const distance = getHitDistance(x, y, item)
+        if (distance <= item.hitPadding && distance < bestWallDistance) {
+          bestWallDistance = distance
+          bestWall = item
+        }
+      })
+      if (bestWall) onRetargetWall(bestWall)
+      return
+    }
+
     let bestMatch = null
     let bestDistance = Infinity
     interactiveItemsRef.current.forEach(item => {
@@ -361,14 +379,14 @@ function FloorPlanReviewCanvas({
       key: bestMatch.key,
       label: bestMatch.label,
     })
-  }, [addOpeningMode, addWallMode, onAddOpeningPoint, onAddWallPoint, onSelectDetection])
+  }, [addOpeningMode, addWallMode, onAddOpeningPoint, onAddWallPoint, onRetargetWall, onSelectDetection, retargetWallMode])
 
   return (
     <div ref={frameRef} className="w-full rounded-2xl border border-white/10 bg-slate-950/50 p-3 overflow-auto">
       <canvas
         ref={canvasRef}
         onClick={handleCanvasClick}
-        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${addWallMode || addOpeningMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
+        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${addWallMode || addOpeningMode || retargetWallMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
       />
     </div>
   )
@@ -381,6 +399,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const [selectedDetection, setSelectedDetection] = useState(null)
   const [addWallMode, setAddWallMode] = useState(false)
   const [addOpeningMode, setAddOpeningMode] = useState(null)
+  const [retargetWallMode, setRetargetWallMode] = useState(false)
   const [pendingWallPoint, setPendingWallPoint] = useState(null)
   const hiddenCount = useMemo(() => countHiddenDetections(hiddenDetections), [hiddenDetections])
   const addedCount = useMemo(() => countAddedDetections(addedDetections), [addedDetections])
@@ -406,10 +425,18 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     stairs: correctedFloorPlan?.stats?.stairCount ?? visibleCounts.stairs ?? getCount(analysis?.stairs),
   }), [analysis, correctedFloorPlan, visibleCounts])
 
+  const handleSelectDetection = useCallback((detection) => {
+    setSelectedDetection(detection)
+    if (detection?.type !== 'addedDoors' && detection?.type !== 'addedWindows') {
+      setRetargetWallMode(false)
+    }
+  }, [])
+
   const hideSelected = useCallback(() => {
     if (!selectedDetection) return
     setHiddenDetections(prev => toggleHiddenDetection(prev, selectedDetection))
     setSelectedDetection(null)
+    setRetargetWallMode(false)
   }, [selectedDetection])
 
   const removeSelectedAddedDetection = useCallback(() => {
@@ -426,6 +453,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
         : prev.windows || [],
     }))
     setSelectedDetection(null)
+    setRetargetWallMode(false)
   }, [selectedDetection])
 
   const hideOrRemoveSelected = useCallback(() => {
@@ -439,6 +467,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const restoreHidden = useCallback(() => {
     setHiddenDetections(createEmptyHiddenDetections())
     setSelectedDetection(null)
+    setRetargetWallMode(false)
   }, [])
 
   const toggleAddWallMode = useCallback(() => {
@@ -447,6 +476,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       setPendingWallPoint(null)
       setSelectedDetection(null)
       setAddOpeningMode(null)
+      setRetargetWallMode(false)
       return next
     })
   }, [])
@@ -457,6 +487,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       setAddWallMode(false)
       setPendingWallPoint(null)
       setSelectedDetection(null)
+      setRetargetWallMode(false)
       return next
     })
   }, [])
@@ -536,6 +567,31 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     })
   }, [analysis, selectedAddedOpening, selectedDetection])
 
+  const toggleRetargetWallMode = useCallback(() => {
+    if (!selectedAddedOpening) return
+    setAddWallMode(false)
+    setAddOpeningMode(null)
+    setPendingWallPoint(null)
+    setRetargetWallMode(prev => !prev)
+  }, [selectedAddedOpening])
+
+  const retargetSelectedOpening = useCallback((wallItem) => {
+    if (!selectedAddedOpening || !selectedDetection || !wallItem?.key) return
+    setAddedDetections(prev => {
+      const currentList = prev[selectedAddedOpening.collection] || []
+      if (!currentList[selectedDetection.index]) return prev
+      return {
+        ...prev,
+        [selectedAddedOpening.collection]: currentList.map((opening, index) => (
+          index === selectedDetection.index
+            ? retargetManualOpeningToWall(opening, wallItem.key, analysis, hiddenDetections, prev)
+            : opening
+        )),
+      }
+    })
+    setRetargetWallMode(false)
+  }, [analysis, hiddenDetections, selectedAddedOpening, selectedDetection])
+
   const nudgeSelectedOpening = useCallback((direction) => {
     if (!selectedAddedOpening || !selectedDetection) return
     setAddedDetections(prev => {
@@ -561,6 +617,8 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     ? pendingWallPoint
       ? 'Tap the wall end point on the plan.'
       : 'Tap the missing wall start point on the plan.'
+    : retargetWallMode
+      ? 'Tap the wall this opening belongs to.'
     : addOpeningMode === 'door'
       ? 'Tap the wall where the missing door belongs. Sitea will snap it to the nearest visible wall.'
       : addOpeningMode === 'window'
@@ -609,10 +667,12 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
             selectedDetection={selectedDetection}
             addWallMode={addWallMode}
             addOpeningMode={addOpeningMode}
+            retargetWallMode={retargetWallMode}
             pendingWallPoint={pendingWallPoint}
             onAddWallPoint={handleAddWallPoint}
             onAddOpeningPoint={handleAddOpeningPoint}
-            onSelectDetection={setSelectedDetection}
+            onRetargetWall={retargetSelectedOpening}
+            onSelectDetection={handleSelectDetection}
           />
 
           <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-4">
@@ -711,9 +771,9 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 <div className="mt-4 border-t border-white/10 pt-3">
                   <p className="mb-2 text-sm font-semibold text-white">Position</p>
                   <p className="mb-3 text-xs leading-5 text-slate-400">
-                    Move the selected opening along its snapped wall.
+                    Move the selected opening or attach it to another wall.
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <button
                       type="button"
                       onClick={() => nudgeSelectedOpening(-1)}
@@ -729,6 +789,17 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                       className="min-h-11 rounded-2xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Forward
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleRetargetWallMode}
+                      className={`min-h-11 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                        retargetWallMode
+                          ? 'border border-teal-300/40 bg-teal-400/15 text-teal-100 hover:bg-teal-400/20'
+                          : 'border border-white/10 text-slate-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {retargetWallMode ? 'Cancel pick' : 'Pick wall'}
                     </button>
                   </div>
                 </div>

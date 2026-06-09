@@ -224,6 +224,38 @@ export function nudgeManualOpeningAlongWall(opening = {}, direction = 0, analysi
   }
 }
 
+export function retargetManualOpeningToWall(opening = {}, targetWallKey, analysis = {}, hidden = {}, additions = {}) {
+  if (!opening?.center || !targetWallKey) return opening
+  const wallEntry = getVisibleReviewWalls(analysis, hidden, additions).find(entry => entry.key === targetWallKey)
+  if (!wallEntry) return opening
+
+  const wallLength = getWallLengthPx(wallEntry.wall)
+  const projected = projectPointToWall(opening.center, wallEntry.wall)
+  if (!wallLength || !projected) return opening
+
+  const halfWidth = Math.max(0, (opening.width || 0) / 2)
+  const minPosition = Math.min(wallLength / 2, halfWidth)
+  const maxPosition = Math.max(minPosition, wallLength - minPosition)
+  const positionAlongWall = Math.max(minPosition, Math.min(maxPosition, projected.t * wallLength))
+  const point = getPointAlongWall(wallEntry.wall, positionAlongWall)
+  if (!point) return opening
+
+  return {
+    ...opening,
+    center: formatReviewPoint(point),
+    rotation: roundReviewNumber(Math.atan2(wallEntry.wall.end.y - wallEntry.wall.start.y, wallEntry.wall.end.x - wallEntry.wall.start.x), 6),
+    positionAlongWall: roundReviewNumber(positionAlongWall),
+    snap: {
+      ...opening.snap,
+      wallType: wallEntry.type,
+      wallIndex: wallEntry.index,
+      wallKey: wallEntry.key,
+      distancePx: roundReviewNumber(projected.distance),
+      t: roundReviewNumber(point.t, 4),
+    },
+  }
+}
+
 export function countHiddenDetections(hidden = {}) {
   return FLOOR_PLAN_REVIEW_TYPES.reduce((sum, type) => sum + (hidden[type]?.length || 0), 0)
 }

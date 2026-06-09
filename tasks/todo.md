@@ -171,6 +171,30 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local browser smoke test. Existing generated QA report timestamp/fixture churn was restored before final diff.
 - Remaining limitation: users still cannot drag handles directly, choose a different wall when the snap target is wrong, or edit generated openings after placement.
 
+## Active Plan: v28 Manual Opening Wall Retarget
+- [x] Keep v28 scoped to selected manual doors/windows in `FloorPlanReviewModal`: no paid analyzer call, no drag handles, no renderer rewrite
+- [x] Add shared helper logic to retarget a manual opening to a specific visible wall by wall key, projecting the opening onto that wall in source-image coordinates
+- [x] Preserve width, preset, door type, confidence, and source metadata when retargeting, while updating center, rotation, `positionAlongWall`, and snap metadata
+- [x] Add a calm `Pick wall` mode for selected manual doors/windows; the next wall tap in the review canvas retargets the opening to that wall
+- [x] Highlight the retarget mode in the correction copy and keep controls mobile-safe with 44px touch targets
+- [x] Keep safe fallback behavior when the selected opening or target wall is missing so v24-v27 flows still work
+- [x] Preserve hiding/restoring detections, adding/removing walls, adding/removing openings, size presets, nudging, and placing corrected geometry
+- [x] Extend no-cost review QA to assert retargeting changes wall reference/rotation/position, preserves preset metadata, and rejects invalid target walls
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v28 review notes with what wall retargeting improves and what remains for direct drag handles and post-placement editing
+
+### v28 Review
+- Direction: v28 fixes the common case where a manual door/window snapped to a nearby wall, but not the wall the user intended.
+- Scope stayed inside the floor-plan review modal and shared correction utility: no paid analyzer call, no drag handles, and no renderer rewrite.
+- Added `retargetManualOpeningToWall`, which projects a manual opening onto a chosen visible wall and updates center, rotation, `positionAlongWall`, and snap metadata.
+- Retargeting preserves width, size preset, door type, confidence, and source metadata.
+- The selected manual door/window panel now includes a mobile-safe `Pick wall` control. In pick mode, the next wall tap retargets the opening.
+- Pick mode is reflected in the correction copy and exits safely after retargeting, cancelling, selecting another item, hiding, restoring, or removing.
+- Invalid target walls leave the opening unchanged, preserving the fallback behavior from v24-v27.
+- Extended `npm run qa:floor-plans:review` to assert retargeted wall reference, rotation, center/position updates, preset preservation, metadata preservation, and invalid-target fallback.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local browser smoke test. Existing generated QA report timestamp/fixture churn was restored before final diff.
+- Remaining limitation: users still cannot drag handles directly or edit generated openings after placement.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup

@@ -13,6 +13,7 @@ import {
   getManualOpeningNudgeStep,
   getReviewPixelsPerMeter,
   nudgeManualOpeningAlongWall,
+  retargetManualOpeningToWall,
   snapOpeningToNearestReviewWall,
 } from '../src/utils/floorPlanReviewCorrections.js'
 
@@ -29,6 +30,10 @@ function assert(condition, message) {
 
 function getWallLengthPx(wall) {
   return Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
+}
+
+function getWallAngle(wall) {
+  return Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x)
 }
 
 const analysis = JSON.parse(readFileSync(rawFixturePath, 'utf8'))
@@ -89,6 +94,14 @@ const clampedDoor = nudgeManualOpeningAlongWall({
   positionAlongWall: doorWallLength + 1000,
   snap: { ...manualDoor.snap, t: 1 },
 }, 1, analysis, hiddenDetections, addedWallsOnly)
+const retargetWallIndex = analysis.walls.findIndex((wall, index) => (
+  index !== snappedDoor.snap.wallIndex &&
+  !hiddenDetections.walls.includes(index) &&
+  Math.abs(getWallAngle(wall) - manualDoor.rotation) > 0.1
+))
+const retargetWallKey = `walls:${retargetWallIndex}`
+const retargetedDoor = retargetManualOpeningToWall(manualDoor, retargetWallKey, analysis, hiddenDetections, addedWallsOnly)
+const invalidRetargetedDoor = retargetManualOpeningToWall(manualDoor, 'walls:not-real', analysis, hiddenDetections, addedWallsOnly)
 const addedDetections = {
   walls: [addedWall],
   doors: [manualDoor],
@@ -130,6 +143,15 @@ assert(nudgedDoor.center.x !== manualDoor.center.x || nudgedDoor.center.y !== ma
 assert(unchangedUnsnappedOpening === unsnappedOpening, 'Unsnapped opening should remain unchanged when nudged')
 assert(Math.abs(clampedDoor.positionAlongWall - (doorWallLength - manualDoor.width / 2)) < 0.02, 'Nudge should clamp opening within the wall bounds')
 assert(clampedDoor.snap.t >= 0 && clampedDoor.snap.t <= 1, 'Clamped opening snap position should stay within the wall')
+assert(retargetWallIndex >= 0, 'Fixture should have a visible wall suitable for retargeting')
+assert(retargetedDoor.snap?.wallKey === retargetWallKey, 'Retarget should update snapped wall reference')
+assert(retargetedDoor.snap.wallKey !== manualDoor.snap.wallKey, 'Retarget should move to a different wall')
+assert(retargetedDoor.presetId === manualDoor.presetId && retargetedDoor.width === manualDoor.width, 'Retarget should preserve preset sizing')
+assert(retargetedDoor.doorType === manualDoor.doorType && retargetedDoor.source === manualDoor.source, 'Retarget should preserve door metadata')
+assert(Number.isFinite(retargetedDoor.positionAlongWall), 'Retarget should update position along wall')
+assert(retargetedDoor.center.x !== manualDoor.center.x || retargetedDoor.center.y !== manualDoor.center.y, 'Retarget should update opening center')
+assert(Math.abs(retargetedDoor.rotation - manualDoor.rotation) > 0.1, 'Retarget should update opening rotation for the new wall')
+assert(invalidRetargetedDoor === manualDoor, 'Invalid retarget wall should leave the opening unchanged')
 assert(fallbackOpening.snap === null, 'No-wall fallback should not claim a snapped wall')
 assert(fallbackOpening.center.x === 12.35 && fallbackOpening.center.y === 67.89, 'No-wall fallback should preserve the tapped point')
 assert(fallbackOpening.rotation === 0, 'No-wall fallback should keep the v24 default rotation')
@@ -164,4 +186,5 @@ console.log('Floor plan review QA passed', {
   windowWidthPx: manualWindow.width,
   nudgedDoorPosition: nudgedDoor.positionAlongWall,
   nudgeStep,
+  retargetWall: retargetedDoor.snap,
 })
