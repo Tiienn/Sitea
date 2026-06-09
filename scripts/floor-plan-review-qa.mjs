@@ -10,7 +10,9 @@ import {
   countHiddenDetections,
   countVisibleDetections,
   getManualOpeningPresetOptions,
+  getManualOpeningNudgeStep,
   getReviewPixelsPerMeter,
+  nudgeManualOpeningAlongWall,
   snapOpeningToNearestReviewWall,
 } from '../src/utils/floorPlanReviewCorrections.js'
 
@@ -23,6 +25,10 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message)
   }
+}
+
+function getWallLengthPx(wall) {
+  return Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
 }
 
 const analysis = JSON.parse(readFileSync(rawFixturePath, 'utf8'))
@@ -73,6 +79,16 @@ const manualWindow = applyManualOpeningPreset({
   confidence: 1,
   source: 'manual_review',
 }, 'window', 'wide', analysis)
+const nudgeStep = getManualOpeningNudgeStep(analysis)
+const nudgedDoor = nudgeManualOpeningAlongWall(manualDoor, 1, analysis, hiddenDetections, addedWallsOnly)
+const unsnappedOpening = { center: { x: 15, y: 20 }, width: 12, rotation: 0 }
+const unchangedUnsnappedOpening = nudgeManualOpeningAlongWall(unsnappedOpening, 1, analysis, hiddenDetections, addedWallsOnly)
+const doorWallLength = getWallLengthPx(analysis.walls[snappedDoor.snap.wallIndex])
+const clampedDoor = nudgeManualOpeningAlongWall({
+  ...manualDoor,
+  positionAlongWall: doorWallLength + 1000,
+  snap: { ...manualDoor.snap, t: 1 },
+}, 1, analysis, hiddenDetections, addedWallsOnly)
 const addedDetections = {
   walls: [addedWall],
   doors: [manualDoor],
@@ -106,6 +122,14 @@ assert(manualDoor.doorType === 'double', 'Double door preset should update door 
 assert(manualDoor.presetMeters === 1.6 && manualWindow.presetMeters === 1.8, 'Manual opening preset meter sizes are wrong')
 assert(manualDoor.snap?.wallKey === snappedDoor.snap?.wallKey, 'Door preset should preserve snapped wall metadata')
 assert(manualWindow.snap?.wallKey === snappedWindow.snap?.wallKey, 'Window preset should preserve snapped wall metadata')
+assert(nudgeStep === 8.42, 'Nudge step should use 0.25m from the fixture scale')
+assert(nudgedDoor.snap?.wallKey === manualDoor.snap?.wallKey, 'Nudge should preserve snapped wall reference')
+assert(nudgedDoor.presetId === manualDoor.presetId && nudgedDoor.doorType === manualDoor.doorType, 'Nudge should preserve preset and door type')
+assert(Math.abs(nudgedDoor.positionAlongWall - manualDoor.positionAlongWall - nudgeStep) < 0.02, 'Nudge did not move by the expected step')
+assert(nudgedDoor.center.x !== manualDoor.center.x || nudgedDoor.center.y !== manualDoor.center.y, 'Nudge did not update opening center')
+assert(unchangedUnsnappedOpening === unsnappedOpening, 'Unsnapped opening should remain unchanged when nudged')
+assert(Math.abs(clampedDoor.positionAlongWall - (doorWallLength - manualDoor.width / 2)) < 0.02, 'Nudge should clamp opening within the wall bounds')
+assert(clampedDoor.snap.t >= 0 && clampedDoor.snap.t <= 1, 'Clamped opening snap position should stay within the wall')
 assert(fallbackOpening.snap === null, 'No-wall fallback should not claim a snapped wall')
 assert(fallbackOpening.center.x === 12.35 && fallbackOpening.center.y === 67.89, 'No-wall fallback should preserve the tapped point')
 assert(fallbackOpening.rotation === 0, 'No-wall fallback should keep the v24 default rotation')
@@ -138,4 +162,6 @@ console.log('Floor plan review QA passed', {
   windowSnap: snappedWindow.snap,
   doorWidthPx: manualDoor.width,
   windowWidthPx: manualWindow.width,
+  nudgedDoorPosition: nudgedDoor.positionAlongWall,
+  nudgeStep,
 })

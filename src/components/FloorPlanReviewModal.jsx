@@ -9,6 +9,7 @@ import {
   createEmptyHiddenDetections,
   getManualOpeningPresetOptions,
   isDetectionHidden,
+  nudgeManualOpeningAlongWall,
   snapOpeningToNearestReviewWall,
   toggleHiddenDetection,
 } from '../utils/floorPlanReviewCorrections'
@@ -535,6 +536,22 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     })
   }, [analysis, selectedAddedOpening, selectedDetection])
 
+  const nudgeSelectedOpening = useCallback((direction) => {
+    if (!selectedAddedOpening || !selectedDetection) return
+    setAddedDetections(prev => {
+      const currentList = prev[selectedAddedOpening.collection] || []
+      if (!currentList[selectedDetection.index]) return prev
+      return {
+        ...prev,
+        [selectedAddedOpening.collection]: currentList.map((opening, index) => (
+          index === selectedDetection.index
+            ? nudgeManualOpeningAlongWall(opening, direction, analysis, hiddenDetections, prev)
+            : opening
+        )),
+      }
+    })
+  }, [analysis, hiddenDetections, selectedAddedOpening, selectedDetection])
+
   const placeCorrectedPlan = useCallback(() => {
     onPlace(correctedFloorPlan)
   }, [correctedFloorPlan, onPlace])
@@ -690,6 +707,30 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                       </button>
                     )
                   })}
+                </div>
+                <div className="mt-4 border-t border-white/10 pt-3">
+                  <p className="mb-2 text-sm font-semibold text-white">Position</p>
+                  <p className="mb-3 text-xs leading-5 text-slate-400">
+                    Move the selected opening along its snapped wall.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => nudgeSelectedOpening(-1)}
+                      disabled={!selectedAddedOpening.opening?.snap?.wallKey}
+                      className="min-h-11 rounded-2xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => nudgeSelectedOpening(1)}
+                      disabled={!selectedAddedOpening.opening?.snap?.wallKey}
+                      className="min-h-11 rounded-2xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Forward
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : null}

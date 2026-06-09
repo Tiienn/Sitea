@@ -87,6 +87,17 @@ function getWallLengthPx(wall) {
   return Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
 }
 
+function getPointAlongWall(wall, positionAlongWall) {
+  const length = getWallLengthPx(wall)
+  if (!length) return null
+  const t = Math.max(0, Math.min(1, positionAlongWall / length))
+  return {
+    x: wall.start.x + (wall.end.x - wall.start.x) * t,
+    y: wall.start.y + (wall.end.y - wall.start.y) * t,
+    t,
+  }
+}
+
 function projectPointToWall(point, wall) {
   if (!point || !wall?.start || !wall?.end) return null
   const dx = wall.end.x - wall.start.x
@@ -138,6 +149,11 @@ export function getVisibleReviewWalls(analysis = {}, hidden = {}, additions = {}
   return visibleWalls
 }
 
+export function getManualOpeningNudgeStep(analysis = {}) {
+  const pixelsPerMeter = getReviewPixelsPerMeter(analysis)
+  return pixelsPerMeter ? roundReviewNumber(pixelsPerMeter * 0.25) : 12
+}
+
 export function snapOpeningToNearestReviewWall(point, analysis = {}, hidden = {}, additions = {}) {
   let bestSnap = null
 
@@ -167,6 +183,43 @@ export function snapOpeningToNearestReviewWall(point, analysis = {}, hidden = {}
       wallKey: bestSnap.entry.key,
       distancePx: roundReviewNumber(bestSnap.distance),
       t: roundReviewNumber(bestSnap.t, 4),
+    },
+  }
+}
+
+export function nudgeManualOpeningAlongWall(opening = {}, direction = 0, analysis = {}, hidden = {}, additions = {}) {
+  const wallKey = opening.snap?.wallKey
+  const wallEntry = wallKey
+    ? getVisibleReviewWalls(analysis, hidden, additions).find(entry => entry.key === wallKey)
+    : null
+  const stepDirection = Math.sign(direction)
+  if (!wallEntry || !stepDirection) return opening
+
+  const wallLength = getWallLengthPx(wallEntry.wall)
+  if (!wallLength) return opening
+
+  const currentPosition = Number.isFinite(opening.positionAlongWall)
+    ? opening.positionAlongWall
+    : (opening.snap?.t || 0) * wallLength
+  const halfWidth = Math.max(0, (opening.width || 0) / 2)
+  const minPosition = Math.min(wallLength / 2, halfWidth)
+  const maxPosition = Math.max(minPosition, wallLength - minPosition)
+  const nextPosition = Math.max(minPosition, Math.min(maxPosition, currentPosition + stepDirection * getManualOpeningNudgeStep(analysis)))
+  const point = getPointAlongWall(wallEntry.wall, nextPosition)
+  if (!point) return opening
+
+  return {
+    ...opening,
+    center: formatReviewPoint(point),
+    rotation: roundReviewNumber(Math.atan2(wallEntry.wall.end.y - wallEntry.wall.start.y, wallEntry.wall.end.x - wallEntry.wall.start.x), 6),
+    positionAlongWall: roundReviewNumber(nextPosition),
+    snap: {
+      ...opening.snap,
+      wallType: wallEntry.type,
+      wallIndex: wallEntry.index,
+      wallKey: wallEntry.key,
+      distancePx: 0,
+      t: roundReviewNumber(point.t, 4),
     },
   }
 }

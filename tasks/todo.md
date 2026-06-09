@@ -148,6 +148,29 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local browser smoke test. Existing generated QA report timestamp/fixture churn was restored before final diff.
 - Remaining limitation: users still cannot drag opening handles, explicitly choose a wall when multiple walls are nearby, or edit generated openings after placement.
 
+## Active Plan: v27 Manual Opening Nudge Controls
+- [x] Keep v27 scoped to selected manual doors/windows in `FloorPlanReviewModal`: no paid analyzer call, no drag handles, no broad renderer changes
+- [x] Add small review-wall lookup/nudge helpers that move a snapped manual opening along its referenced wall in source-image coordinates
+- [x] Use a scale-aware nudge step when floor-plan scale exists, with a conservative pixel fallback when scale is missing
+- [x] When a selected added door/window is active, show mobile-safe previous/next nudge buttons beside the existing size presets
+- [x] Clamp nudged openings within the wall segment and preserve width, preset, door type, rotation, and snap metadata
+- [x] Keep a safe fallback for openings without snap metadata so v24/v26 behavior still works
+- [x] Preserve v22-v26 behavior for hiding/restoring detections, adding/removing walls, adding/removing snapped openings, preset sizing, and placing corrected geometry
+- [x] Extend no-cost review QA to assert manual opening nudges update center/position along wall, clamp at wall bounds, and preserve preset/snap metadata
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v27 review notes with what nudging improves and what remains for drag handles, explicit wall choice, and post-placement editing
+
+### v27 Review
+- Direction: v27 improves manual opening placement after v25 snapping and v26 preset sizing by letting users move selected manual doors/windows along their snapped wall.
+- Scope stayed inside the review modal and shared correction utility: no paid analyzer call, no drag handles, and no renderer rewrite.
+- Added scale-aware nudge helpers. When floor-plan scale exists, each nudge moves the opening 0.25m along the referenced wall; otherwise Sitea uses a conservative pixel fallback.
+- Nudge keeps the opening attached to its original snapped wall, updates center and `positionAlongWall`, refreshes snap `t`, and preserves width, preset, door type, rotation, and wall metadata.
+- Nudge is clamped so the opening stays within the wall segment. Openings without snap metadata remain unchanged, preserving v24/v26 fallback behavior.
+- The selected manual door/window panel now includes mobile-safe `Back` and `Forward` controls below the size presets.
+- Extended `npm run qa:floor-plans:review` to assert nudge step size, center/position changes, clamp behavior, unsnapped fallback behavior, and preset/snap metadata preservation.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local browser smoke test. Existing generated QA report timestamp/fixture churn was restored before final diff.
+- Remaining limitation: users still cannot drag handles directly, choose a different wall when the snap target is wrong, or edit generated openings after placement.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
