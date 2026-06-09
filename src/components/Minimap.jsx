@@ -397,7 +397,7 @@ export default function Minimap({
 
   return (
     <div
-      className={`fixed z-40 animate-fade-in transition-all duration-200 ${isMobile ? 'right-3' : 'bottom-20 right-4'}`}
+      className={`sitea-minimap fixed z-40 animate-fade-in transition-all duration-200 ${isMobile ? 'right-3' : 'bottom-20 right-4'}`}
       style={isMobile && mobileTopOffset != null ? { top: mobileTopOffset } : isMobile ? { top: '7rem' } : undefined}
     >
       <div className="minimap-frame p-1">

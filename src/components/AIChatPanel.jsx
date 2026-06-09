@@ -306,7 +306,7 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
       onDrop={handleDrop}
       className={`sitea-agent-panel flex flex-col backdrop-blur-xl text-white ${
         isMobile
-          ? 'fixed left-3 right-3 bottom-24 z-[220] rounded-2xl h-[64vh] max-h-[620px] safe-area-bottom'
+          ? 'fixed left-3 right-3 bottom-3 z-[220] rounded-2xl h-[64vh] max-h-[620px] safe-area-bottom'
           : 'fixed right-6 bottom-6 z-50 rounded-2xl w-[400px] max-h-[600px]'
       }`}>
       {isDragActive && (

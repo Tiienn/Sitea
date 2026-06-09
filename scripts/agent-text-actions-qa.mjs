@@ -485,6 +485,18 @@ const CASES = [
     expectedStoredText: 'Missing next: land size',
     expectedToolActionName: 'site_brief',
     expectChatVisible: true,
+    expectMobileHudHidden: true,
+  },
+  {
+    name: 'mobile-agent-close-restores-controls',
+    viewport: 'mobile',
+    prompt: 'Site brief',
+    expectedStoredText: 'Missing next: land size',
+    expectedToolActionName: 'site_brief',
+    closeChatAfterPrompt: true,
+    expectChatVisible: false,
+    expectMobileRibbonVisible: true,
+    expectMobileViewControlsVisible: true,
   },
   {
     name: 'mobile-vague-goal-follow-through',
@@ -903,6 +915,9 @@ async function readAudit(page, expectedToast) {
       expectedToastVisible: toastText ? hasText(toastText) : true,
       horizontalOverflow: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - innerWidth,
       storedText,
+      mobileRibbonVisible: visible(document.querySelector('.ribbon-nav')),
+      mobileMinimapVisible: visible(document.querySelector('.sitea-minimap')),
+      mobileViewControlsVisible: visible(document.querySelector('.sitea-mobile-view-controls')),
       latestToolActionName: latestToolAction?.name || null,
       latestToolActionInput: latestToolAction?.input || {},
       layoutActionName: latestLayoutAction?.name || null,
@@ -1054,7 +1069,11 @@ async function runCase(browser, baseUrl, testCase) {
 
   let audit = await readAudit(page, testCase.expectedToast)
 
-  if (testCase.clickActionLabel) {
+  if (testCase.closeChatAfterPrompt) {
+    await page.getByTitle('Close').last().click()
+    await page.waitForTimeout(500)
+    audit = await readAudit(page, testCase.expectedToast)
+  } else if (testCase.clickActionLabel) {
     await clickActionAndWait(page, testCase.clickActionLabel, testCase.expectedStoredText)
     await page.waitForTimeout(900)
     audit = await readAudit(page, testCase.expectedToast)
@@ -1090,6 +1109,15 @@ async function runCase(browser, baseUrl, testCase) {
   }
   if (audit.chatVisible !== expectedChatVisible) {
     fail('Unexpected chat visibility after text action', { audit, testCase: testCase.name, expectedChatVisible })
+  }
+  if (testCase.expectMobileHudHidden && (audit.mobileRibbonVisible || audit.mobileMinimapVisible || audit.mobileViewControlsVisible)) {
+    fail('Mobile HUD should be hidden while agent is focused', { audit, testCase: testCase.name })
+  }
+  if (testCase.expectMobileRibbonVisible === true && !audit.mobileRibbonVisible) {
+    fail('Mobile ribbon should be visible after agent closes', { audit, testCase: testCase.name })
+  }
+  if (testCase.expectMobileViewControlsVisible === true && !audit.mobileViewControlsVisible) {
+    fail('Mobile view controls should be visible after agent closes', { audit, testCase: testCase.name })
   }
   if (testCase.expectedToast && !audit.expectedToastVisible) {
     fail('Expected toast was not visible', { audit, testCase: testCase.name })

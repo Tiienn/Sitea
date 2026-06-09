@@ -1575,6 +1575,55 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 
 ---
 
+# Deploy Agent Upload Understanding v18
+
+## Todo
+- [x] Confirm latest commit is v18.
+- [x] Deploy v18 to Vercel Production.
+- [x] Confirm `sitea.live` points to the deployment.
+- [x] Smoke-test the public alias.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_9y9LHE52NKdEWtDT7XNPbzyCxZm3`.
+- Deployment URL: `https://sitea-egur7aefs-tien820-8406s-projects.vercel.app`.
+- Vercel reported the deployment as `READY` and aliased it to `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live/` returned `HTTP/2 200`.
+- The raw Vercel deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Vercel CLI used for deploy: `54.10.2`.
+
+---
+
+# Mobile Agent Workspace v19
+
+## Todo
+- [x] Confirm v18 is committed, pushed, deployed, and the deployment note is pushed.
+- [x] Read the current mobile HUD, minimap, view controls, AI chat panel/button, bottom navigation, and agent QA paths.
+- [x] Define a single mobile focus rule: when the Sitea Agent is open, secondary scene controls should stay hidden so the chat is the only front modal.
+- [x] Keep the open world visible behind the agent by preserving the compact floating chat panel rather than introducing a full-screen overlay.
+- [x] Add one lightweight mobile scene-access affordance if needed, such as a compact `View`/`Scene` action that reopens controls after the agent is closed.
+- [x] Ensure minimap, joystick, view toggle/settings, edit-land card, and bottom panels do not overlap the agent panel on mobile.
+- [x] Preserve desktop controls, existing 3D/2D view behavior, uploads, visual handoff, and agent follow-through actions.
+- [x] Keep changes within the existing Sitea design system: 44px touch targets, no cramped text, no layout shifts, and no broad color/theme change.
+- [x] Extend browser QA for mobile chat-open cleanliness, mobile chat-close scene controls, and no horizontal overflow.
+- [x] Run focused lint, `git diff --check`, relevant browser QA, full quiet lint, and build.
+- [x] Update Linear and complete this review section.
+
+## Review
+- Direction: v19 should make mobile feel agent-led and calm: the user talks to Sitea first, while scene controls stay accessible but not visually competing.
+- Scope guard: mobile HUD visibility and small control affordances only. No scene engine changes, no paid AI route, no upload/analyzer rewrite, no desktop redesign.
+- Product goal: on a phone, the Sitea Agent should clearly be the active interface without blocking the sense of the land/world behind it.
+- Mobile Sitea Agent now sits near the bottom of the viewport because the mobile ribbon is hidden while the agent is open, reducing the old empty gap below the chat.
+- The existing mobile focus rule continues to hide active panels, minimap, joystick, view controls, edit-land card, and the bottom ribbon while the agent is open.
+- Closing the Sitea Agent restores the mobile ribbon and view controls, which is the lightweight scene-access affordance for returning to manual controls.
+- Added stable QA hooks for the minimap and mobile view-control cluster without changing their appearance.
+- Extended browser QA with `mobile-site-brief-missing-land` HUD-hidden assertions and a new `mobile-agent-close-restores-controls` case.
+- Preserved desktop controls, existing 3D/2D behavior, upload flow, visual handoff, and agent follow-through actions.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
 # Agent Visual Plan Loop v17
 
 ## Todo
