@@ -1523,3 +1523,23 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Added typed `Use demo land`, action-button, and follow-through paths, all without paid AI calls or new persistence.
 - Extended the agent text-action QA with desktop/mobile missing-land intake, demo-land click, and Site Brief follow-through cases.
 - Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
+# Deploy Agent Intake Flow v16
+
+## Todo
+- [x] Confirm latest commit is v16.
+- [x] Deploy v16 to Vercel Production.
+- [x] Confirm `sitea.live` points to the deployment.
+- [x] Smoke-test the public alias.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_J2qrSuDasqi4pHNt5i9uFab7SGTo`.
+- Deployment URL: `https://sitea-es6is3x6e-tien820-8406s-projects.vercel.app`.
+- Vercel reported the deployment as `READY` and aliased it to `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live/` returned `HTTP/2 200`.
+- The raw Vercel deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Vercel CLI used for deploy: `54.10.2`.
