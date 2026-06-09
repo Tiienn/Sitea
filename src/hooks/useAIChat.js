@@ -5,6 +5,7 @@ import { analyzeImage } from '../services/imageAnalysis'
 
 const MAX_TOOL_ITERATIONS = 5
 const TENNIS_COURT = { id: 'tennisCourt', name: 'tennis court', width: 10.97, length: 23.77 }
+const FLOOR_PLAN_TIMEOUT_ERROR = 'The floor-plan scan took too long. Please try again, or upload a smaller, clearer image.'
 const TEXT_ACTION_COMPARISONS = [
   {
     id: 'tennisCourt',
@@ -124,6 +125,34 @@ const TEXT_ACTION_COMPARISONS = [
     aliases: ['greenhouse'],
   },
 ]
+
+async function readFloorPlanAnalysisResponse(response) {
+  const text = await response.text()
+  let data = {}
+
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      if (response.status === 504) {
+        throw new Error(FLOOR_PLAN_TIMEOUT_ERROR)
+      }
+      if (!response.ok) {
+        throw new Error(`Floor-plan analysis failed (${response.status}). Please try again.`)
+      }
+      throw new Error('Sitea received an invalid floor-plan analysis response. Please try again.')
+    }
+  }
+
+  if (!response.ok || data.error) {
+    if (response.status === 504) {
+      throw new Error(FLOOR_PLAN_TIMEOUT_ERROR)
+    }
+    throw new Error(data.error || `Analysis failed: ${response.status}`)
+  }
+
+  return data
+}
 
 const TEXT_ACTION_STRUCTURES = [
   {
@@ -2485,10 +2514,7 @@ export function useAIChat({
         body: JSON.stringify({ image: fileBase64 }),
       })
 
-      const data = await response.json()
-      if (!response.ok || data.error) {
-        throw new Error(data.error || `Analysis failed: ${response.status}`)
-      }
+      const data = await readFloorPlanAnalysisResponse(response)
       if (!data.walls || data.walls.length === 0) {
         throw new Error('No walls detected. Please try a clearer image.')
       }

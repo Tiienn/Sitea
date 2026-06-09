@@ -6,6 +6,12 @@
 - [x] Confirm whether Vercel production `SUPABASE_SERVICE_ROLE_KEY` needs to be re-saved with a non-empty value for upload quota writes
 - [x] Add review notes for the subscription-gate investigation and fix
 
+## Active Plan: Fix Floor-Plan Upload Timeout Error
+- [x] Increase the Vercel function timeout for AI upload analyzers so `/api/analyze-floor-plan` can finish real scans
+- [x] Make the agent upload response parser tolerate non-JSON timeout/error bodies and show a useful message
+- [x] Verify with focused lint/build checks
+- [x] Add review notes for the production timeout investigation and fix
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
@@ -91,6 +97,13 @@
 - Updated `server/subscriptions.js` so the subscription lookup uses the same verified bearer token in Supabase global headers. This keeps the existing RLS policy path intact and avoids broadening table access.
 - Verified with `npx eslint server/subscriptions.js --format stylish`, `npm run build`, and `git diff --check`.
 - Vercel production env listing still shows `SUPABASE_SERVICE_ROLE_KEY` configured, but `vercel env pull --environment=production` returns an empty local value for that key. That can be redaction/CLI behavior or a truly blank value, so runtime upload-quota behavior should be checked after deploying this fix.
+
+### Floor-Plan Upload Timeout Fix
+- Investigated the screenshot showing `Unexpected token 'A', "An error o"... is not valid JSON` after uploading a real floor-plan image on `sitea.live`.
+- Checked production logs and found the real failure was `POST /api/analyze-floor-plan` returning `504 Vercel Runtime Timeout Error`.
+- Increased Vercel function `maxDuration` from `120` to `300` seconds in `vercel.json` so the OpenAI-first floor-plan analyzer has more room to complete real scans.
+- Updated `src/hooks/useAIChat.js` so the agent upload path reads the response body safely and shows a clear timeout/server-error message when Vercel returns non-JSON.
+- Verified with `npx eslint src/hooks/useAIChat.js --format stylish`, `npm run build`, and `git diff --check`.
 - Completed Linear issue SIT-6 by adding `generatedBuildings` to scene payload version 3 and restoring it through project/share/local draft loads.
 - Completed Linear issue SIT-7 by adding PDF rendering through `pdfjs-dist`, multi-page controls in the unified upload modal, and PDF support across upload entry points.
 - Added the SIT-9 floor-plan QA harness with three generated baseline PDF fixtures, a manifest, result recorder, summary/check scripts, and documented demo-ready criteria.
