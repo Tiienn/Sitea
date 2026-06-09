@@ -76,6 +76,8 @@ function ToolChip({ action }) {
         return 'Checked recommendation'
       case 'capture_project_goals':
         return 'Saved goals'
+      case 'clarify_or_act':
+        return input.mode === 'ask_for_priority' ? 'Asked priority' : 'Planned next action'
       case 'site_brief':
         return 'Prepared site brief'
       case 'summarize_scene':

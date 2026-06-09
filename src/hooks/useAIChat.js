@@ -450,7 +450,7 @@ function getLatestAgentDecisionAction(messages) {
     .reverse()
     .find(message => message.role === 'assistant' && !message.error && message.content)
   const decisionAction = latestAssistantMessage?.toolActions?.find(action =>
-    ['recommend_next_step', 'site_brief', 'capture_project_goals', 'analyze_floor_plan', 'review_site_plan'].includes(action.name) &&
+    ['recommend_next_step', 'clarify_or_act', 'site_brief', 'capture_project_goals', 'analyze_floor_plan', 'review_site_plan'].includes(action.name) &&
     action.success !== false &&
     action.input?.recommendedAction
   )
@@ -963,6 +963,12 @@ function parseDecisionRequest(normalizedText) {
   return null
 }
 
+function parseClarifyOrActRequest(normalizedText) {
+  const vaguePlanning = /\b(make it better|make this better|make the site better|improve it|improve this|improve the site|improve my site|improve the land|design my site|design this site|design the site|help me plan|help plan this|plan my site|plan this site|plan the site|start planning|make a plan|i do not know what to do|i dont know what to do|i don t know what to do|not sure what to do|what would you build|what should i build|what can you do for me)\b/.test(normalizedText)
+  if (!vaguePlanning) return null
+  return { type: 'clarify_or_act', intent: 'vague_planning' }
+}
+
 function parseSiteBriefRequest(normalizedText) {
   if (/\b(site brief|project brief|site memory|project memory|brief my site|brief this site)\b/.test(normalizedText)) {
     return { type: 'site_brief', intent: 'brief' }
@@ -1095,6 +1101,139 @@ function buildProjectGoalCapture({ capturedGoals, previousGoals, placedBuildings
       primaryGoalId: recommendation.primaryGoal.id,
       recommendedAction: recommendation.recommendedAction,
       optionLabels: recommendation.suggestedActions.map(action => action.label),
+    },
+  }
+}
+
+function buildClarifyOrAct({
+  hasLand,
+  dimensions,
+  landArea,
+  shapeMode,
+  confirmedPolygon,
+  placedBuildings,
+  generatedBuildings,
+  walls,
+  rooms,
+  activeComparisons,
+  messages,
+}) {
+  const projectGoals = getProjectGoalsFromMessages(messages)
+  const placedStructureNames = getPlacedStructureNames(placedBuildings)
+  const layoutStructures = getAdvisorLayoutStructuresFromMessages(messages)
+  const hasPlacedStructures = placedStructureNames.length > 0
+  const hasGeneratedBuildings = generatedBuildings.length > 0
+  const hasRooms = rooms.length > 0 || walls.length > 0
+  const goalRecommendation = buildProjectGoalRecommendation(projectGoals, {
+    hasPlacedStructures,
+    layoutStructures,
+  })
+
+  if (goalRecommendation && !hasGeneratedBuildings && !hasRooms) {
+    return {
+      content: [
+        `I can act from your saved goals: ${formatProjectGoals(projectGoals)}.`,
+        '',
+        `Best move: ${goalRecommendation.bestMove}.`,
+        `Why: ${goalRecommendation.why}`,
+      ].join('\n'),
+      decision: {
+        label: 'I can act',
+        title: goalRecommendation.bestMove,
+        body: goalRecommendation.why,
+        detail: `Saved goals: ${formatProjectGoals(projectGoals)}.`,
+      },
+      nextSteps: [
+        { label: 'Vague request understood', state: 'done' },
+        { label: 'Saved goals used', state: 'done' },
+        { label: 'Say do it or choose an action', state: 'current' },
+      ],
+      suggestedActions: goalRecommendation.suggestedActions,
+      toolInput: {
+        mode: 'act_from_goals',
+        projectGoalIds: projectGoals.map(goal => goal.id),
+        projectGoalLabels: projectGoals.map(goal => goal.label),
+        recommendedAction: goalRecommendation.recommendedAction,
+        optionLabels: goalRecommendation.suggestedActions.map(action => action.label),
+      },
+    }
+  }
+
+  if (hasPlacedStructures || hasGeneratedBuildings || hasRooms) {
+    const decision = buildAgentDecision({
+      hasLand,
+      dimensions,
+      landArea,
+      shapeMode,
+      confirmedPolygon,
+      placedBuildings,
+      generatedBuildings,
+      walls,
+      rooms,
+      activeComparisons,
+      messages,
+    })
+    return {
+      content: [
+        'I can improve this from the current site context.',
+        '',
+        `Best move: ${decision.decision.title}.`,
+        `Why: ${decision.decision.body}`,
+      ].join('\n'),
+      decision: {
+        label: 'I can act',
+        title: decision.decision.title,
+        body: decision.decision.body,
+        detail: decision.decision.detail,
+      },
+      nextSteps: [
+        { label: 'Vague request understood', state: 'done' },
+        { label: 'Current scene inspected', state: 'done' },
+        { label: 'Say do it or choose an action', state: 'current' },
+      ],
+      suggestedActions: decision.suggestedActions,
+      toolInput: {
+        mode: 'act_from_context',
+        ...decision.toolInput,
+      },
+    }
+  }
+
+  const suggestedActions = [
+    createPromptAction('Prioritize privacy', 'I want privacy'),
+    createPromptAction('Keep backyard open', 'Keep the backyard open'),
+    createPromptAction('Make demo ready', 'Make it demo ready'),
+  ]
+
+  return {
+    content: [
+      'I can help, but I need one direction before I change the site.',
+      '',
+      'Question: what should Sitea optimize first?',
+      '',
+      'Options:',
+      ...suggestedActions.map(action => `- ${action.label}`),
+    ].join('\n'),
+    decision: {
+      label: 'Quick question',
+      title: 'What should Sitea optimize first?',
+      body: 'Choose one priority and I will turn it into the next safe site action.',
+      detail: hasLand
+        ? `Land is ready at ${formatArea(landArea)}, but no project goal is saved yet.`
+        : 'Land and project goals are not clear yet.',
+    },
+    nextSteps: [
+      { label: 'Vague request understood', state: 'done' },
+      { label: 'Direction needed', state: 'current' },
+    ],
+    suggestedActions,
+    toolInput: {
+      mode: 'ask_for_priority',
+      hasLand,
+      landArea: Math.round(landArea || 0),
+      projectGoalIds: [],
+      recommendedAction: null,
+      optionLabels: suggestedActions.map(action => action.label),
     },
   }
 }
@@ -1840,6 +1979,11 @@ function buildTextSceneAction(text, { landArea }) {
     return projectGoalRequest
   }
 
+  const clarifyOrActRequest = parseClarifyOrActRequest(normalizedText)
+  if (clarifyOrActRequest) {
+    return clarifyOrActRequest
+  }
+
   const decisionRequest = parseDecisionRequest(normalizedText)
   if (decisionRequest) {
     return decisionRequest
@@ -2513,6 +2657,38 @@ export function useAIChat({
           success: true,
         }],
         suggestedActions: goalCapture.suggestedActions,
+      }])
+      return true
+    }
+
+    if (action.type === 'clarify_or_act') {
+      const response = buildClarifyOrAct({
+        hasLand,
+        dimensions,
+        landArea,
+        shapeMode,
+        confirmedPolygon,
+        placedBuildings,
+        generatedBuildings,
+        walls,
+        rooms,
+        activeComparisons,
+        messages: messagesRef.current,
+      })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: response.content,
+        decision: response.decision,
+        nextSteps: response.nextSteps,
+        toolActions: [{
+          name: 'clarify_or_act',
+          input: {
+            intent: action.intent,
+            ...response.toolInput,
+          },
+          success: true,
+        }],
+        suggestedActions: response.suggestedActions,
       }])
       return true
     }

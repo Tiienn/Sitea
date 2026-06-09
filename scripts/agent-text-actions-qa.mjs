@@ -387,6 +387,36 @@ const CASES = [
     expectChatVisible: false,
   },
   {
+    name: 'desktop-vague-empty-asks-priority',
+    viewport: 'desktop',
+    prompt: 'Design my site',
+    expectedStoredText: 'Question: what should Sitea optimize first?',
+    expectedToolActionName: 'clarify_or_act',
+    expectChatVisible: true,
+  },
+  {
+    name: 'mobile-vague-goal-follow-through',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'I want privacy',
+        expectedStoredText: 'Goal saved: Privacy',
+      },
+      {
+        prompt: 'Make it better',
+        expectedStoredText: 'Best move: make a privacy-focused home layout',
+      },
+    ],
+    prompt: 'Do it',
+    expectedStoredText: 'I used Option 3: More privacy',
+    expectedToast: 'More privacy placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'privacy',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
     name: 'mobile-site-brief-follow-through-empty',
     viewport: 'mobile',
     setupPrompts: [
@@ -453,6 +483,25 @@ const CASES = [
     expectedLayoutVariant: 'open_backyard',
     allowPoolAhead: true,
     expectChatVisible: false,
+  },
+  {
+    name: 'desktop-vague-post-layout-recommends-context',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
+    ],
+    prompt: 'Make it better',
+    expectedStoredText: 'Best move: open up more backyard space',
+    expectedToolActionName: 'clarify_or_act',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'default',
+    allowPoolAhead: true,
+    expectChatVisible: true,
   },
   {
     name: 'desktop-upload-floor-follow-through',
@@ -685,6 +734,10 @@ function fail(message, details = {}) {
   throw error
 }
 
+function isKnownNonFatalConsoleError(text) {
+  return /^THREE\.GLTFLoader: Couldn't load texture blob:http:\/\/127\.0\.0\.1:5173\//.test(text)
+}
+
 function getLocalUrl(server) {
   const urls = server.resolvedUrls?.local || []
   return urls.find(url => url.includes('127.0.0.1')) || urls[0] || 'http://127.0.0.1:5173/'
@@ -715,6 +768,7 @@ async function readAudit(page, expectedToast) {
       action.name === 'compare_layout_options' ||
       action.name === 'apply_latest_layout_recommendation' ||
       action.name === 'capture_project_goals' ||
+      action.name === 'clarify_or_act' ||
       action.name === 'site_brief' ||
       action.name === 'summarize_scene' ||
       action.name === 'recommend_next_step' ||
@@ -835,7 +889,7 @@ async function runCase(browser, baseUrl, testCase) {
   const blockedApiCalls = []
 
   page.on('console', (msg) => {
-    if (msg.type() === 'error') consoleErrors.push(msg.text())
+    if (msg.type() === 'error' && !isKnownNonFatalConsoleError(msg.text())) consoleErrors.push(msg.text())
   })
   page.on('pageerror', (error) => {
     consoleErrors.push(error.message)

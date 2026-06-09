@@ -1397,6 +1397,34 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 
 ---
 
+# Agent Clarify & Act v15
+
+## Todo
+- [x] Confirm v14 is committed, pushed, deployed, and the working tree is clean.
+- [x] Read the current goal memory, Site Brief, next-step recommendation, follow-through, and text-action QA paths.
+- [x] Add a deterministic parser for vague agent prompts like `make it better`, `design my site`, `help me plan this`, `I do not know what to do`, and `what would you build`.
+- [x] Build a local clarify-or-act response model: if Sitea has enough land/goals/context, recommend and offer a safe action; if not, ask one focused question with 2-3 action buttons.
+- [x] Reuse saved v14 goals when choosing the response, so vague prompts become privacy/open-yard/family/parking/pool/demo-aware.
+- [x] Let natural follow-through after the clarify-or-act response work through the existing recommendation system.
+- [x] Preserve existing v6-v14 commands, upload analyzer behavior, Site Brief behavior, visual handoff, and no paid AI route.
+- [x] Extend `npm run qa:agent-text-actions` with vague prompt cases for empty land, saved goals, and post-layout context on desktop/mobile.
+- [x] Run focused lint/QA/build checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v15 should make Sitea feel like a proactive planning agent when the user is vague.
+- Scope guard: use local parser, existing chat memory, and existing action buttons only. No new paid route, no new storage table, no broad UI redesign, and no placement-engine rewrite.
+- Product goal: when the user says `make it better` or `I do not know what to do`, Sitea should either choose the next safe action from context or ask one clear question that moves the project forward.
+- Implemented a local `clarify_or_act` intent in `src/hooks/useAIChat.js` for vague prompts like `make it better`, `design my site`, `help me plan this`, and `what would you build`.
+- Added a clarify-or-act response model that asks one focused priority question when Sitea has no saved goals or useful scene context.
+- When saved goals exist, vague prompts now produce a goal-aware recommendation with a stored `recommendedAction`, so `do it` applies the safe next step.
+- When a layout or uploaded/drawn plan already exists, vague prompts use current context to recommend the next useful action instead of asking a generic question.
+- Added `clarify_or_act` to the existing recommendation follow-through lookup and added a chat tool-chip label for asked/planned responses.
+- Updated `scripts/agent-text-actions-qa.mjs` with empty vague prompt, saved-goal follow-through, and post-layout vague prompt coverage.
+- Added a narrow QA filter for the known non-fatal Three.js `GLTFLoader` blob texture unload race in the reload case; other browser console errors still fail the suite.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
 # Deploy Agent Project Memory v13
 
 ## Todo
