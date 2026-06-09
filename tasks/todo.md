@@ -1546,6 +1546,35 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 
 ---
 
+# Agent Upload Understanding v18
+
+## Todo
+- [x] Confirm v17 is committed, pushed, deployed, and the deployment note is pushed.
+- [x] Read the current agent upload UI, plan-type routing, floor-plan decision, site-plan decision, progress, and QA paths.
+- [x] Make the upload user message more natural by showing the attached filename and user intent without forcing `Analyze {file}` phrasing everywhere.
+- [x] Improve floor-plan upload responses into an agent-style readout: what Sitea found, confidence/caveats when useful, the best visual next move, and one clear follow-through action.
+- [x] Improve site-plan upload responses into a land-scale readout: detected plan type, boundary/scale status, tennis-court fit, and the best next visual comparison or boundary review.
+- [x] Add a small visible upload state in the agent panel so mobile users know the file is being prepared before analyzer progress starts.
+- [x] Preserve existing paid analyzer behavior, upload quota behavior, plan-type routing, `do it` follow-through, and visual handoff actions.
+- [x] Keep the UI within the existing Sitea design system: no cramped buttons, no full-screen mobile takeover, no broad redesign.
+- [x] Extend QA with local seeded upload-decision cases for stronger copy, suggested actions, `do it` follow-through, and mobile no-overflow.
+- [x] Run focused lint, `git diff --check`, relevant QA, full quiet lint, and build.
+- [x] Update Linear and complete this review section.
+
+## Review
+- Direction: v18 should make uploads feel like the agent understood the plan, not just processed a file.
+- Scope guard: improve copy, lightweight UI state, local decision builders, and QA only. No new paid provider calls, no quota rewrite, no analyzer rewrite, no storage migration.
+- Product goal: after a user uploads a plan, Sitea should immediately explain what it found and what visual action it will take next.
+- Upload chat messages now show `Uploaded {filename}` by default, or the user's prompt plus `Attached: {filename}` when they type intent with the upload.
+- The agent panel now shows a compact `Preparing upload` state while the file/PDF is rendered locally before analyzer progress starts.
+- Floor-plan decisions now say the file was read as a floor plan, summarize detected walls/doors/windows/rooms/stairs, include a visual-extraction caveat, and lead with `Best visual move: place this plan in 3D`.
+- Site-plan decisions now say the file was read as a site plan, include detection confidence when available, explain boundary/scale readiness, and lead with the best visual comparison or boundary review.
+- Existing paid analyzer calls, quota handling, plan-type routing, `do it` follow-through, and visual handoff actions were preserved.
+- Strengthened the upload QA seeds to assert the new readout copy and existing floor/site-plan follow-through behavior.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
 # Agent Visual Plan Loop v17
 
 ## Todo

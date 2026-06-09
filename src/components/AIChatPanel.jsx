@@ -202,6 +202,7 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
   const isMobile = useIsMobile()
   const [input, setInput] = useState('')
   const [isDragActive, setIsDragActive] = useState(false)
+  const [preparingFileName, setPreparingFileName] = useState('')
   const listRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -248,14 +249,17 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
 
   const handlePlanFile = async (file) => {
     if (!file) return
+    setPreparingFileName(file.name)
     try {
       const { imageData } = await fileToImageData(file)
       const base64 = imageData.split(',')[1] // strip data:...;base64,
-      onSend(input.trim() || `Analyze ${file.name}`, base64, { imageData, fileName: file.name })
+      onSend(input.trim(), base64, { imageData, fileName: file.name })
       setInput('')
     } catch (err) {
       console.error('File render failed:', err)
       alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
+    } finally {
+      setPreparingFileName('')
     }
   }
 
@@ -313,7 +317,7 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
             </svg>
           </div>
           <div className="font-display font-semibold text-white text-base mb-1">Drop your plan here</div>
-          <div className="text-sm text-[var(--color-text-secondary)]">Sitea Agent will scan it and prepare a 3D building preview.</div>
+          <div className="text-sm text-[var(--color-text-secondary)]">Sitea Agent will read the plan and prepare the next visual move.</div>
         </div>
       )}
       {/* Header */}
@@ -443,6 +447,22 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
             </div>
           )
         })}
+
+        {preparingFileName && !isLoading && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-2xl bg-white/5 border border-[var(--color-border)] text-sm text-[var(--color-text-primary)]" style={{ padding: '14px 18px' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-[var(--color-accent)] shrink-0 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M5.25 19.5h13.5A2.25 2.25 0 0021 17.25V6.75a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+                <div className="min-w-0">
+                  <div className="font-display font-semibold text-white text-sm">Preparing upload</div>
+                  <div className="truncate text-xs text-[var(--color-text-secondary)]">{preparingFileName}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isLoading && (
           activeProcess ? <AgentProgress process={activeProcess} /> : (

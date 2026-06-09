@@ -1734,7 +1734,14 @@ function buildSiteBrief({
   }
 }
 
-function buildFloorPlanUploadDecision(stats) {
+function getUploadUserDisplayText(text, fileMeta = {}) {
+  const fileName = fileMeta?.fileName || 'plan'
+  const prompt = String(text || '').trim()
+  if (!prompt) return `Uploaded ${fileName}`
+  return `${prompt}\nAttached: ${fileName}`
+}
+
+function buildFloorPlanUploadDecision(stats, fileMeta = {}) {
   const primaryAction = createFloorPlanPlacementAction()
   const suggestedActions = [
     primaryAction,
@@ -1742,33 +1749,38 @@ function buildFloorPlanUploadDecision(stats) {
     createPromptAction('Summarize the site', 'Summarize the site'),
   ]
   const stairText = stats.stairCount ? `, and ${stats.stairCount} stair${stats.stairCount === 1 ? '' : 's'}` : ''
-  const foundCopy = `I found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.`
+  const fileName = fileMeta?.fileName || 'your plan'
+  const foundCopy = `I read ${fileName} as a floor plan and found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.`
+  const caveatCopy = 'This is a visual extraction, so the 3D preview is the right next check before trusting exact dimensions.'
   const bestMove = 'place this plan in 3D'
   const why = 'the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.'
 
   return {
-    content: `${foundCopy}\n\nBest move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
+    content: `${foundCopy}\n\n${caveatCopy}\n\nBest visual move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
     decision: {
       label: 'Upload decision',
       title: bestMove,
       body: why,
-      detail: foundCopy,
+      detail: `${foundCopy} ${caveatCopy}`,
     },
     nextSteps: [
-      { label: 'Plan geometry detected', state: 'done' },
+      { label: 'Floor plan understood', state: 'done' },
+      { label: 'Walls, doors, windows, and rooms extracted', state: 'done' },
       { label: '3D preview prepared', state: 'done' },
       { label: 'Say do it or place this in 3D', state: 'current' },
     ],
     suggestedActions,
     toolInput: {
       ...stats,
+      fileName: fileMeta?.fileName || null,
+      planKind: 'floor_plan',
       recommendedAction: primaryAction,
       optionLabels: suggestedActions.map(action => action.label),
     },
   }
 }
 
-function buildSitePlanUploadDecision({ fit, detection, landArea }) {
+function buildSitePlanUploadDecision({ fit, detection, landArea, fileMeta = {} }) {
   const confidenceText = detection?.confidence
     ? ` with ${Math.round(detection.confidence * 100)}% confidence`
     : ''
@@ -1781,7 +1793,11 @@ function buildSitePlanUploadDecision({ fit, detection, landArea }) {
     primaryAction.type === boundaryAction.type ? scaleAction : boundaryAction,
     createPromptAction('Make a simple home layout', 'Make a simple home layout'),
   ]
-  const foundCopy = `I read this as a site plan${confidenceText}. ${fit.text}`
+  const fileName = fileMeta?.fileName || 'your plan'
+  const foundCopy = `I read ${fileName} as a site plan${confidenceText}. ${fit.text}`
+  const boundaryCopy = primaryAction.type === 'activate_comparison'
+    ? 'The land workspace is ready enough for a scale comparison.'
+    : 'The boundary should be reviewed before I make placement promises.'
   const bestMove = primaryAction.type === 'activate_comparison'
     ? 'show a tennis court in 3D'
     : 'review the boundary first'
@@ -1790,23 +1806,26 @@ function buildSitePlanUploadDecision({ fit, detection, landArea }) {
     : 'the uploaded plan needs a boundary check before I can make useful placement promises.'
 
   return {
-    content: `${foundCopy}\n\nI prepared the land workspace from your uploaded plan.\n\nBest move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
+    content: `${foundCopy}\n\n${boundaryCopy}\n\nBest visual move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
     decision: {
       label: 'Upload decision',
       title: bestMove,
       body: why,
-      detail: foundCopy,
+      detail: `${foundCopy} ${boundaryCopy}`,
     },
     nextSteps: [
       { label: 'Site plan recognized', state: 'done' },
-      { label: 'Land workspace prepared', state: 'done' },
+      { label: primaryAction.type === 'activate_comparison' ? 'Scale readout prepared' : 'Boundary review needed', state: 'done' },
       { label: 'Say do it or choose a scale/boundary action', state: 'current' },
     ],
     suggestedActions,
     toolInput: {
       landArea: Math.round(landArea || 0),
+      fileName: fileMeta?.fileName || null,
+      planKind: 'site_plan',
       tennisCourtFit: fit.count,
       detectionType: detection?.type || 'site-plan',
+      detectionConfidence: detection?.confidence || null,
       recommendedAction: primaryAction,
       optionLabels: suggestedActions.map(action => action.label),
     },
@@ -2443,12 +2462,13 @@ export function useAIChat({
   ])
 
   // Handle floor plan file upload via the dedicated analyzer endpoint
-  const analyzeFloorPlan = useCallback(async (fileBase64, text) => {
+  const analyzeFloorPlan = useCallback(async (fileBase64, text, fileMeta = {}) => {
     setError(null)
     setIsLoading(true)
     setActiveProcess(FLOOR_PLAN_PROCESS)
 
-    const userMsg = { role: 'user', content: text || 'Analyze my floor plan', displayText: text || 'Analyze my floor plan', hasImage: true }
+    const displayText = getUploadUserDisplayText(text, fileMeta)
+    const userMsg = { role: 'user', content: displayText, displayText, hasImage: true }
     setMessages(prev => [...prev, userMsg])
 
     try {
@@ -2475,7 +2495,7 @@ export function useAIChat({
 
       const result = convertFloorPlanToWorld(data)
       const { stats } = result
-      const uploadDecision = buildFloorPlanUploadDecision(stats)
+      const uploadDecision = buildFloorPlanUploadDecision(stats, fileMeta)
 
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -2507,7 +2527,7 @@ export function useAIChat({
     setIsLoading(true)
     setActiveProcess(SITE_PLAN_PROCESS)
 
-    const displayText = text || `Review ${fileMeta?.fileName || 'my site plan'}`
+    const displayText = getUploadUserDisplayText(text, fileMeta)
     const userMsg = { role: 'user', content: displayText, displayText, hasImage: true }
     setMessages(prev => [...prev, userMsg])
 
@@ -2522,7 +2542,7 @@ export function useAIChat({
       }
 
       const fit = getTennisCourtFit(landArea)
-      const uploadDecision = buildSitePlanUploadDecision({ fit, detection, landArea })
+      const uploadDecision = buildSitePlanUploadDecision({ fit, detection, landArea, fileMeta })
 
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -2559,7 +2579,7 @@ export function useAIChat({
       return analyzeSitePlan(text, fileMeta, detection)
     }
 
-    return analyzeFloorPlan(fileBase64, text)
+    return analyzeFloorPlan(fileBase64, text, fileMeta)
   }, [analyzeFloorPlan, analyzeSitePlan, isPaidUser])
 
   const applyStructureLayoutOption = useCallback((optionId, userMsg, fallbackStructures = [], preference = {}) => {

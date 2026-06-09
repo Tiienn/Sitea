@@ -605,16 +605,18 @@ const CASES = [
     viewport: 'desktop',
     seedMessages: [{
       role: 'assistant',
-      content: 'I found 24 walls, 6 doors, 8 windows, 5 rooms.\n\nBest move: place this plan in 3D.\nWhy: the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
+      content: 'I read sample-floor-plan.pdf as a floor plan and found 24 walls, 6 doors, 8 windows, 5 rooms.\n\nThis is a visual extraction, so the 3D preview is the right next check before trusting exact dimensions.\n\nBest visual move: place this plan in 3D.\nWhy: the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
       decision: {
         label: 'Upload decision',
         title: 'place this plan in 3D',
         body: 'the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
-        detail: 'I found 24 walls, 6 doors, 8 windows, 5 rooms.',
+        detail: 'I read sample-floor-plan.pdf as a floor plan and found 24 walls, 6 doors, 8 windows, 5 rooms. This is a visual extraction, so the 3D preview is the right next check before trusting exact dimensions.',
       },
       toolActions: [{
         name: 'analyze_floor_plan',
         input: {
+          fileName: 'sample-floor-plan.pdf',
+          planKind: 'floor_plan',
           wallCount: 24,
           doorCount: 6,
           windowCount: 8,
@@ -635,6 +637,10 @@ const CASES = [
     }],
     prompt: 'Do it',
     expectedStoredText: 'opened the prepared scene',
+    expectedAdditionalStoredText: [
+      'I read sample-floor-plan.pdf as a floor plan',
+      'Best visual move: place this plan in 3D',
+    ],
     expectedToast: 'Preview ready',
     expectedToolActionName: 'handoff_to_scene',
     expectChatVisible: false,
@@ -644,19 +650,22 @@ const CASES = [
     viewport: 'mobile',
     seedMessages: [{
       role: 'assistant',
-      content: 'I read this as a site plan. About 10 tennis courts can fit inside 2750m² before setbacks, house footprint, and access space.\n\nBest move: show a tennis court in 3D.\nWhy: a real-world scale object makes the land size immediately understandable before you decide where buildings or open space should go.',
+      content: 'I read sample-site-plan.png as a site plan with 88% confidence. About 10 tennis courts can fit inside 2750m² before setbacks, house footprint, and access space.\n\nThe land workspace is ready enough for a scale comparison.\n\nBest visual move: show a tennis court in 3D.\nWhy: a real-world scale object makes the land size immediately understandable before you decide where buildings or open space should go.',
       decision: {
         label: 'Upload decision',
         title: 'show a tennis court in 3D',
         body: 'a real-world scale object makes the land size immediately understandable before you decide where buildings or open space should go.',
-        detail: 'I read this as a site plan. About 10 tennis courts can fit inside 2750m² before setbacks, house footprint, and access space.',
+        detail: 'I read sample-site-plan.png as a site plan with 88% confidence. About 10 tennis courts can fit inside 2750m² before setbacks, house footprint, and access space. The land workspace is ready enough for a scale comparison.',
       },
       toolActions: [{
         name: 'review_site_plan',
         input: {
+          fileName: 'sample-site-plan.png',
+          planKind: 'site_plan',
           landArea: 2750,
           tennisCourtFit: 10,
           detectionType: 'site-plan',
+          detectionConfidence: 0.88,
           recommendedAction: {
             type: 'activate_comparison',
             comparisonId: 'tennisCourt',
@@ -679,6 +688,10 @@ const CASES = [
     }],
     prompt: 'Compare it',
     expectedStoredText: 'I added a tennis court',
+    expectedAdditionalStoredText: [
+      'I read sample-site-plan.png as a site plan',
+      'Best visual move: show a tennis court in 3D',
+    ],
     expectedToolActionName: 'activate_comparison',
     expectChatVisible: false,
   },
@@ -1069,6 +1082,11 @@ async function runCase(browser, baseUrl, testCase) {
   }
   if (!audit.storedText.includes(testCase.expectedStoredText)) {
     fail('Expected assistant response was not stored', { audit, testCase: testCase.name })
+  }
+  for (const expectedText of testCase.expectedAdditionalStoredText || []) {
+    if (!audit.storedText.includes(expectedText)) {
+      fail('Expected additional stored text was not found', { audit, testCase: testCase.name, expectedText })
+    }
   }
   if (audit.chatVisible !== expectedChatVisible) {
     fail('Unexpected chat visibility after text action', { audit, testCase: testCase.name, expectedChatVisible })
