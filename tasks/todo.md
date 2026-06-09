@@ -1330,3 +1330,23 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Updated `src/components/AIChatPanel.jsx` with friendly tool-chip labels for upload follow-through actions.
 - Updated `scripts/agent-handoff-qa.mjs` fixtures to include upload decision metadata and updated `scripts/agent-text-actions-qa.mjs` with seeded floor-plan/site-plan upload follow-through cases.
 - Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-handoff`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
+# Deploy Agent Upload-to-Decision Flow v12
+
+## Todo
+- [x] Confirm the working tree is clean and latest commit is v12.
+- [x] Deploy v12 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test the public alias.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_EikYYhjg2jCC68aUe6xM3tosEtjE`.
+- Deployment URL: `https://sitea-8ndxx8izt-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and aliases including `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Note: local Vercel CLI is `54.10.1`; latest patch is `54.10.2`.
