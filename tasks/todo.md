@@ -1,5 +1,11 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: Fix Production Subscription Gate
+- [x] Update `server/subscriptions.js` so server-side subscription checks keep the authenticated user's bearer token when querying `subscriptions`
+- [x] Verify the fix with focused lint/build checks
+- [x] Confirm whether Vercel production `SUPABASE_SERVICE_ROLE_KEY` needs to be re-saved with a non-empty value for upload quota writes
+- [x] Add review notes for the subscription-gate investigation and fix
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
@@ -78,6 +84,13 @@
 - Applied Supabase migrations `harden_subscriptions_paypal` and `remove_public_subscription_policies`.
 - Verified live `subscriptions` columns and RLS policies in Supabase.
 - Confirmed Vercel Production is missing `PAYPAL_CLIENT_SECRET` and `SUPABASE_SERVICE_ROLE_KEY`, so production payment verification still needs those real secret values.
+
+### Production Subscription Gate Fix
+- Investigated the `Active subscription required` message shown after uploading a plan on `sitea.live`.
+- Found that `requireActiveSubscription(req)` authenticated the user token, then queried `subscriptions` with a fresh anon Supabase client that did not include the user's bearer token. With RLS enabled, that server query could not see the signed-in user's own paid row.
+- Updated `server/subscriptions.js` so the subscription lookup uses the same verified bearer token in Supabase global headers. This keeps the existing RLS policy path intact and avoids broadening table access.
+- Verified with `npx eslint server/subscriptions.js --format stylish`, `npm run build`, and `git diff --check`.
+- Vercel production env listing still shows `SUPABASE_SERVICE_ROLE_KEY` configured, but `vercel env pull --environment=production` returns an empty local value for that key. That can be redaction/CLI behavior or a truly blank value, so runtime upload-quota behavior should be checked after deploying this fix.
 - Completed Linear issue SIT-6 by adding `generatedBuildings` to scene payload version 3 and restoring it through project/share/local draft loads.
 - Completed Linear issue SIT-7 by adding PDF rendering through `pdfjs-dist`, multi-page controls in the unified upload modal, and PDF support across upload entry points.
 - Added the SIT-9 floor-plan QA harness with three generated baseline PDF fixtures, a manifest, result recorder, summary/check scripts, and documented demo-ready criteria.

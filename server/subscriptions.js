@@ -33,8 +33,7 @@ export function getBearerToken(req) {
   return authHeader.replace('Bearer ', '');
 }
 
-export async function getAuthenticatedUser(req) {
-  const token = getBearerToken(req);
+async function getUserFromToken(token) {
   const supabase = createClient(getSupabaseUrl(), getSupabaseAnonKey());
   const { data: { user }, error } = await supabase.auth.getUser(token);
 
@@ -43,6 +42,10 @@ export async function getAuthenticatedUser(req) {
   }
 
   return user;
+}
+
+export async function getAuthenticatedUser(req) {
+  return getUserFromToken(getBearerToken(req));
 }
 
 export function isSubscriptionActive(subscription) {
@@ -64,8 +67,15 @@ export async function requireActiveSubscription(req) {
     };
   }
 
-  const user = await getAuthenticatedUser(req);
-  const supabase = createClient(getSupabaseUrl(), getSupabaseAnonKey());
+  const token = getBearerToken(req);
+  const user = await getUserFromToken(token);
+  const supabase = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  });
   const { data: subscription } = await supabase
     .from('subscriptions')
     .select('status, plan_type, expires_at')
