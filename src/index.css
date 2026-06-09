@@ -312,6 +312,50 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.sitea-agent-decision-card {
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(20, 184, 166, 0.16) 0%, rgba(15, 23, 42, 0.38) 100%),
+    rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.sitea-agent-decision-label {
+  margin-bottom: 8px;
+  color: var(--color-accent-hover);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.sitea-agent-decision-title {
+  color: var(--color-text-primary);
+  font-family: Outfit, "DM Sans", sans-serif;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.sitea-agent-decision-body {
+  margin-top: 8px;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.sitea-agent-decision-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
 .sitea-agent-steps {
   display: grid;
   gap: 8px;

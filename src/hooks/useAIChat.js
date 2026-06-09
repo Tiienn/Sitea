@@ -370,6 +370,18 @@ function getLatestLayoutRecommendationAction(messages) {
   ) || null
 }
 
+function getLatestAgentDecisionAction(messages) {
+  const latestAssistantMessage = [...messages]
+    .reverse()
+    .find(message => message.role === 'assistant' && !message.error && message.content)
+  const decisionAction = latestAssistantMessage?.toolActions?.find(action =>
+    action.name === 'recommend_next_step' &&
+    action.success !== false &&
+    action.input?.recommendedAction
+  )
+  return decisionAction?.input?.recommendedAction || null
+}
+
 const FLOOR_PLAN_PROCESS = {
   title: 'Reading your floor plan',
   subtitle: 'Detecting structure first, then preparing a 3D preview you can place on the land.',
@@ -507,6 +519,10 @@ function getStructuresByIds(ids) {
 
 function getStructureById(id) {
   return TEXT_ACTION_STRUCTURES.find(structure => structure.id === id)
+}
+
+function getComparisonById(id) {
+  return TEXT_ACTION_COMPARISONS.find(object => object.id === id)
 }
 
 function parseDistanceCommand(normalizedText) {
@@ -748,6 +764,19 @@ function parseLayoutRecommendationFollowThrough(normalizedText) {
   if (/^(use the recommendation|use recommendation|use the recommended option|apply the recommendation|apply recommendation|apply the recommended option)$/.test(cleanedText)) {
     return { type: 'apply_latest_layout_recommendation' }
   }
+  if (/^(show me|show it|show that|show me that|compare it|compare that|compare them)$/.test(cleanedText)) {
+    return { type: 'apply_latest_layout_recommendation' }
+  }
+  return null
+}
+
+function parseDecisionRequest(normalizedText) {
+  if (/\b(what should i do next|what do i do next|recommend next step|recommend a next step|best next step|best move|next move|what would you do|what should we do|what now)\b/.test(normalizedText)) {
+    return { type: 'recommend_next_step', intent: 'next_step' }
+  }
+  if (/\b(what next|whats next|what's next|next step)\b/.test(normalizedText) && !/\b(option|layout option)\b/.test(normalizedText)) {
+    return { type: 'recommend_next_step', intent: 'next_step' }
+  }
   return null
 }
 
@@ -925,6 +954,153 @@ function buildSceneSummary({
       activeComparisonCount: comparisonNames.length,
       activeComparisonNames: comparisonNames,
       latestLayoutOptionId: latestLayoutOption?.id || null,
+    },
+  }
+}
+
+function createPromptAction(label, prompt) {
+  return { label, prompt }
+}
+
+function createDecisionLayoutAction(optionId, structures, label) {
+  const action = createLayoutOptionAction(optionId, structures)
+  return { ...action, label: label || action.label }
+}
+
+function buildAgentDecision({
+  hasLand,
+  dimensions,
+  landArea,
+  shapeMode,
+  confirmedPolygon,
+  placedBuildings,
+  generatedBuildings,
+  walls,
+  rooms,
+  activeComparisons,
+  messages,
+}) {
+  const placedStructureNames = getPlacedStructureNames(placedBuildings)
+  const comparisonNames = getActiveComparisonNames(activeComparisons)
+  const latestLayoutOption = getLatestLayoutOptionFromMessages(messages)
+  const layoutStructures = getAdvisorLayoutStructuresFromMessages(messages)
+  const hasPlacedStructures = placedStructureNames.length > 0
+  const hasGeneratedBuildings = generatedBuildings.length > 0
+  const hasRooms = rooms.length > 0 || walls.length > 0
+  const tennisCourt = getComparisonById('tennisCourt')
+  const landShape = shapeMode === 'upload' ? 'uploaded boundary' : shapeMode || 'rectangle'
+  const landCopy = hasLand
+    ? `${formatArea(landArea)} ${landShape}${dimensions?.width && dimensions?.length ? `, about ${formatMeters(dimensions.width)} x ${formatMeters(dimensions.length)}` : ''}`
+    : 'land that is not confirmed yet'
+  const boundaryCopy = confirmedPolygon?.length >= 3
+    ? `${confirmedPolygon.length}-point boundary`
+    : 'default boundary'
+
+  let observation = ''
+  let bestMove = ''
+  let why = ''
+  let recommendedAction = null
+  let options = []
+  let state = 'empty_land'
+
+  if (!hasPlacedStructures && !hasGeneratedBuildings && !hasRooms) {
+    observation = `clear ${landCopy} with no placed structures yet.`
+    bestMove = 'make a simple home layout'
+    why = 'it gives you a real starting point, then we can compare privacy, open yard, and access instead of guessing from an empty site.'
+    recommendedAction = createPromptAction('Make a simple home layout', 'Make a simple home layout')
+    options = [
+      recommendedAction,
+      createPromptAction('See what fits', 'What can fit on my land?'),
+      tennisCourt ? createComparisonAction(tennisCourt, 'Show tennis court in 3D') : null,
+    ].filter(Boolean)
+  } else if (hasPlacedStructures) {
+    state = 'agent_layout'
+    observation = `${formatStructureNameList(placedStructureNames)} on ${landCopy}.`
+    if (latestLayoutOption?.id !== 'open_backyard' && layoutStructures.length > 0) {
+      bestMove = 'open up more backyard space'
+      why = 'it usually makes the site easier to understand because the outdoor zone becomes one clear, usable area behind the main layout.'
+      recommendedAction = createDecisionLayoutAction('open_backyard', layoutStructures, 'Open backyard')
+      options = [
+        recommendedAction,
+        createPromptAction('Compare privacy vs backyard', 'Compare privacy vs backyard'),
+        createPromptAction('Make more private', 'Make this more private'),
+      ]
+    } else {
+      bestMove = 'compare privacy against the open-yard version'
+      why = 'you already have a strong open-yard arrangement, so the next useful decision is whether privacy matters more than maximum open space.'
+      recommendedAction = createPromptAction('Compare privacy vs backyard', 'Compare privacy vs backyard')
+      options = [
+        recommendedAction,
+        createPromptAction('Make more private', 'Make this more private'),
+        createPromptAction('Explain this layout', 'What changed?'),
+      ]
+    }
+  } else if (hasGeneratedBuildings) {
+    state = 'uploaded_building'
+    observation = `${generatedBuildings.length} uploaded floor-plan building preview${generatedBuildings.length === 1 ? '' : 's'} prepared on ${landCopy}.`
+    bestMove = 'check what fits around the uploaded building'
+    why = 'the building footprint is now the anchor, so the next decision should be about outdoor space, access, and scale around it.'
+    recommendedAction = createPromptAction('See what fits', 'What can fit on my land?')
+    options = [
+      recommendedAction,
+      tennisCourt ? createComparisonAction(tennisCourt, 'Show tennis court in 3D') : null,
+      createPromptAction('Summarize the site', 'Summarize the site'),
+    ].filter(Boolean)
+  } else {
+    state = 'floor_plan_drawing'
+    observation = `${walls.length} wall${walls.length === 1 ? '' : 's'} and ${rooms.length} room${rooms.length === 1 ? '' : 's'} in the floor-plan drawing.`
+    bestMove = 'turn the plan context into a land-scale fit check'
+    why = 'the drawing is useful, but the land decision needs scale, setbacks, and outdoor comparisons next.'
+    recommendedAction = createPromptAction('See what fits', 'What can fit on my land?')
+    options = [
+      recommendedAction,
+      tennisCourt ? createComparisonAction(tennisCourt, 'Show tennis court in 3D') : null,
+      createPromptAction('Summarize the site', 'Summarize the site'),
+    ].filter(Boolean)
+  }
+
+  if (comparisonNames.length > 0) {
+    observation += ` Active scale comparison: ${formatNameList(comparisonNames)}.`
+  } else if (hasLand) {
+    observation += ` Boundary reference: ${boundaryCopy}.`
+  }
+
+  const content = [
+    `I see: ${observation}`,
+    '',
+    `Best move: ${bestMove}.`,
+    `Why: ${why}`,
+    '',
+    'Options:',
+    ...options.slice(0, 3).map(action => `- ${action.label}`),
+  ].join('\n')
+
+  return {
+    content,
+    decision: {
+      label: 'Recommended next move',
+      title: bestMove,
+      body: why,
+      detail: observation,
+    },
+    nextSteps: [
+      { label: 'Scene inspected', state: 'done' },
+      { label: 'Best move chosen', state: 'done' },
+      { label: 'Choose an option or say do that', state: 'current' },
+    ],
+    suggestedActions: options.slice(0, 3),
+    toolInput: {
+      state,
+      landArea: Math.round(landArea || 0),
+      hasLand,
+      latestLayoutOptionId: latestLayoutOption?.id || null,
+      placedStructureCount: placedStructureNames.length,
+      generatedBuildingCount: generatedBuildings.length,
+      wallCount: walls.length,
+      roomCount: rooms.length,
+      activeComparisonCount: comparisonNames.length,
+      recommendedAction,
+      optionLabels: options.slice(0, 3).map(action => action.label),
     },
   }
 }
@@ -1195,6 +1371,11 @@ function buildTextSceneAction(text, { landArea }) {
   const layoutRecommendationFollowThrough = parseLayoutRecommendationFollowThrough(normalizedText)
   if (layoutRecommendationFollowThrough) {
     return layoutRecommendationFollowThrough
+  }
+
+  const decisionRequest = parseDecisionRequest(normalizedText)
+  if (decisionRequest) {
+    return decisionRequest
   }
 
   const sceneAwarenessRequest = parseSceneAwarenessRequest(normalizedText)
@@ -1866,6 +2047,38 @@ export function useAIChat({
       return true
     }
 
+    if (action.type === 'recommend_next_step') {
+      const decision = buildAgentDecision({
+        hasLand,
+        dimensions,
+        landArea,
+        shapeMode,
+        confirmedPolygon,
+        placedBuildings,
+        generatedBuildings,
+        walls,
+        rooms,
+        activeComparisons,
+        messages: messagesRef.current,
+      })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: decision.content,
+        decision: decision.decision,
+        nextSteps: decision.nextSteps,
+        toolActions: [{
+          name: 'recommend_next_step',
+          input: {
+            intent: action.intent,
+            ...decision.toolInput,
+          },
+          success: true,
+        }],
+        suggestedActions: decision.suggestedActions,
+      }])
+      return true
+    }
+
     if (action.type === 'summarize_scene') {
       const summary = buildSceneSummary({
         hasLand,
@@ -1901,8 +2114,166 @@ export function useAIChat({
     }
 
     if (action.type === 'apply_latest_layout_recommendation') {
-      const recommendation = getLatestLayoutRecommendationAction(messagesRef.current)
-      if (!recommendation) {
+      const layoutRecommendation = getLatestLayoutRecommendationAction(messagesRef.current)
+      if (layoutRecommendation) {
+        return applyStructureLayoutOption(layoutRecommendation.optionId, userMsg, layoutRecommendation.structures, {
+          preferenceLabel: null,
+        })
+      }
+
+      const agentRecommendation = getLatestAgentDecisionAction(messagesRef.current)
+      if (agentRecommendation?.type === 'apply_structure_layout_option') {
+        return applyStructureLayoutOption(agentRecommendation.optionId, userMsg, agentRecommendation.structures, {
+          preferenceLabel: null,
+        })
+      }
+
+      if (agentRecommendation?.type === 'activate_comparison' && agentRecommendation.comparisonId) {
+        const comparison = getComparisonById(agentRecommendation.comparisonId)
+        if (comparison) {
+          if (onSceneControl) {
+            onSceneControl({ type: 'activate_comparison', comparisonId: comparison.id, toast: agentRecommendation.toast })
+          } else {
+            activateComparison?.(comparison.id)
+          }
+          setMessages(prev => [...prev, userMsg, {
+            role: 'assistant',
+            content: `Done. I added a ${comparison.name} to the land so the scale is visible immediately. It measures ${formatMeters(comparison.width)} x ${formatMeters(comparison.length)}.`,
+            nextSteps: [
+              { label: `${comparison.displayName} added`, state: 'done' },
+              { label: '3D scene opened', state: 'done' },
+              { label: 'Drag or rotate to compare scale', state: 'current' },
+            ],
+            toolActions: [{
+              name: 'activate_comparison',
+              input: {
+                objectId: comparison.id,
+                objectName: comparison.name,
+                width: comparison.width,
+                length: comparison.length,
+              },
+              success: true,
+            }],
+          }])
+          onVisualHandoff?.({ toast: agentRecommendation.toast || `${comparison.displayName} added • drag or rotate it to compare scale` })
+          return true
+        }
+      }
+
+      if (agentRecommendation?.prompt) {
+        const promptedAction = buildTextSceneAction(agentRecommendation.prompt, { landArea })
+
+        if (promptedAction?.type === 'offer_structure_layout_options') {
+          pendingStructureLayoutRef.current = {
+            structures: promptedAction.structures.map(structure => ({ ...structure })),
+          }
+          const requestedNames = formatStructureNameList(promptedAction.structures.map(structure => structure.name))
+          setMessages(prev => [...prev, userMsg, {
+            role: 'assistant',
+            content: `I can lay out ${requestedNames} three ways. Pick the direction that matches what you care about most:\n\n${formatLayoutOptions()}`,
+            nextSteps: [
+              { label: 'Recommended move accepted', state: 'done' },
+              { label: 'Options prepared', state: 'done' },
+              { label: 'Choose an option to place it', state: 'current' },
+            ],
+            toolActions: [{
+              name: 'offer_structure_layout_options',
+              input: {
+                source: 'decision_follow_through',
+                structureIds: promptedAction.structures.map(structure => structure.id),
+                structureNames: promptedAction.structures.map(structure => structure.name),
+                optionIds: STRUCTURE_LAYOUT_OPTIONS.map(option => option.id),
+              },
+              success: true,
+            }],
+            suggestedActions: getLayoutOptionActions(promptedAction.structures),
+          }])
+          return true
+        }
+
+        if (promptedAction?.type === 'compare_layout_options') {
+          const layoutStructures = pendingStructureLayoutRef.current?.structures?.length
+            ? pendingStructureLayoutRef.current.structures
+            : getAdvisorLayoutStructuresFromMessages(messagesRef.current)
+          const recommendedAction = promptedAction.recommendationId && layoutStructures.length > 0
+            ? [createLayoutOptionAction(promptedAction.recommendationId, layoutStructures)]
+            : []
+
+          setMessages(prev => [...prev, userMsg, {
+            role: 'assistant',
+            content: formatLayoutComparison(promptedAction),
+            nextSteps: [
+              { label: 'Recommended comparison opened', state: 'done' },
+              { label: 'Tradeoffs explained', state: 'done' },
+              { label: recommendedAction.length ? 'Apply the recommendation or ask another question' : 'Ask for a layout to apply this recommendation', state: 'current' },
+            ],
+            toolActions: [{
+              name: 'compare_layout_options',
+              input: {
+                source: 'decision_follow_through',
+                topic: promptedAction.topic,
+                optionIds: promptedAction.optionIds,
+                recommendationId: promptedAction.recommendationId,
+                structureIds: layoutStructures.map(structure => structure.id),
+                canApplyRecommendation: recommendedAction.length > 0,
+              },
+              success: true,
+            }],
+            suggestedActions: recommendedAction,
+          }])
+          return true
+        }
+
+        if (promptedAction?.type === 'apply_layout_preference') {
+          return applyStructureLayoutOption(promptedAction.optionId, userMsg, [], {
+            preferenceLabel: promptedAction.preferenceLabel,
+          })
+        }
+
+        if (promptedAction?.type === 'explain_last_layout_change') {
+          const explanation = formatLastLayoutExplanation(messagesRef.current)
+          setMessages(prev => [...prev, userMsg, {
+            role: 'assistant',
+            content: explanation.content,
+            nextSteps: explanation.success ? [
+              { label: 'Recommended review opened', state: 'done' },
+              { label: 'Tradeoff explained', state: 'done' },
+              { label: 'Ask me to compare options if you want alternatives', state: 'current' },
+            ] : [
+              { label: 'Layout history checked', state: 'done' },
+              { label: 'No layout change yet', state: 'current' },
+            ],
+            toolActions: [{
+              name: 'explain_last_layout_change',
+              input: {
+                source: 'decision_follow_through',
+                ...explanation.input,
+              },
+              success: explanation.success,
+            }],
+          }])
+          return true
+        }
+
+        if (promptedAction?.type === 'general_fit_check') {
+          setMessages(prev => [...prev, userMsg, {
+            role: 'assistant',
+            content: promptedAction.content,
+            toolActions: [{
+              name: promptedAction.type,
+              input: {
+                source: 'decision_follow_through',
+                ...promptedAction.toolInput,
+              },
+              success: true,
+            }],
+            suggestedActions: promptedAction.suggestedActions,
+          }])
+          return true
+        }
+      }
+
+      if (!agentRecommendation) {
         setMessages(prev => [...prev, userMsg, {
           role: 'assistant',
           content: 'I do not have a layout recommendation waiting yet. Ask me to compare layout options first, then you can say yes, do that, or apply it.',
@@ -1919,9 +2290,20 @@ export function useAIChat({
         return true
       }
 
-      return applyStructureLayoutOption(recommendation.optionId, userMsg, recommendation.structures, {
-        preferenceLabel: null,
-      })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: 'I found the recommendation, but it is not an action I can safely apply yet. Choose one of the visible options or ask me to compare layouts.',
+        nextSteps: [
+          { label: 'Recommendation checked', state: 'done' },
+          { label: 'Manual choice needed', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'apply_latest_layout_recommendation',
+          input: { reason: 'unsupported_agent_recommendation' },
+          success: false,
+        }],
+      }])
+      return true
     }
 
     if (action.type === 'apply_pending_layout_option') {

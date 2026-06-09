@@ -342,9 +342,55 @@ const CASES = [
     name: 'mobile-scene-next-step-empty',
     viewport: 'mobile',
     prompt: 'What should I do next?',
-    expectedStoredText: 'Next best step: ask me for a simple home layout',
-    expectedToolActionName: 'summarize_scene',
+    expectedStoredText: 'Best move: make a simple home layout',
+    expectedToolActionName: 'recommend_next_step',
     expectChatVisible: true,
+  },
+  {
+    name: 'desktop-decision-best-move-empty',
+    viewport: 'desktop',
+    prompt: 'What would you do next?',
+    expectedStoredText: 'Best move: make a simple home layout',
+    expectedToolActionName: 'recommend_next_step',
+    expectChatVisible: true,
+  },
+  {
+    name: 'mobile-decision-follow-through-empty',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'What should I do next?',
+        expectedStoredText: 'Best move: make a simple home layout',
+      },
+    ],
+    prompt: 'Show me',
+    expectedStoredText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+    expectedToolActionName: 'offer_structure_layout_options',
+    expectChatVisible: true,
+  },
+  {
+    name: 'desktop-decision-follow-through-after-layout',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedPromptText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+        clickActionLabel: 'Use option 1: Balanced',
+        expectedStoredText: 'I used Option 1: Balanced layout',
+      },
+      {
+        prompt: 'What would you do?',
+        expectedStoredText: 'Best move: open up more backyard space',
+      },
+    ],
+    prompt: 'Do that',
+    expectedStoredText: 'I used Option 2: More backyard space',
+    expectedToast: 'More backyard space placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'open_backyard',
+    allowPoolAhead: true,
+    expectChatVisible: false,
   },
   {
     name: 'desktop-scene-summary-after-layout',
@@ -525,6 +571,8 @@ async function readAudit(page, expectedToast) {
       action.name === 'compare_layout_options' ||
       action.name === 'apply_latest_layout_recommendation' ||
       action.name === 'summarize_scene' ||
+      action.name === 'recommend_next_step' ||
+      action.name === 'offer_structure_layout_options' ||
       action.name === 'apply_structure_layout_option' ||
       action.name === 'place_structure_layout' ||
       action.name === 'retry_structure_layout'

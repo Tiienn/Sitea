@@ -72,6 +72,8 @@ function ToolChip({ action }) {
         return 'Checked recommendation'
       case 'summarize_scene':
         return 'Inspected scene'
+      case 'recommend_next_step':
+        return 'Recommended next move'
       case 'move_structure':
         return `Moved ${input.structureName || 'structure'}`
       case 'rotate_structure':
@@ -163,6 +165,23 @@ function AgentProgress({ process }) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function DecisionCard({ decision }) {
+  if (!decision) return null
+
+  return (
+    <div className="sitea-agent-decision-card">
+      <div className="sitea-agent-decision-label">{decision.label || 'Recommended next move'}</div>
+      <div className="sitea-agent-decision-title">{decision.title}</div>
+      {decision.body && (
+        <div className="sitea-agent-decision-body">{decision.body}</div>
+      )}
+      {decision.detail && (
+        <div className="sitea-agent-decision-detail">{decision.detail}</div>
+      )}
     </div>
   )
 }
@@ -374,6 +393,7 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
                       </div>
                     )}
                     {displayText && <p className="whitespace-pre-wrap">{displayText}</p>}
+                    {msg.decision && <DecisionCard decision={msg.decision} />}
                     {msg.toolActions && msg.toolActions.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {msg.toolActions.map((a, j) => <ToolChip key={j} action={a} />)}

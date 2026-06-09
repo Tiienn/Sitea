@@ -1254,3 +1254,30 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Vercel inspect confirms status `Ready`, target `production`, and aliases including `https://sitea.live`.
 - HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
 - The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+
+---
+
+# Agent Decision Flow v11
+
+## Todo
+- [x] Read the current v10 scene-awareness code, v9 recommendation follow-through code, App scene-control handoff, chat UI action rendering, QA harness, `DESIGN.md`, and the `frontend-design` skill.
+- [x] Add local parser support for decisive next-step prompts without paid AI calls: `what should I do next`, `recommend next step`, `best move`, and `what would you do`.
+- [x] Build a deterministic decision model from existing state: empty land, placed agent structures, latest layout option, uploaded floor-plan buildings, room/wall drawing state, and active comparison objects.
+- [x] Upgrade next-step responses from plain summaries into a compact decision flow: `I see`, `Best move`, `Why`, and 2-3 safe options.
+- [x] Add a small recommendation card treatment in `AIChatPanel` that keeps mobile padding/touch targets from `DESIGN.md` and reuses the existing action button style.
+- [x] Wire the recommended action to existing local actions only: make simple layout, compare privacy vs backyard, make more private, open backyard, see what fits, explain layout, or show a tennis court.
+- [x] Make natural follow-through (`yes`, `do that`, `show me`, `compare it`) work after the v11 decision response by reusing existing prompt/action metadata.
+- [x] Preserve all v6-v10 direct commands and keep explicit user commands higher priority than v11 recommendations.
+- [x] Extend `npm run qa:agent-text-actions` with desktop/mobile decision-flow cases, including empty-land recommendation and post-layout follow-through, with AI/analyzer routes blocked.
+- [x] Run focused lint/build/QA checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v11 should make Sitea Agent more decisive after it understands the scene. The agent should not only say what exists; it should recommend the next useful move and make it easy to act.
+- Scope guard: this pass should stay local and deterministic. No new paid route, no new planner/solver, no 3D placement engine rewrite, and no broad visual redesign.
+- Product goal: make the chat feel like the primary Sitea workflow: user asks, Sitea inspects, recommends, and then executes through existing safe scene actions.
+- Implemented a local `recommend_next_step` flow in `src/hooks/useAIChat.js`. Sitea Agent now answers next-step prompts with `I see`, `Best move`, `Why`, and 2-3 safe options derived from current scene state.
+- The decision model covers empty land, placed agent layouts, uploaded/generated floor-plan buildings, floor-plan wall/room drawings, latest layout option, and active comparison objects.
+- Added recommendation follow-through memory so `yes`, `do that`, `show me`, and `compare it` can apply or open the latest v11 recommendation using existing local action metadata.
+- Added a compact recommendation card in `src/components/AIChatPanel.jsx` with styling in `src/index.css`; it uses existing Sitea colors, keeps mobile-safe spacing, and leaves action buttons on the existing `sitea-agent-action` system.
+- Updated `scripts/agent-text-actions-qa.mjs` with v11 desktop/mobile decision cases: empty-land recommendation, empty-land `show me` follow-through, and post-layout `do that` follow-through that applies the open-backyard option.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, and `npm run build`.
