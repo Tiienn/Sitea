@@ -59,7 +59,19 @@ const converted = convertFloorPlanToWorld(analysis)
 const readout = buildFloorPlanReadout({
   stats: converted.stats,
   analysis,
+  warnings: converted.warnings,
   fileName: path.basename(sourceImagePath),
+})
+const reviewReadout = buildFloorPlanReadout({
+  stats: { wallCount: 20, doorCount: 4, windowCount: 3, roomCount: 5, stairCount: 0 },
+  analysis: { scale: { pixelsPerMeter: 30, confidence: 0.62 } },
+  fileName: 'review-scale.png',
+})
+const needsCorrectionReadout = buildFloorPlanReadout({
+  stats: { wallCount: 5, doorCount: 0, windowCount: 0, roomCount: 0, stairCount: 0 },
+  analysis: {},
+  warnings: ['Only 5 walls detected - may be missing walls'],
+  fileName: 'weak-detection.png',
 })
 const reviewPayload = {
   floorPlan: converted,
@@ -279,6 +291,13 @@ assert(readout.findings.length >= 3, 'Readout should include detection findings'
 assert(readout.reviewNotes.length >= 3, 'Readout should include review notes')
 assert(readout.checks.includes('Compare the overlay with the original plan.'), 'Readout should include overlay review guidance')
 assert(readout.scaleState === 'good', 'Fixture readout should treat dimension-labeled scale as usable')
+assert(readout.readiness?.state === 'ready', 'Fixture readout should be ready for a first 3D pass')
+assert(readout.readiness.label === 'Ready for 3D', 'Ready readout should expose a clear readiness label')
+assert(readout.readiness.checklist.length >= 3, 'Ready readout should include a checklist')
+assert(reviewReadout.readiness.state === 'review', 'Low scale confidence should require quick review')
+assert(reviewReadout.readiness.checklist.some(item => item.includes('printed measurement')), 'Review readout should ask users to verify scale')
+assert(needsCorrectionReadout.readiness.state === 'needs_corrections', 'Sparse walls and missing doors should require corrections')
+assert(needsCorrectionReadout.readiness.checklist.some(item => item.includes('main doors')), 'Needs-corrections readout should ask users to add doors')
 assert(countHiddenDetections(hiddenDetections) === 3, 'Hidden detection count should include wall, door, and window')
 assert(countAddedDetections(addedDetections) === 3, 'Added detection count should include the manual wall, door, and window')
 assert(editedDetectedWallIndex >= 0, 'Fixture should have a visible wall for endpoint editing')
@@ -363,6 +382,7 @@ assert(correctedFloorPlan.stats.windowCount > hiddenOnlyFloorPlan.stats.windowCo
 assert(correctedFloorPlan.correctionSummary.hiddenCount === 3, 'Corrected floor plan summary is missing hidden detections')
 assert(correctedFloorPlan.correctionSummary.addedCount === 3, 'Corrected floor plan summary is missing added detections')
 assert(correctedFloorPlan.readout?.summary === readout.summary, 'Corrected floor plan should preserve review readout metadata')
+assert(correctedFloorPlan.readout?.readiness?.state === 'ready', 'Corrected floor plan should preserve readiness metadata')
 
 console.log('Floor plan review QA passed', {
   source: reviewPayload.sourceFileName,
@@ -387,4 +407,5 @@ console.log('Floor plan review QA passed', {
   openingEdits: countOpeningEdits(withEditedDetectedOpenings),
   draggedOpening: draggedManualDoor.snap,
   readout: readout.summary,
+  readiness: readout.readiness,
 })

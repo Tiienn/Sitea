@@ -26,13 +26,105 @@ function getScaleCopy(analysis = {}) {
   }
 }
 
-export function buildFloorPlanReadout({ stats = {}, analysis = {}, fileName = 'your plan' } = {}) {
+function getAnalyzerWarnings(analysis = {}, warnings = []) {
+  if (Array.isArray(warnings)) return warnings.filter(Boolean)
+  if (Array.isArray(analysis.warnings)) return analysis.warnings.filter(Boolean)
+  return []
+}
+
+function buildReadiness({ counts, scaleCopy, analyzerWarnings }) {
+  const reasons = []
+  const checklist = ['Compare the overlay with the original plan.']
+  let state = 'ready'
+
+  if (counts.wallCount < 8) {
+    state = 'needs_corrections'
+    reasons.push('Wall detection is too sparse for a trustworthy 3D pass.')
+    checklist.push('Add or redraw the missing exterior and divider walls.')
+  } else if (counts.wallCount > 45) {
+    state = 'review'
+    reasons.push('Many wall segments were detected, which can mean duplicates or broken lines.')
+    checklist.push('Remove duplicate wall fragments or drag endpoints where lines are broken.')
+  } else {
+    reasons.push('Wall coverage looks usable for a first 3D pass.')
+  }
+
+  if (counts.doorCount === 0) {
+    state = 'needs_corrections'
+    reasons.push('No doors were detected, so the 3D layout would miss key openings.')
+    checklist.push('Add the main doors before placing the plan in 3D.')
+  } else {
+    checklist.push('Check that doors sit on the correct walls.')
+  }
+
+  if (counts.windowCount === 0) {
+    if (state === 'ready') state = 'review'
+    reasons.push('No windows were detected, so exterior openings may need a quick pass.')
+    checklist.push('Add important windows if the 3D preview needs exterior accuracy.')
+  } else {
+    checklist.push('Check exterior window positions.')
+  }
+
+  if (scaleCopy.state !== 'good') {
+    if (state === 'ready') state = 'review'
+    reasons.push('Scale needs review before exact dimensions are trusted.')
+    checklist.push('Compare one printed measurement with the overlay scale.')
+  }
+
+  if (analyzerWarnings.length > 0) {
+    if (state === 'ready') state = 'review'
+    reasons.push(analyzerWarnings[0])
+  }
+
+  const meta = {
+    ready: {
+      label: 'Ready for 3D',
+      title: 'Ready for a first 3D pass',
+      detail: 'The detected plan has enough walls, openings, and scale information to place after a quick overlay check.',
+      action: 'Check the overlay, then place in 3D.',
+    },
+    review: {
+      label: 'Needs quick review',
+      title: 'Review the overlay first',
+      detail: 'The plan is usable, but one or two signals need a look before trusting the 3D result.',
+      action: 'Review the highlighted checks, then place in 3D.',
+    },
+    needs_corrections: {
+      label: 'Needs corrections first',
+      title: 'Fix the overlay before 3D',
+      detail: 'The detection is missing important geometry, so correct the overlay before placing it on the land.',
+      action: 'Fix the checklist items, then place in 3D.',
+    },
+  }
+
+  return {
+    state,
+    ...meta[state],
+    reasons,
+    checklist: checklist.slice(0, 4),
+  }
+}
+
+export function buildFloorPlanReadout({ stats = {}, analysis = {}, warnings = [], fileName = 'your plan' } = {}) {
   const wallCount = getCount(stats, analysis, 'wallCount', 'walls')
   const doorCount = getCount(stats, analysis, 'doorCount', 'doors')
   const windowCount = getCount(stats, analysis, 'windowCount', 'windows')
   const roomCount = getCount(stats, analysis, 'roomCount', 'rooms')
   const stairCount = getCount(stats, analysis, 'stairCount', 'stairs')
   const scaleCopy = getScaleCopy(analysis)
+  const analyzerWarnings = getAnalyzerWarnings(analysis, warnings)
+  const counts = {
+    wallCount,
+    doorCount,
+    windowCount,
+    roomCount,
+    stairCount,
+  }
+  const readiness = buildReadiness({
+    counts,
+    scaleCopy,
+    analyzerWarnings,
+  })
 
   const countLine = [
     pluralize(wallCount, 'wall'),
@@ -93,12 +185,7 @@ export function buildFloorPlanReadout({ stats = {}, analysis = {}, fileName = 'y
     reviewNotes,
     checks,
     scaleState: scaleCopy.state,
-    counts: {
-      wallCount,
-      doorCount,
-      windowCount,
-      roomCount,
-      stairCount,
-    },
+    readiness,
+    counts,
   }
 }

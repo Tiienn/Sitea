@@ -1775,33 +1775,39 @@ function getUploadUserDisplayText(text, fileMeta = {}) {
 }
 
 function buildFloorPlanUploadDecision(stats, fileMeta = {}, readout = null) {
-  const primaryAction = createFloorPlanPlacementAction()
+  const fileName = fileMeta?.fileName || 'your plan'
+  const floorPlanReadout = readout?.readiness ? readout : buildFloorPlanReadout({ stats, fileName })
+  const readinessCopy = floorPlanReadout.readiness
+  const primaryActionLabel = readinessCopy.state === 'needs_corrections'
+    ? 'Fix overlay first'
+    : readinessCopy.state === 'review'
+      ? 'Review overlay first'
+      : 'Review and place in 3D'
+  const primaryAction = createFloorPlanPlacementAction(primaryActionLabel)
   const suggestedActions = [
     primaryAction,
     createPromptAction('See what fits around it', 'What can fit on my land?'),
     createPromptAction('Summarize the site', 'Summarize the site'),
   ]
-  const fileName = fileMeta?.fileName || 'your plan'
-  const floorPlanReadout = readout || buildFloorPlanReadout({ stats, fileName })
   const foundCopy = floorPlanReadout.summary
   const caveatCopy = floorPlanReadout.caveat
   const reviewCopy = floorPlanReadout.reviewNotes.slice(0, 3).map(note => `- ${note}`).join('\n')
-  const bestMove = 'review the detected plan, then place it in 3D'
-  const why = 'the overlay shows what Sitea found first, then the detected building can become a real object on the land for scale, access, and outdoor space decisions.'
+  const bestMove = readinessCopy.title.toLowerCase()
+  const why = `${readinessCopy.detail} The overlay shows what Sitea found first, then the detected building can become a real object on the land for scale, access, and outdoor space decisions.`
 
   return {
-    content: `${foundCopy}\n\n${caveatCopy}\n\nWhat I would check first:\n${reviewCopy}\n\nBest visual move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
+    content: `${foundCopy}\n\n${caveatCopy}\n\nReadiness: ${readinessCopy.label}.\n${readinessCopy.detail}\n\nWhat I would check first:\n${reviewCopy}\n\nBest visual move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
     decision: {
       label: 'Upload decision',
-      title: bestMove,
+      title: readinessCopy.title,
       body: why,
       detail: `${foundCopy} ${floorPlanReadout.reviewNotes[0] || caveatCopy}`,
     },
     nextSteps: [
       { label: 'Floor plan understood', state: 'done' },
       { label: 'Walls, doors, windows, and rooms extracted', state: 'done' },
-      { label: 'Review notes prepared', state: 'done' },
-      { label: 'Check the overlay, then place in 3D', state: 'current' },
+      { label: readinessCopy.label, state: readinessCopy.state === 'ready' ? 'done' : 'current' },
+      { label: readinessCopy.action, state: readinessCopy.state === 'ready' ? 'current' : 'pending' },
     ],
     suggestedActions,
     toolInput: {
@@ -1811,6 +1817,7 @@ function buildFloorPlanUploadDecision(stats, fileMeta = {}, readout = null) {
       recommendedAction: primaryAction,
       optionLabels: suggestedActions.map(action => action.label),
       reviewNotes: floorPlanReadout.reviewNotes,
+      readiness: floorPlanReadout.readiness,
     },
   }
 }
@@ -2535,6 +2542,7 @@ export function useAIChat({
       const readout = buildFloorPlanReadout({
         stats,
         analysis: data,
+        warnings: result.warnings,
         fileName: fileMeta?.fileName || 'your plan',
       })
       result.readout = readout

@@ -35,6 +35,27 @@ const LEGEND = [
   { label: 'Added windows', color: '#38bdf8' },
 ]
 
+const READINESS_STYLES = {
+  ready: {
+    badge: 'border border-emerald-300/25 bg-emerald-300/10 text-emerald-100',
+    panel: 'border-emerald-300/20 bg-emerald-950/15 text-emerald-50/90',
+    title: 'text-emerald-100',
+    footer: 'border-emerald-300/20 bg-emerald-950/15 text-emerald-100',
+  },
+  review: {
+    badge: 'border border-amber-300/25 bg-amber-300/10 text-amber-100',
+    panel: 'border-amber-300/20 bg-amber-950/15 text-amber-50/90',
+    title: 'text-amber-100',
+    footer: 'border-amber-300/20 bg-amber-950/15 text-amber-100',
+  },
+  needs_corrections: {
+    badge: 'border border-rose-300/25 bg-rose-300/10 text-rose-100',
+    panel: 'border-rose-300/20 bg-rose-950/15 text-rose-50/90',
+    title: 'text-rose-100',
+    footer: 'border-rose-300/20 bg-rose-950/15 text-rose-100',
+  },
+}
+
 function getCount(value) {
   return Array.isArray(value) ? value.length : 0
 }
@@ -611,12 +632,15 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const visibleCounts = useMemo(() => countVisibleDetections(analysis, hiddenDetections, addedDetections), [addedDetections, analysis, hiddenDetections])
   const correctedFloorPlan = useMemo(() => buildCorrectedFloorPlan(review, hiddenDetections, addedDetections), [addedDetections, review, hiddenDetections])
   const readout = useMemo(() => (
-    review?.readout || buildFloorPlanReadout({
+    review?.readout?.readiness ? review.readout : buildFloorPlanReadout({
       stats: review?.floorPlan?.stats,
       analysis,
+      warnings: review?.floorPlan?.warnings,
       fileName: review?.sourceFileName || 'your plan',
     })
   ), [analysis, review])
+  const readiness = readout.readiness
+  const readinessStyle = READINESS_STYLES[readiness.state] || READINESS_STYLES.review
   const selectedWall = useMemo(() => (
     selectedDetection?.type === 'walls' || selectedDetection?.type === 'addedWalls'
       ? getReviewWallForDetection(analysis, addedDetections, selectedDetection)
@@ -927,6 +951,9 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                   <span className="rounded-full border border-teal-300/25 bg-teal-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-teal-100">
                     Sitea readout
                   </span>
+                  <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${readinessStyle.badge}`}>
+                    {readiness.label}
+                  </span>
                   <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${
                     readout.scaleState === 'good'
                       ? 'border border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
@@ -938,6 +965,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 </div>
                 <p className="text-sm font-semibold leading-6 text-white">{readout.summary}</p>
                 <p className="mt-1 text-sm leading-6 text-slate-300">{readout.caveat}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-200">{readiness.detail}</p>
               </div>
               <div className="grid min-w-[220px] grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
                 {[
@@ -967,6 +995,14 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 <div className="space-y-2">
                   {readout.reviewNotes.slice(0, 3).map((item, index) => (
                     <p key={`${item}-${index}`} className="text-sm leading-6 text-amber-50/90">{item}</p>
+                  ))}
+                </div>
+              </div>
+              <div className={`rounded-2xl border px-4 py-3 md:col-span-2 ${readinessStyle.panel}`}>
+                <p className={`mb-2 text-xs font-bold uppercase tracking-wide ${readinessStyle.title}`}>Readiness checklist</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {readiness.checklist.map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm leading-6">{item}</p>
                   ))}
                 </div>
               </div>
@@ -1181,22 +1217,27 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
           </p>
         </div>
 
-        <div className="flex flex-col-reverse gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-11 rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-200 transition-all hover:bg-white/10"
-          >
-            Back to agent
-          </button>
-          <button
-            type="button"
-            onClick={placeCorrectedPlan}
-            disabled={!correctedFloorPlan?.walls?.length}
-            className="min-h-11 rounded-2xl bg-[#14b8a6] px-6 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-teal-950/30 transition-all hover:bg-[#2dd4bf] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Place in 3D
-          </button>
+        <div className="flex flex-col gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p className={`rounded-2xl border px-4 py-3 text-sm leading-6 ${readinessStyle.footer}`}>
+            {readiness.action}
+          </p>
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-11 rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-200 transition-all hover:bg-white/10"
+            >
+              Back to agent
+            </button>
+            <button
+              type="button"
+              onClick={placeCorrectedPlan}
+              disabled={!correctedFloorPlan?.walls?.length}
+              className="min-h-11 rounded-2xl bg-[#14b8a6] px-6 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-teal-950/30 transition-all hover:bg-[#2dd4bf] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Place in 3D
+            </button>
+          </div>
         </div>
       </div>
     </div>

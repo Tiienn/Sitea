@@ -1,5 +1,29 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v33 Floor-Plan Readiness Before 3D
+- [x] Keep v33 scoped to a no-cost readiness layer on top of the existing floor-plan readout: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no blocking gate that traps the user
+- [x] Extend `buildFloorPlanReadout` with a simple readiness model that returns `ready`, `review`, or `needs_corrections` based on wall/opening counts, scale confidence, and analyzer warnings
+- [x] Add clear readiness copy for the agent: what looks ready, what needs checking, and the single best next action before placing in 3D
+- [x] Surface the readiness state in `FloorPlanReviewModal` with a compact badge and a short checklist, keeping the modal mobile-safe and preserving the current correction controls
+- [x] Make the `Place in 3D` action feel honest: keep it available, but adjust nearby copy when readiness says corrections should happen first
+- [x] Preserve all v21-v32 review behavior: source overlay, counts, readout, hide/restore, add walls/openings, endpoint correction, opening correction, drag handles, and final placement
+- [x] Extend no-cost QA to cover good, review, and needs-corrections readout cases without calling OpenAI or any paid analyzer
+- [x] Verify with focused lint, floor-plan review QA, agent text-action QA if wording changes, placement/fixture QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v33 review notes with what readiness improves and what remains for deeper model uncertainty scoring or post-placement 3D editing
+
+### v33 Review
+- Direction: v33 adds an honest readiness checkpoint before 3D placement, so Sitea can say whether an uploaded floor plan is ready, needs quick review, or needs corrections first.
+- Scope stayed no-cost and trust-focused: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no blocking gate that traps the user.
+- `buildFloorPlanReadout` now returns `readiness` with `ready`, `review`, or `needs_corrections`, plus a label, detail copy, reasons, action, and checklist.
+- Readiness is based on existing analyzer output: wall count, door/window count, scale confidence, and converter warnings.
+- The agent upload response now includes a readiness line and changes the primary follow-through action to `Review and place in 3D`, `Review overlay first`, or `Fix overlay first`.
+- The floor-plan review modal now shows a readiness badge, readiness detail, and a compact checklist inside the existing readout panel.
+- The `Place in 3D` button remains available, but the footer now repeats the honest readiness action so users know whether corrections should happen first.
+- Existing v21-v32 behavior is preserved: source overlay, counts, readout, hide/restore, add walls/openings, endpoint correction, opening correction, drag handles, and final placement.
+- Extended no-cost QA to assert ready, review, and needs-corrections readout cases, and updated agent follow-through fixtures for the new readiness language.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:agent-text-actions`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and local browser smoke. Existing generated QA report/fixture churn was restored before final diff.
+- Remaining limitation: v33 still uses deterministic rules, not deeper model uncertainty scoring, side-by-side visual self-review, or post-placement 3D editing.
+
 ## Active Plan: v32 Agent Plan Explanation Before 3D
 - [x] Keep v32 scoped to explanation and trust-building around the existing floor-plan upload/review flow: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new placement mode
 - [x] Add a small shared floor-plan explanation helper that converts analyzer stats/raw detections into plain-language findings, review warnings, and next-step guidance

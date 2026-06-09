@@ -617,12 +617,12 @@ const CASES = [
     viewport: 'desktop',
     seedMessages: [{
       role: 'assistant',
-      content: 'I read sample-floor-plan.pdf as a floor plan and found 24 walls, 6 doors, 8 windows, 5 rooms.\n\nThis is a visual extraction, so the 3D preview is the right next check before trusting exact dimensions.\n\nBest visual move: place this plan in 3D.\nWhy: the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
+      content: 'I read sample-floor-plan.pdf as a floor plan and found 24 walls, 6 doors, 8 windows, 5 rooms.\n\nThis is a visual extraction, so review the detected overlay before trusting exact geometry.\n\nReadiness: Needs quick review.\nThe plan is usable, but one or two signals need a look before trusting the 3D result.\n\nWhat I would check first:\n- Wall count looks usable for a first 3D pass.\n- Check that doors sit on the correct wall and swing/opening positions look right.\n- Check window positions, especially on exterior walls.\n\nBest visual move: review the overlay first.\nWhy: The plan is usable, but one or two signals need a look before trusting the 3D result. The overlay shows what Sitea found first, then the detected building can become a real object on the land for scale, access, and outdoor space decisions.',
       decision: {
         label: 'Upload decision',
-        title: 'place this plan in 3D',
-        body: 'the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
-        detail: 'I read sample-floor-plan.pdf as a floor plan and found 24 walls, 6 doors, 8 windows, 5 rooms. This is a visual extraction, so the 3D preview is the right next check before trusting exact dimensions.',
+        title: 'Review the overlay first',
+        body: 'The plan is usable, but one or two signals need a look before trusting the 3D result. The overlay shows what Sitea found first, then the detected building can become a real object on the land for scale, access, and outdoor space decisions.',
+        detail: 'I read sample-floor-plan.pdf as a floor plan and found 24 walls, 6 doors, 8 windows, 5 rooms. Wall count looks usable for a first 3D pass.',
       },
       toolActions: [{
         name: 'analyze_floor_plan',
@@ -635,15 +635,20 @@ const CASES = [
           roomCount: 5,
           recommendedAction: {
             type: 'handoff_to_scene',
-            label: 'Place this in 3D',
+            label: 'Review overlay first',
             toast: 'Preview ready • click the land to place it • R to rotate',
+          },
+          readiness: {
+            state: 'review',
+            label: 'Needs quick review',
+            action: 'Review the highlighted checks, then place in 3D.',
           },
         },
         success: true,
       }],
       suggestedActions: [{
         type: 'handoff_to_scene',
-        label: 'Place this in 3D',
+        label: 'Review overlay first',
         toast: 'Preview ready • click the land to place it • R to rotate',
       }],
     }],
@@ -651,7 +656,7 @@ const CASES = [
     expectedStoredText: 'opened the prepared scene',
     expectedAdditionalStoredText: [
       'I read sample-floor-plan.pdf as a floor plan',
-      'Best visual move: place this plan in 3D',
+      'Best visual move: review the overlay first',
     ],
     expectedToast: 'Preview ready',
     expectedToolActionName: 'handoff_to_scene',
