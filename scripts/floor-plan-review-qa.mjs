@@ -276,6 +276,50 @@ const draggedDetectedOpeningFloorPlan = buildCorrectedFloorPlan(reviewPayload, h
 const correctedAnalysis = applyReviewCorrections(analysis, hiddenDetections, addedDetections)
 const correctedFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, addedDetections)
 const visibleCounts = countVisibleDetections(analysis, hiddenDetections, addedDetections)
+const weakLiveAnalysis = {
+  ...analysis,
+  walls: analysis.walls.slice(0, 5),
+  doors: [],
+  windows: [],
+}
+const weakLiveFloorPlan = convertFloorPlanToWorld(weakLiveAnalysis)
+const weakLiveReadout = buildFloorPlanReadout({
+  stats: weakLiveFloorPlan.stats,
+  analysis: weakLiveAnalysis,
+  warnings: weakLiveFloorPlan.warnings,
+  fileName: 'weak-live-readiness.png',
+})
+const weakLiveReviewPayload = {
+  floorPlan: weakLiveFloorPlan,
+  analysis: weakLiveAnalysis,
+  sourceFileName: 'weak-live-readiness.png',
+  readout: weakLiveReadout,
+}
+const repairedLiveFloorPlan = buildCorrectedFloorPlan(weakLiveReviewPayload, {}, {
+  walls: analysis.walls.slice(5, 15),
+  doors: [manualDoor],
+  windows: [manualWindow],
+})
+const repairedLiveReadout = buildFloorPlanReadout({
+  stats: repairedLiveFloorPlan.stats,
+  analysis: repairedLiveFloorPlan.analysis,
+  warnings: repairedLiveFloorPlan.warnings,
+  fileName: weakLiveReviewPayload.sourceFileName,
+})
+const criticalHiddenDetections = {
+  walls: analysis.walls.map((_, index) => index).slice(5),
+  doors: analysis.doors.map((_, index) => index),
+  windows: [],
+  rooms: [],
+  stairs: [],
+}
+const weakenedLiveFloorPlan = buildCorrectedFloorPlan(reviewPayload, criticalHiddenDetections)
+const weakenedLiveReadout = buildFloorPlanReadout({
+  stats: weakenedLiveFloorPlan.stats,
+  analysis: weakenedLiveFloorPlan.analysis,
+  warnings: weakenedLiveFloorPlan.warnings,
+  fileName: reviewPayload.sourceFileName,
+})
 
 assert(existsSync(sourceImagePath), `Missing source image: ${sourceImagePath}`)
 assert(analysis?.imageSize?.width > 0, 'Fixture analysis is missing image width')
@@ -298,6 +342,14 @@ assert(reviewReadout.readiness.state === 'review', 'Low scale confidence should 
 assert(reviewReadout.readiness.checklist.some(item => item.includes('printed measurement')), 'Review readout should ask users to verify scale')
 assert(needsCorrectionReadout.readiness.state === 'needs_corrections', 'Sparse walls and missing doors should require corrections')
 assert(needsCorrectionReadout.readiness.checklist.some(item => item.includes('main doors')), 'Needs-corrections readout should ask users to add doors')
+assert(weakLiveReadout.readiness.state === 'needs_corrections', 'Weak live baseline should require corrections')
+assert(repairedLiveReadout.readiness.state === 'ready', 'Manual corrections should improve live readiness')
+assert(repairedLiveReadout.counts.wallCount > weakLiveReadout.counts.wallCount, 'Live readiness should use corrected wall counts')
+assert(repairedLiveReadout.counts.doorCount > weakLiveReadout.counts.doorCount, 'Live readiness should use corrected door counts')
+assert(repairedLiveReadout.counts.windowCount > weakLiveReadout.counts.windowCount, 'Live readiness should use corrected window counts')
+assert(weakenedLiveReadout.readiness.state === 'needs_corrections', 'Hiding critical geometry should worsen live readiness')
+assert(weakenedLiveReadout.counts.wallCount < readout.counts.wallCount, 'Live readiness should reflect hidden wall counts')
+assert(weakenedLiveReadout.counts.doorCount === 0, 'Live readiness should reflect hidden door counts')
 assert(countHiddenDetections(hiddenDetections) === 3, 'Hidden detection count should include wall, door, and window')
 assert(countAddedDetections(addedDetections) === 3, 'Added detection count should include the manual wall, door, and window')
 assert(editedDetectedWallIndex >= 0, 'Fixture should have a visible wall for endpoint editing')
@@ -408,4 +460,6 @@ console.log('Floor plan review QA passed', {
   draggedOpening: draggedManualDoor.snap,
   readout: readout.summary,
   readiness: readout.readiness,
+  repairedReadiness: repairedLiveReadout.readiness,
+  weakenedReadiness: weakenedLiveReadout.readiness,
 })

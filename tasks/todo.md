@@ -1,5 +1,27 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v34 Live Readiness After Corrections
+- [x] Keep v34 scoped to live review-modal readiness updates: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new blocking gate
+- [x] Recompute the floor-plan readout from the corrected floor-plan payload inside `FloorPlanReviewModal` whenever the user hides/restores detections, adds walls/openings, edits endpoints, retargets openings, nudges, or drags handles
+- [x] Keep the original upload readout available as the baseline, but make the visible badge/counts/checklist reflect the corrected overlay instead of stale upload data
+- [x] Add subtle copy that tells the user readiness is updating from their overlay corrections without adding another modal or crowding mobile
+- [x] Make `Place in 3D` use the latest corrected readiness metadata when handing off, while continuing to strip review-only metadata before scene placement
+- [x] Preserve all v21-v33 review behavior: source overlay, counts, readout panel, readiness badge, hide/restore, add walls/openings, endpoint correction, opening correction, drag handles, and final placement
+- [x] Extend no-cost QA to assert readiness can improve after manual corrections and worsen after hiding critical geometry, using cached fixtures only
+- [x] Verify with focused lint, floor-plan review QA, agent text-action QA if affected, placement/fixture QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v34 review notes with what live readiness fixes and what remains for deeper model uncertainty scoring or post-placement 3D editing
+
+### v34 Review
+- Direction: v34 makes the floor-plan review modal feel more honest after corrections by updating readiness from the corrected overlay instead of the original upload snapshot.
+- Scope stayed tight and no-cost: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new blocking gate.
+- `FloorPlanReviewModal` now keeps the original upload readout as a baseline, then rebuilds the visible readout from the corrected floor-plan payload whenever detections are hidden, restored, added, moved, retargeted, nudged, or dragged.
+- The readiness badge, count chips, detail copy, checklist, and footer action now reflect the corrected wall/door/window counts.
+- Added small mobile-safe copy so users know readiness is updating live from their overlay corrections.
+- `Place in 3D` now hands off the latest corrected readout metadata with the corrected plan; existing scene placement still strips review-only metadata before rendering.
+- Extended `npm run qa:floor-plans:review` with cached fixture assertions proving manual corrections can improve readiness to ready and hiding critical geometry can worsen readiness to needs-corrections.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:agent-text-actions`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and local in-app browser smoke. Existing generated QA report/fixture churn was restored before final diff.
+- Remaining limitation: v34 still uses deterministic readiness rules. Deeper model uncertainty scoring, side-by-side visual self-review, and post-placement 3D editing remain good next steps.
+
 ## Active Plan: v33 Floor-Plan Readiness Before 3D
 - [x] Keep v33 scoped to a no-cost readiness layer on top of the existing floor-plan readout: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no blocking gate that traps the user
 - [x] Extend `buildFloorPlanReadout` with a simple readiness model that returns `ready`, `review`, or `needs_corrections` based on wall/opening counts, scale confidence, and analyzer warnings

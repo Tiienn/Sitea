@@ -631,7 +631,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const openingEditCount = useMemo(() => countOpeningEdits(addedDetections), [addedDetections])
   const visibleCounts = useMemo(() => countVisibleDetections(analysis, hiddenDetections, addedDetections), [addedDetections, analysis, hiddenDetections])
   const correctedFloorPlan = useMemo(() => buildCorrectedFloorPlan(review, hiddenDetections, addedDetections), [addedDetections, review, hiddenDetections])
-  const readout = useMemo(() => (
+  const baselineReadout = useMemo(() => (
     review?.readout?.readiness ? review.readout : buildFloorPlanReadout({
       stats: review?.floorPlan?.stats,
       analysis,
@@ -639,8 +639,23 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       fileName: review?.sourceFileName || 'your plan',
     })
   ), [analysis, review])
+  const readout = useMemo(() => (
+    correctedFloorPlan?.stats ? buildFloorPlanReadout({
+      stats: correctedFloorPlan.stats,
+      analysis: correctedFloorPlan.analysis || analysis,
+      warnings: correctedFloorPlan.warnings,
+      fileName: review?.sourceFileName || 'your plan',
+    }) : baselineReadout
+  ), [analysis, baselineReadout, correctedFloorPlan, review?.sourceFileName])
+  const correctedFloorPlanWithReadout = useMemo(() => (
+    correctedFloorPlan ? { ...correctedFloorPlan, readout } : correctedFloorPlan
+  ), [correctedFloorPlan, readout])
   const readiness = readout.readiness
+  const baselineReadiness = baselineReadout.readiness
   const readinessStyle = READINESS_STYLES[readiness.state] || READINESS_STYLES.review
+  const readinessUpdateCopy = baselineReadiness?.state && baselineReadiness.state !== readiness.state
+    ? `Updated from ${baselineReadiness.label.toLowerCase()} after overlay corrections.`
+    : `Updates live as you correct the overlay. Original upload: ${baselineReadiness?.label || readiness.label}.`
   const selectedWall = useMemo(() => (
     selectedDetection?.type === 'walls' || selectedDetection?.type === 'addedWalls'
       ? getReviewWallForDetection(analysis, addedDetections, selectedDetection)
@@ -901,8 +916,9 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   }, [analysis, hiddenDetections])
 
   const placeCorrectedPlan = useCallback(() => {
-    onPlace(correctedFloorPlan)
-  }, [correctedFloorPlan, onPlace])
+    if (!correctedFloorPlanWithReadout?.walls?.length) return
+    onPlace(correctedFloorPlanWithReadout)
+  }, [correctedFloorPlanWithReadout, onPlace])
 
   const selectedIsAdded = selectedDetection?.type === 'addedWalls' || selectedDetection?.type === 'addedDoors' || selectedDetection?.type === 'addedWindows'
   const correctionText = addWallMode
@@ -966,6 +982,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 <p className="text-sm font-semibold leading-6 text-white">{readout.summary}</p>
                 <p className="mt-1 text-sm leading-6 text-slate-300">{readout.caveat}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-200">{readiness.detail}</p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">{readinessUpdateCopy}</p>
               </div>
               <div className="grid min-w-[220px] grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
                 {[
@@ -1232,7 +1249,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
             <button
               type="button"
               onClick={placeCorrectedPlan}
-              disabled={!correctedFloorPlan?.walls?.length}
+              disabled={!correctedFloorPlanWithReadout?.walls?.length}
               className="min-h-11 rounded-2xl bg-[#14b8a6] px-6 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-teal-950/30 transition-all hover:bg-[#2dd4bf] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Place in 3D
