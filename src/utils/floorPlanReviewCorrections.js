@@ -9,6 +9,10 @@ export function createEmptyHiddenDetections() {
   }, {})
 }
 
+export function createEmptyAddedDetections() {
+  return { walls: [] }
+}
+
 function normalizeHiddenDetections(hidden = {}) {
   return FLOOR_PLAN_REVIEW_TYPES.reduce((acc, type) => {
     acc[type] = new Set(hidden[type] || [])
@@ -52,16 +56,29 @@ export function applyHiddenDetections(analysis = {}, hidden = {}) {
   return corrected
 }
 
-export function countVisibleDetections(analysis = {}, hidden = {}) {
+export function applyReviewCorrections(analysis = {}, hidden = {}, additions = {}) {
   const corrected = applyHiddenDetections(analysis, hidden)
+  const addedWalls = additions.walls || []
+  return {
+    ...corrected,
+    walls: [...(corrected.walls || []), ...addedWalls],
+  }
+}
+
+export function countAddedDetections(additions = {}) {
+  return additions.walls?.length || 0
+}
+
+export function countVisibleDetections(analysis = {}, hidden = {}, additions = {}) {
+  const corrected = applyReviewCorrections(analysis, hidden, additions)
   return FLOOR_PLAN_REVIEW_TYPES.reduce((acc, type) => {
     acc[type] = corrected[type]?.length || 0
     return acc
   }, {})
 }
 
-export function buildCorrectedFloorPlan(review = {}, hidden = {}) {
-  const correctedAnalysis = applyHiddenDetections(review.analysis || {}, hidden)
+export function buildCorrectedFloorPlan(review = {}, hidden = {}, additions = {}) {
+  const correctedAnalysis = applyReviewCorrections(review.analysis || {}, hidden, additions)
   const converted = convertFloorPlanToWorld(correctedAnalysis)
 
   return {
@@ -71,6 +88,8 @@ export function buildCorrectedFloorPlan(review = {}, hidden = {}) {
     correctionSummary: {
       hiddenCount: countHiddenDetections(hidden),
       hiddenDetections: hidden,
+      addedCount: countAddedDetections(additions),
+      addedDetections: additions,
     },
   }
 }

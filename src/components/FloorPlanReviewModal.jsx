@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildCorrectedFloorPlan,
+  countAddedDetections,
   countHiddenDetections,
   countVisibleDetections,
+  createEmptyAddedDetections,
   createEmptyHiddenDetections,
   isDetectionHidden,
   toggleHiddenDetection,
@@ -14,6 +16,7 @@ const LEGEND = [
   { label: 'Windows', color: '#06b6d4' },
   { label: 'Rooms', color: '#a7f3d0' },
   { label: 'Stairs', color: '#facc15' },
+  { label: 'Added walls', color: '#f472b6' },
 ]
 
 function getCount(value) {
@@ -25,10 +28,20 @@ function getDetectionKey(type, index) {
 }
 
 function getDetectionLabel(type, index, item) {
+  if (type === 'addedWalls') return `Added wall ${index + 1}`
   if (type === 'rooms') return item?.name || item?.label || `Room ${index + 1}`
   if (type === 'stairs') return `Stair ${index + 1}`
   const singular = type.slice(0, -1)
   return `${singular.charAt(0).toUpperCase()}${singular.slice(1)} ${index + 1}`
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function getPointDistance(a, b) {
+  if (!a || !b) return Infinity
+  return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
 function getLinearGeometry(item, scale, offsetX, offsetY, fallbackLength = 28) {
@@ -138,10 +151,21 @@ function drawLinearElement(ctx, item, scale, offsetX, offsetY, color, fallbackLe
   return { kind: 'line', ...geometry }
 }
 
-function FloorPlanReviewCanvas({ analysis, sourceImage, hiddenDetections, selectedDetection, onSelectDetection }) {
+function FloorPlanReviewCanvas({
+  analysis,
+  sourceImage,
+  hiddenDetections,
+  addedDetections,
+  selectedDetection,
+  addWallMode,
+  pendingWallPoint,
+  onAddWallPoint,
+  onSelectDetection,
+}) {
   const canvasRef = useRef(null)
   const frameRef = useRef(null)
   const interactiveItemsRef = useRef([])
+  const renderInfoRef = useRef(null)
   const [frameWidth, setFrameWidth] = useState(720)
 
   useEffect(() => {
@@ -175,6 +199,7 @@ function FloorPlanReviewCanvas({ analysis, sourceImage, hiddenDetections, select
       const drawWidth = Math.max(1, Math.round(naturalWidth * scale))
       const drawHeight = Math.max(1, Math.round(naturalHeight * scale))
       const dpr = window.devicePixelRatio || 1
+      renderInfoRef.current = { scale, naturalWidth, naturalHeight }
 
       canvas.width = Math.round(drawWidth * dpr)
       canvas.height = Math.round(drawHeight * dpr)
@@ -238,6 +263,23 @@ function FloorPlanReviewCanvas({ analysis, sourceImage, hiddenDetections, select
         const geometry = drawPointLabel(ctx, stair, 'Stairs', scale, 0, 0, selected)
         addInteractiveItem('stairs', index, stair, geometry, 18)
       })
+      ;(addedDetections?.walls || []).forEach((wall, index) => {
+        const key = getDetectionKey('addedWalls', index)
+        const selected = selectedDetection?.key === key
+        const geometry = drawLinearElement(ctx, wall, scale, 0, 0, 'rgba(244, 114, 182, 0.98)', 28, selected)
+        addInteractiveItem('addedWalls', index, wall, geometry, 14)
+      })
+      if (pendingWallPoint) {
+        const x = pendingWallPoint.x * scale
+        const y = pendingWallPoint.y * scale
+        ctx.beginPath()
+        ctx.arc(x, y, 9, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(244, 114, 182, 0.26)'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(244, 114, 182, 0.98)'
+        ctx.lineWidth = 3
+        ctx.stroke()
+      }
       interactiveItemsRef.current = interactiveItems
       ctx.restore()
     }
@@ -246,7 +288,7 @@ function FloorPlanReviewCanvas({ analysis, sourceImage, hiddenDetections, select
     return () => {
       cancelled = true
     }
-  }, [analysis, frameWidth, hiddenDetections, selectedDetection, sourceImage])
+  }, [addedDetections, analysis, frameWidth, hiddenDetections, pendingWallPoint, selectedDetection, sourceImage])
 
   const handleCanvasClick = useCallback((event) => {
     const canvas = canvasRef.current
@@ -255,6 +297,16 @@ function FloorPlanReviewCanvas({ analysis, sourceImage, hiddenDetections, select
     const rect = canvas.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
+
+    if (addWallMode) {
+      const renderInfo = renderInfoRef.current
+      if (!renderInfo) return
+      onAddWallPoint({
+        x: clamp(x / renderInfo.scale, 0, renderInfo.naturalWidth),
+        y: clamp(y / renderInfo.scale, 0, renderInfo.naturalHeight),
+      })
+      return
+    }
 
     let bestMatch = null
     let bestDistance = Infinity
@@ -277,14 +329,14 @@ function FloorPlanReviewCanvas({ analysis, sourceImage, hiddenDetections, select
       key: bestMatch.key,
       label: bestMatch.label,
     })
-  }, [onSelectDetection])
+  }, [addWallMode, onAddWallPoint, onSelectDetection])
 
   return (
     <div ref={frameRef} className="w-full rounded-2xl border border-white/10 bg-slate-950/50 p-3 overflow-auto">
       <canvas
         ref={canvasRef}
         onClick={handleCanvasClick}
-        className="mx-auto block cursor-crosshair rounded-xl bg-slate-900 shadow-2xl"
+        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${addWallMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
       />
     </div>
   )
@@ -293,10 +345,14 @@ function FloorPlanReviewCanvas({ analysis, sourceImage, hiddenDetections, select
 export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const analysis = review?.analysis
   const [hiddenDetections, setHiddenDetections] = useState(() => createEmptyHiddenDetections())
+  const [addedDetections, setAddedDetections] = useState(() => createEmptyAddedDetections())
   const [selectedDetection, setSelectedDetection] = useState(null)
+  const [addWallMode, setAddWallMode] = useState(false)
+  const [pendingWallPoint, setPendingWallPoint] = useState(null)
   const hiddenCount = useMemo(() => countHiddenDetections(hiddenDetections), [hiddenDetections])
-  const visibleCounts = useMemo(() => countVisibleDetections(analysis, hiddenDetections), [analysis, hiddenDetections])
-  const correctedFloorPlan = useMemo(() => buildCorrectedFloorPlan(review, hiddenDetections), [review, hiddenDetections])
+  const addedCount = useMemo(() => countAddedDetections(addedDetections), [addedDetections])
+  const visibleCounts = useMemo(() => countVisibleDetections(analysis, hiddenDetections, addedDetections), [addedDetections, analysis, hiddenDetections])
+  const correctedFloorPlan = useMemo(() => buildCorrectedFloorPlan(review, hiddenDetections, addedDetections), [addedDetections, review, hiddenDetections])
   const counts = useMemo(() => ({
     walls: correctedFloorPlan?.stats?.wallCount ?? visibleCounts.walls ?? getCount(analysis?.walls),
     doors: correctedFloorPlan?.stats?.doorCount ?? visibleCounts.doors ?? getCount(analysis?.doors),
@@ -311,14 +367,83 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     setSelectedDetection(null)
   }, [selectedDetection])
 
+  const removeSelectedAddedWall = useCallback(() => {
+    if (selectedDetection?.type !== 'addedWalls') return
+    setAddedDetections(prev => ({
+      ...prev,
+      walls: (prev.walls || []).filter((_, index) => index !== selectedDetection.index),
+    }))
+    setSelectedDetection(null)
+  }, [selectedDetection])
+
+  const hideOrRemoveSelected = useCallback(() => {
+    if (selectedDetection?.type === 'addedWalls') {
+      removeSelectedAddedWall()
+      return
+    }
+    hideSelected()
+  }, [hideSelected, removeSelectedAddedWall, selectedDetection])
+
   const restoreHidden = useCallback(() => {
     setHiddenDetections(createEmptyHiddenDetections())
     setSelectedDetection(null)
   }, [])
 
+  const toggleAddWallMode = useCallback(() => {
+    setAddWallMode(prev => {
+      const next = !prev
+      setPendingWallPoint(null)
+      setSelectedDetection(null)
+      return next
+    })
+  }, [])
+
+  const handleAddWallPoint = useCallback((point) => {
+    setSelectedDetection(null)
+
+    if (!pendingWallPoint) {
+      setPendingWallPoint(point)
+      return
+    }
+
+    if (getPointDistance(pendingWallPoint, point) < 6) return
+
+    setAddedDetections(prev => ({
+      ...prev,
+      walls: [
+        ...(prev.walls || []),
+        {
+          start: {
+            x: Number(pendingWallPoint.x.toFixed(2)),
+            y: Number(pendingWallPoint.y.toFixed(2)),
+          },
+          end: {
+            x: Number(point.x.toFixed(2)),
+            y: Number(point.y.toFixed(2)),
+          },
+          thickness: 12,
+          isExterior: false,
+          confidence: 1,
+          source: 'manual_review',
+        },
+      ],
+    }))
+    setPendingWallPoint(null)
+    setAddWallMode(false)
+  }, [pendingWallPoint])
+
   const placeCorrectedPlan = useCallback(() => {
     onPlace(correctedFloorPlan)
   }, [correctedFloorPlan, onPlace])
+
+  const selectedIsAddedWall = selectedDetection?.type === 'addedWalls'
+  const correctionText = addWallMode
+    ? pendingWallPoint
+      ? 'Tap the wall end point on the plan.'
+      : 'Tap the missing wall start point on the plan.'
+    : selectedDetection
+      ? `Selected: ${selectedDetection.label}`
+      : 'Tap a detected item to inspect it, or add a missing wall.'
 
   return (
     <div className="fixed inset-0 z-[260] flex items-end justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:items-center sm:p-6">
@@ -356,7 +481,11 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
             analysis={analysis}
             sourceImage={review?.sourceImage}
             hiddenDetections={hiddenDetections}
+            addedDetections={addedDetections}
             selectedDetection={selectedDetection}
+            addWallMode={addWallMode}
+            pendingWallPoint={pendingWallPoint}
+            onAddWallPoint={handleAddWallPoint}
             onSelectDetection={setSelectedDetection}
           />
 
@@ -365,18 +494,30 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
               <div>
                 <p className="text-sm font-semibold text-white">Correction</p>
                 <p className="mt-1 text-sm leading-6 text-slate-400">
-                  {selectedDetection ? `Selected: ${selectedDetection.label}` : 'Tap a detected item on the overlay to inspect it.'}
+                  {correctionText}
                   {hiddenCount > 0 ? ` Hidden detections: ${hiddenCount}.` : ''}
+                  {addedCount > 0 ? ` Added walls: ${addedCount}.` : ''}
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
-                  onClick={hideSelected}
+                  onClick={toggleAddWallMode}
+                  className={`min-h-11 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                    addWallMode
+                      ? 'border border-pink-300/40 bg-pink-400/15 text-pink-100 hover:bg-pink-400/20'
+                      : 'border border-white/10 text-slate-200 hover:bg-white/10'
+                  }`}
+                >
+                  {addWallMode ? 'Cancel wall' : 'Add wall'}
+                </button>
+                <button
+                  type="button"
+                  onClick={hideOrRemoveSelected}
                   disabled={!selectedDetection}
                   className="min-h-11 rounded-2xl border border-amber-300/30 px-4 py-2.5 text-sm font-semibold text-amber-100 transition-all hover:bg-amber-400/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Hide selected
+                  {selectedIsAddedWall ? 'Remove added wall' : 'Hide selected'}
                 </button>
                 <button
                   type="button"

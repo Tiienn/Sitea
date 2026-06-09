@@ -61,6 +61,28 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local Playwright smoke test. Existing generated QA report timestamp/ID churn was restored before final diff.
 - Remaining limitation: users can remove false positives, but cannot yet draw missing walls or move endpoints. That should be the next deeper accuracy step.
 
+## Active Plan: v23 Add Missing Walls
+- [x] Keep v23 scoped to manual missing-wall correction inside the review modal: no paid analyzer call, no door/window authoring yet, no endpoint-drag rewrite
+- [x] Add an `Add wall` mode to `FloorPlanReviewModal` with clear mobile-safe controls and instructions
+- [x] Let the user tap two points on the source floor-plan overlay to create a new wall segment in image coordinates
+- [x] Draw added walls with a distinct review color, include them in visible counts, and allow selecting/removing an added wall before placement
+- [x] Extend `floorPlanReviewCorrections.js` so corrected analysis appends added wall segments before `convertFloorPlanToWorld`
+- [x] Preserve `Hide selected`, `Restore hidden`, and normal selected-detection behavior from v22
+- [x] Extend no-cost QA to assert an added wall appears in the corrected raw analyzer payload and converted 3D output
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, and local browser smoke
+- [x] Add v23 review notes with what missing-wall authoring solves and what remains for v24 doors/windows or endpoint dragging
+
+### v23 Review
+- Direction: v23 addresses the biggest remaining 3D accuracy gap after v22: missing wall segments that the analyzer did not detect.
+- Scope stayed manual and review-time only: no paid analyzer call, no provider switch, no door/window authoring yet, and no endpoint-drag rewrite.
+- The review modal now has an `Add wall` mode. The user taps a start point and an end point on the source floor-plan image to create a manual wall segment.
+- Added walls are stored in original image coordinates, drawn in a distinct pink overlay, counted with detected walls, and appended to corrected analyzer data before 3D conversion.
+- Added walls can be selected and removed with the same correction panel, while `Hide selected` and `Restore hidden` keep their v22 behavior for analyzer detections.
+- The shared correction utility now supports original detections minus hidden detections plus manually added walls.
+- Extended `npm run qa:floor-plans:review` to hide one wall/door/window, add one manual wall, and confirm the manual wall survives conversion to 3D.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local Playwright smoke test. Existing generated QA report timestamp/ID churn was restored before final diff.
+- Remaining limitation: v23 can add missing walls, but cannot yet add missing doors/windows or drag/snap wall endpoints. Those are good v24/v25 candidates.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
