@@ -347,6 +347,46 @@ const CASES = [
     expectChatVisible: true,
   },
   {
+    name: 'desktop-capture-privacy-goal',
+    viewport: 'desktop',
+    prompt: 'I want privacy',
+    expectedStoredText: 'Goal saved: Privacy',
+    expectedToolActionName: 'capture_project_goals',
+    expectChatVisible: true,
+  },
+  {
+    name: 'mobile-site-brief-with-goals',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'I need a family home with parking',
+        expectedStoredText: 'Goal saved: Family home and Parking',
+      },
+    ],
+    prompt: 'Site brief',
+    expectedStoredText: 'Goals: Family home and Parking',
+    expectedToolActionName: 'site_brief',
+    expectChatVisible: true,
+  },
+  {
+    name: 'desktop-goal-follow-through-empty',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'I want privacy',
+        expectedStoredText: 'Best move: make a privacy-focused home layout',
+      },
+    ],
+    prompt: 'Do it',
+    expectedStoredText: 'I used Option 3: More privacy',
+    expectedToast: 'More privacy placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'privacy',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
     name: 'mobile-site-brief-follow-through-empty',
     viewport: 'mobile',
     setupPrompts: [
@@ -674,6 +714,7 @@ async function readAudit(page, expectedToast) {
       action.name === 'explain_last_layout_change' ||
       action.name === 'compare_layout_options' ||
       action.name === 'apply_latest_layout_recommendation' ||
+      action.name === 'capture_project_goals' ||
       action.name === 'site_brief' ||
       action.name === 'summarize_scene' ||
       action.name === 'recommend_next_step' ||

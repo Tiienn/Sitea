@@ -261,6 +261,81 @@ const STRUCTURE_LAYOUT_OPTIONS = [
   },
 ]
 
+const PROJECT_GOAL_DEFINITIONS = [
+  {
+    id: 'privacy',
+    label: 'Privacy',
+    summary: 'more separation from the front edge and a quieter living zone',
+    layoutOptionId: 'privacy',
+    actionLabel: 'Make more private',
+    emptyActionLabel: 'Make a private home layout',
+    emptyBestMove: 'make a privacy-focused home layout',
+    activeBestMove: 'make the layout more private',
+    why: 'privacy is your stated priority, so the safest next move is to push living space deeper into the site and use access structures as a buffer.',
+    structureIds: DEFAULT_HOME_LAYOUT_STRUCTURE_IDS,
+  },
+  {
+    id: 'open_backyard',
+    label: 'Open backyard',
+    summary: 'more uninterrupted outdoor land behind the main layout',
+    layoutOptionId: 'open_backyard',
+    actionLabel: 'Open backyard',
+    emptyActionLabel: 'Make an open-backyard layout',
+    emptyBestMove: 'make an open-backyard home layout',
+    activeBestMove: 'open up more backyard space',
+    why: 'you want usable open land, so the layout should keep buildings closer to the front or side and protect the rear outdoor zone.',
+    structureIds: DEFAULT_HOME_LAYOUT_STRUCTURE_IDS,
+  },
+  {
+    id: 'family_home',
+    label: 'Family home',
+    summary: 'a practical home-first layout with room to adjust',
+    layoutOptionId: 'balanced',
+    actionLabel: 'Make family layout',
+    emptyActionLabel: 'Make a family home layout',
+    emptyBestMove: 'make a family home layout',
+    activeBestMove: 'review the balanced family layout',
+    why: 'a family home needs a simple first arrangement before we tune privacy, parking, pool, or outdoor space.',
+    structureIds: ['mediumHouse', 'garage'],
+  },
+  {
+    id: 'parking',
+    label: 'Parking',
+    summary: 'vehicle access, parking, garage, or driveway space',
+    layoutOptionId: 'balanced',
+    actionLabel: 'Plan parking',
+    emptyActionLabel: 'Make a home and parking layout',
+    emptyBestMove: 'make a home and parking layout',
+    activeBestMove: 'check access and parking',
+    why: 'parking and access should be placed early because they affect where the home, garden, and outdoor amenities can safely go.',
+    structureIds: ['mediumHouse', 'garage'],
+  },
+  {
+    id: 'pool',
+    label: 'Pool',
+    summary: 'pool or outdoor amenity space',
+    layoutOptionId: 'open_backyard',
+    actionLabel: 'Protect pool space',
+    emptyActionLabel: 'Make a home and pool layout',
+    emptyBestMove: 'make a home and pool layout',
+    activeBestMove: 'protect space for the pool',
+    why: 'a pool needs clear outdoor space, so the next layout should reserve a usable backyard zone instead of filling the land randomly.',
+    structureIds: DEFAULT_HOME_LAYOUT_STRUCTURE_IDS,
+  },
+  {
+    id: 'demo_ready',
+    label: 'Demo ready',
+    summary: 'a clean, easy-to-explain first visual result',
+    layoutOptionId: 'balanced',
+    actionLabel: 'Make demo layout',
+    emptyActionLabel: 'Make a demo-ready layout',
+    emptyBestMove: 'make a demo-ready layout',
+    activeBestMove: 'summarize and compare the current layout',
+    why: 'a demo-ready project needs one clear baseline layout, then Sitea can explain the tradeoffs visually.',
+    structureIds: DEFAULT_HOME_LAYOUT_STRUCTURE_IDS,
+  },
+]
+
 const formatMeters = (value) => Number.isFinite(value) ? `${value.toFixed(1)}m` : 'unknown'
 const formatArea = (value) => Number.isFinite(value) ? `${Math.round(value)}m²` : 'the current land'
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -375,7 +450,7 @@ function getLatestAgentDecisionAction(messages) {
     .reverse()
     .find(message => message.role === 'assistant' && !message.error && message.content)
   const decisionAction = latestAssistantMessage?.toolActions?.find(action =>
-    ['recommend_next_step', 'site_brief', 'analyze_floor_plan', 'review_site_plan'].includes(action.name) &&
+    ['recommend_next_step', 'site_brief', 'capture_project_goals', 'analyze_floor_plan', 'review_site_plan'].includes(action.name) &&
     action.success !== false &&
     action.input?.recommendedAction
   )
@@ -523,6 +598,73 @@ function getStructureById(id) {
 
 function getComparisonById(id) {
   return TEXT_ACTION_COMPARISONS.find(object => object.id === id)
+}
+
+function getProjectGoalById(id) {
+  return PROJECT_GOAL_DEFINITIONS.find(goal => goal.id === id)
+}
+
+function getProjectGoalsByIds(ids = []) {
+  return ids
+    .map(id => getProjectGoalById(id))
+    .filter(Boolean)
+}
+
+function getProjectGoalsFromMessages(messages = []) {
+  const goalIds = []
+  for (const message of messages) {
+    for (const action of message.toolActions || []) {
+      if (action.name !== 'capture_project_goals' || action.success === false) continue
+      for (const goalId of action.input?.goalIds || []) {
+        if (!goalIds.includes(goalId)) goalIds.push(goalId)
+      }
+    }
+  }
+  return getProjectGoalsByIds(goalIds)
+}
+
+function formatProjectGoals(goals = []) {
+  if (!goals.length) return 'No saved goals yet'
+  return formatNameList(goals.map(goal => goal.label))
+}
+
+function getProjectGoalStructureSet(goal) {
+  return getStructuresByIds(goal?.structureIds?.length ? goal.structureIds : DEFAULT_HOME_LAYOUT_STRUCTURE_IDS)
+}
+
+function getPrimaryProjectGoal(goals = []) {
+  const priority = ['privacy', 'open_backyard', 'pool', 'parking', 'family_home', 'demo_ready']
+  return priority.map(goalId => goals.find(goal => goal.id === goalId)).find(Boolean) || goals[0] || null
+}
+
+function buildProjectGoalRecommendedAction(goal, { hasPlacedStructures = false, layoutStructures = [] } = {}) {
+  if (!goal) return null
+  const structures = layoutStructures.length > 0 ? layoutStructures : getProjectGoalStructureSet(goal)
+  const label = hasPlacedStructures ? goal.actionLabel : goal.emptyActionLabel
+  return createDecisionLayoutAction(goal.layoutOptionId, structures, label)
+}
+
+function buildProjectGoalRecommendation(goals = [], context = {}) {
+  const primaryGoal = getPrimaryProjectGoal(goals)
+  if (!primaryGoal) return null
+
+  const recommendedAction = buildProjectGoalRecommendedAction(primaryGoal, context)
+  const secondaryGoals = goals.filter(goal => goal.id !== primaryGoal.id).slice(0, 2)
+  const options = [
+    recommendedAction,
+    ...secondaryGoals
+      .map(goal => buildProjectGoalRecommendedAction(goal, context))
+      .filter(Boolean),
+    createPromptAction('Site brief', 'Site brief'),
+  ].filter(Boolean)
+
+  return {
+    primaryGoal,
+    bestMove: context.hasPlacedStructures ? primaryGoal.activeBestMove : primaryGoal.emptyBestMove,
+    why: primaryGoal.why,
+    recommendedAction,
+    suggestedActions: options.slice(0, 3),
+  }
 }
 
 function parseDistanceCommand(normalizedText) {
@@ -770,6 +912,47 @@ function parseLayoutRecommendationFollowThrough(normalizedText) {
   return null
 }
 
+function getProjectGoalIdsFromText(normalizedText) {
+  const goalIds = []
+  const addGoal = (goalId) => {
+    if (!goalIds.includes(goalId)) goalIds.push(goalId)
+  }
+
+  if (/\b(privacy|private|more private|secluded|seclusion|less exposed|quiet)\b/.test(normalizedText)) {
+    addGoal('privacy')
+  }
+  if (/\b(open backyard|backyard open|keep the backyard open|keep backyard open|open land|open space|more yard|more outdoor|garden space|outdoor space)\b/.test(normalizedText)) {
+    addGoal('open_backyard')
+  }
+  if (/\b(family home|family house|home for (my )?family|kids|children|bedrooms?|home with)\b/.test(normalizedText)) {
+    addGoal('family_home')
+  }
+  if (/\b(parking|garage|carport|driveway|vehicle access|car access|cars?|vehicles?)\b/.test(normalizedText)) {
+    addGoal('parking')
+  }
+  if (/\b(pool|swimming pool)\b/.test(normalizedText)) {
+    addGoal('pool')
+  }
+  if (/\b(demo ready|demo-ready|demo|presentation|showcase|polished|client ready|client-ready)\b/.test(normalizedText)) {
+    addGoal('demo_ready')
+  }
+
+  return goalIds
+}
+
+function parseProjectGoalRequest(normalizedText) {
+  const hasGoalIntent = /\b(i want|i need|we want|we need|my goal|our goal|goal is|priority|prioritize|prioritise|focus on|care about|important|must have|remember that|make it|keep)\b/.test(normalizedText)
+  if (!hasGoalIntent) return null
+
+  const goalIds = getProjectGoalIdsFromText(normalizedText)
+  if (!goalIds.length) return null
+
+  return {
+    type: 'capture_project_goals',
+    goalIds,
+  }
+}
+
 function parseDecisionRequest(normalizedText) {
   if (/\b(what should i do next|what do i do next|recommend next step|recommend a next step|best next step|best move|next move|what would you do|what should we do|what now)\b/.test(normalizedText)) {
     return { type: 'recommend_next_step', intent: 'next_step' }
@@ -868,6 +1051,52 @@ function getSceneSummarySuggestedActions({ hasPlacedStructures, hasGeneratedBuil
     actions.push({ label: 'Open backyard', prompt: 'Leave the backyard open' })
   }
   return actions.slice(0, 3)
+}
+
+function buildProjectGoalCapture({ capturedGoals, previousGoals, placedBuildings, messages }) {
+  const layoutStructures = getAdvisorLayoutStructuresFromMessages(messages)
+  const hasPlacedStructures = placedBuildings.length > 0
+  const allGoals = [...previousGoals]
+  for (const goal of capturedGoals) {
+    if (!allGoals.some(existing => existing.id === goal.id)) allGoals.push(goal)
+  }
+  const recommendation = buildProjectGoalRecommendation(allGoals, {
+    hasPlacedStructures,
+    layoutStructures,
+  })
+  const goalLine = formatProjectGoals(capturedGoals)
+  const allGoalLine = formatProjectGoals(allGoals)
+
+  return {
+    content: [
+      `Goal saved: ${goalLine}.`,
+      `Current goals: ${allGoalLine}.`,
+      '',
+      `Best move: ${recommendation.bestMove}.`,
+      `Why: ${recommendation.why}`,
+    ].join('\n'),
+    decision: {
+      label: 'Project goal',
+      title: recommendation.bestMove,
+      body: recommendation.why,
+      detail: `Saved goals: ${allGoalLine}.`,
+    },
+    nextSteps: [
+      { label: 'Goal saved', state: 'done' },
+      { label: 'Recommendation aligned', state: 'done' },
+      { label: 'Say do it or choose an action', state: 'current' },
+    ],
+    suggestedActions: recommendation.suggestedActions,
+    toolInput: {
+      goalIds: allGoals.map(goal => goal.id),
+      capturedGoalIds: capturedGoals.map(goal => goal.id),
+      goalLabels: allGoals.map(goal => goal.label),
+      capturedGoalLabels: capturedGoals.map(goal => goal.label),
+      primaryGoalId: recommendation.primaryGoal.id,
+      recommendedAction: recommendation.recommendedAction,
+      optionLabels: recommendation.suggestedActions.map(action => action.label),
+    },
+  }
 }
 
 function buildSceneSummary({
@@ -997,6 +1226,11 @@ function buildAgentDecision({
   const comparisonNames = getActiveComparisonNames(activeComparisons)
   const latestLayoutOption = getLatestLayoutOptionFromMessages(messages)
   const layoutStructures = getAdvisorLayoutStructuresFromMessages(messages)
+  const projectGoals = getProjectGoalsFromMessages(messages)
+  const goalRecommendation = buildProjectGoalRecommendation(projectGoals, {
+    hasPlacedStructures: placedStructureNames.length > 0,
+    layoutStructures,
+  })
   const hasPlacedStructures = placedStructureNames.length > 0
   const hasGeneratedBuildings = generatedBuildings.length > 0
   const hasRooms = rooms.length > 0 || walls.length > 0
@@ -1016,7 +1250,16 @@ function buildAgentDecision({
   let options = []
   let state = 'empty_land'
 
-  if (!hasPlacedStructures && !hasGeneratedBuildings && !hasRooms) {
+  if (goalRecommendation && !hasGeneratedBuildings && !hasRooms) {
+    state = hasPlacedStructures ? 'goal_agent_layout' : 'goal_empty_land'
+    observation = hasPlacedStructures
+      ? `${formatStructureNameList(placedStructureNames)} on ${landCopy}. Saved goals: ${formatProjectGoals(projectGoals)}.`
+      : `clear ${landCopy} with saved goals: ${formatProjectGoals(projectGoals)}.`
+    bestMove = goalRecommendation.bestMove
+    why = goalRecommendation.why
+    recommendedAction = goalRecommendation.recommendedAction
+    options = goalRecommendation.suggestedActions
+  } else if (!hasPlacedStructures && !hasGeneratedBuildings && !hasRooms) {
     observation = `clear ${landCopy} with no placed structures yet.`
     bestMove = 'make a simple home layout'
     why = 'it gives you a real starting point, then we can compare privacy, open yard, and access instead of guessing from an empty site.'
@@ -1112,6 +1355,8 @@ function buildAgentDecision({
       wallCount: walls.length,
       roomCount: rooms.length,
       activeComparisonCount: comparisonNames.length,
+      projectGoalIds: projectGoals.map(goal => goal.id),
+      projectGoalLabels: projectGoals.map(goal => goal.label),
       recommendedAction,
       optionLabels: options.slice(0, 3).map(action => action.label),
     },
@@ -1137,6 +1382,7 @@ function buildSiteBrief({
   const placedStructureNames = getPlacedStructureNames(placedBuildings)
   const comparisonNames = getActiveComparisonNames(activeComparisons)
   const latestLayoutOption = getLatestLayoutOptionFromMessages(messages)
+  const projectGoals = getProjectGoalsFromMessages(messages)
   const decision = buildAgentDecision({
     hasLand,
     dimensions,
@@ -1176,12 +1422,16 @@ function buildSiteBrief({
   const layoutLine = latestLayoutOption
     ? `${latestLayoutOption.label} is the latest agent layout`
     : 'No agent layout option has been applied yet'
+  const goalsLine = projectGoals.length > 0
+    ? `${formatProjectGoals(projectGoals)}. ${projectGoals.map(goal => goal.summary).join('; ')}`
+    : 'No saved goals yet'
 
   return {
     content: [
       'Site Brief',
       '',
       `Site: ${landLine}. ${boundaryLine}. ${setbackLine}.`,
+      `Goals: ${goalsLine}.`,
       `Plans: ${plansLine}.`,
       `Scene: ${objectsLine}.`,
       `Agent memory: ${layoutLine}.`,
@@ -1193,7 +1443,7 @@ function buildSiteBrief({
       label: 'Site brief',
       title: decision.decision.title,
       body: decision.decision.body,
-      detail: `Sitea knows ${hasLand ? formatArea(landArea) : 'unconfirmed land'}, ${plansLine.toLowerCase()}, and ${objectsLine.toLowerCase()}.`,
+      detail: `Sitea knows ${hasLand ? formatArea(landArea) : 'unconfirmed land'}, ${projectGoals.length ? `goals for ${formatProjectGoals(projectGoals).toLowerCase()}` : 'no saved goals yet'}, ${plansLine.toLowerCase()}, and ${objectsLine.toLowerCase()}.`,
     },
     nextSteps: [
       { label: 'Project memory checked', state: 'done' },
@@ -1215,6 +1465,8 @@ function buildSiteBrief({
       roomCount: rooms.length,
       furnitureCount: furnitureItems.length,
       activeComparisonNames: comparisonNames,
+      projectGoalIds: projectGoals.map(goal => goal.id),
+      projectGoalLabels: projectGoals.map(goal => goal.label),
       latestLayoutOptionId: latestLayoutOption?.id || null,
     },
   }
@@ -1581,6 +1833,11 @@ function buildTextSceneAction(text, { landArea }) {
   const layoutRecommendationFollowThrough = parseLayoutRecommendationFollowThrough(normalizedText)
   if (layoutRecommendationFollowThrough) {
     return layoutRecommendationFollowThrough
+  }
+
+  const projectGoalRequest = parseProjectGoalRequest(normalizedText)
+  if (projectGoalRequest) {
+    return projectGoalRequest
   }
 
   const decisionRequest = parseDecisionRequest(normalizedText)
@@ -2232,6 +2489,30 @@ export function useAIChat({
           success: true,
         }],
         suggestedActions: recommendedAction,
+      }])
+      return true
+    }
+
+    if (action.type === 'capture_project_goals') {
+      const capturedGoals = getProjectGoalsByIds(action.goalIds)
+      const previousGoals = getProjectGoalsFromMessages(messagesRef.current)
+      const goalCapture = buildProjectGoalCapture({
+        capturedGoals,
+        previousGoals,
+        placedBuildings,
+        messages: messagesRef.current,
+      })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: goalCapture.content,
+        decision: goalCapture.decision,
+        nextSteps: goalCapture.nextSteps,
+        toolActions: [{
+          name: 'capture_project_goals',
+          input: goalCapture.toolInput,
+          success: true,
+        }],
+        suggestedActions: goalCapture.suggestedActions,
       }])
       return true
     }

@@ -1394,3 +1394,32 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
 - The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
 - Vercel CLI used for deploy: `54.10.2`.
+
+---
+
+# Agent Goals & Constraints v14
+
+## Todo
+- [x] Confirm v13 is committed, pushed, deployed, and the working tree is clean.
+- [x] Read the current Site Brief, next-step recommendation, layout preference, follow-through, and text-action QA paths.
+- [x] Add a deterministic project-goal parser for natural prompts like `I want privacy`, `I need a family home with parking`, `keep the backyard open`, and `my goal is demo ready`.
+- [x] Store inferred project goals in the existing chat/tool-action memory so they survive reloads through local chat history without adding a new database table.
+- [x] Let `site_brief` include the active goals/constraints and show when Sitea has no goals yet.
+- [x] Let `recommend_next_step` prefer the user's saved goals when choosing between balanced, open backyard, privacy, layout, or scale-comparison actions.
+- [x] Make natural follow-through work after a goal capture: `do it`, `show me`, and `use that` should apply the goal-aligned recommendation when safe.
+- [x] Preserve existing v6-v13 commands, upload analyzer behavior, Site Brief behavior, visual handoff, and no paid AI route.
+- [x] Extend `npm run qa:agent-text-actions` with goal-capture, Site Brief-with-goals, and goal-driven recommendation cases on desktop/mobile.
+- [x] Run focused lint/QA/build checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v14 should make Sitea remember what the user is trying to achieve, not only what exists on the land.
+- Scope guard: use local parser and chat memory only. No new paid route, no new storage table, no broad UI redesign, and no placement-engine rewrite.
+- Product goal: when the user says what they care about, Sitea should adapt the Site Brief and next recommendation around that intent.
+- Implemented local `capture_project_goals` support in `src/hooks/useAIChat.js` for privacy, open backyard, family home, parking, pool, and demo-ready goals.
+- Saved goals are stored in existing assistant tool-action history, so they persist through the current local chat history without adding a database table.
+- Site Brief now includes a `Goals:` line and decision-card detail that explains whether Sitea has saved goals.
+- `recommend_next_step` now reads saved goals and prefers privacy, open-backyard, pool, parking, family-home, or demo-ready recommendations when safe.
+- Follow-through after a goal capture now works through the existing recommendation system; for example, `I want privacy` then `do it` applies the privacy layout.
+- Added a `Saved goals` tool chip label in `src/components/AIChatPanel.jsx`.
+- Extended `scripts/agent-text-actions-qa.mjs` with desktop goal capture, mobile Site Brief with goals, and desktop goal follow-through coverage.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
