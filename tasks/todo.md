@@ -1281,3 +1281,23 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Added a compact recommendation card in `src/components/AIChatPanel.jsx` with styling in `src/index.css`; it uses existing Sitea colors, keeps mobile-safe spacing, and leaves action buttons on the existing `sitea-agent-action` system.
 - Updated `scripts/agent-text-actions-qa.mjs` with v11 desktop/mobile decision cases: empty-land recommendation, empty-land `show me` follow-through, and post-layout `do that` follow-through that applies the open-backyard option.
 - Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run qa:agent-handoff`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
+# Deploy Agent Decision Flow v11
+
+## Todo
+- [x] Confirm the working tree is clean and latest commit is v11.
+- [x] Deploy v11 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test the public alias.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_9K6nESErzs22cgsxkfMM2znSrBJz`.
+- Deployment URL: `https://sitea-luiryod7j-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and aliases including `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Note: local Vercel CLI is `54.10.1`; latest patch is `54.10.2`.
