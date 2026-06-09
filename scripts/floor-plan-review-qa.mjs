@@ -8,6 +8,7 @@ import {
   countAddedDetections,
   countHiddenDetections,
   countVisibleDetections,
+  snapOpeningToNearestReviewWall,
 } from '../src/utils/floorPlanReviewCorrections.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -36,27 +37,38 @@ const hiddenDetections = {
   rooms: [],
   stairs: [],
 }
+const addedWall = {
+  start: { x: 300, y: 700 },
+  end: { x: 650, y: 700 },
+  thickness: 12,
+  isExterior: false,
+  confidence: 1,
+  source: 'manual_review',
+}
+const addedWallsOnly = { walls: [addedWall], doors: [], windows: [] }
+const doorTap = { x: 340, y: 332 }
+const windowTap = { x: 530, y: 636 }
+const snappedDoor = snapOpeningToNearestReviewWall(doorTap, analysis, hiddenDetections, addedWallsOnly)
+const snappedWindow = snapOpeningToNearestReviewWall(windowTap, analysis, hiddenDetections, addedWallsOnly)
+const fallbackOpening = snapOpeningToNearestReviewWall({ x: 12.345, y: 67.891 }, { walls: [] }, hiddenDetections, { walls: [] })
 const addedDetections = {
-  walls: [{
-    start: { x: 300, y: 700 },
-    end: { x: 650, y: 700 },
-    thickness: 12,
-    isExterior: false,
-    confidence: 1,
-    source: 'manual_review',
-  }],
+  walls: [addedWall],
   doors: [{
-    center: { x: 340, y: 332 },
+    center: snappedDoor.center,
     width: 32,
-    rotation: 0,
+    rotation: snappedDoor.rotation,
+    positionAlongWall: snappedDoor.positionAlongWall,
+    snap: snappedDoor.snap,
     doorType: 'single',
     confidence: 1,
     source: 'manual_review',
   }],
   windows: [{
-    center: { x: 530, y: 636 },
+    center: snappedWindow.center,
     width: 48,
-    rotation: 0,
+    rotation: snappedWindow.rotation,
+    positionAlongWall: snappedWindow.positionAlongWall,
+    snap: snappedWindow.snap,
     confidence: 1,
     source: 'manual_review',
   }],
@@ -76,6 +88,15 @@ assert(Array.isArray(reviewPayload.analysis.doors), 'Review payload is missing r
 assert(Array.isArray(reviewPayload.analysis.windows), 'Review payload is missing raw windows')
 assert(countHiddenDetections(hiddenDetections) === 3, 'Hidden detection count should include wall, door, and window')
 assert(countAddedDetections(addedDetections) === 3, 'Added detection count should include the manual wall, door, and window')
+assert(snappedDoor.snap?.wallKey, 'Manual door did not snap to a review wall')
+assert(snappedWindow.snap?.wallKey, 'Manual window did not snap to a review wall')
+assert(Number.isFinite(snappedDoor.rotation), 'Manual door is missing snapped wall rotation')
+assert(Number.isFinite(snappedWindow.rotation), 'Manual window is missing snapped wall rotation')
+assert(Number.isFinite(snappedDoor.positionAlongWall), 'Manual door is missing snapped wall position')
+assert(Number.isFinite(snappedWindow.positionAlongWall), 'Manual window is missing snapped wall position')
+assert(fallbackOpening.snap === null, 'No-wall fallback should not claim a snapped wall')
+assert(fallbackOpening.center.x === 12.35 && fallbackOpening.center.y === 67.89, 'No-wall fallback should preserve the tapped point')
+assert(fallbackOpening.rotation === 0, 'No-wall fallback should keep the v24 default rotation')
 assert(correctedAnalysis.walls.length === analysis.walls.length, 'Corrected analysis should hide one wall and add one wall')
 assert(correctedAnalysis.doors.length === analysis.doors.length, 'Corrected analysis should hide one door and add one door')
 assert(correctedAnalysis.windows.length === analysis.windows.length, 'Corrected analysis should hide one window and add one window')
@@ -101,4 +122,6 @@ console.log('Floor plan review QA passed', {
   correctedWindows: correctedFloorPlan.stats.windowCount,
   hidden: correctedFloorPlan.correctionSummary.hiddenCount,
   added: correctedFloorPlan.correctionSummary.addedCount,
+  doorSnap: snappedDoor.snap,
+  windowSnap: snappedWindow.snap,
 })

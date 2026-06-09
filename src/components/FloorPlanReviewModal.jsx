@@ -7,6 +7,7 @@ import {
   createEmptyAddedDetections,
   createEmptyHiddenDetections,
   isDetectionHidden,
+  snapOpeningToNearestReviewWall,
   toggleHiddenDetection,
 } from '../utils/floorPlanReviewCorrections'
 
@@ -46,13 +47,6 @@ function clamp(value, min, max) {
 function getPointDistance(a, b) {
   if (!a || !b) return Infinity
   return Math.hypot(a.x - b.x, a.y - b.y)
-}
-
-function formatReviewPoint(point) {
-  return {
-    x: Number(point.x.toFixed(2)),
-    y: Number(point.y.toFixed(2)),
-  }
 }
 
 function getLinearGeometry(item, scale, offsetX, offsetY, fallbackLength = 28) {
@@ -490,6 +484,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     if (!addOpeningMode) return
     const type = addOpeningMode === 'door' ? 'doors' : 'windows'
     const width = addOpeningMode === 'door' ? 32 : 48
+    const snappedOpening = snapOpeningToNearestReviewWall(point, analysis, hiddenDetections, addedDetections)
 
     setSelectedDetection(null)
     setAddedDetections(prev => ({
@@ -497,9 +492,11 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       [type]: [
         ...(prev[type] || []),
         {
-          center: formatReviewPoint(point),
+          center: snappedOpening.center,
           width,
-          rotation: 0,
+          rotation: snappedOpening.rotation,
+          positionAlongWall: snappedOpening.positionAlongWall,
+          snap: snappedOpening.snap,
           doorType: addOpeningMode === 'door' ? 'single' : undefined,
           confidence: 1,
           source: 'manual_review',
@@ -507,7 +504,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       ],
     }))
     setAddOpeningMode(null)
-  }, [addOpeningMode])
+  }, [addOpeningMode, addedDetections, analysis, hiddenDetections])
 
   const placeCorrectedPlan = useCallback(() => {
     onPlace(correctedFloorPlan)
@@ -519,9 +516,9 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       ? 'Tap the wall end point on the plan.'
       : 'Tap the missing wall start point on the plan.'
     : addOpeningMode === 'door'
-      ? 'Tap where the missing door belongs.'
+      ? 'Tap the wall where the missing door belongs. Sitea will snap it to the nearest visible wall.'
       : addOpeningMode === 'window'
-        ? 'Tap where the missing window belongs.'
+        ? 'Tap the wall where the missing window belongs. Sitea will snap it to the nearest visible wall.'
     : selectedDetection
       ? `Selected: ${selectedDetection.label}`
       : 'Tap a detected item to inspect it, or add missing walls, doors, or windows.'

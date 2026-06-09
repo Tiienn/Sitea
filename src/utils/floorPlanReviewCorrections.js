@@ -24,8 +24,104 @@ function normalizeHiddenDetections(hidden = {}) {
   }, {})
 }
 
+function roundReviewNumber(value, digits = 2) {
+  return Number(Number(value).toFixed(digits))
+}
+
+function formatReviewPoint(point) {
+  return {
+    x: roundReviewNumber(point?.x || 0),
+    y: roundReviewNumber(point?.y || 0),
+  }
+}
+
+function getWallLengthPx(wall) {
+  if (!wall?.start || !wall?.end) return 0
+  return Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
+}
+
+function projectPointToWall(point, wall) {
+  if (!point || !wall?.start || !wall?.end) return null
+  const dx = wall.end.x - wall.start.x
+  const dy = wall.end.y - wall.start.y
+  const lengthSquared = dx * dx + dy * dy
+  if (lengthSquared === 0) return null
+
+  const t = Math.max(0, Math.min(1, ((point.x - wall.start.x) * dx + (point.y - wall.start.y) * dy) / lengthSquared))
+  const center = {
+    x: wall.start.x + dx * t,
+    y: wall.start.y + dy * t,
+  }
+
+  return {
+    center,
+    t,
+    distance: Math.hypot(point.x - center.x, point.y - center.y),
+    rotation: Math.atan2(dy, dx),
+  }
+}
+
 export function isDetectionHidden(hidden, type, index) {
   return normalizeHiddenDetections(hidden)[type]?.has(index) || false
+}
+
+export function getVisibleReviewWalls(analysis = {}, hidden = {}, additions = {}) {
+  const hiddenSets = normalizeHiddenDetections(hidden)
+  const visibleWalls = []
+
+  ;(analysis.walls || []).forEach((wall, index) => {
+    if (hiddenSets.walls.has(index) || getWallLengthPx(wall) === 0) return
+    visibleWalls.push({
+      wall,
+      type: 'walls',
+      index,
+      key: `walls:${index}`,
+    })
+  })
+  ;(additions.walls || []).forEach((wall, index) => {
+    if (getWallLengthPx(wall) === 0) return
+    visibleWalls.push({
+      wall,
+      type: 'addedWalls',
+      index,
+      key: `addedWalls:${index}`,
+    })
+  })
+
+  return visibleWalls
+}
+
+export function snapOpeningToNearestReviewWall(point, analysis = {}, hidden = {}, additions = {}) {
+  let bestSnap = null
+
+  getVisibleReviewWalls(analysis, hidden, additions).forEach(entry => {
+    const snap = projectPointToWall(point, entry.wall)
+    if (!snap) return
+    if (!bestSnap || snap.distance < bestSnap.distance) {
+      bestSnap = { ...snap, entry }
+    }
+  })
+
+  if (!bestSnap) {
+    return {
+      center: formatReviewPoint(point),
+      rotation: 0,
+      snap: null,
+    }
+  }
+
+  return {
+    center: formatReviewPoint(bestSnap.center),
+    rotation: roundReviewNumber(bestSnap.rotation, 6),
+    positionAlongWall: roundReviewNumber(bestSnap.t * getWallLengthPx(bestSnap.entry.wall)),
+    snap: {
+      wallType: bestSnap.entry.type,
+      wallIndex: bestSnap.entry.index,
+      wallKey: bestSnap.entry.key,
+      distancePx: roundReviewNumber(bestSnap.distance),
+      t: roundReviewNumber(bestSnap.t, 4),
+    },
+  }
 }
 
 export function countHiddenDetections(hidden = {}) {

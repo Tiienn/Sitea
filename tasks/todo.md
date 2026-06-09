@@ -105,6 +105,27 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local Playwright smoke test. Existing generated QA report timestamp/ID churn was restored before final diff.
 - Remaining limitation: manual doors/windows use a default width and rotation. A later version should add endpoint dragging, wall snapping, and better orientation controls.
 
+## Active Plan: v25 Snap Manual Openings To Walls
+- [x] Keep v25 scoped to manual door/window accuracy inside `FloorPlanReviewModal`: no paid analyzer call, no endpoint dragging, no full floor-plan editor rewrite
+- [x] Add small geometry helpers that find the nearest visible wall in source-image coordinates and project a tapped opening point onto that wall segment
+- [x] When adding a manual door/window, snap its center to the nearest wall, rotate it along the wall angle, and store lightweight snap metadata for review/QA
+- [x] Keep a safe fallback when no wall is available so v24 behavior still works on weak analyzer output
+- [x] Update the review overlay copy so users understand doors/windows snap to the nearest wall, without adding a cramped or complicated control surface
+- [x] Preserve v22-v24 behavior for hiding/restoring detections, adding/removing walls, adding/removing openings, and placing corrected geometry
+- [x] Extend no-cost floor-plan review QA to assert manual door/window additions include snapped center, wall rotation, and wall reference metadata
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, and local browser smoke
+- [x] Add v25 review notes with what snapping improves and what remains for endpoint dragging, wall-specific selection, and width/orientation controls
+
+### v25 Review
+- Direction: v25 makes manual door/window corrections more trustworthy by attaching openings to nearby plan walls instead of leaving them as fixed horizontal markers.
+- Scope stayed inside the review modal and shared correction utility: no paid analyzer call, no full editor rewrite, and no endpoint dragging.
+- Added source-image geometry helpers that gather visible walls, include manually added walls, project a tapped opening point onto the closest wall segment, and return snapped center, wall rotation, position along wall, and wall reference metadata.
+- Manual doors and windows now use the snapped point and wall angle when added. If no usable wall exists, Sitea safely falls back to the original v24 tap behavior.
+- The review copy now tells users to tap the wall where the missing door/window belongs, while keeping the existing compact control surface and 44px touch targets.
+- Extended `npm run qa:floor-plans:review` so added manual doors/windows are created through the snap helper and asserted for snap metadata, rotation, and wall position before conversion.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local browser smoke test. Existing generated QA report timestamp/fixture churn was restored before final diff.
+- Remaining limitation: users still cannot drag endpoints, choose a specific wall manually, or adjust opening width/orientation after placement. Those belong in a later lightweight correction editor.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
