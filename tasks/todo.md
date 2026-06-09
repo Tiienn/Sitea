@@ -1302,8 +1302,6 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
 - Note: local Vercel CLI is `54.10.1`; latest patch is `54.10.2`.
 
----
-
 # Agent Upload-to-Decision Flow v12
 
 ## Todo
@@ -1350,3 +1348,28 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
 - The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
 - Note: local Vercel CLI is `54.10.1`; latest patch is `54.10.2`.
+
+---
+
+# Agent Project Memory v13
+
+## Todo
+- [x] Commit the v12 deployment note before starting v13.
+- [x] Read the current agent summary/decision code, upload-decision flow, chat UI, text-action QA, `DESIGN.md`, and the `frontend-design` skill.
+- [x] Add a deterministic Site Brief builder that turns current land, uploaded plans, placed objects, drawings, comparisons, and latest layout history into a clear project memory response.
+- [x] Route project-memory prompts like `what do you know about my site`, `site brief`, and `project summary` to the local Site Brief instead of the paid AI route.
+- [x] Make the Site Brief include a best next move plus safe action buttons, using the existing decision card treatment and current Sitea spacing.
+- [x] Preserve existing v6-v12 direct actions, upload analyzer behavior, follow-through, and visual handoff behavior.
+- [x] Extend `npm run qa:agent-text-actions` with desktop/mobile Site Brief cases and follow-through from the brief.
+- [x] Run focused lint/QA/build checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v13 makes Sitea feel like it remembers the project, not just the latest chat message.
+- Scope guard: reused local state and existing action metadata. No new paid route, no new storage table, no broad UI redesign, and no placement-engine rewrite.
+- Product goal: let a user ask what Sitea knows about the site and get a concise, trustworthy brief with the next useful action.
+- Implemented a local `site_brief` intent in `src/hooks/useAIChat.js` for prompts like `site brief`, `project brief`, and `what do you know about my site`.
+- Added a deterministic Site Brief builder that summarizes land size/shape, boundary, setbacks, uploaded plan context, placed structures, comparison objects, furniture count, latest agent layout, and the best next move.
+- The Site Brief reuses the existing decision card and suggested-action system, so `do it` can execute the brief's recommended action without calling `/api/ai-chat`.
+- Added a `Prepared site brief` tool chip label in `src/components/AIChatPanel.jsx`.
+- Extended `scripts/agent-text-actions-qa.mjs` with desktop Site Brief coverage and mobile follow-through from the brief.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.

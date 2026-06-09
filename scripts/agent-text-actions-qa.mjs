@@ -339,6 +339,28 @@ const CASES = [
     expectChatVisible: true,
   },
   {
+    name: 'desktop-site-brief-empty',
+    viewport: 'desktop',
+    prompt: 'What do you know about my site?',
+    expectedStoredText: 'Site Brief',
+    expectedToolActionName: 'site_brief',
+    expectChatVisible: true,
+  },
+  {
+    name: 'mobile-site-brief-follow-through-empty',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'Site brief',
+        expectedStoredText: 'Best next move: make a simple home layout',
+      },
+    ],
+    prompt: 'Do it',
+    expectedStoredText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
+    expectedToolActionName: 'offer_structure_layout_options',
+    expectChatVisible: true,
+  },
+  {
     name: 'mobile-scene-next-step-empty',
     viewport: 'mobile',
     prompt: 'What should I do next?',
@@ -652,6 +674,7 @@ async function readAudit(page, expectedToast) {
       action.name === 'explain_last_layout_change' ||
       action.name === 'compare_layout_options' ||
       action.name === 'apply_latest_layout_recommendation' ||
+      action.name === 'site_brief' ||
       action.name === 'summarize_scene' ||
       action.name === 'recommend_next_step' ||
       action.name === 'handoff_to_scene' ||

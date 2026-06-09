@@ -74,6 +74,8 @@ function ToolChip({ action }) {
         return 'Compared layouts'
       case 'apply_latest_layout_recommendation':
         return 'Checked recommendation'
+      case 'site_brief':
+        return 'Prepared site brief'
       case 'summarize_scene':
         return 'Inspected scene'
       case 'recommend_next_step':

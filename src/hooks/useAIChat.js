@@ -375,7 +375,7 @@ function getLatestAgentDecisionAction(messages) {
     .reverse()
     .find(message => message.role === 'assistant' && !message.error && message.content)
   const decisionAction = latestAssistantMessage?.toolActions?.find(action =>
-    ['recommend_next_step', 'analyze_floor_plan', 'review_site_plan'].includes(action.name) &&
+    ['recommend_next_step', 'site_brief', 'analyze_floor_plan', 'review_site_plan'].includes(action.name) &&
     action.success !== false &&
     action.input?.recommendedAction
   )
@@ -780,6 +780,19 @@ function parseDecisionRequest(normalizedText) {
   return null
 }
 
+function parseSiteBriefRequest(normalizedText) {
+  if (/\b(site brief|project brief|site memory|project memory|brief my site|brief this site)\b/.test(normalizedText)) {
+    return { type: 'site_brief', intent: 'brief' }
+  }
+  if (/\b(what do you know|what have you learned|what do you remember).*\b(my|this|the).*\b(site|land|plot|property|project)\b/.test(normalizedText)) {
+    return { type: 'site_brief', intent: 'memory' }
+  }
+  if (/\b(summari[sz]e|review|describe).*\b(my|this|the).*\b(project|site brief|project brief)\b/.test(normalizedText)) {
+    return { type: 'site_brief', intent: 'brief' }
+  }
+  return null
+}
+
 function parseSceneAwarenessRequest(normalizedText) {
   if (/\b(what is|whats|what's|what do i have|show me|tell me).*\b(on my|on the|in my|in the).*\b(land|site|plot|property)\b/.test(normalizedText)) {
     return { type: 'summarize_scene', intent: 'summary' }
@@ -1101,6 +1114,108 @@ function buildAgentDecision({
       activeComparisonCount: comparisonNames.length,
       recommendedAction,
       optionLabels: options.slice(0, 3).map(action => action.label),
+    },
+  }
+}
+
+function buildSiteBrief({
+  hasLand,
+  dimensions,
+  landArea,
+  shapeMode,
+  confirmedPolygon,
+  setbacksEnabled,
+  setbackDistanceM,
+  placedBuildings,
+  generatedBuildings,
+  walls,
+  rooms,
+  furnitureItems,
+  activeComparisons,
+  messages,
+}) {
+  const placedStructureNames = getPlacedStructureNames(placedBuildings)
+  const comparisonNames = getActiveComparisonNames(activeComparisons)
+  const latestLayoutOption = getLatestLayoutOptionFromMessages(messages)
+  const decision = buildAgentDecision({
+    hasLand,
+    dimensions,
+    landArea,
+    shapeMode,
+    confirmedPolygon,
+    placedBuildings,
+    generatedBuildings,
+    walls,
+    rooms,
+    activeComparisons,
+    messages,
+  })
+  const landShape = shapeMode === 'upload' ? 'uploaded boundary' : shapeMode || 'rectangle'
+  const landLine = hasLand
+    ? `${formatArea(landArea)} ${landShape}${dimensions?.width && dimensions?.length ? `, about ${formatMeters(dimensions.width)} x ${formatMeters(dimensions.length)}` : ''}`
+    : 'Not confirmed yet'
+  const boundaryLine = confirmedPolygon?.length >= 3
+    ? `${confirmedPolygon.length}-point boundary`
+    : 'Default boundary'
+  const setbackLine = setbacksEnabled
+    ? `${formatMeters(setbackDistanceM)} setbacks are on`
+    : 'Setbacks are off'
+  const planParts = []
+  if (generatedBuildings.length > 0) {
+    planParts.push(`${generatedBuildings.length} uploaded floor-plan building preview${generatedBuildings.length === 1 ? '' : 's'}`)
+  }
+  if (walls.length > 0 || rooms.length > 0) {
+    planParts.push(`${walls.length} wall${walls.length === 1 ? '' : 's'} and ${rooms.length} room${rooms.length === 1 ? '' : 's'} in the floor-plan drawing`)
+  }
+  const plansLine = planParts.length > 0 ? planParts.join('; ') : 'No uploaded building or room drawing in the scene yet'
+  const objectParts = []
+  if (placedStructureNames.length > 0) objectParts.push(formatStructureNameList(placedStructureNames))
+  if (comparisonNames.length > 0) objectParts.push(`scale comparisons: ${formatNameList(comparisonNames)}`)
+  if (furnitureItems.length > 0) objectParts.push(`${furnitureItems.length} furniture item${furnitureItems.length === 1 ? '' : 's'}`)
+  const objectsLine = objectParts.length > 0 ? objectParts.join('; ') : 'No structures or scale objects placed yet'
+  const layoutLine = latestLayoutOption
+    ? `${latestLayoutOption.label} is the latest agent layout`
+    : 'No agent layout option has been applied yet'
+
+  return {
+    content: [
+      'Site Brief',
+      '',
+      `Site: ${landLine}. ${boundaryLine}. ${setbackLine}.`,
+      `Plans: ${plansLine}.`,
+      `Scene: ${objectsLine}.`,
+      `Agent memory: ${layoutLine}.`,
+      '',
+      `Best next move: ${decision.decision.title}.`,
+      `Why: ${decision.decision.body}`,
+    ].join('\n'),
+    decision: {
+      label: 'Site brief',
+      title: decision.decision.title,
+      body: decision.decision.body,
+      detail: `Sitea knows ${hasLand ? formatArea(landArea) : 'unconfirmed land'}, ${plansLine.toLowerCase()}, and ${objectsLine.toLowerCase()}.`,
+    },
+    nextSteps: [
+      { label: 'Project memory checked', state: 'done' },
+      { label: hasLand ? 'Site context summarized' : 'Land still needs confirmation', state: 'done' },
+      { label: 'Choose the next action or say do it', state: 'current' },
+    ],
+    suggestedActions: decision.suggestedActions,
+    toolInput: {
+      ...decision.toolInput,
+      landArea: Math.round(landArea || 0),
+      hasLand,
+      landShape,
+      boundaryPointCount: confirmedPolygon?.length || 0,
+      setbacksEnabled,
+      setbackDistanceM,
+      placedStructureNames,
+      generatedBuildingCount: generatedBuildings.length,
+      wallCount: walls.length,
+      roomCount: rooms.length,
+      furnitureCount: furnitureItems.length,
+      activeComparisonNames: comparisonNames,
+      latestLayoutOptionId: latestLayoutOption?.id || null,
     },
   }
 }
@@ -1471,6 +1586,11 @@ function buildTextSceneAction(text, { landArea }) {
   const decisionRequest = parseDecisionRequest(normalizedText)
   if (decisionRequest) {
     return decisionRequest
+  }
+
+  const siteBriefRequest = parseSiteBriefRequest(normalizedText)
+  if (siteBriefRequest) {
+    return siteBriefRequest
   }
 
   const sceneAwarenessRequest = parseSceneAwarenessRequest(normalizedText)
@@ -2178,6 +2298,41 @@ export function useAIChat({
           success: true,
         }],
         suggestedActions: summary.suggestedActions,
+      }])
+      return true
+    }
+
+    if (action.type === 'site_brief') {
+      const brief = buildSiteBrief({
+        hasLand,
+        dimensions,
+        landArea,
+        shapeMode,
+        confirmedPolygon,
+        setbacksEnabled,
+        setbackDistanceM,
+        placedBuildings,
+        generatedBuildings,
+        walls,
+        rooms,
+        furnitureItems,
+        activeComparisons,
+        messages: messagesRef.current,
+      })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: brief.content,
+        decision: brief.decision,
+        nextSteps: brief.nextSteps,
+        toolActions: [{
+          name: 'site_brief',
+          input: {
+            intent: action.intent,
+            ...brief.toolInput,
+          },
+          success: true,
+        }],
+        suggestedActions: brief.suggestedActions,
       }])
       return true
     }
