@@ -1573,3 +1573,23 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Updated the agent tool chip copy from `Prepared layout options` to `Prepared visual plan`.
 - Extended browser QA with v17 cases for option-number choice, visual-plan `do it`, reload follow-through, and natural privacy refinement.
 - Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
+# Deploy Agent Visual Plan Loop v17
+
+## Todo
+- [x] Confirm latest commit is v17.
+- [x] Deploy v17 to Vercel Production.
+- [x] Confirm `sitea.live` points to the deployment.
+- [x] Smoke-test the public alias.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_Hh2nfJfJgKVUMQQGqY1QGEwGvC3Q`.
+- Deployment URL: `https://sitea-7xfkfr7l9-tien820-8406s-projects.vercel.app`.
+- Vercel reported the deployment as `READY` and aliased it to `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live/` returned `HTTP/2 200`.
+- The raw Vercel deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Vercel CLI used for deploy: `54.10.2`.
