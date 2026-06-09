@@ -376,10 +376,42 @@ function getLayoutOptionActions(structures) {
   return STRUCTURE_LAYOUT_OPTIONS.map(option => createLayoutOptionAction(option.id, structures))
 }
 
-function formatLayoutOptions() {
+function formatVisualPlanOptions() {
   return STRUCTURE_LAYOUT_OPTIONS
-    .map(option => `- ${option.label.replace(':', ' -')}: ${option.summary}`)
+    .map(option => `- ${option.label.replace(':', ' -')}: ${option.summary} Best for ${option.advisor.bestFor}.`)
     .join('\n')
+}
+
+function formatVisualPlanOffer(structures, source = 'direct_request') {
+  const requestedNames = formatStructureNameList(structures.map(structure => structure.name))
+  const intro = source === 'decision_follow_through'
+    ? `I turned the recommended next move into a visual plan. I can lay out ${requestedNames} three ways.`
+    : `I can lay out ${requestedNames} three ways as a visual plan.`
+
+  return [
+    intro,
+    '',
+    'Pick an option, or say "do it" and I will start with Option 1.',
+    '',
+    formatVisualPlanOptions(),
+  ].join('\n')
+}
+
+function buildVisualPlanOfferInput(structures, source = 'direct_request') {
+  return {
+    source,
+    structureIds: structures.map(structure => structure.id),
+    structureNames: structures.map(structure => structure.name),
+    optionIds: STRUCTURE_LAYOUT_OPTIONS.map(option => option.id),
+    recommendedOptionId: 'balanced',
+    optionDetails: STRUCTURE_LAYOUT_OPTIONS.map(option => ({
+      id: option.id,
+      label: option.label,
+      summary: option.summary,
+      bestFor: option.advisor.bestFor,
+      tradeoff: option.advisor.tradeoff,
+    })),
+  }
 }
 
 function getOfferedLayoutStructuresFromMessages(messages) {
@@ -455,6 +487,24 @@ function getLatestAgentDecisionAction(messages) {
     action.input?.recommendedAction
   )
   return decisionAction?.input?.recommendedAction || null
+}
+
+function getLatestVisualPlanOfferAction(messages) {
+  const latestAssistantMessage = [...messages]
+    .reverse()
+    .find(message => message.role === 'assistant' && !message.error && message.content)
+  const offerAction = latestAssistantMessage?.toolActions?.find(action =>
+    action.name === 'offer_structure_layout_options' &&
+    action.success !== false &&
+    action.input?.structureIds?.length
+  )
+  if (!offerAction) return null
+
+  const structures = getLayoutStructuresFromAction(offerAction)
+  if (!structures.length) return null
+
+  const optionId = offerAction.input?.recommendedOptionId || offerAction.input?.optionIds?.[0] || 'balanced'
+  return createLayoutOptionAction(optionId, structures)
 }
 
 const FLOOR_PLAN_PROCESS = {
@@ -792,16 +842,29 @@ function isRetryStructureLayoutRequest(normalizedText) {
 }
 
 function parseLayoutPreferenceSelection(normalizedText) {
-  const isExplicitSelection = /\b(option\s*[123]|use|choose|select)\b/.test(normalizedText)
-  if (/\b(option\s*1|use\s*1|choose\s*1|select\s*1|balanced|balance|simple|default|straightforward)\b/.test(normalizedText)) {
+  const isExplicitSelection = /\b(option\s*[123]|use|choose|select|pick|go with|take)\b/.test(normalizedText)
+  const isRefinement = /\b(make it|make this|make the layout|change it|switch it|try|leave)\b/.test(normalizedText)
+
+  if (/\b(option\s*1|use\s*1|choose\s*1|select\s*1|pick\s*1)\b/.test(normalizedText) ||
+    (isExplicitSelection && /\b(balanced|balance|simple|default|straightforward)\b/.test(normalizedText)) ||
+    /^(balanced|balance|simple|default|straightforward)$/.test(normalizedText)) {
     return { optionId: 'balanced', preferenceLabel: isExplicitSelection ? null : 'balanced' }
   }
-  if (/\b(option\s*3|use\s*3|choose\s*3|select\s*3|privacy|private|more private|secluded|seclusion|less exposed)\b/.test(normalizedText)) {
+
+  if (/\b(option\s*3|use\s*3|choose\s*3|select\s*3|pick\s*3)\b/.test(normalizedText) ||
+    (isExplicitSelection && /\b(privacy|private|more private|secluded|seclusion|less exposed|privacy one|private one)\b/.test(normalizedText)) ||
+    (isRefinement && /\b(privacy|private|more private|secluded|seclusion|less exposed)\b/.test(normalizedText)) ||
+    /^(privacy|private|more private)$/.test(normalizedText)) {
     return { optionId: 'privacy', preferenceLabel: isExplicitSelection ? null : 'more private' }
   }
-  if (/\b(option\s*2|use\s*2|choose\s*2|select\s*2|backyard|open space|more space|more yard|open backyard|backyard open|outdoor space|garden space)\b/.test(normalizedText)) {
+
+  if (/\b(option\s*2|use\s*2|choose\s*2|select\s*2|pick\s*2)\b/.test(normalizedText) ||
+    (isExplicitSelection && /\b(backyard|open space|more space|more yard|open backyard|backyard open|outdoor space|garden space|backyard one|open one)\b/.test(normalizedText)) ||
+    (isRefinement && /\b(backyard|open space|more space|more yard|open backyard|backyard open|outdoor space|garden space)\b/.test(normalizedText)) ||
+    /^(more backyard|open backyard|backyard open|more open|more yard)$/.test(normalizedText)) {
     return { optionId: 'open_backyard', preferenceLabel: isExplicitSelection ? null : 'more open in the backyard' }
   }
+
   return null
 }
 
@@ -2048,6 +2111,11 @@ function buildTextSceneAction(text, { landArea }) {
     return layoutRecommendationFollowThrough
   }
 
+  const layoutPreferenceSelection = parseLayoutPreferenceSelection(normalizedText)
+  if (layoutPreferenceSelection) {
+    return { type: 'apply_layout_preference', ...layoutPreferenceSelection }
+  }
+
   const projectGoalRequest = parseProjectGoalRequest(normalizedText)
   if (projectGoalRequest) {
     return projectGoalRequest
@@ -2076,11 +2144,6 @@ function buildTextSceneAction(text, { landArea }) {
   const layoutAdvisorRequest = parseLayoutAdvisorRequest(normalizedText)
   if (layoutAdvisorRequest) {
     return layoutAdvisorRequest
-  }
-
-  const layoutPreferenceSelection = parseLayoutPreferenceSelection(normalizedText)
-  if (layoutPreferenceSelection) {
-    return { type: 'apply_layout_preference', ...layoutPreferenceSelection }
   }
 
   const structure = getStructureFromCommand(normalizedText)
@@ -2662,22 +2725,17 @@ export function useAIChat({
       pendingStructureLayoutRef.current = {
         structures: action.structures.map(structure => ({ ...structure })),
       }
-      const requestedNames = formatStructureNameList(action.structures.map(structure => structure.name))
       setMessages(prev => [...prev, userMsg, {
         role: 'assistant',
-        content: `I can lay out ${requestedNames} three ways. Pick the direction that matches what you care about most:\n\n${formatLayoutOptions()}`,
+        content: formatVisualPlanOffer(action.structures),
         nextSteps: [
           { label: 'Layout request understood', state: 'done' },
-          { label: 'Options prepared', state: 'done' },
-          { label: 'Choose an option to place it', state: 'current' },
+          { label: 'Visual plan options prepared', state: 'done' },
+          { label: 'Choose an option or say do it', state: 'current' },
         ],
         toolActions: [{
           name: 'offer_structure_layout_options',
-          input: {
-            structureIds: action.structures.map(structure => structure.id),
-            structureNames: action.structures.map(structure => structure.name),
-            optionIds: STRUCTURE_LAYOUT_OPTIONS.map(option => option.id),
-          },
+          input: buildVisualPlanOfferInput(action.structures),
           success: true,
         }],
         suggestedActions: getLayoutOptionActions(action.structures),
@@ -2904,6 +2962,13 @@ export function useAIChat({
         })
       }
 
+      const visualPlanOffer = getLatestVisualPlanOfferAction(messagesRef.current)
+      if (visualPlanOffer) {
+        return applyStructureLayoutOption(visualPlanOffer.optionId, userMsg, visualPlanOffer.structures, {
+          preferenceLabel: null,
+        })
+      }
+
       const agentRecommendation = getLatestAgentDecisionAction(messagesRef.current)
       if (agentRecommendation?.type === 'apply_structure_layout_option') {
         return applyStructureLayoutOption(agentRecommendation.optionId, userMsg, agentRecommendation.structures, {
@@ -3028,23 +3093,17 @@ export function useAIChat({
           pendingStructureLayoutRef.current = {
             structures: promptedAction.structures.map(structure => ({ ...structure })),
           }
-          const requestedNames = formatStructureNameList(promptedAction.structures.map(structure => structure.name))
           setMessages(prev => [...prev, userMsg, {
             role: 'assistant',
-            content: `I can lay out ${requestedNames} three ways. Pick the direction that matches what you care about most:\n\n${formatLayoutOptions()}`,
+            content: formatVisualPlanOffer(promptedAction.structures, 'decision_follow_through'),
             nextSteps: [
               { label: 'Recommended move accepted', state: 'done' },
-              { label: 'Options prepared', state: 'done' },
-              { label: 'Choose an option to place it', state: 'current' },
+              { label: 'Visual plan options prepared', state: 'done' },
+              { label: 'Choose an option or say do it', state: 'current' },
             ],
             toolActions: [{
               name: 'offer_structure_layout_options',
-              input: {
-                source: 'decision_follow_through',
-                structureIds: promptedAction.structures.map(structure => structure.id),
-                structureNames: promptedAction.structures.map(structure => structure.name),
-                optionIds: STRUCTURE_LAYOUT_OPTIONS.map(option => option.id),
-              },
+              input: buildVisualPlanOfferInput(promptedAction.structures, 'decision_follow_through'),
               success: true,
             }],
             suggestedActions: getLayoutOptionActions(promptedAction.structures),

@@ -331,6 +331,79 @@ const CASES = [
     expectChatVisible: true,
   },
   {
+    name: 'desktop-visual-plan-option-number',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'visual plan',
+      },
+    ],
+    prompt: 'Option 2',
+    expectedStoredText: 'I used Option 2: More backyard space',
+    expectedToast: 'More backyard space placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'open_backyard',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-visual-plan-do-it',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'Pick an option, or say "do it"',
+      },
+    ],
+    prompt: 'Do it',
+    expectedStoredText: 'I used Option 1: Balanced layout',
+    expectedToast: 'Balanced layout placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'default',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-visual-plan-do-it-reload',
+    viewport: 'mobile',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'Pick an option, or say "do it"',
+      },
+    ],
+    reloadAfterSetup: true,
+    prompt: 'Do it',
+    expectedStoredText: 'I used Option 1: Balanced layout',
+    expectedToast: 'Balanced layout placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'default',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
+    name: 'desktop-visual-plan-natural-privacy',
+    viewport: 'desktop',
+    setupPrompts: [
+      {
+        prompt: 'Make a simple home layout',
+        expectedStoredText: 'visual plan',
+      },
+    ],
+    prompt: 'Make it more private',
+    expectedStoredText: 'I made the layout more private',
+    expectedToast: 'More privacy placed',
+    expectedToolActionName: 'apply_structure_layout_option',
+    expectedLayout: 'homeGaragePool',
+    expectedLayoutVariant: 'privacy',
+    allowPoolAhead: true,
+    expectChatVisible: false,
+  },
+  {
     name: 'desktop-scene-summary-empty',
     viewport: 'desktop',
     prompt: 'What is on my land?',
@@ -861,27 +934,40 @@ async function ensureChatOpen(page) {
   await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 5000 })
 }
 
-async function submitPrompt(page, prompt, expectedStoredText) {
+async function submitPrompt(page, prompt, expectedStoredText, testCaseName = 'unknown') {
   await ensureChatOpen(page)
   const input = page.getByPlaceholder('Ask Sitea or upload a plan...')
   await input.fill(prompt)
   await input.press('Enter')
-  await waitForStoredText(page, expectedStoredText)
+  await waitForStoredText(page, expectedStoredText, testCaseName)
 }
 
-async function waitForStoredText(page, expectedStoredText) {
+async function waitForStoredText(page, expectedStoredText, testCaseName = 'unknown') {
   if (!expectedStoredText) return
-  await page.waitForFunction((expected) => {
-    const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
-    return messages.some(message => String(message.content || '').includes(expected))
-  }, expectedStoredText, { timeout: 5000 })
+  try {
+    await page.waitForFunction((expected) => {
+      const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
+      return messages.some(message => String(message.content || '').includes(expected))
+    }, expectedStoredText, { timeout: 5000 })
+  } catch (error) {
+    const storedText = await page.evaluate(() => {
+      const messages = JSON.parse(localStorage.getItem('sitea-ai-chat') || '[]')
+      return messages.map(message => message.content || message.displayText || '').join('\n')
+    })
+    fail('Timed out waiting for expected stored text', {
+      testCase: testCaseName,
+      expectedStoredText,
+      storedText,
+      originalError: error.message,
+    })
+  }
 }
 
 async function clickActionAndWait(page, label, expectedStoredText) {
   const button = page.getByRole('button', { name: label }).last()
   await button.waitFor({ state: 'visible', timeout: 5000 })
   await button.click()
-  await waitForStoredText(page, expectedStoredText)
+  await waitForStoredText(page, expectedStoredText, label)
 }
 
 async function reloadApp(page) {
@@ -936,7 +1022,7 @@ async function runCase(browser, baseUrl, testCase) {
   await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 15000 })
 
   for (const setup of testCase.setupPrompts || []) {
-    await submitPrompt(page, setup.prompt, setup.expectedPromptText || setup.expectedStoredText)
+    await submitPrompt(page, setup.prompt, setup.expectedPromptText || setup.expectedStoredText, testCase.name)
     if (setup.clickActionLabel) {
       await clickActionAndWait(page, setup.clickActionLabel, setup.expectedStoredText)
     }
@@ -947,7 +1033,7 @@ async function runCase(browser, baseUrl, testCase) {
     await reloadApp(page)
   }
 
-  await submitPrompt(page, testCase.prompt, testCase.expectedPromptText || testCase.expectedStoredText)
+  await submitPrompt(page, testCase.prompt, testCase.expectedPromptText || testCase.expectedStoredText, testCase.name)
 
   if (testCase.reloadBeforeClick) {
     await reloadApp(page)

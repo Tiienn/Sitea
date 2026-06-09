@@ -1543,3 +1543,33 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - HTTP smoke test: `curl -I https://sitea.live/` returned `HTTP/2 200`.
 - The raw Vercel deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
 - Vercel CLI used for deploy: `54.10.2`.
+
+---
+
+# Agent Visual Plan Loop v17
+
+## Todo
+- [x] Confirm v16 is committed, pushed, deployed, and the working tree is clean.
+- [x] Read the current layout-option, goal-memory, recommendation, follow-through, scene-control, and text-action QA paths.
+- [x] Make the agent's layout-option response feel like a visual plan: one concise overview, three named options, and a clear instruction to pick or say `do it`.
+- [x] Teach text follow-through to understand natural option choices like `option 2`, `use the privacy one`, `more backyard`, `balanced`, and `make it more private`.
+- [x] Let `do it` apply the strongest recommended visual plan when the agent has just offered options.
+- [x] Keep the current deterministic placement engine and existing structure set; do not add paid AI calls, new storage, or broad scene rewrites.
+- [x] Add lightweight plan memory in tool actions so reload follow-through still knows which visual plan options were offered.
+- [x] Update the chat UI only where needed to keep option action buttons readable and mobile-safe under the existing design system.
+- [x] Extend `npm run qa:agent-text-actions` with desktop/mobile cases for option-number choice, natural goal refinement, reload follow-through, and post-placement explanation.
+- [x] Run focused lint, `git diff --check`, agent text-action QA, full quiet lint, and build.
+- [x] Update Linear and complete this review section.
+
+## Review
+- Direction: v17 should make Sitea feel like an agent that proposes visual plans, waits for intent, then changes the scene.
+- Scope guard: use the existing local parser, layout options, scene-control placement path, and chat action memory. No new paid AI route, no new table, no compare-object redesign, and no large UI pass.
+- Product goal: users should be able to say vague things, choose a plan in natural language, and watch Sitea apply the result without learning the manual controls.
+- Layout offers now read as a visual plan with three clear options, best-for guidance, and explicit `pick an option or say "do it"` copy.
+- Visual plan offers now store `recommendedOptionId` and option details in the existing `offer_structure_layout_options` tool action, so follow-through can survive reloads through chat memory.
+- `do it` now applies the latest offered visual plan when it is the latest assistant response, defaulting to the balanced Option 1.
+- Natural plan choices now work through the existing safe placement path: `option 2`, `use privacy`, `balanced`, `make it more private`, and `leave the backyard open`.
+- Preserved goal capture for statements like `I want privacy` by keeping goal intent distinct from direct option/refinement phrases.
+- Updated the agent tool chip copy from `Prepared layout options` to `Prepared visual plan`.
+- Extended browser QA with v17 cases for option-number choice, visual-plan `do it`, reload follow-through, and natural privacy refinement.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
