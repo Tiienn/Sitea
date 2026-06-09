@@ -7,6 +7,7 @@ import nipplejs from 'nipplejs'
 // Lazy load heavy components for better initial bundle size
 const LandScene = lazy(() => import('./components/LandScene'))
 const FloorPlanGeneratorModal = lazy(() => import('./components/FloorPlanGeneratorModal'))
+const FloorPlanReviewModal = lazy(() => import('./components/FloorPlanReviewModal'))
 const UploadImageModal = lazy(() => import('./components/UploadImageModal'))
 const PricingModal = lazy(() => import('./components/PricingModal'))
 const AuthModal = lazy(() => import('./components/AuthModal'))
@@ -689,6 +690,7 @@ function App() {
   const [buildings, setBuildings] = useState([])
   const [floorPlanPlacementMode, setFloorPlanPlacementMode] = useState(false)
   const [pendingFloorPlan, setPendingFloorPlan] = useState(null) // { walls, rooms, stats }
+  const [floorPlanReview, setFloorPlanReview] = useState(null)
   const [selectedBuildingId, setSelectedBuildingId] = useState(null)
   const [selectedComparisonId, setSelectedComparisonId] = useState(null)
   const [selectedRoomId, setSelectedRoomId] = useState(null)
@@ -1996,7 +1998,7 @@ function App() {
   }, [walls, pushWallsState])
 
   // Handle generated floor plan from AI - enters placement mode
-  const handleFloorPlanGenerated = useCallback((generatedData) => {
+  const startFloorPlanPlacement = useCallback((generatedData) => {
     // Store pending floor plan and enter placement mode
     setPendingFloorPlan(generatedData)
     setFloorPlanPlacementMode(true)
@@ -2015,6 +2017,35 @@ function App() {
     // Show instruction
     setUndoRedoToast('Click on land to place building • R to rotate • ESC to cancel')
   }, [])
+
+  const handleFloorPlanGenerated = useCallback((generatedData) => {
+    if (generatedData?.sourceImage && generatedData?.analysis) {
+      setFloorPlanReview({
+        floorPlan: generatedData,
+        analysis: generatedData.analysis,
+        sourceImage: generatedData.sourceImage,
+        sourceFileName: generatedData.sourceFileName || null,
+      })
+      setShowFloorPlanGenerator(false)
+      setFloorPlanImageForGenerator(null)
+      setActivePanel(null)
+      setUndoRedoToast('Detected plan ready • review overlay before 3D')
+      return
+    }
+
+    startFloorPlanPlacement(generatedData)
+  }, [startFloorPlanPlacement])
+
+  const handlePlaceReviewedFloorPlan = useCallback(() => {
+    if (!floorPlanReview?.floorPlan) return
+
+    const placementData = { ...floorPlanReview.floorPlan }
+    delete placementData.sourceImage
+    delete placementData.analysis
+    delete placementData.sourceFileName
+    setFloorPlanReview(null)
+    startFloorPlanPlacement(placementData)
+  }, [floorPlanReview, startFloorPlanPlacement])
 
   const handleAgentSitePlanUploaded = useCallback((imageData) => {
     setUploadedImage(imageData)
@@ -5369,6 +5400,16 @@ function App() {
             }}
             onUpgrade={() => setShowPricingModal(true)}
             isPaidUser={isPaidUser}
+          />
+        </Suspense>
+      )}
+
+      {floorPlanReview && (
+        <Suspense fallback={<LoadingFallback />}>
+          <FloorPlanReviewModal
+            review={floorPlanReview}
+            onClose={() => setFloorPlanReview(null)}
+            onPlace={handlePlaceReviewedFloorPlan}
           />
         </Suspense>
       )}

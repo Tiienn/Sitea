@@ -1783,9 +1783,9 @@ function buildFloorPlanUploadDecision(stats, fileMeta = {}) {
   const stairText = stats.stairCount ? `, and ${stats.stairCount} stair${stats.stairCount === 1 ? '' : 's'}` : ''
   const fileName = fileMeta?.fileName || 'your plan'
   const foundCopy = `I read ${fileName} as a floor plan and found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.`
-  const caveatCopy = 'This is a visual extraction, so the 3D preview is the right next check before trusting exact dimensions.'
-  const bestMove = 'place this plan in 3D'
-  const why = 'the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.'
+  const caveatCopy = 'This is a visual extraction, so review the detected overlay before trusting the 3D geometry or exact dimensions.'
+  const bestMove = 'review the detected plan, then place it in 3D'
+  const why = 'the overlay shows what Sitea found first, then the detected building can become a real object on the land for scale, access, and outdoor space decisions.'
 
   return {
     content: `${foundCopy}\n\n${caveatCopy}\n\nBest visual move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
@@ -1798,8 +1798,8 @@ function buildFloorPlanUploadDecision(stats, fileMeta = {}) {
     nextSteps: [
       { label: 'Floor plan understood', state: 'done' },
       { label: 'Walls, doors, windows, and rooms extracted', state: 'done' },
-      { label: '3D preview prepared', state: 'done' },
-      { label: 'Say do it or place this in 3D', state: 'current' },
+      { label: 'Review overlay prepared', state: 'done' },
+      { label: 'Check the overlay, then place in 3D', state: 'current' },
     ],
     suggestedActions,
     toolInput: {
@@ -2522,7 +2522,12 @@ export function useAIChat({
         throw new Error('No walls detected. Please try a clearer image.')
       }
 
-      const result = convertFloorPlanToWorld(data)
+      const result = {
+        ...convertFloorPlanToWorld(data),
+        analysis: data,
+        sourceImage: fileMeta?.imageData || null,
+        sourceFileName: fileMeta?.fileName || null,
+      }
       const { stats } = result
       const uploadDecision = buildFloorPlanUploadDecision(stats, fileMeta)
 

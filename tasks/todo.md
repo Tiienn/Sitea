@@ -19,6 +19,26 @@
 - [x] Verify without extra paid analyzer calls: focused lint, existing QA where relevant, production build, and `git diff --check`
 - [x] Add v20 review notes with the production problem, code changes, and any remaining risk
 
+## Active Plan: v21 Floor-Plan Accuracy Review
+- [x] Reuse the existing floor-plan overlay/editor ideas for the agent upload path instead of jumping directly from detection to 3D placement
+- [x] Preserve the uploaded floor-plan image alongside the analyzer output so Sitea can show detected walls, doors, windows, and rooms over the source image
+- [x] Add a compact, mobile-safe "Review detected plan" surface with counts, source image, wall/door/window overlay, and a primary `Place in 3D` action
+- [x] Keep the current 3D placement path intact, but gate it behind the review action when an uploaded plan has source-image data
+- [x] Add QA coverage using the existing real ground-floor fixture data without making fresh paid analyzer calls
+- [x] Verify with focused lint, existing floor-plan placement/QA checks, build, and `git diff --check`
+- [x] Add v21 review notes with the current accuracy limitation, what changed, and the next deeper analyzer/CV improvement
+
+### v21 Review
+- Direction: v21 should make floor-plan accuracy visible before Sitea turns detections into 3D geometry.
+- Current limitation: the analyzer can still miss or over-fragment walls on real architectural plans, so the 3D result should not be treated as trustworthy until the detected overlay is checked.
+- Agent floor-plan uploads now preserve the uploaded source image, raw analyzer output, and source filename in a review-only payload.
+- Added a compact `Review detected plan` modal that draws detected walls, doors, windows, rooms, and stairs over the uploaded source image with counts and a clear `Place in 3D` action.
+- The old placement path stays intact. Agent uploads with source-image data now pause at review; older generator flows without source data still enter placement mode directly.
+- Review-only image/analyzer data is stripped before entering 3D placement so saved generated buildings do not carry bulky upload data.
+- Added `npm run qa:floor-plans:review`, which uses the cached real ground-floor fixture and does not call OpenAI or any paid analyzer.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local Playwright smoke test. The two existing QA scripts rewrote generated reports during verification, and those unrelated timestamp/ID changes were restored.
+- Next deeper improvement: add an edit/correction loop where the user can confirm or fix missed walls/doors/windows on the overlay before Sitea regenerates the final 3D geometry.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
