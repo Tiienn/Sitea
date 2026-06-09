@@ -2036,13 +2036,14 @@ function App() {
     startFloorPlanPlacement(generatedData)
   }, [startFloorPlanPlacement])
 
-  const handlePlaceReviewedFloorPlan = useCallback(() => {
+  const handlePlaceReviewedFloorPlan = useCallback((correctedFloorPlan = null) => {
     if (!floorPlanReview?.floorPlan) return
 
-    const placementData = { ...floorPlanReview.floorPlan }
+    const placementData = { ...(correctedFloorPlan || floorPlanReview.floorPlan) }
     delete placementData.sourceImage
     delete placementData.analysis
     delete placementData.sourceFileName
+    delete placementData.correctionSummary
     setFloorPlanReview(null)
     startFloorPlanPlacement(placementData)
   }, [floorPlanReview, startFloorPlanPlacement])

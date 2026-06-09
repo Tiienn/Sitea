@@ -2,6 +2,12 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { convertFloorPlanToWorld } from '../src/utils/floorPlanConverter.js'
+import {
+  applyHiddenDetections,
+  buildCorrectedFloorPlan,
+  countHiddenDetections,
+  countVisibleDetections,
+} from '../src/utils/floorPlanReviewCorrections.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..')
@@ -22,6 +28,16 @@ const reviewPayload = {
   sourceImagePath,
   sourceFileName: path.basename(sourceImagePath),
 }
+const hiddenDetections = {
+  walls: [0],
+  doors: [0],
+  windows: [0],
+  rooms: [],
+  stairs: [],
+}
+const correctedAnalysis = applyHiddenDetections(analysis, hiddenDetections)
+const correctedFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections)
+const visibleCounts = countVisibleDetections(analysis, hiddenDetections)
 
 assert(existsSync(sourceImagePath), `Missing source image: ${sourceImagePath}`)
 assert(analysis?.imageSize?.width > 0, 'Fixture analysis is missing image width')
@@ -31,6 +47,14 @@ assert(reviewPayload.floorPlan.stats.wallCount === reviewPayload.floorPlan.walls
 assert(Array.isArray(reviewPayload.analysis.walls), 'Review payload is missing raw walls')
 assert(Array.isArray(reviewPayload.analysis.doors), 'Review payload is missing raw doors')
 assert(Array.isArray(reviewPayload.analysis.windows), 'Review payload is missing raw windows')
+assert(countHiddenDetections(hiddenDetections) === 3, 'Hidden detection count should include wall, door, and window')
+assert(correctedAnalysis.walls.length === analysis.walls.length - 1, 'Corrected analysis did not hide the wall')
+assert(correctedAnalysis.doors.length === analysis.doors.length - 1, 'Corrected analysis did not hide the door')
+assert(correctedAnalysis.windows.length === analysis.windows.length - 1, 'Corrected analysis did not hide the window')
+assert(visibleCounts.walls === correctedAnalysis.walls.length, 'Visible wall count does not match corrected analysis')
+assert(correctedFloorPlan.walls.length > 0, 'Corrected floor plan has no walls')
+assert(correctedFloorPlan.stats.wallCount <= reviewPayload.floorPlan.stats.wallCount, 'Corrected floor plan has more walls than original')
+assert(correctedFloorPlan.correctionSummary.hiddenCount === 3, 'Corrected floor plan summary is missing hidden detections')
 
 console.log('Floor plan review QA passed', {
   source: reviewPayload.sourceFileName,
@@ -39,4 +63,6 @@ console.log('Floor plan review QA passed', {
   windows: reviewPayload.floorPlan.stats.windowCount,
   rooms: reviewPayload.floorPlan.stats.roomCount,
   stairs: reviewPayload.floorPlan.stats.stairCount,
+  correctedWalls: correctedFloorPlan.stats.wallCount,
+  hidden: correctedFloorPlan.correctionSummary.hiddenCount,
 })

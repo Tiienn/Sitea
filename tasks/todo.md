@@ -39,6 +39,28 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local Playwright smoke test. The two existing QA scripts rewrote generated reports during verification, and those unrelated timestamp/ID changes were restored.
 - Next deeper improvement: add an edit/correction loop where the user can confirm or fix missed walls/doors/windows on the overlay before Sitea regenerates the final 3D geometry.
 
+## Active Plan: v22 Floor-Plan Correction Loop
+- [x] Keep v22 scoped to review-time corrections only: no paid analyzer call, no provider switch, no broad 3D renderer rewrite
+- [x] Add selectable overlay detections in `FloorPlanReviewModal` so users can inspect walls, doors, windows, rooms, and stairs on the source image
+- [x] Add a simple `Hide selected` / `Restore` correction flow for false positives, with clear counts and mobile-safe touch targets
+- [x] Recompute the floor-plan placement data from the corrected raw analyzer output before `Place in 3D`
+- [x] Preserve the original raw analyzer output in review state so users can restore all hidden detections without reuploading
+- [x] Extend no-cost QA to assert corrected review payloads convert to 3D with hidden walls/doors/windows removed
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, and a local browser smoke test
+- [x] Add v22 review notes with what the correction loop solves and what still needs deeper auto-detection improvement
+
+### v22 Review
+- Direction: v22 gives users a correction loop before 3D placement, so obvious false detections can be removed without waiting for a deeper analyzer rewrite.
+- Scope stayed review-time only: no paid analyzer call, no provider switch, no Supabase/storage change, and no 3D renderer rewrite.
+- The review overlay now supports clicking detected walls, doors, windows, rooms, and stairs. The selected item is highlighted in amber and named in the correction panel.
+- Added mobile-safe `Hide selected` and `Restore hidden` controls with 44px touch targets and clear disabled states.
+- Hidden detections are removed from the corrected raw analyzer output before Sitea regenerates the floor-plan placement data.
+- The original raw analyzer output remains in review state, so `Restore hidden` can bring everything back without reuploading or rerunning AI.
+- Added `src/utils/floorPlanReviewCorrections.js` so the correction rules are shared by the modal and the no-cost QA script.
+- Extended `npm run qa:floor-plans:review` to hide one wall, one door, and one window from the real ground-floor fixture, then verify the corrected payload converts to 3D.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local Playwright smoke test. Existing generated QA report timestamp/ID churn was restored before final diff.
+- Remaining limitation: users can remove false positives, but cannot yet draw missing walls or move endpoints. That should be the next deeper accuracy step.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
