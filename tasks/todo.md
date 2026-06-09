@@ -1376,6 +1376,27 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 
 ---
 
+# Deploy Agent Goals & Constraints v14
+
+## Todo
+- [x] Confirm latest commit is v14.
+- [x] Push v14 to GitHub.
+- [x] Deploy v14 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test the public alias.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_4N3qd2x1KuJFTFkRo6shmqC2N81o`.
+- Deployment URL: `https://sitea-fl53ehqt0-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and aliases including `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Vercel CLI used for deploy: `54.10.2`.
+
+---
+
 # Deploy Agent Project Memory v13
 
 ## Todo
