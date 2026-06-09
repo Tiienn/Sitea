@@ -45,6 +45,21 @@ const addedDetections = {
     confidence: 1,
     source: 'manual_review',
   }],
+  doors: [{
+    center: { x: 340, y: 332 },
+    width: 32,
+    rotation: 0,
+    doorType: 'single',
+    confidence: 1,
+    source: 'manual_review',
+  }],
+  windows: [{
+    center: { x: 530, y: 636 },
+    width: 48,
+    rotation: 0,
+    confidence: 1,
+    source: 'manual_review',
+  }],
 }
 const hiddenOnlyFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections)
 const correctedAnalysis = applyReviewCorrections(analysis, hiddenDetections, addedDetections)
@@ -60,15 +75,19 @@ assert(Array.isArray(reviewPayload.analysis.walls), 'Review payload is missing r
 assert(Array.isArray(reviewPayload.analysis.doors), 'Review payload is missing raw doors')
 assert(Array.isArray(reviewPayload.analysis.windows), 'Review payload is missing raw windows')
 assert(countHiddenDetections(hiddenDetections) === 3, 'Hidden detection count should include wall, door, and window')
-assert(countAddedDetections(addedDetections) === 1, 'Added detection count should include the manual wall')
+assert(countAddedDetections(addedDetections) === 3, 'Added detection count should include the manual wall, door, and window')
 assert(correctedAnalysis.walls.length === analysis.walls.length, 'Corrected analysis should hide one wall and add one wall')
-assert(correctedAnalysis.doors.length === analysis.doors.length - 1, 'Corrected analysis did not hide the door')
-assert(correctedAnalysis.windows.length === analysis.windows.length - 1, 'Corrected analysis did not hide the window')
+assert(correctedAnalysis.doors.length === analysis.doors.length, 'Corrected analysis should hide one door and add one door')
+assert(correctedAnalysis.windows.length === analysis.windows.length, 'Corrected analysis should hide one window and add one window')
 assert(visibleCounts.walls === correctedAnalysis.walls.length, 'Visible wall count does not match corrected analysis')
+assert(visibleCounts.doors === correctedAnalysis.doors.length, 'Visible door count does not match corrected analysis')
+assert(visibleCounts.windows === correctedAnalysis.windows.length, 'Visible window count does not match corrected analysis')
 assert(correctedFloorPlan.walls.length > 0, 'Corrected floor plan has no walls')
 assert(correctedFloorPlan.stats.wallCount > hiddenOnlyFloorPlan.stats.wallCount, 'Added wall did not survive conversion')
+assert(correctedFloorPlan.stats.doorCount > hiddenOnlyFloorPlan.stats.doorCount, 'Added door did not survive conversion')
+assert(correctedFloorPlan.stats.windowCount > hiddenOnlyFloorPlan.stats.windowCount, 'Added window did not survive conversion')
 assert(correctedFloorPlan.correctionSummary.hiddenCount === 3, 'Corrected floor plan summary is missing hidden detections')
-assert(correctedFloorPlan.correctionSummary.addedCount === 1, 'Corrected floor plan summary is missing added detections')
+assert(correctedFloorPlan.correctionSummary.addedCount === 3, 'Corrected floor plan summary is missing added detections')
 
 console.log('Floor plan review QA passed', {
   source: reviewPayload.sourceFileName,
@@ -78,6 +97,8 @@ console.log('Floor plan review QA passed', {
   rooms: reviewPayload.floorPlan.stats.roomCount,
   stairs: reviewPayload.floorPlan.stats.stairCount,
   correctedWalls: correctedFloorPlan.stats.wallCount,
+  correctedDoors: correctedFloorPlan.stats.doorCount,
+  correctedWindows: correctedFloorPlan.stats.windowCount,
   hidden: correctedFloorPlan.correctionSummary.hiddenCount,
   added: correctedFloorPlan.correctionSummary.addedCount,
 })

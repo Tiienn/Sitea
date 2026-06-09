@@ -17,6 +17,8 @@ const LEGEND = [
   { label: 'Rooms', color: '#a7f3d0' },
   { label: 'Stairs', color: '#facc15' },
   { label: 'Added walls', color: '#f472b6' },
+  { label: 'Added doors', color: '#fb7185' },
+  { label: 'Added windows', color: '#38bdf8' },
 ]
 
 function getCount(value) {
@@ -29,6 +31,8 @@ function getDetectionKey(type, index) {
 
 function getDetectionLabel(type, index, item) {
   if (type === 'addedWalls') return `Added wall ${index + 1}`
+  if (type === 'addedDoors') return `Added door ${index + 1}`
+  if (type === 'addedWindows') return `Added window ${index + 1}`
   if (type === 'rooms') return item?.name || item?.label || `Room ${index + 1}`
   if (type === 'stairs') return `Stair ${index + 1}`
   const singular = type.slice(0, -1)
@@ -42,6 +46,13 @@ function clamp(value, min, max) {
 function getPointDistance(a, b) {
   if (!a || !b) return Infinity
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function formatReviewPoint(point) {
+  return {
+    x: Number(point.x.toFixed(2)),
+    y: Number(point.y.toFixed(2)),
+  }
 }
 
 function getLinearGeometry(item, scale, offsetX, offsetY, fallbackLength = 28) {
@@ -158,8 +169,10 @@ function FloorPlanReviewCanvas({
   addedDetections,
   selectedDetection,
   addWallMode,
+  addOpeningMode,
   pendingWallPoint,
   onAddWallPoint,
+  onAddOpeningPoint,
   onSelectDetection,
 }) {
   const canvasRef = useRef(null)
@@ -269,6 +282,18 @@ function FloorPlanReviewCanvas({
         const geometry = drawLinearElement(ctx, wall, scale, 0, 0, 'rgba(244, 114, 182, 0.98)', 28, selected)
         addInteractiveItem('addedWalls', index, wall, geometry, 14)
       })
+      ;(addedDetections?.doors || []).forEach((door, index) => {
+        const key = getDetectionKey('addedDoors', index)
+        const selected = selectedDetection?.key === key
+        const geometry = drawLinearElement(ctx, door, scale, 0, 0, 'rgba(251, 113, 133, 0.98)', 34, selected)
+        addInteractiveItem('addedDoors', index, door, geometry, 16)
+      })
+      ;(addedDetections?.windows || []).forEach((windowItem, index) => {
+        const key = getDetectionKey('addedWindows', index)
+        const selected = selectedDetection?.key === key
+        const geometry = drawLinearElement(ctx, windowItem, scale, 0, 0, 'rgba(56, 189, 248, 0.98)', 38, selected)
+        addInteractiveItem('addedWindows', index, windowItem, geometry, 16)
+      })
       if (pendingWallPoint) {
         const x = pendingWallPoint.x * scale
         const y = pendingWallPoint.y * scale
@@ -308,6 +333,16 @@ function FloorPlanReviewCanvas({
       return
     }
 
+    if (addOpeningMode) {
+      const renderInfo = renderInfoRef.current
+      if (!renderInfo) return
+      onAddOpeningPoint({
+        x: clamp(x / renderInfo.scale, 0, renderInfo.naturalWidth),
+        y: clamp(y / renderInfo.scale, 0, renderInfo.naturalHeight),
+      })
+      return
+    }
+
     let bestMatch = null
     let bestDistance = Infinity
     interactiveItemsRef.current.forEach(item => {
@@ -329,14 +364,14 @@ function FloorPlanReviewCanvas({
       key: bestMatch.key,
       label: bestMatch.label,
     })
-  }, [addWallMode, onAddWallPoint, onSelectDetection])
+  }, [addOpeningMode, addWallMode, onAddOpeningPoint, onAddWallPoint, onSelectDetection])
 
   return (
     <div ref={frameRef} className="w-full rounded-2xl border border-white/10 bg-slate-950/50 p-3 overflow-auto">
       <canvas
         ref={canvasRef}
         onClick={handleCanvasClick}
-        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${addWallMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
+        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${addWallMode || addOpeningMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
       />
     </div>
   )
@@ -348,6 +383,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const [addedDetections, setAddedDetections] = useState(() => createEmptyAddedDetections())
   const [selectedDetection, setSelectedDetection] = useState(null)
   const [addWallMode, setAddWallMode] = useState(false)
+  const [addOpeningMode, setAddOpeningMode] = useState(null)
   const [pendingWallPoint, setPendingWallPoint] = useState(null)
   const hiddenCount = useMemo(() => countHiddenDetections(hiddenDetections), [hiddenDetections])
   const addedCount = useMemo(() => countAddedDetections(addedDetections), [addedDetections])
@@ -367,22 +403,29 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     setSelectedDetection(null)
   }, [selectedDetection])
 
-  const removeSelectedAddedWall = useCallback(() => {
-    if (selectedDetection?.type !== 'addedWalls') return
+  const removeSelectedAddedDetection = useCallback(() => {
     setAddedDetections(prev => ({
       ...prev,
-      walls: (prev.walls || []).filter((_, index) => index !== selectedDetection.index),
+      walls: selectedDetection?.type === 'addedWalls'
+        ? (prev.walls || []).filter((_, index) => index !== selectedDetection.index)
+        : prev.walls || [],
+      doors: selectedDetection?.type === 'addedDoors'
+        ? (prev.doors || []).filter((_, index) => index !== selectedDetection.index)
+        : prev.doors || [],
+      windows: selectedDetection?.type === 'addedWindows'
+        ? (prev.windows || []).filter((_, index) => index !== selectedDetection.index)
+        : prev.windows || [],
     }))
     setSelectedDetection(null)
   }, [selectedDetection])
 
   const hideOrRemoveSelected = useCallback(() => {
-    if (selectedDetection?.type === 'addedWalls') {
-      removeSelectedAddedWall()
+    if (selectedDetection?.type === 'addedWalls' || selectedDetection?.type === 'addedDoors' || selectedDetection?.type === 'addedWindows') {
+      removeSelectedAddedDetection()
       return
     }
     hideSelected()
-  }, [hideSelected, removeSelectedAddedWall, selectedDetection])
+  }, [hideSelected, removeSelectedAddedDetection, selectedDetection])
 
   const restoreHidden = useCallback(() => {
     setHiddenDetections(createEmptyHiddenDetections())
@@ -392,6 +435,17 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const toggleAddWallMode = useCallback(() => {
     setAddWallMode(prev => {
       const next = !prev
+      setPendingWallPoint(null)
+      setSelectedDetection(null)
+      setAddOpeningMode(null)
+      return next
+    })
+  }, [])
+
+  const toggleAddOpeningMode = useCallback((type) => {
+    setAddOpeningMode(prev => {
+      const next = prev === type ? null : type
+      setAddWallMode(false)
       setPendingWallPoint(null)
       setSelectedDetection(null)
       return next
@@ -432,18 +486,45 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     setAddWallMode(false)
   }, [pendingWallPoint])
 
+  const handleAddOpeningPoint = useCallback((point) => {
+    if (!addOpeningMode) return
+    const type = addOpeningMode === 'door' ? 'doors' : 'windows'
+    const width = addOpeningMode === 'door' ? 32 : 48
+
+    setSelectedDetection(null)
+    setAddedDetections(prev => ({
+      ...prev,
+      [type]: [
+        ...(prev[type] || []),
+        {
+          center: formatReviewPoint(point),
+          width,
+          rotation: 0,
+          doorType: addOpeningMode === 'door' ? 'single' : undefined,
+          confidence: 1,
+          source: 'manual_review',
+        },
+      ],
+    }))
+    setAddOpeningMode(null)
+  }, [addOpeningMode])
+
   const placeCorrectedPlan = useCallback(() => {
     onPlace(correctedFloorPlan)
   }, [correctedFloorPlan, onPlace])
 
-  const selectedIsAddedWall = selectedDetection?.type === 'addedWalls'
+  const selectedIsAdded = selectedDetection?.type === 'addedWalls' || selectedDetection?.type === 'addedDoors' || selectedDetection?.type === 'addedWindows'
   const correctionText = addWallMode
     ? pendingWallPoint
       ? 'Tap the wall end point on the plan.'
       : 'Tap the missing wall start point on the plan.'
+    : addOpeningMode === 'door'
+      ? 'Tap where the missing door belongs.'
+      : addOpeningMode === 'window'
+        ? 'Tap where the missing window belongs.'
     : selectedDetection
       ? `Selected: ${selectedDetection.label}`
-      : 'Tap a detected item to inspect it, or add a missing wall.'
+      : 'Tap a detected item to inspect it, or add missing walls, doors, or windows.'
 
   return (
     <div className="fixed inset-0 z-[260] flex items-end justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:items-center sm:p-6">
@@ -484,8 +565,10 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
             addedDetections={addedDetections}
             selectedDetection={selectedDetection}
             addWallMode={addWallMode}
+            addOpeningMode={addOpeningMode}
             pendingWallPoint={pendingWallPoint}
             onAddWallPoint={handleAddWallPoint}
+            onAddOpeningPoint={handleAddOpeningPoint}
             onSelectDetection={setSelectedDetection}
           />
 
@@ -496,7 +579,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 <p className="mt-1 text-sm leading-6 text-slate-400">
                   {correctionText}
                   {hiddenCount > 0 ? ` Hidden detections: ${hiddenCount}.` : ''}
-                  {addedCount > 0 ? ` Added walls: ${addedCount}.` : ''}
+                  {addedCount > 0 ? ` Manual additions: ${addedCount}.` : ''}
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -513,11 +596,33 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => toggleAddOpeningMode('door')}
+                  className={`min-h-11 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                    addOpeningMode === 'door'
+                      ? 'border border-rose-300/40 bg-rose-400/15 text-rose-100 hover:bg-rose-400/20'
+                      : 'border border-white/10 text-slate-200 hover:bg-white/10'
+                  }`}
+                >
+                  {addOpeningMode === 'door' ? 'Cancel door' : 'Add door'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleAddOpeningMode('window')}
+                  className={`min-h-11 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                    addOpeningMode === 'window'
+                      ? 'border border-sky-300/40 bg-sky-400/15 text-sky-100 hover:bg-sky-400/20'
+                      : 'border border-white/10 text-slate-200 hover:bg-white/10'
+                  }`}
+                >
+                  {addOpeningMode === 'window' ? 'Cancel window' : 'Add window'}
+                </button>
+                <button
+                  type="button"
                   onClick={hideOrRemoveSelected}
                   disabled={!selectedDetection}
                   className="min-h-11 rounded-2xl border border-amber-300/30 px-4 py-2.5 text-sm font-semibold text-amber-100 transition-all hover:bg-amber-400/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {selectedIsAddedWall ? 'Remove added wall' : 'Hide selected'}
+                  {selectedIsAdded ? 'Remove added' : 'Hide selected'}
                 </button>
                 <button
                   type="button"

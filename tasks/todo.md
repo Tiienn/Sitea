@@ -83,6 +83,28 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local Playwright smoke test. Existing generated QA report timestamp/ID churn was restored before final diff.
 - Remaining limitation: v23 can add missing walls, but cannot yet add missing doors/windows or drag/snap wall endpoints. Those are good v24/v25 candidates.
 
+## Active Plan: v24 Add Missing Doors And Windows
+- [x] Keep v24 scoped to manual opening correction inside the review modal: no paid analyzer call, no endpoint dragging, no geometry rewrite
+- [x] Add `Add door` and `Add window` modes beside the existing `Add wall` mode with mobile-safe controls and clear instructions
+- [x] Let the user tap an opening location on the source floor-plan overlay to create a manual door/window in image coordinates
+- [x] Draw added doors/windows with distinct overlay styling, include them in visible counts, and allow selecting/removing added openings before placement
+- [x] Extend `floorPlanReviewCorrections.js` so corrected analysis appends added doors/windows before `convertFloorPlanToWorld`
+- [x] Preserve v22/v23 behavior for hiding detections, restoring hidden detections, adding/removing walls, and placing corrected geometry
+- [x] Extend no-cost QA to assert added doors/windows appear in corrected raw analyzer payload and converted 3D opening counts
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, and local browser smoke
+- [x] Add v24 review notes with what missing-opening authoring solves and what remains for endpoint dragging/snapping
+
+### v24 Review
+- Direction: v24 extends the review correction loop from missing walls to missing openings, so Sitea can produce a more faithful 3D preview when the analyzer misses doors or windows.
+- Scope stayed manual and review-time only: no paid analyzer call, no endpoint dragging, no snapping system, and no broad geometry rewrite.
+- The review modal now has `Add door` and `Add window` modes beside `Add wall`. The user taps the source floor-plan image once to create a manual opening in original image coordinates.
+- Added doors and windows draw with distinct overlay colors, are included in visible counts, can be selected, and can be removed before placement.
+- The shared correction utility now appends manual walls, doors, and windows to the corrected analyzer payload before `convertFloorPlanToWorld`.
+- Existing v22/v23 behavior is preserved: analyzer detections can still be hidden/restored, added walls can still be created/removed, and corrected geometry still enters the normal 3D placement path.
+- Extended `npm run qa:floor-plans:review` to hide one wall/door/window, add one manual wall/door/window, and verify the corrected raw payload plus converted 3D wall/opening counts.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local Playwright smoke test. Existing generated QA report timestamp/ID churn was restored before final diff.
+- Remaining limitation: manual doors/windows use a default width and rotation. A later version should add endpoint dragging, wall snapping, and better orientation controls.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup

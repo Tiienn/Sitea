@@ -10,7 +10,11 @@ export function createEmptyHiddenDetections() {
 }
 
 export function createEmptyAddedDetections() {
-  return { walls: [] }
+  return {
+    walls: [],
+    doors: [],
+    windows: [],
+  }
 }
 
 function normalizeHiddenDetections(hidden = {}) {
@@ -59,14 +63,18 @@ export function applyHiddenDetections(analysis = {}, hidden = {}) {
 export function applyReviewCorrections(analysis = {}, hidden = {}, additions = {}) {
   const corrected = applyHiddenDetections(analysis, hidden)
   const addedWalls = additions.walls || []
+  const addedDoors = additions.doors || []
+  const addedWindows = additions.windows || []
   return {
     ...corrected,
     walls: [...(corrected.walls || []), ...addedWalls],
+    doors: [...(corrected.doors || []), ...addedDoors],
+    windows: [...(corrected.windows || []), ...addedWindows],
   }
 }
 
 export function countAddedDetections(additions = {}) {
-  return additions.walls?.length || 0
+  return (additions.walls?.length || 0) + (additions.doors?.length || 0) + (additions.windows?.length || 0)
 }
 
 export function countVisibleDetections(analysis = {}, hidden = {}, additions = {}) {
