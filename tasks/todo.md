@@ -1373,3 +1373,24 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Added a `Prepared site brief` tool chip label in `src/components/AIChatPanel.jsx`.
 - Extended `scripts/agent-text-actions-qa.mjs` with desktop Site Brief coverage and mobile follow-through from the brief.
 - Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
+# Deploy Agent Project Memory v13
+
+## Todo
+- [x] Confirm latest commit is v13.
+- [x] Push v13 to GitHub.
+- [x] Deploy v13 to Vercel Production.
+- [x] Inspect the production deployment and confirm `sitea.live` points to it.
+- [x] Smoke-test the public alias.
+- [x] Add deployment review notes.
+
+## Review
+- Deployment target: Vercel Production for `sitea.live`.
+- Deployed production deployment `dpl_FsVJ4M1tTyCqeJDYyRKNdYNwjiXc`.
+- Deployment URL: `https://sitea-o3zkp7ryg-tien820-8406s-projects.vercel.app`.
+- Vercel inspect confirms status `Ready`, target `production`, and aliases including `https://sitea.live`.
+- HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
+- The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
+- Vercel CLI used for deploy: `54.10.2`.
