@@ -7,13 +7,12 @@ import sharp from 'sharp';
 import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
 import { consumeUploadCreditForUser } from '../server/uploadQuota.js';
 
-const FLOOR_PLAN_MAX_DURATION_SECONDS = 300;
 const FLOOR_PLAN_SOFT_TIMEOUT_MS = Number(process.env.FLOOR_PLAN_SOFT_TIMEOUT_MS || 285000);
 const FLOOR_PLAN_ANALYSIS_TIMEOUT_CODE = 'FLOOR_PLAN_ANALYSIS_TIMEOUT';
 const FLOOR_PLAN_ANALYSIS_TIMEOUT_MESSAGE = 'The floor-plan scan took too long. Please try again, or upload a smaller, clearer image.';
 
 export const config = {
-  maxDuration: FLOOR_PLAN_MAX_DURATION_SECONDS,
+  maxDuration: 300,
 };
 
 function sendFloorPlanTimeout(res) {
