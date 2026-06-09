@@ -1301,3 +1301,32 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - HTTP smoke test: `curl -I https://sitea.live` returned `HTTP/2 200`.
 - The raw deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
 - Note: local Vercel CLI is `54.10.1`; latest patch is `54.10.2`.
+
+---
+
+# Agent Upload-to-Decision Flow v12
+
+## Todo
+- [x] Read the current floor-plan upload flow, site-plan upload flow, v11 decision/follow-through model, handoff QA, text-action QA, `DESIGN.md`, and recent task history.
+- [x] Use the `frontend-design` skill before UI changes and keep any upload decision card treatment aligned with `DESIGN.md` spacing, 44px touch targets, and existing Sitea agent tokens.
+- [x] Refactor upload success responses into a shared local upload-decision shape so floor-plan and site-plan results can expose `I found`, `Best move`, `Why`, and safe options.
+- [x] For floor-plan uploads, recommend `Place this in 3D` as the primary action, then offer `See what fits around it` and `Summarize the site` as follow-up options.
+- [x] For site-plan uploads, recommend the best first scale/boundary action: `Show tennis court in 3D` when land scale is useful, `Review boundary` when boundary context is available, and `Make a simple home layout` once the land workspace is ready.
+- [x] Make natural follow-through after upload responses work with existing metadata: `do it`, `show me`, `yes`, and `compare it` should trigger the primary upload recommendation without calling `/api/ai-chat`.
+- [x] Preserve existing paid analyzer behavior, quota handling, sign-in handling, and visual handoff behavior; do not add a new paid route, new analyzer call, or new placement engine.
+- [x] Extend `npm run qa:agent-handoff` with upload-decision message fixtures for floor-plan and site-plan follow-through on mobile/desktop.
+- [x] Add lightweight `npm run qa:agent-text-actions` coverage for upload-recommendation follow-through using stored mocked messages, with AI/analyzer routes blocked.
+- [x] Run focused lint/build/QA checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v12 should make uploads feel agent-owned. After a user uploads a floor plan or site plan, Sitea should not stop at detection; it should recommend the next move and let the user say `do it`.
+- Scope guard: reuse existing analyzer results, suggested actions, visual handoff, and v11 decision-card mechanics. No new paid AI route, no duplicate upload pipeline, no new 3D placement engine, and no broad UI redesign.
+- Product goal: turn `upload -> detection` into `upload -> detection -> recommendation -> action`, so the agent continues leading the user instead of handing them back to manual controls.
+- Implemented shared local upload-decision builders in `src/hooks/useAIChat.js` for floor-plan and site-plan success responses.
+- Floor-plan upload responses now use the v11 decision-card shape and recommend `Place this in 3D` first, with `See what fits around it` and `Summarize the site` as secondary options.
+- Site-plan upload responses now recommend `Show tennis court in 3D` when land area is available, include `Review boundary`, and offer `Make a simple home layout` as the next planning move.
+- Natural follow-through now works after upload decisions: `do it`, `show me`, `yes`, and `compare it` can execute the latest upload recommendation without calling `/api/ai-chat`.
+- Added a small local `review_site_boundary` scene-control action in `src/App.jsx` that opens the existing Land tools for boundary review; no new placement engine or analyzer route was added.
+- Updated `src/components/AIChatPanel.jsx` with friendly tool-chip labels for upload follow-through actions.
+- Updated `scripts/agent-handoff-qa.mjs` fixtures to include upload decision metadata and updated `scripts/agent-text-actions-qa.mjs` with seeded floor-plan/site-plan upload follow-through cases.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-handoff`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.

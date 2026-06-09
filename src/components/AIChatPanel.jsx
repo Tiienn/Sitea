@@ -44,6 +44,10 @@ function ToolChip({ action }) {
         return `${input.wallCount || 0} walls detected`
       case 'review_site_plan':
         return 'Site plan reviewed'
+      case 'handoff_to_scene':
+        return 'Opened scene'
+      case 'review_site_boundary':
+        return 'Boundary review opened'
       case 'activate_comparison':
         return `Added ${input.objectName || 'comparison'}`
       case 'remove_comparison':

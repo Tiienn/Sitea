@@ -393,6 +393,88 @@ const CASES = [
     expectChatVisible: false,
   },
   {
+    name: 'desktop-upload-floor-follow-through',
+    viewport: 'desktop',
+    seedMessages: [{
+      role: 'assistant',
+      content: 'I found 24 walls, 6 doors, 8 windows, 5 rooms.\n\nBest move: place this plan in 3D.\nWhy: the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
+      decision: {
+        label: 'Upload decision',
+        title: 'place this plan in 3D',
+        body: 'the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
+        detail: 'I found 24 walls, 6 doors, 8 windows, 5 rooms.',
+      },
+      toolActions: [{
+        name: 'analyze_floor_plan',
+        input: {
+          wallCount: 24,
+          doorCount: 6,
+          windowCount: 8,
+          roomCount: 5,
+          recommendedAction: {
+            type: 'handoff_to_scene',
+            label: 'Place this in 3D',
+            toast: 'Preview ready • click the land to place it • R to rotate',
+          },
+        },
+        success: true,
+      }],
+      suggestedActions: [{
+        type: 'handoff_to_scene',
+        label: 'Place this in 3D',
+        toast: 'Preview ready • click the land to place it • R to rotate',
+      }],
+    }],
+    prompt: 'Do it',
+    expectedStoredText: 'opened the prepared scene',
+    expectedToast: 'Preview ready',
+    expectedToolActionName: 'handoff_to_scene',
+    expectChatVisible: false,
+  },
+  {
+    name: 'mobile-upload-site-follow-through',
+    viewport: 'mobile',
+    seedMessages: [{
+      role: 'assistant',
+      content: 'I read this as a site plan. About 10 tennis courts can fit inside 2750m² before setbacks, house footprint, and access space.\n\nBest move: show a tennis court in 3D.\nWhy: a real-world scale object makes the land size immediately understandable before you decide where buildings or open space should go.',
+      decision: {
+        label: 'Upload decision',
+        title: 'show a tennis court in 3D',
+        body: 'a real-world scale object makes the land size immediately understandable before you decide where buildings or open space should go.',
+        detail: 'I read this as a site plan. About 10 tennis courts can fit inside 2750m² before setbacks, house footprint, and access space.',
+      },
+      toolActions: [{
+        name: 'review_site_plan',
+        input: {
+          landArea: 2750,
+          tennisCourtFit: 10,
+          detectionType: 'site-plan',
+          recommendedAction: {
+            type: 'activate_comparison',
+            comparisonId: 'tennisCourt',
+            label: 'Show tennis court in 3D',
+            objectName: 'tennis court',
+            handoff: true,
+            toast: 'Tennis court added • drag or rotate it to compare scale',
+          },
+        },
+        success: true,
+      }],
+      suggestedActions: [{
+        type: 'activate_comparison',
+        comparisonId: 'tennisCourt',
+        label: 'Show tennis court in 3D',
+        objectName: 'tennis court',
+        handoff: true,
+        toast: 'Tennis court added • drag or rotate it to compare scale',
+      }],
+    }],
+    prompt: 'Compare it',
+    expectedStoredText: 'I added a tennis court',
+    expectedToolActionName: 'activate_comparison',
+    expectChatVisible: false,
+  },
+  {
     name: 'desktop-scene-summary-after-layout',
     viewport: 'desktop',
     setupPrompts: [
@@ -572,6 +654,9 @@ async function readAudit(page, expectedToast) {
       action.name === 'apply_latest_layout_recommendation' ||
       action.name === 'summarize_scene' ||
       action.name === 'recommend_next_step' ||
+      action.name === 'handoff_to_scene' ||
+      action.name === 'activate_comparison' ||
+      action.name === 'review_site_boundary' ||
       action.name === 'offer_structure_layout_options' ||
       action.name === 'apply_structure_layout_option' ||
       action.name === 'place_structure_layout' ||
@@ -669,14 +754,17 @@ async function runCase(browser, baseUrl, testCase) {
     hasTouch: viewport.isMobile,
   })
 
-  await context.addInitScript(() => {
+  await context.addInitScript((seedMessages) => {
     if (sessionStorage.getItem('siteaQaInitialized') === 'true') return
     sessionStorage.setItem('siteaQaInitialized', 'true')
     localStorage.removeItem('sitea-ai-chat')
     localStorage.removeItem('landVisualizer')
     localStorage.setItem('landVisualizerIntroSeen', 'true')
     localStorage.setItem('fsmCompleted', 'true')
-  })
+    if (Array.isArray(seedMessages) && seedMessages.length > 0) {
+      localStorage.setItem('sitea-ai-chat', JSON.stringify(seedMessages))
+    }
+  }, testCase.seedMessages || null)
 
   const page = await context.newPage()
   const consoleErrors = []

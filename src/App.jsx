@@ -2515,6 +2515,15 @@ function App() {
       return true
     }
 
+    if (action.type === 'review_site_boundary') {
+      setShowAIChat(false)
+      setShowOverflow(false)
+      setShowMobileViewControls(false)
+      setActivePanel('land')
+      setUndoRedoToast(action.toast || 'Site plan prepared • review boundary in Land tools')
+      return { ok: true }
+    }
+
     if (action.type === 'activate_comparison' && action.comparisonId) {
       setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: true }))
       setSelectedComparisonId(action.comparisonId)

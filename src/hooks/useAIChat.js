@@ -375,7 +375,7 @@ function getLatestAgentDecisionAction(messages) {
     .reverse()
     .find(message => message.role === 'assistant' && !message.error && message.content)
   const decisionAction = latestAssistantMessage?.toolActions?.find(action =>
-    action.name === 'recommend_next_step' &&
+    ['recommend_next_step', 'analyze_floor_plan', 'review_site_plan'].includes(action.name) &&
     action.success !== false &&
     action.input?.recommendedAction
   )
@@ -1105,6 +1105,85 @@ function buildAgentDecision({
   }
 }
 
+function buildFloorPlanUploadDecision(stats) {
+  const primaryAction = createFloorPlanPlacementAction()
+  const suggestedActions = [
+    primaryAction,
+    createPromptAction('See what fits around it', 'What can fit on my land?'),
+    createPromptAction('Summarize the site', 'Summarize the site'),
+  ]
+  const stairText = stats.stairCount ? `, and ${stats.stairCount} stair${stats.stairCount === 1 ? '' : 's'}` : ''
+  const foundCopy = `I found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.`
+  const bestMove = 'place this plan in 3D'
+  const why = 'the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.'
+
+  return {
+    content: `${foundCopy}\n\nBest move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
+    decision: {
+      label: 'Upload decision',
+      title: bestMove,
+      body: why,
+      detail: foundCopy,
+    },
+    nextSteps: [
+      { label: 'Plan geometry detected', state: 'done' },
+      { label: '3D preview prepared', state: 'done' },
+      { label: 'Say do it or place this in 3D', state: 'current' },
+    ],
+    suggestedActions,
+    toolInput: {
+      ...stats,
+      recommendedAction: primaryAction,
+      optionLabels: suggestedActions.map(action => action.label),
+    },
+  }
+}
+
+function buildSitePlanUploadDecision({ fit, detection, landArea }) {
+  const confidenceText = detection?.confidence
+    ? ` with ${Math.round(detection.confidence * 100)}% confidence`
+    : ''
+  const countLabel = fit.count === 1 ? 'Show 1 tennis court in 3D' : 'Show tennis court in 3D'
+  const scaleAction = createComparisonAction(TENNIS_COURT, countLabel)
+  const boundaryAction = createBoundaryReviewAction()
+  const primaryAction = Number.isFinite(landArea) && landArea > 0 ? scaleAction : boundaryAction
+  const suggestedActions = [
+    primaryAction,
+    primaryAction.type === boundaryAction.type ? scaleAction : boundaryAction,
+    createPromptAction('Make a simple home layout', 'Make a simple home layout'),
+  ]
+  const foundCopy = `I read this as a site plan${confidenceText}. ${fit.text}`
+  const bestMove = primaryAction.type === 'activate_comparison'
+    ? 'show a tennis court in 3D'
+    : 'review the boundary first'
+  const why = primaryAction.type === 'activate_comparison'
+    ? 'a real-world scale object makes the land size immediately understandable before you decide where buildings or open space should go.'
+    : 'the uploaded plan needs a boundary check before I can make useful placement promises.'
+
+  return {
+    content: `${foundCopy}\n\nI prepared the land workspace from your uploaded plan.\n\nBest move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
+    decision: {
+      label: 'Upload decision',
+      title: bestMove,
+      body: why,
+      detail: foundCopy,
+    },
+    nextSteps: [
+      { label: 'Site plan recognized', state: 'done' },
+      { label: 'Land workspace prepared', state: 'done' },
+      { label: 'Say do it or choose a scale/boundary action', state: 'current' },
+    ],
+    suggestedActions,
+    toolInput: {
+      landArea: Math.round(landArea || 0),
+      tennisCourtFit: fit.count,
+      detectionType: detection?.type || 'site-plan',
+      recommendedAction: primaryAction,
+      optionLabels: suggestedActions.map(action => action.label),
+    },
+  }
+}
+
 function formatLayoutOptionComparisonLine(option) {
   return `- ${option.label.replace(':', ' -')}: best for ${option.advisor.bestFor}. Tradeoff: ${option.advisor.tradeoff}`
 }
@@ -1279,6 +1358,22 @@ function createComparisonAction(object, label = `Show ${object.name} in 3D`) {
     objectName: object.name,
     handoff: true,
     toast: `${object.displayName} added • drag or rotate it to compare scale`,
+  }
+}
+
+function createFloorPlanPlacementAction(label = 'Place this in 3D') {
+  return {
+    type: 'handoff_to_scene',
+    label,
+    toast: 'Preview ready • click the land to place it • R to rotate',
+  }
+}
+
+function createBoundaryReviewAction(label = 'Review boundary') {
+  return {
+    type: 'review_site_boundary',
+    label,
+    toast: 'Site plan prepared • review boundary in Land tools',
   }
 }
 
@@ -1722,27 +1817,19 @@ export function useAIChat({
 
       const result = convertFloorPlanToWorld(data)
       const { stats } = result
-      const stairText = stats.stairCount ? `, and ${stats.stairCount} stair${stats.stairCount === 1 ? '' : 's'}` : ''
-      const summary = `I found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.\n\nI prepared a 3D building preview from your plan. It is ready to review on the land. You decide the final placement; I will open the scene at the right view.`
+      const uploadDecision = buildFloorPlanUploadDecision(stats)
 
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: summary,
-        nextSteps: [
-          { label: 'Plan geometry detected', state: 'done' },
-          { label: '3D preview prepared', state: 'done' },
-          { label: 'Review placement in 3D', state: 'current' },
-        ],
+        content: uploadDecision.content,
+        decision: uploadDecision.decision,
+        nextSteps: uploadDecision.nextSteps,
         toolActions: [{
           name: 'analyze_floor_plan',
-          input: stats,
+          input: uploadDecision.toolInput,
           success: true,
         }],
-        suggestedActions: [{
-          type: 'handoff_to_scene',
-          label: 'Place this in 3D',
-          toast: 'Preview ready • click the land to place it • R to rotate',
-        }],
+        suggestedActions: uploadDecision.suggestedActions,
       }])
 
       if (onFloorPlanGenerated) {
@@ -1777,37 +1864,19 @@ export function useAIChat({
       }
 
       const fit = getTennisCourtFit(landArea)
-      const confidenceText = detection?.confidence
-        ? ` with ${Math.round(detection.confidence * 100)}% confidence`
-        : ''
-      const countLabel = fit.count === 1 ? 'Show 1 tennis court in 3D' : 'Show tennis court in 3D'
-      const summary = `I read this as a site plan${confidenceText}.\n\n${fit.text}\n\nI prepared the land workspace from your uploaded plan. You can review the boundary when needed; first, I can add a tennis court comparison so the scale is visible immediately.`
+      const uploadDecision = buildSitePlanUploadDecision({ fit, detection, landArea })
 
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: summary,
-        nextSteps: [
-          { label: 'Site plan recognized', state: 'done' },
-          { label: 'Land workspace prepared', state: 'done' },
-          { label: 'Review scale in 3D', state: 'current' },
-        ],
+        content: uploadDecision.content,
+        decision: uploadDecision.decision,
+        nextSteps: uploadDecision.nextSteps,
         toolActions: [{
           name: 'review_site_plan',
-          input: {
-            landArea: Math.round(landArea || 0),
-            tennisCourtFit: fit.count,
-            detectionType: detection?.type || 'site-plan',
-          },
+          input: uploadDecision.toolInput,
           success: true,
         }],
-        suggestedActions: [{
-          type: 'activate_comparison',
-          comparisonId: TENNIS_COURT.id,
-          label: countLabel,
-          objectName: 'tennis court',
-          handoff: true,
-          toast: 'Tennis court added • drag or rotate it to compare scale',
-        }],
+        suggestedActions: uploadDecision.suggestedActions,
       }])
     } catch (err) {
       setError(err.message)
@@ -2126,6 +2195,56 @@ export function useAIChat({
         return applyStructureLayoutOption(agentRecommendation.optionId, userMsg, agentRecommendation.structures, {
           preferenceLabel: null,
         })
+      }
+
+      if (agentRecommendation?.type === 'handoff_to_scene') {
+        setMessages(prev => [...prev, userMsg, {
+          role: 'assistant',
+          content: 'Done. I opened the prepared scene so you can review it visually.',
+          nextSteps: [
+            { label: 'Upload recommendation accepted', state: 'done' },
+            { label: 'Scene opened', state: 'done' },
+            { label: 'Review the plan in 3D', state: 'current' },
+          ],
+          toolActions: [{
+            name: 'handoff_to_scene',
+            input: {
+              source: 'upload_follow_through',
+              label: agentRecommendation.label,
+            },
+            success: true,
+          }],
+        }])
+        onVisualHandoff?.(agentRecommendation)
+        return true
+      }
+
+      if (agentRecommendation?.type === 'review_site_boundary') {
+        const result = onSceneControl?.({ type: 'review_site_boundary', toast: agentRecommendation.toast })
+        const opened = result?.ok !== false
+        setMessages(prev => [...prev, userMsg, {
+          role: 'assistant',
+          content: opened
+            ? 'Done. I opened the land boundary tools so you can review the uploaded site plan outline.'
+            : 'I could not open the boundary review tools yet. Use the Land panel to check the uploaded site plan.',
+          nextSteps: opened ? [
+            { label: 'Upload recommendation accepted', state: 'done' },
+            { label: 'Boundary tools opened', state: 'done' },
+            { label: 'Adjust the outline if needed', state: 'current' },
+          ] : [
+            { label: 'Boundary review checked', state: 'done' },
+            { label: 'Open Land panel manually', state: 'current' },
+          ],
+          toolActions: [{
+            name: 'review_site_boundary',
+            input: {
+              source: 'upload_follow_through',
+              reason: result?.reason,
+            },
+            success: opened,
+          }],
+        }])
+        return true
       }
 
       if (agentRecommendation?.type === 'activate_comparison' && agentRecommendation.comparisonId) {
@@ -2968,6 +3087,23 @@ export function useAIChat({
         content: 'Done. I opened the prepared scene so you can review it visually.',
       }])
       onVisualHandoff?.(action)
+      return
+    }
+
+    if (action.type === 'review_site_boundary') {
+      const result = onSceneControl?.({ type: 'review_site_boundary', toast: action.toast })
+      const opened = result?.ok !== false
+      setMessages(prev => [...prev, {
+        role: 'user',
+        content: action.label,
+        displayText: action.label,
+        hasImage: false,
+      }, {
+        role: 'assistant',
+        content: opened
+          ? 'Done. I opened the land boundary tools so you can review the uploaded site plan outline.'
+          : 'I could not open the boundary review tools yet. Use the Land panel to check the uploaded site plan.',
+      }])
       return
     }
 

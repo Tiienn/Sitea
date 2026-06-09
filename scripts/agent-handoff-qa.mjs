@@ -15,12 +15,33 @@ const CASES = [
     expectedToast: 'Preview ready',
     messages: [{
       role: 'assistant',
-      content: 'I found 24 walls, 6 doors, 8 windows, and 5 rooms.\n\nI prepared a 3D building preview from your plan. It is ready to review on the land.',
+      content: 'I found 24 walls, 6 doors, 8 windows, 5 rooms.\n\nBest move: place this plan in 3D.\nWhy: the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
+      decision: {
+        label: 'Upload decision',
+        title: 'place this plan in 3D',
+        body: 'the detected building needs to become a real object on the land before scale, access, and outdoor space decisions are meaningful.',
+        detail: 'I found 24 walls, 6 doors, 8 windows, 5 rooms.',
+      },
       nextSteps: [
         { label: 'Plan geometry detected', state: 'done' },
         { label: '3D preview prepared', state: 'done' },
-        { label: 'Review placement in 3D', state: 'current' },
+        { label: 'Say do it or place this in 3D', state: 'current' },
       ],
+      toolActions: [{
+        name: 'analyze_floor_plan',
+        input: {
+          wallCount: 24,
+          doorCount: 6,
+          windowCount: 8,
+          roomCount: 5,
+          recommendedAction: {
+            type: 'handoff_to_scene',
+            label: 'Place this in 3D',
+            toast: 'Preview ready • click the land to place it • R to rotate',
+          },
+        },
+        success: true,
+      }],
       suggestedActions: [{
         type: 'handoff_to_scene',
         label: 'Place this in 3D',
@@ -34,12 +55,35 @@ const CASES = [
     expectedToast: 'Object selected',
     messages: [{
       role: 'assistant',
-      content: 'I prepared the land workspace from your uploaded plan. I can add a tennis court comparison so the scale is visible immediately.',
+      content: 'I read this as a site plan. About 10 tennis courts can fit inside 2750m² before setbacks, house footprint, and access space.\n\nI prepared the land workspace from your uploaded plan.\n\nBest move: show a tennis court in 3D.\nWhy: a real-world scale object makes the land size immediately understandable before you decide where buildings or open space should go.',
+      decision: {
+        label: 'Upload decision',
+        title: 'show a tennis court in 3D',
+        body: 'a real-world scale object makes the land size immediately understandable before you decide where buildings or open space should go.',
+        detail: 'I read this as a site plan. About 10 tennis courts can fit inside 2750m² before setbacks, house footprint, and access space.',
+      },
       nextSteps: [
         { label: 'Site plan recognized', state: 'done' },
         { label: 'Land workspace prepared', state: 'done' },
-        { label: 'Review scale in 3D', state: 'current' },
+        { label: 'Say do it or choose a scale/boundary action', state: 'current' },
       ],
+      toolActions: [{
+        name: 'review_site_plan',
+        input: {
+          landArea: 2750,
+          tennisCourtFit: 10,
+          detectionType: 'site-plan',
+          recommendedAction: {
+            type: 'activate_comparison',
+            comparisonId: 'tennisCourt',
+            label: 'Show tennis court in 3D',
+            objectName: 'tennis court',
+            handoff: true,
+            toast: 'Tennis court added • drag or rotate it to compare scale',
+          },
+        },
+        success: true,
+      }],
       suggestedActions: [{
         type: 'activate_comparison',
         comparisonId: 'tennisCourt',
