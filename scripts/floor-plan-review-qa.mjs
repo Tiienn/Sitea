@@ -3,11 +3,14 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { convertFloorPlanToWorld } from '../src/utils/floorPlanConverter.js'
 import {
+  applyManualOpeningPreset,
   applyReviewCorrections,
   buildCorrectedFloorPlan,
   countAddedDetections,
   countHiddenDetections,
   countVisibleDetections,
+  getManualOpeningPresetOptions,
+  getReviewPixelsPerMeter,
   snapOpeningToNearestReviewWall,
 } from '../src/utils/floorPlanReviewCorrections.js'
 
@@ -51,27 +54,29 @@ const windowTap = { x: 530, y: 636 }
 const snappedDoor = snapOpeningToNearestReviewWall(doorTap, analysis, hiddenDetections, addedWallsOnly)
 const snappedWindow = snapOpeningToNearestReviewWall(windowTap, analysis, hiddenDetections, addedWallsOnly)
 const fallbackOpening = snapOpeningToNearestReviewWall({ x: 12.345, y: 67.891 }, { walls: [] }, hiddenDetections, { walls: [] })
+const pixelsPerMeter = getReviewPixelsPerMeter(analysis)
+const doorPresets = getManualOpeningPresetOptions('door', analysis)
+const windowPresets = getManualOpeningPresetOptions('window', analysis)
+const manualDoor = applyManualOpeningPreset({
+  center: snappedDoor.center,
+  rotation: snappedDoor.rotation,
+  positionAlongWall: snappedDoor.positionAlongWall,
+  snap: snappedDoor.snap,
+  confidence: 1,
+  source: 'manual_review',
+}, 'door', 'double', analysis)
+const manualWindow = applyManualOpeningPreset({
+  center: snappedWindow.center,
+  rotation: snappedWindow.rotation,
+  positionAlongWall: snappedWindow.positionAlongWall,
+  snap: snappedWindow.snap,
+  confidence: 1,
+  source: 'manual_review',
+}, 'window', 'wide', analysis)
 const addedDetections = {
   walls: [addedWall],
-  doors: [{
-    center: snappedDoor.center,
-    width: 32,
-    rotation: snappedDoor.rotation,
-    positionAlongWall: snappedDoor.positionAlongWall,
-    snap: snappedDoor.snap,
-    doorType: 'single',
-    confidence: 1,
-    source: 'manual_review',
-  }],
-  windows: [{
-    center: snappedWindow.center,
-    width: 48,
-    rotation: snappedWindow.rotation,
-    positionAlongWall: snappedWindow.positionAlongWall,
-    snap: snappedWindow.snap,
-    confidence: 1,
-    source: 'manual_review',
-  }],
+  doors: [manualDoor],
+  windows: [manualWindow],
 }
 const hiddenOnlyFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections)
 const correctedAnalysis = applyReviewCorrections(analysis, hiddenDetections, addedDetections)
@@ -94,6 +99,13 @@ assert(Number.isFinite(snappedDoor.rotation), 'Manual door is missing snapped wa
 assert(Number.isFinite(snappedWindow.rotation), 'Manual window is missing snapped wall rotation')
 assert(Number.isFinite(snappedDoor.positionAlongWall), 'Manual door is missing snapped wall position')
 assert(Number.isFinite(snappedWindow.positionAlongWall), 'Manual window is missing snapped wall position')
+assert(Number.isFinite(pixelsPerMeter) && pixelsPerMeter > 0, 'Fixture should expose review pixels-per-meter')
+assert(doorPresets.find(preset => preset.id === 'double')?.width === manualDoor.width, 'Double door preset width was not applied')
+assert(windowPresets.find(preset => preset.id === 'wide')?.width === manualWindow.width, 'Wide window preset width was not applied')
+assert(manualDoor.doorType === 'double', 'Double door preset should update door type')
+assert(manualDoor.presetMeters === 1.6 && manualWindow.presetMeters === 1.8, 'Manual opening preset meter sizes are wrong')
+assert(manualDoor.snap?.wallKey === snappedDoor.snap?.wallKey, 'Door preset should preserve snapped wall metadata')
+assert(manualWindow.snap?.wallKey === snappedWindow.snap?.wallKey, 'Window preset should preserve snapped wall metadata')
 assert(fallbackOpening.snap === null, 'No-wall fallback should not claim a snapped wall')
 assert(fallbackOpening.center.x === 12.35 && fallbackOpening.center.y === 67.89, 'No-wall fallback should preserve the tapped point')
 assert(fallbackOpening.rotation === 0, 'No-wall fallback should keep the v24 default rotation')
@@ -124,4 +136,6 @@ console.log('Floor plan review QA passed', {
   added: correctedFloorPlan.correctionSummary.addedCount,
   doorSnap: snappedDoor.snap,
   windowSnap: snappedWindow.snap,
+  doorWidthPx: manualDoor.width,
+  windowWidthPx: manualWindow.width,
 })

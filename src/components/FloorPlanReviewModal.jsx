@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  applyManualOpeningPreset,
   buildCorrectedFloorPlan,
   countAddedDetections,
   countHiddenDetections,
   countVisibleDetections,
   createEmptyAddedDetections,
   createEmptyHiddenDetections,
+  getManualOpeningPresetOptions,
   isDetectionHidden,
   snapOpeningToNearestReviewWall,
   toggleHiddenDetection,
@@ -383,6 +385,18 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const addedCount = useMemo(() => countAddedDetections(addedDetections), [addedDetections])
   const visibleCounts = useMemo(() => countVisibleDetections(analysis, hiddenDetections, addedDetections), [addedDetections, analysis, hiddenDetections])
   const correctedFloorPlan = useMemo(() => buildCorrectedFloorPlan(review, hiddenDetections, addedDetections), [addedDetections, review, hiddenDetections])
+  const selectedAddedOpening = useMemo(() => {
+    if (selectedDetection?.type === 'addedDoors') {
+      return { kind: 'door', collection: 'doors', opening: addedDetections.doors?.[selectedDetection.index] }
+    }
+    if (selectedDetection?.type === 'addedWindows') {
+      return { kind: 'window', collection: 'windows', opening: addedDetections.windows?.[selectedDetection.index] }
+    }
+    return null
+  }, [addedDetections, selectedDetection])
+  const selectedOpeningPresets = useMemo(() => (
+    selectedAddedOpening ? getManualOpeningPresetOptions(selectedAddedOpening.kind, analysis) : []
+  ), [analysis, selectedAddedOpening])
   const counts = useMemo(() => ({
     walls: correctedFloorPlan?.stats?.wallCount ?? visibleCounts.walls ?? getCount(analysis?.walls),
     doors: correctedFloorPlan?.stats?.doorCount ?? visibleCounts.doors ?? getCount(analysis?.doors),
@@ -483,28 +497,43 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const handleAddOpeningPoint = useCallback((point) => {
     if (!addOpeningMode) return
     const type = addOpeningMode === 'door' ? 'doors' : 'windows'
-    const width = addOpeningMode === 'door' ? 32 : 48
+    const defaultPreset = addOpeningMode === 'door' ? 'single' : 'standard'
     const snappedOpening = snapOpeningToNearestReviewWall(point, analysis, hiddenDetections, addedDetections)
+    const nextOpening = applyManualOpeningPreset({
+      center: snappedOpening.center,
+      rotation: snappedOpening.rotation,
+      positionAlongWall: snappedOpening.positionAlongWall,
+      snap: snappedOpening.snap,
+      confidence: 1,
+      source: 'manual_review',
+    }, addOpeningMode, defaultPreset, analysis)
 
     setSelectedDetection(null)
     setAddedDetections(prev => ({
       ...prev,
       [type]: [
         ...(prev[type] || []),
-        {
-          center: snappedOpening.center,
-          width,
-          rotation: snappedOpening.rotation,
-          positionAlongWall: snappedOpening.positionAlongWall,
-          snap: snappedOpening.snap,
-          doorType: addOpeningMode === 'door' ? 'single' : undefined,
-          confidence: 1,
-          source: 'manual_review',
-        },
+        nextOpening,
       ],
     }))
     setAddOpeningMode(null)
   }, [addOpeningMode, addedDetections, analysis, hiddenDetections])
+
+  const applySelectedOpeningPreset = useCallback((presetId) => {
+    if (!selectedAddedOpening || !selectedDetection) return
+    setAddedDetections(prev => {
+      const currentList = prev[selectedAddedOpening.collection] || []
+      if (!currentList[selectedDetection.index]) return prev
+      return {
+        ...prev,
+        [selectedAddedOpening.collection]: currentList.map((opening, index) => (
+          index === selectedDetection.index
+            ? applyManualOpeningPreset(opening, selectedAddedOpening.kind, presetId, analysis)
+            : opening
+        )),
+      }
+    })
+  }, [analysis, selectedAddedOpening, selectedDetection])
 
   const placeCorrectedPlan = useCallback(() => {
     onPlace(correctedFloorPlan)
@@ -631,6 +660,39 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 </button>
               </div>
             </div>
+            {selectedAddedOpening ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {selectedAddedOpening.kind === 'door' ? 'Door size' : 'Window size'}
+                    </p>
+                    <p className="text-xs leading-5 text-slate-400">
+                      Pick a realistic opening size before placing in 3D.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {selectedOpeningPresets.map(preset => {
+                    const active = selectedAddedOpening.opening?.presetId === preset.id
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => applySelectedOpeningPreset(preset.id)}
+                        className={`min-h-11 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                          active
+                            ? 'border border-teal-300/40 bg-teal-400/15 text-teal-100 hover:bg-teal-400/20'
+                            : 'border border-white/10 text-slate-200 hover:bg-white/10'
+                        }`}
+                      >
+                        {preset.label} · {preset.meters}m
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-teal-300/15 bg-teal-950/25 px-4 py-3">

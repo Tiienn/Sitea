@@ -1,6 +1,15 @@
 import { convertFloorPlanToWorld } from './floorPlanConverter.js'
 
 export const FLOOR_PLAN_REVIEW_TYPES = ['walls', 'doors', 'windows', 'rooms', 'stairs']
+export const MANUAL_DOOR_PRESETS = [
+  { id: 'single', label: 'Single', meters: 0.9, doorType: 'single' },
+  { id: 'double', label: 'Double', meters: 1.6, doorType: 'double' },
+]
+export const MANUAL_WINDOW_PRESETS = [
+  { id: 'compact', label: 'Compact', meters: 0.8 },
+  { id: 'standard', label: 'Standard', meters: 1.2 },
+  { id: 'wide', label: 'Wide', meters: 1.8 },
+]
 
 export function createEmptyHiddenDetections() {
   return FLOOR_PLAN_REVIEW_TYPES.reduce((acc, type) => {
@@ -32,6 +41,44 @@ function formatReviewPoint(point) {
   return {
     x: roundReviewNumber(point?.x || 0),
     y: roundReviewNumber(point?.y || 0),
+  }
+}
+
+export function getReviewPixelsPerMeter(analysis = {}) {
+  const pixelsPerMeter = analysis.scale?.pixelsPerMeter
+  if (Number.isFinite(pixelsPerMeter) && pixelsPerMeter > 0) return pixelsPerMeter
+
+  const metersPerPixel = analysis.scale?.estimatedMetersPerPixel
+  if (Number.isFinite(metersPerPixel) && metersPerPixel > 0) return 1 / metersPerPixel
+
+  return null
+}
+
+function getOpeningPresets(kind) {
+  return kind === 'door' ? MANUAL_DOOR_PRESETS : MANUAL_WINDOW_PRESETS
+}
+
+export function getManualOpeningPresetOptions(kind, analysis = {}) {
+  const pixelsPerMeter = getReviewPixelsPerMeter(analysis)
+  return getOpeningPresets(kind).map(preset => ({
+    ...preset,
+    width: pixelsPerMeter
+      ? roundReviewNumber(preset.meters * pixelsPerMeter)
+      : roundReviewNumber(kind === 'door' ? preset.meters * 36 : preset.meters * 40),
+  }))
+}
+
+export function applyManualOpeningPreset(opening = {}, kind = 'door', presetId, analysis = {}) {
+  const options = getManualOpeningPresetOptions(kind, analysis)
+  const preset = options.find(option => option.id === presetId) || options[0]
+
+  return {
+    ...opening,
+    width: preset.width,
+    presetId: preset.id,
+    presetLabel: preset.label,
+    presetMeters: preset.meters,
+    ...(kind === 'door' ? { doorType: preset.doorType || 'single' } : {}),
   }
 }
 

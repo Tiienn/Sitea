@@ -126,6 +126,28 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local browser smoke test. Existing generated QA report timestamp/fixture churn was restored before final diff.
 - Remaining limitation: users still cannot drag endpoints, choose a specific wall manually, or adjust opening width/orientation after placement. Those belong in a later lightweight correction editor.
 
+## Active Plan: v26 Manual Opening Size Presets
+- [x] Keep v26 scoped to selected manual doors/windows in `FloorPlanReviewModal`: no paid analyzer call, no endpoint dragging, no broad 3D renderer changes
+- [x] Add small opening preset helpers that convert realistic meter sizes into source-image pixels using the detected floor-plan scale when available
+- [x] When a selected added door is active, show mobile-safe preset buttons for single and double doors, update `width` and `doorType`, and keep snap metadata intact
+- [x] When a selected added window is active, show mobile-safe preset buttons for compact, standard, and wide windows, update `width`, and keep snap metadata intact
+- [x] Keep the correction panel calm: controls should appear only after selecting a manual door/window and must preserve the existing 44px touch targets
+- [x] Preserve v22-v25 behavior for hiding/restoring detections, adding/removing walls, adding/removing snapped openings, and placing corrected geometry
+- [x] Extend no-cost review QA to assert selected manual opening preset updates produce realistic pixel widths and preserve snapped wall metadata
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, and local browser smoke
+- [x] Add v26 review notes with what preset sizing improves and what remains for drag handles, explicit wall selection, and post-placement editing
+
+### v26 Review
+- Direction: v26 improves manual opening realism after v25 snapping by letting users set useful door/window sizes before converting to 3D.
+- Scope stayed inside the review modal and shared correction utility: no paid analyzer call, no endpoint dragging, and no renderer rewrite.
+- Added door presets for single and double doors, plus window presets for compact, standard, and wide windows.
+- Preset widths are converted from meters into source-image pixels using the detected floor-plan scale when available, with conservative fallbacks when scale is missing.
+- New manual openings now start with realistic defaults: single door and standard window.
+- When a manual door/window is selected, the correction panel shows mobile-safe preset buttons. Applying a preset updates width, door type where relevant, and preset metadata while preserving snapped wall data.
+- Extended `npm run qa:floor-plans:review` to assert scale-derived preset widths, double-door type updates, wide-window sizing, and snap metadata preservation.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local browser smoke test. Existing generated QA report timestamp/fixture churn was restored before final diff.
+- Remaining limitation: users still cannot drag opening handles, explicitly choose a wall when multiple walls are nearby, or edit generated openings after placement.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
