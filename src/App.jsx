@@ -2025,6 +2025,7 @@ function App() {
         analysis: generatedData.analysis,
         sourceImage: generatedData.sourceImage,
         sourceFileName: generatedData.sourceFileName || null,
+        readout: generatedData.readout || null,
       })
       setShowFloorPlanGenerator(false)
       setFloorPlanImageForGenerator(null)
@@ -2043,6 +2044,7 @@ function App() {
     delete placementData.sourceImage
     delete placementData.analysis
     delete placementData.sourceFileName
+    delete placementData.readout
     delete placementData.correctionSummary
     setFloorPlanReview(null)
     startFloorPlanPlacement(placementData)

@@ -1,5 +1,30 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v32 Agent Plan Explanation Before 3D
+- [x] Keep v32 scoped to explanation and trust-building around the existing floor-plan upload/review flow: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new placement mode
+- [x] Add a small shared floor-plan explanation helper that converts analyzer stats/raw detections into plain-language findings, review warnings, and next-step guidance
+- [x] Update the agent floor-plan upload decision so Sitea says what it found, what looks review-worthy, and why the user should inspect the overlay before placing in 3D
+- [x] Pass the generated explanation into `floorPlanReview` so the review modal and chat stay consistent without recomputing unrelated agent state
+- [x] Add a compact, mobile-safe “Sitea readout” panel in `FloorPlanReviewModal` above the overlay with counts, likely confidence notes, and 2-3 concrete things to check
+- [x] Keep the readout visually calm and trustworthy: no cramped text, no extra full-screen modal, no giant marketing copy, and existing correction controls unchanged
+- [x] Preserve all v21-v31 review behavior: overlay counts, hide/restore, add walls/openings, endpoint correction, opening correction, drag handles, and `Place in 3D`
+- [x] Extend no-cost QA to assert the explanation helper outputs useful findings/warnings from the real ground-floor fixture and that review payloads preserve the explanation metadata
+- [x] Update existing agent text-action QA expectations only where v32 intentionally changes upload wording
+- [x] Verify with focused lint, floor-plan review QA, agent text-action QA if affected, placement/fixture QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v32 review notes with what the explanation improves and what remains for deeper model uncertainty scoring or post-placement 3D editing
+
+### v32 Review
+- Direction: v32 makes floor-plan upload feel more like a trustworthy agent handoff by explaining what Sitea found before asking the user to place the result in 3D.
+- Scope stayed explanation-only: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new placement mode.
+- Added `buildFloorPlanReadout`, a shared no-cost helper that turns analyzer stats/raw detections into a plain-language summary, findings, review notes, scale state, and checklist guidance.
+- The agent upload response now says what it found, what needs review, and why checking the overlay comes before 3D placement.
+- The floor-plan review modal now shows a compact `Sitea readout` panel with core counts, scale status, likely findings, and concrete things to check before `Place in 3D`.
+- Readout metadata is preserved through review correction payloads so chat and modal stay consistent, then stripped before 3D placement so scene objects stay lean.
+- Existing v21-v31 behavior is preserved: overlay counts, hide/restore, add walls/openings, endpoint correction, opening correction, drag handles, and `Place in 3D`.
+- Extended `npm run qa:floor-plans:review` to assert useful readout copy from the cached real ground-floor fixture and verify corrected payloads preserve readout metadata.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:agent-text-actions`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and local desktop/mobile in-app browser smoke. Existing generated QA report/fixture churn was restored before final diff.
+- Remaining limitation: v32 does not add deeper model uncertainty scoring, side-by-side AI self-review, or post-placement 3D editing. Those are good candidates after the review flow feels stable.
+
 ## Active Plan: v31 Direct Drag Handles
 - [x] Keep v31 scoped to direct review-modal manipulation in `FloorPlanReviewModal`: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no broad floor-plan editor rebuild
 - [x] Add shared helper logic for moving a selected door/window to a pointer location while preserving preset width, type, snap metadata, and corrected analyzer output

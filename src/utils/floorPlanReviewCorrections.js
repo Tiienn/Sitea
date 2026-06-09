@@ -622,6 +622,7 @@ export function buildCorrectedFloorPlan(review = {}, hidden = {}, additions = {}
     ...converted,
     analysis: correctedAnalysis,
     sourceFileName: review.sourceFileName || null,
+    readout: review.readout || null,
     correctionSummary: {
       hiddenCount: countHiddenDetections(hidden),
       hiddenDetections: hidden,

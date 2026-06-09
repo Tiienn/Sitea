@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { buildFloorPlanReadout } from '../utils/floorPlanReadout'
 import {
   applyManualOpeningPreset,
   buildCorrectedFloorPlan,
@@ -609,6 +610,13 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const openingEditCount = useMemo(() => countOpeningEdits(addedDetections), [addedDetections])
   const visibleCounts = useMemo(() => countVisibleDetections(analysis, hiddenDetections, addedDetections), [addedDetections, analysis, hiddenDetections])
   const correctedFloorPlan = useMemo(() => buildCorrectedFloorPlan(review, hiddenDetections, addedDetections), [addedDetections, review, hiddenDetections])
+  const readout = useMemo(() => (
+    review?.readout || buildFloorPlanReadout({
+      stats: review?.floorPlan?.stats,
+      analysis,
+      fileName: review?.sourceFileName || 'your plan',
+    })
+  ), [analysis, review])
   const selectedWall = useMemo(() => (
     selectedDetection?.type === 'walls' || selectedDetection?.type === 'addedWalls'
       ? getReviewWallForDetection(analysis, addedDetections, selectedDetection)
@@ -912,6 +920,59 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
         </div>
 
         <div className="max-h-[calc(88vh-156px)] overflow-y-auto px-5 py-5 sm:px-6">
+          <div className="mb-4 rounded-2xl border border-teal-300/15 bg-teal-950/25 px-4 py-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="rounded-full border border-teal-300/25 bg-teal-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-teal-100">
+                    Sitea readout
+                  </span>
+                  <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${
+                    readout.scaleState === 'good'
+                      ? 'border border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
+                      : 'border border-amber-300/25 bg-amber-300/10 text-amber-100'
+                  }`}
+                  >
+                    {readout.scaleState === 'good' ? 'Scale usable' : 'Check scale'}
+                  </span>
+                </div>
+                <p className="text-sm font-semibold leading-6 text-white">{readout.summary}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-300">{readout.caveat}</p>
+              </div>
+              <div className="grid min-w-[220px] grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
+                {[
+                  ['Walls', readout.counts.wallCount],
+                  ['Doors', readout.counts.doorCount],
+                  ['Windows', readout.counts.windowCount],
+                  ['Rooms', readout.counts.roomCount],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
+                    <div className="mt-0.5 text-lg font-bold text-white">{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">What Sitea found</p>
+                <div className="space-y-2">
+                  {readout.findings.slice(0, 3).map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm leading-6 text-slate-200">{item}</p>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-amber-300/20 bg-amber-950/15 px-4 py-3">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-amber-100">Check before 3D</p>
+                <div className="space-y-2">
+                  {readout.reviewNotes.slice(0, 3).map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm leading-6 text-amber-50/90">{item}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
             {Object.entries(counts).map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">

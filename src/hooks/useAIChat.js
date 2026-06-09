@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { convertFloorPlanToWorld } from '../utils/floorPlanConverter'
+import { buildFloorPlanReadout } from '../utils/floorPlanReadout'
 import { analyzeImage } from '../services/imageAnalysis'
 
 const MAX_TOOL_ITERATIONS = 5
@@ -1773,32 +1774,33 @@ function getUploadUserDisplayText(text, fileMeta = {}) {
   return `${prompt}\nAttached: ${fileName}`
 }
 
-function buildFloorPlanUploadDecision(stats, fileMeta = {}) {
+function buildFloorPlanUploadDecision(stats, fileMeta = {}, readout = null) {
   const primaryAction = createFloorPlanPlacementAction()
   const suggestedActions = [
     primaryAction,
     createPromptAction('See what fits around it', 'What can fit on my land?'),
     createPromptAction('Summarize the site', 'Summarize the site'),
   ]
-  const stairText = stats.stairCount ? `, and ${stats.stairCount} stair${stats.stairCount === 1 ? '' : 's'}` : ''
   const fileName = fileMeta?.fileName || 'your plan'
-  const foundCopy = `I read ${fileName} as a floor plan and found ${stats.wallCount} walls, ${stats.doorCount} doors, ${stats.windowCount} windows, ${stats.roomCount} rooms${stairText}.`
-  const caveatCopy = 'This is a visual extraction, so review the detected overlay before trusting the 3D geometry or exact dimensions.'
+  const floorPlanReadout = readout || buildFloorPlanReadout({ stats, fileName })
+  const foundCopy = floorPlanReadout.summary
+  const caveatCopy = floorPlanReadout.caveat
+  const reviewCopy = floorPlanReadout.reviewNotes.slice(0, 3).map(note => `- ${note}`).join('\n')
   const bestMove = 'review the detected plan, then place it in 3D'
   const why = 'the overlay shows what Sitea found first, then the detected building can become a real object on the land for scale, access, and outdoor space decisions.'
 
   return {
-    content: `${foundCopy}\n\n${caveatCopy}\n\nBest visual move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
+    content: `${foundCopy}\n\n${caveatCopy}\n\nWhat I would check first:\n${reviewCopy}\n\nBest visual move: ${bestMove}.\nWhy: ${why}\n\nOptions:\n${suggestedActions.map(action => `- ${action.label}`).join('\n')}`,
     decision: {
       label: 'Upload decision',
       title: bestMove,
       body: why,
-      detail: `${foundCopy} ${caveatCopy}`,
+      detail: `${foundCopy} ${floorPlanReadout.reviewNotes[0] || caveatCopy}`,
     },
     nextSteps: [
       { label: 'Floor plan understood', state: 'done' },
       { label: 'Walls, doors, windows, and rooms extracted', state: 'done' },
-      { label: 'Review overlay prepared', state: 'done' },
+      { label: 'Review notes prepared', state: 'done' },
       { label: 'Check the overlay, then place in 3D', state: 'current' },
     ],
     suggestedActions,
@@ -1808,6 +1810,7 @@ function buildFloorPlanUploadDecision(stats, fileMeta = {}) {
       planKind: 'floor_plan',
       recommendedAction: primaryAction,
       optionLabels: suggestedActions.map(action => action.label),
+      reviewNotes: floorPlanReadout.reviewNotes,
     },
   }
 }
@@ -2529,7 +2532,13 @@ export function useAIChat({
         sourceFileName: fileMeta?.fileName || null,
       }
       const { stats } = result
-      const uploadDecision = buildFloorPlanUploadDecision(stats, fileMeta)
+      const readout = buildFloorPlanReadout({
+        stats,
+        analysis: data,
+        fileName: fileMeta?.fileName || 'your plan',
+      })
+      result.readout = readout
+      const uploadDecision = buildFloorPlanUploadDecision(stats, fileMeta, readout)
 
       setMessages(prev => [...prev, {
         role: 'assistant',

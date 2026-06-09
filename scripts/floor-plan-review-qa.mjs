@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { convertFloorPlanToWorld } from '../src/utils/floorPlanConverter.js'
+import { buildFloorPlanReadout } from '../src/utils/floorPlanReadout.js'
 import {
   applyManualOpeningPreset,
   applyReviewCorrections,
@@ -55,11 +56,17 @@ function getPointAlongWall(wall, positionAlongWall) {
 
 const analysis = JSON.parse(readFileSync(rawFixturePath, 'utf8'))
 const converted = convertFloorPlanToWorld(analysis)
+const readout = buildFloorPlanReadout({
+  stats: converted.stats,
+  analysis,
+  fileName: path.basename(sourceImagePath),
+})
 const reviewPayload = {
   floorPlan: converted,
   analysis,
   sourceImagePath,
   sourceFileName: path.basename(sourceImagePath),
+  readout,
 }
 const hiddenDetections = {
   walls: [0],
@@ -266,6 +273,12 @@ assert(reviewPayload.floorPlan.stats.wallCount === reviewPayload.floorPlan.walls
 assert(Array.isArray(reviewPayload.analysis.walls), 'Review payload is missing raw walls')
 assert(Array.isArray(reviewPayload.analysis.doors), 'Review payload is missing raw doors')
 assert(Array.isArray(reviewPayload.analysis.windows), 'Review payload is missing raw windows')
+assert(readout.summary.includes('real-site-ground-floor.png'), 'Readout should name the source file')
+assert(readout.summary.includes('walls') && readout.summary.includes('doors') && readout.summary.includes('windows'), 'Readout should summarize core detection counts')
+assert(readout.findings.length >= 3, 'Readout should include detection findings')
+assert(readout.reviewNotes.length >= 3, 'Readout should include review notes')
+assert(readout.checks.includes('Compare the overlay with the original plan.'), 'Readout should include overlay review guidance')
+assert(readout.scaleState === 'good', 'Fixture readout should treat dimension-labeled scale as usable')
 assert(countHiddenDetections(hiddenDetections) === 3, 'Hidden detection count should include wall, door, and window')
 assert(countAddedDetections(addedDetections) === 3, 'Added detection count should include the manual wall, door, and window')
 assert(editedDetectedWallIndex >= 0, 'Fixture should have a visible wall for endpoint editing')
@@ -349,6 +362,7 @@ assert(correctedFloorPlan.stats.doorCount > hiddenOnlyFloorPlan.stats.doorCount,
 assert(correctedFloorPlan.stats.windowCount > hiddenOnlyFloorPlan.stats.windowCount, 'Added window did not survive conversion')
 assert(correctedFloorPlan.correctionSummary.hiddenCount === 3, 'Corrected floor plan summary is missing hidden detections')
 assert(correctedFloorPlan.correctionSummary.addedCount === 3, 'Corrected floor plan summary is missing added detections')
+assert(correctedFloorPlan.readout?.summary === readout.summary, 'Corrected floor plan should preserve review readout metadata')
 
 console.log('Floor plan review QA passed', {
   source: reviewPayload.sourceFileName,
@@ -372,4 +386,5 @@ console.log('Floor plan review QA passed', {
   wallEdits: countWallEndpointEdits(withEditedDetectedWall),
   openingEdits: countOpeningEdits(withEditedDetectedOpenings),
   draggedOpening: draggedManualDoor.snap,
+  readout: readout.summary,
 })
