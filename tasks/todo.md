@@ -12,6 +12,13 @@
 - [x] Verify with focused lint/build checks
 - [x] Add review notes for the production timeout investigation and fix
 
+## Active Plan: v20 Floor-Plan Upload Reliability
+- [x] Add a server-side soft deadline inside `/api/analyze-floor-plan` so Sitea returns a JSON timeout response before Vercel can return a plain 504 page
+- [x] Add a stable error code/message for analyzer timeouts and teach the agent upload parser to show the friendly message from the API
+- [x] Keep the agent upload progress calm and trustworthy on mobile/desktop without adding a new full-screen modal
+- [x] Verify without extra paid analyzer calls: focused lint, existing QA where relevant, production build, and `git diff --check`
+- [x] Add v20 review notes with the production problem, code changes, and any remaining risk
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
@@ -104,6 +111,15 @@
 - Increased Vercel function `maxDuration` from `120` to `300` seconds in `vercel.json` so the OpenAI-first floor-plan analyzer has more room to complete real scans.
 - Updated `src/hooks/useAIChat.js` so the agent upload path reads the response body safely and shows a clear timeout/server-error message when Vercel returns non-JSON.
 - Verified with `npx eslint src/hooks/useAIChat.js --format stylish`, `npm run build`, and `git diff --check`.
+
+### v20 Floor-Plan Upload Reliability
+- Tightened the timeout fix after the live upload test exposed a long-running floor-plan analyzer path.
+- Updated `api/analyze-floor-plan.js` so its Vercel function export now matches the 300-second project timeout, instead of still declaring `maxDuration: 120`.
+- Added a 285-second soft deadline inside `/api/analyze-floor-plan`. If analysis runs too long, Sitea now returns JSON with `code: FLOOR_PLAN_ANALYSIS_TIMEOUT`, a friendly retryable message, and HTTP `504` before Vercel can return a plain text timeout page.
+- Kept the existing compact agent panel flow; no new overlay or modal was added.
+- Updated `src/hooks/useAIChat.js` so the agent upload parser recognizes the stable timeout code and shows the API's friendly message.
+- Verification used no fresh paid analyzer calls: `npx eslint api/analyze-floor-plan.js src/hooks/useAIChat.js --format stylish`, `npm run qa:floor-plans:check`, `npm run build`, and `git diff --check`.
+- Remaining risk: a very complex real plan may still exceed the soft deadline, but the user should now see a controlled Sitea message rather than broken JSON or a raw Vercel timeout.
 - Completed Linear issue SIT-6 by adding `generatedBuildings` to scene payload version 3 and restoring it through project/share/local draft loads.
 - Completed Linear issue SIT-7 by adding PDF rendering through `pdfjs-dist`, multi-page controls in the unified upload modal, and PDF support across upload entry points.
 - Added the SIT-9 floor-plan QA harness with three generated baseline PDF fixtures, a manifest, result recorder, summary/check scripts, and documented demo-ready criteria.

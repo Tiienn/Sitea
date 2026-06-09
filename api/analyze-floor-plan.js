@@ -7,9 +7,24 @@ import sharp from 'sharp';
 import { requireActiveSubscription, sendError } from '../server/subscriptions.js';
 import { consumeUploadCreditForUser } from '../server/uploadQuota.js';
 
+const FLOOR_PLAN_MAX_DURATION_SECONDS = 300;
+const FLOOR_PLAN_SOFT_TIMEOUT_MS = Number(process.env.FLOOR_PLAN_SOFT_TIMEOUT_MS || 285000);
+const FLOOR_PLAN_ANALYSIS_TIMEOUT_CODE = 'FLOOR_PLAN_ANALYSIS_TIMEOUT';
+const FLOOR_PLAN_ANALYSIS_TIMEOUT_MESSAGE = 'The floor-plan scan took too long. Please try again, or upload a smaller, clearer image.';
+
 export const config = {
-  maxDuration: 120,
+  maxDuration: FLOOR_PLAN_MAX_DURATION_SECONDS,
 };
+
+function sendFloorPlanTimeout(res) {
+  if (res.headersSent) return;
+  return res.status(504).json({
+    success: false,
+    code: FLOOR_PLAN_ANALYSIS_TIMEOUT_CODE,
+    error: FLOOR_PLAN_ANALYSIS_TIMEOUT_MESSAGE,
+    retryable: true,
+  });
+}
 
 // --- Morphological operations for binary images (0=black/foreground, 255=white) ---
 
@@ -1615,20 +1630,29 @@ export default async function handler(req, res) {
     return sendError(res, error);
   }
 
-  // Resize both images to standard resolution for model input (we control the input = deterministic scaling)
-  const { base64: resizedOriginal, width: geminiW, height: geminiH } = await resizeForGemini(image);
-  const processedImage = await preprocessImage(resizedOriginal);
-  const resizedOriginalMediaType = 'image/png'; // resizeForGemini outputs PNG
-
-  // Scale factor to convert model pixel coords back to actual image coords
-  const coordScaleX = actualWidth / geminiW;
-  const coordScaleY = actualHeight / geminiH;
-  console.log(`[FloorPlan] Model input: ${geminiW}x${geminiH}, scale factor: ${coordScaleX.toFixed(2)}x${coordScaleY.toFixed(2)}`);
-
-  // After preprocessing, image is always PNG
-  const mediaType = 'image/png';
+  let softTimedOut = false;
+  const softTimeout = setTimeout(() => {
+    softTimedOut = true;
+    console.warn(`[FloorPlan API] Soft timeout after ${FLOOR_PLAN_SOFT_TIMEOUT_MS}ms`);
+    sendFloorPlanTimeout(res);
+  }, FLOOR_PLAN_SOFT_TIMEOUT_MS);
+  softTimeout.unref?.();
+  const clearSoftTimeout = () => clearTimeout(softTimeout);
 
   try {
+    // Resize both images to standard resolution for model input (we control the input = deterministic scaling)
+    const { base64: resizedOriginal, width: geminiW, height: geminiH } = await resizeForGemini(image);
+    const processedImage = await preprocessImage(resizedOriginal);
+    const resizedOriginalMediaType = 'image/png'; // resizeForGemini outputs PNG
+
+    // Scale factor to convert model pixel coords back to actual image coords
+    const coordScaleX = actualWidth / geminiW;
+    const coordScaleY = actualHeight / geminiH;
+    console.log(`[FloorPlan] Model input: ${geminiW}x${geminiH}, scale factor: ${coordScaleX.toFixed(2)}x${coordScaleY.toFixed(2)}`);
+
+    // After preprocessing, image is always PNG
+    const mediaType = 'image/png';
+
     const dimensionPromise = (async () => {
       if (knownWidthMeters) return [];
 
@@ -2129,9 +2153,13 @@ export default async function handler(req, res) {
       ocrDimensionsFound: ocrDimensions.length,
     });
 
+    clearSoftTimeout();
+    if (res.headersSent || softTimedOut) return;
     return res.status(200).json(result);
 
   } catch (error) {
+    clearSoftTimeout();
+    if (res.headersSent || softTimedOut) return;
     console.error('[FloorPlan API] Error:', error);
     return res.status(500).json({
       success: false,

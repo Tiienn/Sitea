@@ -145,6 +145,9 @@ async function readFloorPlanAnalysisResponse(response) {
   }
 
   if (!response.ok || data.error) {
+    if (data.code === 'FLOOR_PLAN_ANALYSIS_TIMEOUT') {
+      throw new Error(data.error || FLOOR_PLAN_TIMEOUT_ERROR)
+    }
     if (response.status === 504) {
       throw new Error(FLOOR_PLAN_TIMEOUT_ERROR)
     }
