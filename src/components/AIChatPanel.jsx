@@ -104,6 +104,8 @@ function ToolChip({ action }) {
         return `Set land ${input.length}×${input.width}m`
       case 'set_land_area':
         return `Set land ${input.area}m²`
+      case 'set_demo_land':
+        return 'Demo land set'
       case 'fit_check':
       case 'general_fit_check':
         return 'Checked fit'
@@ -233,6 +235,10 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
 
   const handleMessageAction = (action) => {
     if (isLoading) return
+    if (action.action === 'upload') {
+      fileInputRef.current?.click()
+      return
+    }
     if (action.prompt) {
       handleSuggestion(action.prompt)
       return

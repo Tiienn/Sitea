@@ -1124,10 +1124,49 @@ function buildClarifyOrAct({
   const hasPlacedStructures = placedStructureNames.length > 0
   const hasGeneratedBuildings = generatedBuildings.length > 0
   const hasRooms = rooms.length > 0 || walls.length > 0
+  const hasSceneContext = hasPlacedStructures || hasGeneratedBuildings || hasRooms
   const goalRecommendation = buildProjectGoalRecommendation(projectGoals, {
     hasPlacedStructures,
     layoutStructures,
   })
+
+  if (!hasLand && !hasSceneContext) {
+    const demoLandAction = createDemoLandAction()
+    const suggestedActions = [
+      { label: 'Upload a plan', action: 'upload' },
+      createPromptAction('Set land size', 'Set my land to 40m by 30m'),
+      demoLandAction,
+    ]
+
+    return {
+      content: [
+        'I can help plan this, but first I need the land.',
+        '',
+        'Missing next: land size.',
+        '',
+        'Choose how you want to start:',
+        ...suggestedActions.map(action => `- ${action.label}`),
+      ].join('\n'),
+      decision: {
+        label: 'Start here',
+        title: 'Define the land first',
+        body: 'Once the land is known, I can recommend what to place, compare scale, and build toward your goal.',
+        detail: 'Upload a plan if you have one, enter dimensions if you know them, or use demo land to start immediately.',
+      },
+      nextSteps: [
+        { label: 'Vague request understood', state: 'done' },
+        { label: 'Land needed first', state: 'current' },
+      ],
+      suggestedActions,
+      toolInput: {
+        mode: 'ask_for_land',
+        hasLand,
+        landArea: Math.round(landArea || 0),
+        recommendedAction: demoLandAction,
+        optionLabels: suggestedActions.map(action => action.label),
+      },
+    }
+  }
 
   if (goalRecommendation && !hasGeneratedBuildings && !hasRooms) {
     return {
@@ -1558,12 +1597,29 @@ function buildSiteBrief({
   if (comparisonNames.length > 0) objectParts.push(`scale comparisons: ${formatNameList(comparisonNames)}`)
   if (furnitureItems.length > 0) objectParts.push(`${furnitureItems.length} furniture item${furnitureItems.length === 1 ? '' : 's'}`)
   const objectsLine = objectParts.length > 0 ? objectParts.join('; ') : 'No structures or scale objects placed yet'
+  const hasSceneContext = placedStructureNames.length > 0 || generatedBuildings.length > 0 || walls.length > 0 || rooms.length > 0
   const layoutLine = latestLayoutOption
     ? `${latestLayoutOption.label} is the latest agent layout`
     : 'No agent layout option has been applied yet'
   const goalsLine = projectGoals.length > 0
     ? `${formatProjectGoals(projectGoals)}. ${projectGoals.map(goal => goal.summary).join('; ')}`
     : 'No saved goals yet'
+  const missingNextLine = !hasLand && !hasSceneContext
+    ? 'land size'
+    : projectGoals.length === 0
+      ? 'project goal'
+      : null
+  const landIntakeActions = [
+    { label: 'Upload a plan', action: 'upload' },
+    createPromptAction('Set land size', 'Set my land to 40m by 30m'),
+    createDemoLandAction(),
+  ]
+  const needsLandFirst = !hasLand && !hasSceneContext
+  const siteBriefTitle = needsLandFirst ? 'define the land first' : decision.decision.title
+  const siteBriefBody = needsLandFirst
+    ? 'the land needs to be known before I can make useful placement promises.'
+    : decision.decision.body
+  const siteBriefActions = needsLandFirst ? landIntakeActions : decision.suggestedActions
 
   return {
     content: [
@@ -1571,17 +1627,18 @@ function buildSiteBrief({
       '',
       `Site: ${landLine}. ${boundaryLine}. ${setbackLine}.`,
       `Goals: ${goalsLine}.`,
+      missingNextLine ? `Missing next: ${missingNextLine}.` : null,
       `Plans: ${plansLine}.`,
       `Scene: ${objectsLine}.`,
       `Agent memory: ${layoutLine}.`,
       '',
-      `Best next move: ${decision.decision.title}.`,
-      `Why: ${decision.decision.body}`,
-    ].join('\n'),
+      `Best next move: ${siteBriefTitle}.`,
+      `Why: ${siteBriefBody}`,
+    ].filter(Boolean).join('\n'),
     decision: {
       label: 'Site brief',
-      title: decision.decision.title,
-      body: decision.decision.body,
+      title: siteBriefTitle,
+      body: siteBriefBody,
       detail: `Sitea knows ${hasLand ? formatArea(landArea) : 'unconfirmed land'}, ${projectGoals.length ? `goals for ${formatProjectGoals(projectGoals).toLowerCase()}` : 'no saved goals yet'}, ${plansLine.toLowerCase()}, and ${objectsLine.toLowerCase()}.`,
     },
     nextSteps: [
@@ -1589,7 +1646,7 @@ function buildSiteBrief({
       { label: hasLand ? 'Site context summarized' : 'Land still needs confirmation', state: 'done' },
       { label: 'Choose the next action or say do it', state: 'current' },
     ],
-    suggestedActions: decision.suggestedActions,
+    suggestedActions: siteBriefActions,
     toolInput: {
       ...decision.toolInput,
       landArea: Math.round(landArea || 0),
@@ -1606,6 +1663,9 @@ function buildSiteBrief({
       activeComparisonNames: comparisonNames,
       projectGoalIds: projectGoals.map(goal => goal.id),
       projectGoalLabels: projectGoals.map(goal => goal.label),
+      missingNext: missingNextLine,
+      recommendedAction: needsLandFirst ? landIntakeActions[2] : decision.toolInput.recommendedAction,
+      optionLabels: siteBriefActions.map(action => action.label),
       latestLayoutOptionId: latestLayoutOption?.id || null,
     },
   }
@@ -1883,6 +1943,16 @@ function createBoundaryReviewAction(label = 'Review boundary') {
   }
 }
 
+function createDemoLandAction(label = 'Use demo land') {
+  return {
+    type: 'set_demo_land',
+    label,
+    length: 55,
+    width: 50,
+    toast: 'Demo land ready • 2750m²',
+  }
+}
+
 function buildFitLine(object, landArea) {
   const fit = getObjectFit(object, landArea)
   if (fit.count === null) {
@@ -1945,6 +2015,10 @@ function buildTextSceneAction(text, { landArea }) {
   const landAreaDimensions = parseLandAreaCommand(normalizedText)
   if (landAreaDimensions) {
     return { type: 'set_land_area', ...landAreaDimensions }
+  }
+
+  if (/\b(use|start with|set|make)\b.*\bdemo land\b/.test(normalizedText) || /\bdemo land\b.*\b(use|start|set|make)\b/.test(normalizedText)) {
+    return createDemoLandAction()
   }
 
   if (isUndoAgentStructureRequest(normalizedText)) {
@@ -2556,6 +2630,34 @@ export function useAIChat({
       return true
     }
 
+    if (action.type === 'set_demo_land') {
+      const length = action.length || 55
+      const width = action.width || 50
+      const result = onSceneControl?.({ type: 'set_land_dimensions', length, width })
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: `Done. I set up demo land at ${formatMeters(length)} x ${formatMeters(width)} (${formatArea(length * width)}) so we can start planning immediately.`,
+        nextSteps: [
+          { label: 'Demo land set', state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: 'Tell me your goal or say make it better', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'set_demo_land',
+          input: {
+            source: 'text_command',
+            length,
+            width,
+            area: Math.round(length * width),
+            reason: result?.reason,
+          },
+          success: result !== false,
+        }],
+      }])
+      onVisualHandoff?.({ toast: action.toast || 'Demo land ready' })
+      return true
+    }
+
     if (action.type === 'offer_structure_layout_options') {
       pendingStructureLayoutRef.current = {
         structures: action.structures.map(structure => ({ ...structure })),
@@ -2889,6 +2991,34 @@ export function useAIChat({
           onVisualHandoff?.({ toast: agentRecommendation.toast || `${comparison.displayName} added • drag or rotate it to compare scale` })
           return true
         }
+      }
+
+      if (agentRecommendation?.type === 'set_demo_land') {
+        const length = agentRecommendation.length || 55
+        const width = agentRecommendation.width || 50
+        const result = onSceneControl?.({ type: 'set_land_dimensions', length, width })
+        setMessages(prev => [...prev, userMsg, {
+          role: 'assistant',
+          content: `Done. I set up demo land at ${formatMeters(length)} x ${formatMeters(width)} (${formatArea(length * width)}) so we can start planning immediately.`,
+          nextSteps: [
+            { label: 'Demo land set', state: 'done' },
+            { label: '3D scene opened', state: 'done' },
+            { label: 'Tell me your goal or say make it better', state: 'current' },
+          ],
+          toolActions: [{
+            name: 'set_demo_land',
+            input: {
+              source: 'intake_follow_through',
+              length,
+              width,
+              area: Math.round(length * width),
+              reason: result?.reason,
+            },
+            success: result !== false,
+          }],
+        }])
+        onVisualHandoff?.({ toast: agentRecommendation.toast || 'Demo land ready' })
+        return true
       }
 
       if (agentRecommendation?.prompt) {
@@ -3716,6 +3846,39 @@ export function useAIChat({
           ? 'Done. I opened the land boundary tools so you can review the uploaded site plan outline.'
           : 'I could not open the boundary review tools yet. Use the Land panel to check the uploaded site plan.',
       }])
+      return
+    }
+
+    if (action.type === 'set_demo_land') {
+      const length = action.length || 55
+      const width = action.width || 50
+      const result = onSceneControl?.({ type: 'set_land_dimensions', length, width })
+      setMessages(prev => [...prev, {
+        role: 'user',
+        content: action.label,
+        displayText: action.label,
+        hasImage: false,
+      }, {
+        role: 'assistant',
+        content: `Done. I set up demo land at ${formatMeters(length)} x ${formatMeters(width)} (${formatArea(length * width)}) so we can start planning immediately.`,
+        nextSteps: [
+          { label: 'Demo land set', state: 'done' },
+          { label: '3D scene opened', state: 'done' },
+          { label: 'Tell me your goal or say make it better', state: 'current' },
+        ],
+        toolActions: [{
+          name: 'set_demo_land',
+          input: {
+            source: 'action_button',
+            length,
+            width,
+            area: Math.round(length * width),
+            reason: result?.reason,
+          },
+          success: result !== false,
+        }],
+      }])
+      onVisualHandoff?.({ toast: action.toast || 'Demo land ready' })
       return
     }
 

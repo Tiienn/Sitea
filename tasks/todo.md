@@ -1493,3 +1493,33 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - Added a `Saved goals` tool chip label in `src/components/AIChatPanel.jsx`.
 - Extended `scripts/agent-text-actions-qa.mjs` with desktop goal capture, mobile Site Brief with goals, and desktop goal follow-through coverage.
 - Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.
+
+---
+
+# Agent Intake Flow v16
+
+## Todo
+- [x] Confirm v15 is committed, pushed, deployed, and the working tree is clean.
+- [x] Read the current clarify-or-act, Site Brief, land-size help, goal memory, scene-control, and text-action QA paths.
+- [x] Add a first-minute intake model that detects the missing next requirement: land, goal, or action.
+- [x] When land is missing, make vague planning prompts guide users toward `Upload a plan`, `Set land size`, or `Use demo land`.
+- [x] When land exists but no goal exists, keep the v15 one-question priority flow.
+- [x] When land and goal/context exist, immediately recommend a safe next action with `do it` follow-through.
+- [x] Let Site Brief show a `Missing next:` line for land size or project goal when either is absent.
+- [x] Add a local `Use demo land` action that sets a reasonable demo plot through existing scene-control plumbing.
+- [x] Preserve existing v6-v15 commands, upload analyzer behavior, visual handoff, and no paid AI route.
+- [x] Extend `npm run qa:agent-text-actions` with first-run vague prompt, use-demo-land, and Site Brief missing-next cases on desktop/mobile.
+- [x] Run focused lint/QA/build checks, update Linear, and complete this review section.
+
+## Review
+- Direction: v16 should make Sitea better in the first minute, especially when a new user starts with a vague request.
+- Scope guard: use local parser, existing chat state, and existing scene-control actions only. No new paid route, no new storage table, no broad UI redesign, and no placement-engine rewrite.
+- Product goal: Sitea should calmly identify what is missing next and offer one step that moves the user toward a useful visual result.
+- Implemented `set_demo_land` using the existing `set_land_dimensions` scene-control path at `55m x 50m` / `2750m²`.
+- `clarify_or_act` now asks for land first only when there is no known land and no scene context, preserving post-layout vague prompts from v15.
+- Missing-land intake now offers `Upload a plan`, `Set land size`, and `Use demo land`; the upload action opens the existing file picker.
+- Site Brief now shows `Missing next: land size` for true empty-start sessions and `Missing next: project goal` when a site exists but no goal has been captured.
+- Site Brief and missing-land intake both save `Use demo land` as the recommended action, so `do it` sets the demo plot locally.
+- Added typed `Use demo land`, action-button, and follow-through paths, all without paid AI calls or new persistence.
+- Extended the agent text-action QA with desktop/mobile missing-land intake, demo-land click, and Site Brief follow-through cases.
+- Verification passed: focused ESLint for changed files, `git diff --check`, `npm run qa:agent-text-actions`, `npm run lint -- --quiet`, and `npm run build`.

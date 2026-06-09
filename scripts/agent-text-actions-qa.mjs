@@ -390,14 +390,37 @@ const CASES = [
     name: 'desktop-vague-empty-asks-priority',
     viewport: 'desktop',
     prompt: 'Design my site',
-    expectedStoredText: 'Question: what should Sitea optimize first?',
+    expectedStoredText: 'Missing next: land size',
     expectedToolActionName: 'clarify_or_act',
+    expectChatVisible: true,
+  },
+  {
+    name: 'desktop-vague-empty-use-demo-land',
+    viewport: 'desktop',
+    prompt: 'Help me plan this',
+    expectedPromptText: 'Missing next: land size',
+    clickActionLabel: 'Use demo land',
+    expectedStoredText: 'I set up demo land',
+    expectedToast: 'Demo land ready',
+    expectedToolActionName: 'set_demo_land',
+    expectChatVisibleAfterClick: false,
+  },
+  {
+    name: 'mobile-site-brief-missing-land',
+    viewport: 'mobile',
+    prompt: 'Site brief',
+    expectedStoredText: 'Missing next: land size',
+    expectedToolActionName: 'site_brief',
     expectChatVisible: true,
   },
   {
     name: 'mobile-vague-goal-follow-through',
     viewport: 'mobile',
     setupPrompts: [
+      {
+        prompt: 'Use demo land',
+        expectedStoredText: 'I set up demo land',
+      },
       {
         prompt: 'I want privacy',
         expectedStoredText: 'Goal saved: Privacy',
@@ -422,13 +445,14 @@ const CASES = [
     setupPrompts: [
       {
         prompt: 'Site brief',
-        expectedStoredText: 'Best next move: make a simple home layout',
+        expectedStoredText: 'Best next move: define the land first',
       },
     ],
     prompt: 'Do it',
-    expectedStoredText: 'I can lay out a medium house, a garage, and a swimming pool three ways',
-    expectedToolActionName: 'offer_structure_layout_options',
-    expectChatVisible: true,
+    expectedStoredText: 'I set up demo land',
+    expectedToast: 'Demo land ready',
+    expectedToolActionName: 'set_demo_land',
+    expectChatVisible: false,
   },
   {
     name: 'mobile-scene-next-step-empty',
@@ -772,6 +796,7 @@ async function readAudit(page, expectedToast) {
       action.name === 'site_brief' ||
       action.name === 'summarize_scene' ||
       action.name === 'recommend_next_step' ||
+      action.name === 'set_demo_land' ||
       action.name === 'handoff_to_scene' ||
       action.name === 'activate_comparison' ||
       action.name === 'review_site_boundary' ||
