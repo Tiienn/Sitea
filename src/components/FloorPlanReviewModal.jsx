@@ -13,6 +13,7 @@ import {
   getReviewOpeningForDetection,
   getReviewWallForDetection,
   isDetectionHidden,
+  moveReviewOpeningToPoint,
   moveReviewWallEndpoint,
   nudgeManualOpeningAlongWall,
   retargetManualOpeningToWall,
@@ -166,6 +167,24 @@ function drawWallEndpointHandles(ctx, geometry, activeEndpoint = null) {
   })
 }
 
+function drawOpeningDragHandle(ctx, geometry) {
+  const x = (geometry.x1 + geometry.x2) / 2
+  const y = (geometry.y1 + geometry.y2) / 2
+
+  ctx.beginPath()
+  ctx.arc(x, y, 8, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.9)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(250, 204, 21, 0.96)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.arc(x, y, 2.5, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(250, 204, 21, 0.96)'
+  ctx.fill()
+}
+
 function drawLinearElement(ctx, item, scale, offsetX, offsetY, color, fallbackLength = 28, selected = false, showEndpointHandles = false, activeEndpoint = null) {
   const geometry = getLinearGeometry(item, scale, offsetX, offsetY, fallbackLength)
   if (!geometry) return null
@@ -190,6 +209,8 @@ function drawLinearElement(ctx, item, scale, offsetX, offsetY, color, fallbackLe
 
   if (showEndpointHandles) {
     drawWallEndpointHandles(ctx, geometry, activeEndpoint)
+  } else if (selected) {
+    drawOpeningDragHandle(ctx, geometry)
   }
 
   return { kind: 'line', ...geometry }
@@ -210,13 +231,18 @@ function FloorPlanReviewCanvas({
   onAddOpeningPoint,
   onRetargetWall,
   onMoveWallEndpointPoint,
+  onDragWallEndpoint,
+  onDragOpening,
   onSelectDetection,
 }) {
   const canvasRef = useRef(null)
   const frameRef = useRef(null)
   const interactiveItemsRef = useRef([])
   const renderInfoRef = useRef(null)
+  const dragStateRef = useRef(null)
+  const suppressClickRef = useRef(false)
   const [frameWidth, setFrameWidth] = useState(720)
+  const [dragKind, setDragKind] = useState(null)
 
   useEffect(() => {
     const frame = frameRef.current
@@ -265,7 +291,7 @@ function FloorPlanReviewCanvas({
       ctx.globalCompositeOperation = 'source-over'
 
       const interactiveItems = []
-      const addInteractiveItem = (type, index, item, geometry, hitPadding = 12) => {
+      const addInteractiveItem = (type, index, item, geometry, hitPadding = 12, extra = {}) => {
         if (!geometry) return
         const key = getDetectionKey(type, index)
         interactiveItems.push({
@@ -275,6 +301,27 @@ function FloorPlanReviewCanvas({
           index,
           label: getDetectionLabel(type, index, item),
           hitPadding,
+          ...extra,
+        })
+      }
+      const addEndpointItems = (type, index, item, geometry) => {
+        if (!geometry) return
+        const key = getDetectionKey(type, index)
+        const label = getDetectionLabel(type, index, item)
+        ;[
+          { endpoint: 'start', x: geometry.x1, y: geometry.y1 },
+          { endpoint: 'end', x: geometry.x2, y: geometry.y2 },
+        ].forEach(endpointItem => {
+          interactiveItems.push({
+            kind: 'point',
+            key,
+            type,
+            index,
+            label,
+            hitPadding: 20,
+            dragType: 'wallEndpoint',
+            ...endpointItem,
+          })
         })
       }
 
@@ -296,6 +343,7 @@ function FloorPlanReviewCanvas({
           selected ? moveWallEndpointMode : null,
         )
         addInteractiveItem('walls', index, editedWall, geometry, 12)
+        if (selected) addEndpointItems('walls', index, editedWall, geometry)
       })
       ;(analysis?.doors || []).forEach((door, index) => {
         if (isDetectionHidden(hiddenDetections, 'doors', index)) return
@@ -303,7 +351,7 @@ function FloorPlanReviewCanvas({
         const selected = selectedDetection?.key === key
         const editedDoor = getReviewOpeningForDetection(analysis, addedDetections, { type: 'doors', index }) || door
         const geometry = drawLinearElement(ctx, editedDoor, scale, 0, 0, 'rgba(245, 158, 11, 0.95)', 34, selected)
-        addInteractiveItem('doors', index, editedDoor, geometry, 14)
+        addInteractiveItem('doors', index, editedDoor, geometry, selected ? 20 : 14, selected ? { dragType: 'opening' } : {})
       })
       ;(analysis?.windows || []).forEach((windowItem, index) => {
         if (isDetectionHidden(hiddenDetections, 'windows', index)) return
@@ -311,7 +359,7 @@ function FloorPlanReviewCanvas({
         const selected = selectedDetection?.key === key
         const editedWindow = getReviewOpeningForDetection(analysis, addedDetections, { type: 'windows', index }) || windowItem
         const geometry = drawLinearElement(ctx, editedWindow, scale, 0, 0, 'rgba(6, 182, 212, 0.95)', 32, selected)
-        addInteractiveItem('windows', index, editedWindow, geometry, 14)
+        addInteractiveItem('windows', index, editedWindow, geometry, selected ? 20 : 14, selected ? { dragType: 'opening' } : {})
       })
       ;(analysis?.rooms || []).forEach((room, index) => {
         if (isDetectionHidden(hiddenDetections, 'rooms', index)) return
@@ -332,18 +380,19 @@ function FloorPlanReviewCanvas({
         const selected = selectedDetection?.key === key
         const geometry = drawLinearElement(ctx, wall, scale, 0, 0, 'rgba(244, 114, 182, 0.98)', 28, selected, selected, selected ? moveWallEndpointMode : null)
         addInteractiveItem('addedWalls', index, wall, geometry, 14)
+        if (selected) addEndpointItems('addedWalls', index, wall, geometry)
       })
       ;(addedDetections?.doors || []).forEach((door, index) => {
         const key = getDetectionKey('addedDoors', index)
         const selected = selectedDetection?.key === key
         const geometry = drawLinearElement(ctx, door, scale, 0, 0, 'rgba(251, 113, 133, 0.98)', 34, selected)
-        addInteractiveItem('addedDoors', index, door, geometry, 16)
+        addInteractiveItem('addedDoors', index, door, geometry, selected ? 20 : 16, selected ? { dragType: 'opening' } : {})
       })
       ;(addedDetections?.windows || []).forEach((windowItem, index) => {
         const key = getDetectionKey('addedWindows', index)
         const selected = selectedDetection?.key === key
         const geometry = drawLinearElement(ctx, windowItem, scale, 0, 0, 'rgba(56, 189, 248, 0.98)', 38, selected)
-        addInteractiveItem('addedWindows', index, windowItem, geometry, 16)
+        addInteractiveItem('addedWindows', index, windowItem, geometry, selected ? 20 : 16, selected ? { dragType: 'opening' } : {})
       })
       if (pendingWallPoint) {
         const x = pendingWallPoint.x * scale
@@ -366,68 +415,146 @@ function FloorPlanReviewCanvas({
     }
   }, [addedDetections, analysis, frameWidth, hiddenDetections, moveWallEndpointMode, pendingWallPoint, selectedDetection, sourceImage])
 
-  const handleCanvasClick = useCallback((event) => {
+  const getCanvasPoint = useCallback((event) => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas) return null
 
     const rect = canvas.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-
-    if (addWallMode) {
-      const renderInfo = renderInfoRef.current
-      if (!renderInfo) return
-      onAddWallPoint({
-        x: clamp(x / renderInfo.scale, 0, renderInfo.naturalWidth),
-        y: clamp(y / renderInfo.scale, 0, renderInfo.naturalHeight),
-      })
-      return
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
     }
+  }, [])
 
-    if (addOpeningMode) {
-      const renderInfo = renderInfoRef.current
-      if (!renderInfo) return
-      onAddOpeningPoint({
-        x: clamp(x / renderInfo.scale, 0, renderInfo.naturalWidth),
-        y: clamp(y / renderInfo.scale, 0, renderInfo.naturalHeight),
-      })
-      return
+  const getSourcePoint = useCallback((event) => {
+    const canvasPoint = getCanvasPoint(event)
+    const renderInfo = renderInfoRef.current
+    if (!canvasPoint || !renderInfo) return null
+
+    return {
+      x: clamp(canvasPoint.x / renderInfo.scale, 0, renderInfo.naturalWidth),
+      y: clamp(canvasPoint.y / renderInfo.scale, 0, renderInfo.naturalHeight),
     }
+  }, [getCanvasPoint])
 
-    if (moveWallEndpointMode) {
-      const renderInfo = renderInfoRef.current
-      if (!renderInfo) return
-      onMoveWallEndpointPoint({
-        x: clamp(x / renderInfo.scale, 0, renderInfo.naturalWidth),
-        y: clamp(y / renderInfo.scale, 0, renderInfo.naturalHeight),
-      })
-      return
-    }
-
-    if (retargetWallMode) {
-      let bestWall = null
-      let bestWallDistance = Infinity
-      interactiveItemsRef.current.forEach(item => {
-        if (item.type !== 'walls' && item.type !== 'addedWalls') return
-        const distance = getHitDistance(x, y, item)
-        if (distance <= item.hitPadding && distance < bestWallDistance) {
-          bestWallDistance = distance
-          bestWall = item
-        }
-      })
-      if (bestWall) onRetargetWall(bestWall)
-      return
-    }
-
+  const findBestInteractiveItem = useCallback((x, y, predicate = () => true) => {
     let bestMatch = null
     let bestDistance = Infinity
+
     interactiveItemsRef.current.forEach(item => {
+      if (!predicate(item)) return
       const distance = getHitDistance(x, y, item)
       if (distance <= item.hitPadding && distance < bestDistance) {
         bestDistance = distance
         bestMatch = item
       }
     })
+
+    return bestMatch
+  }, [])
+
+  const getDetectionFromItem = useCallback((item) => {
+    if (!item) return null
+    return {
+      type: item.type,
+      index: item.index,
+      key: item.key,
+      label: item.label,
+    }
+  }, [])
+
+  const handleCanvasPointerDown = useCallback((event) => {
+    if (event.button !== 0 || addWallMode || addOpeningMode || retargetWallMode || moveWallEndpointMode) return
+    const canvasPoint = getCanvasPoint(event)
+    if (!canvasPoint) return
+    const dragTarget = findBestInteractiveItem(canvasPoint.x, canvasPoint.y, item => (
+      item.key === selectedDetection?.key && (item.dragType === 'wallEndpoint' || item.dragType === 'opening')
+    ))
+    if (!dragTarget) return
+
+    event.preventDefault()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: canvasPoint.x,
+      startY: canvasPoint.y,
+      moved: false,
+      item: dragTarget,
+    }
+    setDragKind(dragTarget.dragType)
+  }, [addOpeningMode, addWallMode, findBestInteractiveItem, getCanvasPoint, moveWallEndpointMode, retargetWallMode, selectedDetection?.key])
+
+  const handleCanvasPointerMove = useCallback((event) => {
+    const dragState = dragStateRef.current
+    if (!dragState || dragState.pointerId !== event.pointerId) return
+
+    const canvasPoint = getCanvasPoint(event)
+    const sourcePoint = getSourcePoint(event)
+    if (!canvasPoint || !sourcePoint) return
+
+    const movedDistance = Math.hypot(canvasPoint.x - dragState.startX, canvasPoint.y - dragState.startY)
+    if (!dragState.moved && movedDistance < 3) return
+
+    dragState.moved = true
+    suppressClickRef.current = true
+    const detection = getDetectionFromItem(dragState.item)
+
+    if (dragState.item.dragType === 'wallEndpoint') {
+      onDragWallEndpoint(detection, dragState.item.endpoint, sourcePoint)
+    } else if (dragState.item.dragType === 'opening') {
+      onDragOpening(detection, sourcePoint)
+    }
+    event.preventDefault()
+  }, [getCanvasPoint, getDetectionFromItem, getSourcePoint, onDragOpening, onDragWallEndpoint])
+
+  const finishCanvasPointerDrag = useCallback((event) => {
+    const dragState = dragStateRef.current
+    if (!dragState || dragState.pointerId !== event.pointerId) return
+
+    if (dragState.moved) {
+      suppressClickRef.current = true
+      event.preventDefault()
+    }
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    dragStateRef.current = null
+    setDragKind(null)
+  }, [])
+
+  const handleCanvasClick = useCallback((event) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
+
+    const canvasPoint = getCanvasPoint(event)
+    if (!canvasPoint) return
+    const { x, y } = canvasPoint
+
+    if (addWallMode) {
+      const sourcePoint = getSourcePoint(event)
+      if (sourcePoint) onAddWallPoint(sourcePoint)
+      return
+    }
+
+    if (addOpeningMode) {
+      const sourcePoint = getSourcePoint(event)
+      if (sourcePoint) onAddOpeningPoint(sourcePoint)
+      return
+    }
+
+    if (moveWallEndpointMode) {
+      const sourcePoint = getSourcePoint(event)
+      if (sourcePoint) onMoveWallEndpointPoint(sourcePoint)
+      return
+    }
+
+    if (retargetWallMode) {
+      const bestWall = findBestInteractiveItem(x, y, item => item.type === 'walls' || item.type === 'addedWalls')
+      if (bestWall) onRetargetWall(bestWall)
+      return
+    }
+
+    const bestMatch = findBestInteractiveItem(x, y)
 
     if (!bestMatch) {
       onSelectDetection(null)
@@ -440,14 +567,27 @@ function FloorPlanReviewCanvas({
       key: bestMatch.key,
       label: bestMatch.label,
     })
-  }, [addOpeningMode, addWallMode, moveWallEndpointMode, onAddOpeningPoint, onAddWallPoint, onMoveWallEndpointPoint, onRetargetWall, onSelectDetection, retargetWallMode])
+  }, [addOpeningMode, addWallMode, findBestInteractiveItem, getCanvasPoint, getSourcePoint, moveWallEndpointMode, onAddOpeningPoint, onAddWallPoint, onMoveWallEndpointPoint, onRetargetWall, onSelectDetection, retargetWallMode])
+
+  const canvasCursor = addWallMode || addOpeningMode || retargetWallMode || moveWallEndpointMode
+    ? 'cursor-crosshair'
+    : dragKind
+      ? 'cursor-grabbing'
+      : selectedDetection?.type === 'walls' || selectedDetection?.type === 'addedWalls' || selectedDetection?.type === 'doors' || selectedDetection?.type === 'windows' || selectedDetection?.type === 'addedDoors' || selectedDetection?.type === 'addedWindows'
+        ? 'cursor-grab'
+        : 'cursor-pointer'
 
   return (
     <div ref={frameRef} className="w-full rounded-2xl border border-white/10 bg-slate-950/50 p-3 overflow-auto">
       <canvas
         ref={canvasRef}
+        onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handleCanvasPointerMove}
+        onPointerUp={finishCanvasPointerDrag}
+        onPointerCancel={finishCanvasPointerDrag}
         onClick={handleCanvasClick}
-        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${addWallMode || addOpeningMode || retargetWallMode || moveWallEndpointMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
+        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${canvasCursor}`}
+        style={{ touchAction: 'none' }}
       />
     </div>
   )
@@ -690,6 +830,12 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     setMoveWallEndpointMode(null)
   }, [analysis, moveWallEndpointMode, selectedDetection, selectedWall])
 
+  const dragWallEndpoint = useCallback((detection, endpoint, point) => {
+    if (!detection || !endpoint || !point) return
+    setSelectedDetection(detection)
+    setAddedDetections(prev => moveReviewWallEndpoint(prev, detection, endpoint, point, analysis))
+  }, [analysis])
+
   const retargetSelectedOpening = useCallback((wallItem) => {
     if (!selectedOpening?.opening || !selectedDetection || !wallItem?.key) return
     setAddedDetections(prev => {
@@ -716,6 +862,12 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     })
   }, [analysis, hiddenDetections, selectedDetection, selectedOpening])
 
+  const dragOpening = useCallback((detection, point) => {
+    if (!detection || !point) return
+    setSelectedDetection(detection)
+    setAddedDetections(prev => moveReviewOpeningToPoint(prev, detection, point, analysis, hiddenDetections))
+  }, [analysis, hiddenDetections])
+
   const placeCorrectedPlan = useCallback(() => {
     onPlace(correctedFloorPlan)
   }, [correctedFloorPlan, onPlace])
@@ -731,10 +883,10 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       ? 'Tap the wall this opening belongs to.'
     : addOpeningMode === 'door'
       ? 'Tap the wall where the missing door belongs. Sitea will snap it to the nearest visible wall.'
-      : addOpeningMode === 'window'
-        ? 'Tap the wall where the missing window belongs. Sitea will snap it to the nearest visible wall.'
+    : addOpeningMode === 'window'
+      ? 'Tap the wall where the missing window belongs. Sitea will snap it to the nearest visible wall.'
     : selectedDetection
-      ? `Selected: ${selectedDetection.label}`
+      ? `Selected: ${selectedDetection.label}. Drag the highlighted handle or use the controls below.`
       : 'Tap a detected item to inspect it, or add missing walls, doors, or windows.'
 
   return (
@@ -784,6 +936,8 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
             onAddOpeningPoint={handleAddOpeningPoint}
             onRetargetWall={retargetSelectedOpening}
             onMoveWallEndpointPoint={moveSelectedWallEndpoint}
+            onDragWallEndpoint={dragWallEndpoint}
+            onDragOpening={dragOpening}
             onSelectDetection={handleSelectDetection}
           />
 
@@ -857,7 +1011,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                   <div>
                     <p className="text-sm font-semibold text-white">Wall endpoints</p>
                     <p className="text-xs leading-5 text-slate-400">
-                      Move one end of the selected wall to match the plan line.
+                      Drag the S/E handles on the plan, or tap a button and then tap the correct point.
                     </p>
                   </div>
                 </div>
@@ -916,7 +1070,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 <div className="mt-4 border-t border-white/10 pt-3">
                   <p className="mb-2 text-sm font-semibold text-white">Position</p>
                   <p className="mb-3 text-xs leading-5 text-slate-400">
-                    Move the selected opening or attach it to another wall.
+                    Drag the highlighted opening on the plan, nudge it, or attach it to another wall.
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <button

@@ -1,5 +1,28 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v31 Direct Drag Handles
+- [x] Keep v31 scoped to direct review-modal manipulation in `FloorPlanReviewModal`: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no broad floor-plan editor rebuild
+- [x] Add shared helper logic for moving a selected door/window to a pointer location while preserving preset width, type, snap metadata, and corrected analyzer output
+- [x] Add pointer-safe drag state to the review canvas so clicks still select items, while drags update geometry without accidental hide/add/retarget actions
+- [x] Let selected wall endpoint handles be dragged directly in source-image coordinates, reusing the v29 endpoint correction path for detected and manually added walls
+- [x] Let selected detected/manual doors and windows be dragged along their snapped wall, with unsnapped openings snapping to the nearest visible wall before moving
+- [x] Add subtle drag affordances to the overlay and correction copy without crowding the mobile modal or changing existing 44px-safe buttons
+- [x] Preserve all existing backup controls: `Move start`, `Move end`, opening presets, `Back`, `Forward`, `Pick wall`, hide/restore, manual add wall/door/window, and `Place in 3D`
+- [x] Extend no-cost review QA to assert direct wall endpoint drag helpers, direct opening drag helpers, snapped-wall preservation, nearest-wall fallback, corrected analyzer payloads, and 3D conversion counts
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v31 review notes with what direct dragging improves and what remains for resize handles or post-placement 3D editing
+
+### v31 Review
+- Direction: v31 makes the floor-plan review loop feel more direct by letting users drag selected correction handles instead of relying only on tap-and-button controls.
+- Scope stayed inside the review modal and shared correction helper: no paid analyzer call, no provider switch, no broad editor rebuild, and no 3D renderer rewrite.
+- Selected walls now expose draggable `S` and `E` endpoint handles. Dragging them reuses the v29 endpoint correction path for detected and manually added walls.
+- Selected detected/manual doors and windows now expose a small drag handle. Dragging moves the opening along its snapped wall, preserving width, preset, door type, and corrected analyzer metadata.
+- Openings without snap metadata snap to the nearest visible wall when dragged, preserving the v25 nearest-wall behavior.
+- Existing controls remain intact as backup: `Move start`, `Move end`, opening presets, `Back`, `Forward`, `Pick wall`, hide/restore, manual add wall/door/window, and `Place in 3D`.
+- Extended `npm run qa:floor-plans:review` to assert direct opening drag behavior, snapped-wall preservation, nearest-wall fallback, corrected analyzer payloads, and 3D conversion.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local in-app browser smoke test. Existing generated QA report/fixture churn was restored before final diff.
+- Remaining limitation: v31 does not add visual resize handles for opening width and does not make generated 3D openings editable after placement.
+
 ## Active Plan: Fix Production Subscription Gate
 - [x] Update `server/subscriptions.js` so server-side subscription checks keep the authenticated user's bearer token when querying `subscriptions`
 - [x] Verify the fix with focused lint/build checks

@@ -16,6 +16,7 @@ import {
   getReviewOpeningForDetection,
   getReviewWallForDetection,
   getReviewPixelsPerMeter,
+  moveReviewOpeningToPoint,
   moveReviewWallEndpoint,
   nudgeManualOpeningAlongWall,
   retargetManualOpeningToWall,
@@ -41,6 +42,15 @@ function getWallLengthPx(wall) {
 
 function getWallAngle(wall) {
   return Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x)
+}
+
+function getPointAlongWall(wall, positionAlongWall) {
+  const length = getWallLengthPx(wall)
+  const t = Math.max(0, Math.min(1, positionAlongWall / length))
+  return {
+    x: wall.start.x + (wall.end.x - wall.start.x) * t,
+    y: wall.start.y + (wall.end.y - wall.start.y) * t,
+  }
 }
 
 const analysis = JSON.parse(readFileSync(rawFixturePath, 'utf8'))
@@ -201,10 +211,49 @@ const addedDetections = {
   doors: [manualDoor],
   windows: [manualWindow],
 }
+const manualDoorDragPoint = getPointAlongWall(
+  analysis.walls[manualDoor.snap.wallIndex],
+  manualDoor.positionAlongWall + nudgeStep * 2,
+)
+const withDraggedManualDoor = moveReviewOpeningToPoint(
+  addedDetections,
+  { type: 'addedDoors', index: 0 },
+  manualDoorDragPoint,
+  analysis,
+  hiddenDetections,
+)
+const draggedManualDoor = getReviewOpeningForDetection(analysis, withDraggedManualDoor, { type: 'addedDoors', index: 0 })
+const detectedDoorDragPoint = getPointAlongWall(
+  analysis.walls[editedDetectedDoor.snap.wallIndex],
+  editedDetectedDoor.positionAlongWall + nudgeStep * 2,
+)
+const withDraggedDetectedDoor = moveReviewOpeningToPoint(
+  withEditedDetectedDoor,
+  { type: 'doors', index: editedDetectedDoorIndex },
+  detectedDoorDragPoint,
+  analysis,
+  hiddenDetections,
+)
+const draggedDetectedDoor = getReviewOpeningForDetection(analysis, withDraggedDetectedDoor, { type: 'doors', index: editedDetectedDoorIndex })
+const unsnappedManualDoor = applyManualOpeningPreset({
+  center: unsnappedOpening.center,
+  rotation: unsnappedOpening.rotation,
+  confidence: 1,
+  source: 'manual_review',
+}, 'door', 'single', analysis)
+const withDraggedUnsnappedDoor = moveReviewOpeningToPoint(
+  { walls: [], doors: [unsnappedManualDoor], windows: [] },
+  { type: 'addedDoors', index: 0 },
+  doorTap,
+  analysis,
+  hiddenDetections,
+)
+const draggedUnsnappedDoor = getReviewOpeningForDetection(analysis, withDraggedUnsnappedDoor, { type: 'addedDoors', index: 0 })
 const hiddenOnlyFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections)
 const editedDetectedWallFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withEditedDetectedWall)
 const editedAddedWallFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withEditedAddedWall)
 const editedDetectedOpeningFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withEditedDetectedOpenings)
+const draggedDetectedOpeningFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withDraggedDetectedDoor)
 const correctedAnalysis = applyReviewCorrections(analysis, hiddenDetections, addedDetections)
 const correctedFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, addedDetections)
 const visibleCounts = countVisibleDetections(analysis, hiddenDetections, addedDetections)
@@ -262,6 +311,17 @@ assert(nudgedDoor.snap?.wallKey === manualDoor.snap?.wallKey, 'Nudge should pres
 assert(nudgedDoor.presetId === manualDoor.presetId && nudgedDoor.doorType === manualDoor.doorType, 'Nudge should preserve preset and door type')
 assert(Math.abs(nudgedDoor.positionAlongWall - manualDoor.positionAlongWall - nudgeStep) < 0.02, 'Nudge did not move by the expected step')
 assert(nudgedDoor.center.x !== manualDoor.center.x || nudgedDoor.center.y !== manualDoor.center.y, 'Nudge did not update opening center')
+assert(draggedManualDoor.snap?.wallKey === manualDoor.snap.wallKey, 'Direct manual opening drag should preserve snapped wall reference')
+assert(draggedManualDoor.positionAlongWall > manualDoor.positionAlongWall, 'Direct manual opening drag should move along the wall')
+assert(draggedManualDoor.width === manualDoor.width && draggedManualDoor.presetId === manualDoor.presetId, 'Direct manual opening drag should preserve preset sizing')
+assert(draggedManualDoor.doorType === manualDoor.doorType, 'Direct manual opening drag should preserve door type')
+assert(draggedDetectedDoor.snap?.wallKey === editedDetectedDoor.snap.wallKey, 'Direct detected opening drag should preserve snapped wall reference')
+assert(draggedDetectedDoor.positionAlongWall > editedDetectedDoor.positionAlongWall, 'Direct detected opening drag should move along the wall')
+assert(draggedDetectedDoor.width === editedDetectedDoor.width && draggedDetectedDoor.presetId === editedDetectedDoor.presetId, 'Direct detected opening drag should preserve preset sizing')
+assert(draggedDetectedOpeningFloorPlan.analysis.doors.some(door => door.center?.x === draggedDetectedDoor.center.x && door.center?.y === draggedDetectedDoor.center.y), 'Direct detected opening drag should survive corrected analyzer payloads')
+assert(draggedDetectedOpeningFloorPlan.stats.doorCount > 0, 'Direct detected opening drag should survive 3D conversion')
+assert(draggedUnsnappedDoor.snap?.wallKey, 'Direct unsnapped opening drag should snap to the nearest visible wall')
+assert(draggedUnsnappedDoor.center.x !== unsnappedManualDoor.center.x || draggedUnsnappedDoor.center.y !== unsnappedManualDoor.center.y, 'Direct unsnapped opening drag should update the opening center')
 assert(unchangedUnsnappedOpening === unsnappedOpening, 'Unsnapped opening should remain unchanged when nudged')
 assert(Math.abs(clampedDoor.positionAlongWall - (doorWallLength - manualDoor.width / 2)) < 0.02, 'Nudge should clamp opening within the wall bounds')
 assert(clampedDoor.snap.t >= 0 && clampedDoor.snap.t <= 1, 'Clamped opening snap position should stay within the wall')
@@ -311,4 +371,5 @@ console.log('Floor plan review QA passed', {
   retargetWall: retargetedDoor.snap,
   wallEdits: countWallEndpointEdits(withEditedDetectedWall),
   openingEdits: countOpeningEdits(withEditedDetectedOpenings),
+  draggedOpening: draggedManualDoor.snap,
 })

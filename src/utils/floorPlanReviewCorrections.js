@@ -117,6 +117,33 @@ function getWallLengthPx(wall) {
   return Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
 }
 
+function getOpeningCenter(opening = {}) {
+  if (opening.center) return opening.center
+  if (!opening.start || !opening.end) return null
+  return {
+    x: (opening.start.x + opening.end.x) / 2,
+    y: (opening.start.y + opening.end.y) / 2,
+  }
+}
+
+function getOpeningWidth(opening = {}) {
+  if (Number.isFinite(opening.width)) return opening.width
+  return getWallLengthPx(opening)
+}
+
+function getOpeningLineEndpoints(opening = {}, center, rotation) {
+  if (!opening.start && !opening.end) return {}
+  const width = getOpeningWidth(opening)
+  if (!center || !Number.isFinite(rotation) || !width) return {}
+  const halfWidth = width / 2
+  const dx = Math.cos(rotation) * halfWidth
+  const dy = Math.sin(rotation) * halfWidth
+  return {
+    start: formatReviewPoint({ x: center.x - dx, y: center.y - dy }),
+    end: formatReviewPoint({ x: center.x + dx, y: center.y + dy }),
+  }
+}
+
 function getEditedDetectedWall(wall, additions = {}, index) {
   const edit = additions.wallEdits?.walls?.[index]
   if (!edit) return wall
@@ -278,6 +305,72 @@ export function updateReviewOpening(additions = {}, detection, nextOpening) {
       },
     },
   }
+}
+
+function moveOpeningToWallPoint(opening = {}, point, wallEntry) {
+  const wallLength = getWallLengthPx(wallEntry?.wall)
+  const projected = projectPointToWall(point, wallEntry?.wall)
+  if (!wallLength || !projected) return opening
+
+  const halfWidth = Math.max(0, (opening.width || 0) / 2)
+  const minPosition = Math.min(wallLength / 2, halfWidth)
+  const maxPosition = Math.max(minPosition, wallLength - minPosition)
+  const positionAlongWall = Math.max(minPosition, Math.min(maxPosition, projected.t * wallLength))
+  const wallPoint = getPointAlongWall(wallEntry.wall, positionAlongWall)
+  if (!wallPoint) return opening
+
+  return {
+    ...opening,
+    center: formatReviewPoint(wallPoint),
+    rotation: roundReviewNumber(Math.atan2(wallEntry.wall.end.y - wallEntry.wall.start.y, wallEntry.wall.end.x - wallEntry.wall.start.x), 6),
+    positionAlongWall: roundReviewNumber(positionAlongWall),
+    snap: {
+      ...opening.snap,
+      wallType: wallEntry.type,
+      wallIndex: wallEntry.index,
+      wallKey: wallEntry.key,
+      distancePx: roundReviewNumber(projected.distance),
+      t: roundReviewNumber(wallPoint.t, 4),
+    },
+    ...getOpeningLineEndpoints(opening, wallPoint, Math.atan2(wallEntry.wall.end.y - wallEntry.wall.start.y, wallEntry.wall.end.x - wallEntry.wall.start.x)),
+  }
+}
+
+export function moveReviewOpeningToPoint(additions = {}, detection, point, analysis = {}, hidden = {}) {
+  if (!point) return additions
+  const normalized = normalizeAdditions(additions)
+  const opening = getReviewOpeningForDetection(analysis, normalized, detection)
+  const openingCenter = getOpeningCenter(opening)
+  if (!openingCenter) return additions
+  const centeredOpening = {
+    ...opening,
+    center: opening.center || openingCenter,
+  }
+
+  const visibleWalls = getVisibleReviewWalls(analysis, hidden, normalized)
+  const snappedWall = centeredOpening.snap?.wallKey
+    ? visibleWalls.find(entry => entry.key === centeredOpening.snap.wallKey)
+    : null
+  const nearestOpening = snappedWall
+    ? null
+    : snapOpeningToNearestReviewWall(point, analysis, hidden, normalized)
+  const targetWall = snappedWall || visibleWalls.find(entry => entry.key === nearestOpening?.snap?.wallKey)
+
+  if (targetWall) {
+    return updateReviewOpening(normalized, detection, moveOpeningToWallPoint(centeredOpening, point, targetWall))
+  }
+
+  const fallbackOpening = {
+    ...centeredOpening,
+    center: formatReviewPoint(point),
+    rotation: Number.isFinite(centeredOpening.rotation) ? centeredOpening.rotation : 0,
+    snap: null,
+  }
+  delete fallbackOpening.positionAlongWall
+  return updateReviewOpening(normalized, detection, {
+    ...fallbackOpening,
+    ...getOpeningLineEndpoints(centeredOpening, point, fallbackOpening.rotation),
+  })
 }
 
 export function moveReviewWallEndpoint(additions = {}, detection, endpoint, point, analysis = {}) {
