@@ -4,18 +4,22 @@ import {
   buildCorrectedFloorPlan,
   countAddedDetections,
   countHiddenDetections,
+  countOpeningEdits,
   countVisibleDetections,
   countWallEndpointEdits,
   createEmptyAddedDetections,
   createEmptyHiddenDetections,
   getManualOpeningPresetOptions,
+  getReviewOpeningForDetection,
   getReviewWallForDetection,
   isDetectionHidden,
   moveReviewWallEndpoint,
   nudgeManualOpeningAlongWall,
   retargetManualOpeningToWall,
   snapOpeningToNearestReviewWall,
+  snapReviewOpeningToNearestWall,
   toggleHiddenDetection,
+  updateReviewOpening,
 } from '../utils/floorPlanReviewCorrections'
 
 const LEGEND = [
@@ -297,15 +301,17 @@ function FloorPlanReviewCanvas({
         if (isDetectionHidden(hiddenDetections, 'doors', index)) return
         const key = getDetectionKey('doors', index)
         const selected = selectedDetection?.key === key
-        const geometry = drawLinearElement(ctx, door, scale, 0, 0, 'rgba(245, 158, 11, 0.95)', 34, selected)
-        addInteractiveItem('doors', index, door, geometry, 14)
+        const editedDoor = getReviewOpeningForDetection(analysis, addedDetections, { type: 'doors', index }) || door
+        const geometry = drawLinearElement(ctx, editedDoor, scale, 0, 0, 'rgba(245, 158, 11, 0.95)', 34, selected)
+        addInteractiveItem('doors', index, editedDoor, geometry, 14)
       })
       ;(analysis?.windows || []).forEach((windowItem, index) => {
         if (isDetectionHidden(hiddenDetections, 'windows', index)) return
         const key = getDetectionKey('windows', index)
         const selected = selectedDetection?.key === key
-        const geometry = drawLinearElement(ctx, windowItem, scale, 0, 0, 'rgba(6, 182, 212, 0.95)', 32, selected)
-        addInteractiveItem('windows', index, windowItem, geometry, 14)
+        const editedWindow = getReviewOpeningForDetection(analysis, addedDetections, { type: 'windows', index }) || windowItem
+        const geometry = drawLinearElement(ctx, editedWindow, scale, 0, 0, 'rgba(6, 182, 212, 0.95)', 32, selected)
+        addInteractiveItem('windows', index, editedWindow, geometry, 14)
       })
       ;(analysis?.rooms || []).forEach((room, index) => {
         if (isDetectionHidden(hiddenDetections, 'rooms', index)) return
@@ -460,6 +466,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const hiddenCount = useMemo(() => countHiddenDetections(hiddenDetections), [hiddenDetections])
   const addedCount = useMemo(() => countAddedDetections(addedDetections), [addedDetections])
   const wallEditCount = useMemo(() => countWallEndpointEdits(addedDetections), [addedDetections])
+  const openingEditCount = useMemo(() => countOpeningEdits(addedDetections), [addedDetections])
   const visibleCounts = useMemo(() => countVisibleDetections(analysis, hiddenDetections, addedDetections), [addedDetections, analysis, hiddenDetections])
   const correctedFloorPlan = useMemo(() => buildCorrectedFloorPlan(review, hiddenDetections, addedDetections), [addedDetections, review, hiddenDetections])
   const selectedWall = useMemo(() => (
@@ -467,18 +474,44 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       ? getReviewWallForDetection(analysis, addedDetections, selectedDetection)
       : null
   ), [addedDetections, analysis, selectedDetection])
-  const selectedAddedOpening = useMemo(() => {
+  const selectedOpening = useMemo(() => {
+    if (selectedDetection?.type === 'doors') {
+      return {
+        kind: 'door',
+        collection: 'doors',
+        isDetected: true,
+        opening: getReviewOpeningForDetection(analysis, addedDetections, selectedDetection),
+      }
+    }
+    if (selectedDetection?.type === 'windows') {
+      return {
+        kind: 'window',
+        collection: 'windows',
+        isDetected: true,
+        opening: getReviewOpeningForDetection(analysis, addedDetections, selectedDetection),
+      }
+    }
     if (selectedDetection?.type === 'addedDoors') {
-      return { kind: 'door', collection: 'doors', opening: addedDetections.doors?.[selectedDetection.index] }
+      return {
+        kind: 'door',
+        collection: 'doors',
+        isDetected: false,
+        opening: getReviewOpeningForDetection(analysis, addedDetections, selectedDetection),
+      }
     }
     if (selectedDetection?.type === 'addedWindows') {
-      return { kind: 'window', collection: 'windows', opening: addedDetections.windows?.[selectedDetection.index] }
+      return {
+        kind: 'window',
+        collection: 'windows',
+        isDetected: false,
+        opening: getReviewOpeningForDetection(analysis, addedDetections, selectedDetection),
+      }
     }
     return null
-  }, [addedDetections, selectedDetection])
+  }, [addedDetections, analysis, selectedDetection])
   const selectedOpeningPresets = useMemo(() => (
-    selectedAddedOpening ? getManualOpeningPresetOptions(selectedAddedOpening.kind, analysis) : []
-  ), [analysis, selectedAddedOpening])
+    selectedOpening ? getManualOpeningPresetOptions(selectedOpening.kind, analysis) : []
+  ), [analysis, selectedOpening])
   const counts = useMemo(() => ({
     walls: correctedFloorPlan?.stats?.wallCount ?? visibleCounts.walls ?? getCount(analysis?.walls),
     doors: correctedFloorPlan?.stats?.doorCount ?? visibleCounts.doors ?? getCount(analysis?.doors),
@@ -489,7 +522,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
 
   const handleSelectDetection = useCallback((detection) => {
     setSelectedDetection(detection)
-    if (detection?.type !== 'addedDoors' && detection?.type !== 'addedWindows') {
+    if (detection?.type !== 'doors' && detection?.type !== 'windows' && detection?.type !== 'addedDoors' && detection?.type !== 'addedWindows') {
       setRetargetWallMode(false)
     }
     if (detection?.type !== 'walls' && detection?.type !== 'addedWalls') {
@@ -622,29 +655,25 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   }, [addOpeningMode, addedDetections, analysis, hiddenDetections])
 
   const applySelectedOpeningPreset = useCallback((presetId) => {
-    if (!selectedAddedOpening || !selectedDetection) return
+    if (!selectedOpening?.opening || !selectedDetection) return
     setAddedDetections(prev => {
-      const currentList = prev[selectedAddedOpening.collection] || []
-      if (!currentList[selectedDetection.index]) return prev
-      return {
-        ...prev,
-        [selectedAddedOpening.collection]: currentList.map((opening, index) => (
-          index === selectedDetection.index
-            ? applyManualOpeningPreset(opening, selectedAddedOpening.kind, presetId, analysis)
-            : opening
-        )),
-      }
+      const currentOpening = getReviewOpeningForDetection(analysis, prev, selectedDetection) || selectedOpening.opening
+      return updateReviewOpening(
+        prev,
+        selectedDetection,
+        applyManualOpeningPreset(currentOpening, selectedOpening.kind, presetId, analysis),
+      )
     })
-  }, [analysis, selectedAddedOpening, selectedDetection])
+  }, [analysis, selectedDetection, selectedOpening])
 
   const toggleRetargetWallMode = useCallback(() => {
-    if (!selectedAddedOpening) return
+    if (!selectedOpening) return
     setAddWallMode(false)
     setAddOpeningMode(null)
     setPendingWallPoint(null)
     setMoveWallEndpointMode(null)
     setRetargetWallMode(prev => !prev)
-  }, [selectedAddedOpening])
+  }, [selectedOpening])
 
   const toggleMoveWallEndpointMode = useCallback((endpoint) => {
     if (!selectedWall) return
@@ -662,37 +691,30 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   }, [analysis, moveWallEndpointMode, selectedDetection, selectedWall])
 
   const retargetSelectedOpening = useCallback((wallItem) => {
-    if (!selectedAddedOpening || !selectedDetection || !wallItem?.key) return
+    if (!selectedOpening?.opening || !selectedDetection || !wallItem?.key) return
     setAddedDetections(prev => {
-      const currentList = prev[selectedAddedOpening.collection] || []
-      if (!currentList[selectedDetection.index]) return prev
-      return {
-        ...prev,
-        [selectedAddedOpening.collection]: currentList.map((opening, index) => (
-          index === selectedDetection.index
-            ? retargetManualOpeningToWall(opening, wallItem.key, analysis, hiddenDetections, prev)
-            : opening
-        )),
-      }
+      const currentOpening = getReviewOpeningForDetection(analysis, prev, selectedDetection) || selectedOpening.opening
+      return updateReviewOpening(
+        prev,
+        selectedDetection,
+        retargetManualOpeningToWall(currentOpening, wallItem.key, analysis, hiddenDetections, prev),
+      )
     })
     setRetargetWallMode(false)
-  }, [analysis, hiddenDetections, selectedAddedOpening, selectedDetection])
+  }, [analysis, hiddenDetections, selectedDetection, selectedOpening])
 
   const nudgeSelectedOpening = useCallback((direction) => {
-    if (!selectedAddedOpening || !selectedDetection) return
+    if (!selectedOpening?.opening || !selectedDetection) return
     setAddedDetections(prev => {
-      const currentList = prev[selectedAddedOpening.collection] || []
-      if (!currentList[selectedDetection.index]) return prev
-      return {
-        ...prev,
-        [selectedAddedOpening.collection]: currentList.map((opening, index) => (
-          index === selectedDetection.index
-            ? nudgeManualOpeningAlongWall(opening, direction, analysis, hiddenDetections, prev)
-            : opening
-        )),
-      }
+      const currentOpening = getReviewOpeningForDetection(analysis, prev, selectedDetection) || selectedOpening.opening
+      const snappedOpening = snapReviewOpeningToNearestWall(currentOpening, analysis, hiddenDetections, prev)
+      return updateReviewOpening(
+        prev,
+        selectedDetection,
+        nudgeManualOpeningAlongWall(snappedOpening, direction, analysis, hiddenDetections, prev),
+      )
     })
-  }, [analysis, hiddenDetections, selectedAddedOpening, selectedDetection])
+  }, [analysis, hiddenDetections, selectedDetection, selectedOpening])
 
   const placeCorrectedPlan = useCallback(() => {
     onPlace(correctedFloorPlan)
@@ -774,6 +796,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                   {hiddenCount > 0 ? ` Hidden detections: ${hiddenCount}.` : ''}
                   {addedCount > 0 ? ` Manual additions: ${addedCount}.` : ''}
                   {wallEditCount > 0 ? ` Wall edits: ${wallEditCount}.` : ''}
+                  {openingEditCount > 0 ? ` Opening edits: ${openingEditCount}.` : ''}
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -859,21 +882,21 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 </div>
               </div>
             ) : null}
-            {selectedAddedOpening ? (
+            {selectedOpening ? (
               <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                 <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-white">
-                      {selectedAddedOpening.kind === 'door' ? 'Door size' : 'Window size'}
+                      {selectedOpening.kind === 'door' ? 'Door size' : 'Window size'}
                     </p>
                     <p className="text-xs leading-5 text-slate-400">
-                      Pick a realistic opening size before placing in 3D.
+                      Adjust this {selectedOpening.isDetected ? 'detected' : 'manual'} opening before placing in 3D.
                     </p>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   {selectedOpeningPresets.map(preset => {
-                    const active = selectedAddedOpening.opening?.presetId === preset.id
+                    const active = selectedOpening.opening?.presetId === preset.id
                     return (
                       <button
                         key={preset.id}
@@ -899,7 +922,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                     <button
                       type="button"
                       onClick={() => nudgeSelectedOpening(-1)}
-                      disabled={!selectedAddedOpening.opening?.snap?.wallKey}
+                      disabled={!selectedOpening.opening?.center}
                       className="min-h-11 rounded-2xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Back
@@ -907,7 +930,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                     <button
                       type="button"
                       onClick={() => nudgeSelectedOpening(1)}
-                      disabled={!selectedAddedOpening.opening?.snap?.wallKey}
+                      disabled={!selectedOpening.opening?.center}
                       className="min-h-11 rounded-2xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Forward

@@ -26,6 +26,10 @@ export function createEmptyAddedDetections() {
     wallEdits: {
       walls: {},
     },
+    openingEdits: {
+      doors: {},
+      windows: {},
+    },
   }
 }
 
@@ -56,6 +60,15 @@ function normalizeAdditions(additions = {}) {
       ...(additions.wallEdits || {}),
       walls: {
         ...(additions.wallEdits?.walls || {}),
+      },
+    },
+    openingEdits: {
+      ...(additions.openingEdits || {}),
+      doors: {
+        ...(additions.openingEdits?.doors || {}),
+      },
+      windows: {
+        ...(additions.openingEdits?.windows || {}),
       },
     },
   }
@@ -114,6 +127,32 @@ function getEditedDetectedWall(wall, additions = {}, index) {
     end: edit.end ? formatReviewPoint(edit.end) : wall.end,
     source: wall.source || 'detected_review',
   }
+}
+
+function formatReviewOpening(opening = {}) {
+  const next = { ...opening }
+  if (opening.center) next.center = formatReviewPoint(opening.center)
+  if (Number.isFinite(opening.rotation)) next.rotation = roundReviewNumber(opening.rotation, 6)
+  if (Number.isFinite(opening.width)) next.width = roundReviewNumber(opening.width)
+  if (Number.isFinite(opening.positionAlongWall)) next.positionAlongWall = roundReviewNumber(opening.positionAlongWall)
+  if (opening.snap) {
+    next.snap = {
+      ...opening.snap,
+      ...(Number.isFinite(opening.snap.distancePx) ? { distancePx: roundReviewNumber(opening.snap.distancePx) } : {}),
+      ...(Number.isFinite(opening.snap.t) ? { t: roundReviewNumber(opening.snap.t, 4) } : {}),
+    }
+  }
+  return next
+}
+
+function getEditedDetectedOpening(opening, additions = {}, collection, index) {
+  const edit = additions.openingEdits?.[collection]?.[index]
+  if (!edit) return opening
+  return formatReviewOpening({
+    ...opening,
+    ...edit,
+    source: opening.source || 'detected_review',
+  })
 }
 
 function getPointAlongWall(wall, positionAlongWall) {
@@ -192,6 +231,53 @@ export function getReviewWallForDetection(analysis = {}, additions = {}, detecti
   }
 
   return null
+}
+
+function getOpeningCollectionForDetection(detection) {
+  if (detection?.type === 'doors' || detection?.type === 'addedDoors') return 'doors'
+  if (detection?.type === 'windows' || detection?.type === 'addedWindows') return 'windows'
+  return null
+}
+
+export function getReviewOpeningForDetection(analysis = {}, additions = {}, detection) {
+  const collection = getOpeningCollectionForDetection(detection)
+  if (!collection || !Number.isInteger(detection.index)) return null
+
+  if (detection.type === 'addedDoors' || detection.type === 'addedWindows') {
+    return additions[collection]?.[detection.index] || null
+  }
+
+  const opening = analysis[collection]?.[detection.index]
+  return opening ? getEditedDetectedOpening(opening, additions, collection, detection.index) : null
+}
+
+export function updateReviewOpening(additions = {}, detection, nextOpening) {
+  const collection = getOpeningCollectionForDetection(detection)
+  if (!collection || !nextOpening || !Number.isInteger(detection?.index)) return additions
+  const normalized = normalizeAdditions(additions)
+  const formattedOpening = formatReviewOpening(nextOpening)
+
+  if (detection.type === 'addedDoors' || detection.type === 'addedWindows') {
+    const currentList = normalized[collection] || []
+    if (!currentList[detection.index]) return additions
+    return {
+      ...normalized,
+      [collection]: currentList.map((opening, index) => (index === detection.index ? formattedOpening : opening)),
+    }
+  }
+
+  if (detection.type !== 'doors' && detection.type !== 'windows') return additions
+
+  return {
+    ...normalized,
+    openingEdits: {
+      ...normalized.openingEdits,
+      [collection]: {
+        ...normalized.openingEdits[collection],
+        [detection.index]: formattedOpening,
+      },
+    },
+  }
 }
 
 export function moveReviewWallEndpoint(additions = {}, detection, endpoint, point, analysis = {}) {
@@ -278,6 +364,20 @@ export function snapOpeningToNearestReviewWall(point, analysis = {}, hidden = {}
       distancePx: roundReviewNumber(bestSnap.distance),
       t: roundReviewNumber(bestSnap.t, 4),
     },
+  }
+}
+
+export function snapReviewOpeningToNearestWall(opening = {}, analysis = {}, hidden = {}, additions = {}) {
+  if (!opening || opening.snap?.wallKey || !opening.center) return opening || {}
+  const snappedOpening = snapOpeningToNearestReviewWall(opening.center, analysis, hidden, additions)
+  if (!snappedOpening.snap) return opening
+
+  return {
+    ...opening,
+    center: snappedOpening.center,
+    rotation: snappedOpening.rotation,
+    positionAlongWall: snappedOpening.positionAlongWall,
+    snap: snappedOpening.snap,
   }
 }
 
@@ -386,6 +486,8 @@ export function applyReviewCorrections(analysis = {}, hidden = {}, additions = {
   const editedAnalysis = {
     ...analysis,
     walls: (analysis.walls || []).map((wall, index) => getEditedDetectedWall(wall, additions, index)),
+    doors: (analysis.doors || []).map((door, index) => getEditedDetectedOpening(door, additions, 'doors', index)),
+    windows: (analysis.windows || []).map((windowItem, index) => getEditedDetectedOpening(windowItem, additions, 'windows', index)),
   }
   const corrected = applyHiddenDetections(editedAnalysis, hidden)
   const addedWalls = additions.walls || []
@@ -405,6 +507,10 @@ export function countAddedDetections(additions = {}) {
 
 export function countWallEndpointEdits(additions = {}) {
   return Object.keys(additions.wallEdits?.walls || {}).length
+}
+
+export function countOpeningEdits(additions = {}) {
+  return Object.keys(additions.openingEdits?.doors || {}).length + Object.keys(additions.openingEdits?.windows || {}).length
 }
 
 export function countVisibleDetections(analysis = {}, hidden = {}, additions = {}) {
@@ -429,6 +535,7 @@ export function buildCorrectedFloorPlan(review = {}, hidden = {}, additions = {}
       addedCount: countAddedDetections(additions),
       addedDetections: additions,
       wallEditCount: countWallEndpointEdits(additions),
+      openingEditCount: countOpeningEdits(additions),
     },
   }
 }

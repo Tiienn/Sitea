@@ -8,16 +8,20 @@ import {
   buildCorrectedFloorPlan,
   countAddedDetections,
   countHiddenDetections,
+  countOpeningEdits,
   countVisibleDetections,
   countWallEndpointEdits,
   getManualOpeningPresetOptions,
   getManualOpeningNudgeStep,
+  getReviewOpeningForDetection,
   getReviewWallForDetection,
   getReviewPixelsPerMeter,
   moveReviewWallEndpoint,
   nudgeManualOpeningAlongWall,
   retargetManualOpeningToWall,
   snapOpeningToNearestReviewWall,
+  snapReviewOpeningToNearestWall,
+  updateReviewOpening,
 } from '../src/utils/floorPlanReviewCorrections.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -97,6 +101,11 @@ const withEditedAddedWall = moveReviewWallEndpoint(
 )
 const editedAddedWall = getReviewWallForDetection(analysis, withEditedAddedWall, { type: 'addedWalls', index: 0 })
 const invalidWallEdit = moveReviewWallEndpoint(addedWallsOnly, { type: 'doors', index: 0 }, 'start', { x: 1, y: 1 }, analysis)
+const preferredDetectedDoorIndex = 3
+const editedDetectedDoorIndex = analysis.doors[preferredDetectedDoorIndex] && !hiddenDetections.doors.includes(preferredDetectedDoorIndex)
+  ? preferredDetectedDoorIndex
+  : analysis.doors.findIndex((_, index) => !hiddenDetections.doors.includes(index))
+const editedDetectedWindowIndex = analysis.windows.findIndex((_, index) => !hiddenDetections.windows.includes(index))
 const doorTap = { x: 340, y: 332 }
 const windowTap = { x: 530, y: 636 }
 const snappedDoor = snapOpeningToNearestReviewWall(doorTap, analysis, hiddenDetections, addedWallsOnly)
@@ -121,6 +130,54 @@ const manualWindow = applyManualOpeningPreset({
   confidence: 1,
   source: 'manual_review',
 }, 'window', 'wide', analysis)
+const snappedDetectedDoor = snapReviewOpeningToNearestWall(
+  getReviewOpeningForDetection(analysis, addedWallsOnly, { type: 'doors', index: editedDetectedDoorIndex }),
+  analysis,
+  hiddenDetections,
+  withEditedDetectedWall,
+)
+const detectedDoorWithPreset = applyManualOpeningPreset(snappedDetectedDoor, 'door', 'double', analysis)
+const withEditedDetectedDoor = updateReviewOpening(
+  withEditedDetectedWall,
+  { type: 'doors', index: editedDetectedDoorIndex },
+  detectedDoorWithPreset,
+)
+const editedDetectedDoor = getReviewOpeningForDetection(analysis, withEditedDetectedDoor, { type: 'doors', index: editedDetectedDoorIndex })
+const nudgedDetectedDoor = nudgeManualOpeningAlongWall(editedDetectedDoor, 1, analysis, hiddenDetections, withEditedDetectedDoor)
+const withNudgedDetectedDoor = updateReviewOpening(
+  withEditedDetectedDoor,
+  { type: 'doors', index: editedDetectedDoorIndex },
+  nudgedDetectedDoor,
+)
+const detectedRetargetWallIndex = analysis.walls.findIndex((wall, index) => (
+  index !== nudgedDetectedDoor.snap?.wallIndex &&
+  !hiddenDetections.walls.includes(index) &&
+  Math.abs(getWallAngle(wall) - nudgedDetectedDoor.rotation) > 0.1
+))
+const retargetedDetectedDoor = retargetManualOpeningToWall(
+  nudgedDetectedDoor,
+  `walls:${detectedRetargetWallIndex}`,
+  analysis,
+  hiddenDetections,
+  withNudgedDetectedDoor,
+)
+const withRetargetedDetectedDoor = updateReviewOpening(
+  withNudgedDetectedDoor,
+  { type: 'doors', index: editedDetectedDoorIndex },
+  retargetedDetectedDoor,
+)
+const snappedDetectedWindow = snapReviewOpeningToNearestWall(
+  getReviewOpeningForDetection(analysis, addedWallsOnly, { type: 'windows', index: editedDetectedWindowIndex }),
+  analysis,
+  hiddenDetections,
+  addedWallsOnly,
+)
+const withEditedDetectedOpenings = updateReviewOpening(
+  withRetargetedDetectedDoor,
+  { type: 'windows', index: editedDetectedWindowIndex },
+  applyManualOpeningPreset(snappedDetectedWindow, 'window', 'wide', analysis),
+)
+const editedDetectedWindow = getReviewOpeningForDetection(analysis, withEditedDetectedOpenings, { type: 'windows', index: editedDetectedWindowIndex })
 const nudgeStep = getManualOpeningNudgeStep(analysis)
 const nudgedDoor = nudgeManualOpeningAlongWall(manualDoor, 1, analysis, hiddenDetections, addedWallsOnly)
 const unsnappedOpening = { center: { x: 15, y: 20 }, width: 12, rotation: 0 }
@@ -147,6 +204,7 @@ const addedDetections = {
 const hiddenOnlyFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections)
 const editedDetectedWallFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withEditedDetectedWall)
 const editedAddedWallFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withEditedAddedWall)
+const editedDetectedOpeningFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withEditedDetectedOpenings)
 const correctedAnalysis = applyReviewCorrections(analysis, hiddenDetections, addedDetections)
 const correctedFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, addedDetections)
 const visibleCounts = countVisibleDetections(analysis, hiddenDetections, addedDetections)
@@ -172,6 +230,20 @@ assert(editedAddedWall.end.x === editedAddedWallPoint.x && editedAddedWall.end.y
 assert(editedAddedWallFloorPlan.analysis.walls.some(wall => wall.end.x === editedAddedWallPoint.x && wall.end.y === editedAddedWallPoint.y), 'Corrected analysis should include edited added wall geometry')
 assert(editedAddedWallFloorPlan.stats.wallCount > hiddenOnlyFloorPlan.stats.wallCount, 'Edited added wall should survive 3D conversion')
 assert(invalidWallEdit === addedWallsOnly, 'Invalid wall endpoint edit should leave additions unchanged')
+assert(editedDetectedDoorIndex >= 0, 'Fixture should have a visible detected door for editing')
+assert(editedDetectedWindowIndex >= 0, 'Fixture should have a visible detected window for editing')
+assert(countOpeningEdits(withEditedDetectedOpenings) === 2, 'Detected opening edits should count edited door and window')
+assert(editedDetectedDoor.doorType === 'double' && editedDetectedDoor.presetId === 'double', 'Detected door preset edit was not applied')
+assert(editedDetectedDoor.width === doorPresets.find(preset => preset.id === 'double')?.width, 'Detected door width should use preset width')
+assert(nudgedDetectedDoor.positionAlongWall > editedDetectedDoor.positionAlongWall, 'Detected door nudge should update position along wall')
+assert(retargetedDetectedDoor.snap?.wallKey === `walls:${detectedRetargetWallIndex}`, 'Detected door retarget should update wall reference')
+assert(retargetedDetectedDoor.snap.wallKey !== editedDetectedDoor.snap.wallKey, 'Detected door retarget should move to a different wall')
+assert(editedDetectedWindow.presetId === 'wide' && editedDetectedWindow.width === windowPresets.find(preset => preset.id === 'wide')?.width, 'Detected window preset edit was not applied')
+assert(editedDetectedOpeningFloorPlan.analysis.doors.some(door => door.presetId === 'double' && door.doorType === 'double'), 'Corrected analysis should include edited detected door')
+assert(editedDetectedOpeningFloorPlan.analysis.windows.some(windowItem => windowItem.presetId === 'wide'), 'Corrected analysis should include edited detected window')
+assert(editedDetectedOpeningFloorPlan.stats.doorCount > 0, 'Edited detected door should survive 3D conversion')
+assert(editedDetectedOpeningFloorPlan.stats.windowCount > 0, 'Edited detected window should survive 3D conversion')
+assert(editedDetectedOpeningFloorPlan.correctionSummary.openingEditCount === 2, 'Corrected floor plan summary is missing opening edits')
 assert(snappedDoor.snap?.wallKey, 'Manual door did not snap to a review wall')
 assert(snappedWindow.snap?.wallKey, 'Manual window did not snap to a review wall')
 assert(Number.isFinite(snappedDoor.rotation), 'Manual door is missing snapped wall rotation')
@@ -238,4 +310,5 @@ console.log('Floor plan review QA passed', {
   nudgeStep,
   retargetWall: retargetedDoor.snap,
   wallEdits: countWallEndpointEdits(withEditedDetectedWall),
+  openingEdits: countOpeningEdits(withEditedDetectedOpenings),
 })

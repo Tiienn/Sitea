@@ -220,6 +220,30 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local in-app browser smoke test. Existing generated QA report/fixture churn was restored before final diff.
 - Remaining limitation: endpoint moves are tap-based rather than direct drag handles, and generated openings still need review-time corrections before placement rather than post-placement editing.
 
+## Active Plan: v30 Detected Opening Correction
+- [x] Keep v30 scoped to review-time detected door/window correction in `FloorPlanReviewModal`: no paid analyzer call, no provider switch, no 3D renderer rewrite
+- [x] Add shared correction helpers for detected opening edits so selected AI-detected doors/windows can store corrected center, rotation, width, preset, wall snap, and `positionAlongWall`
+- [x] Apply detected opening edits before `convertFloorPlanToWorld` so corrected doors/windows survive into the final 3D building
+- [x] Make edited detected doors/windows use the same visible-wall geometry as manual openings, including v29 edited wall endpoints
+- [x] Let selected detected doors/windows use mobile-safe size preset controls, while preserving existing behavior for manually added openings
+- [x] Add `Back` / `Forward` nudge controls for selected detected doors/windows when they are snapped to a wall
+- [x] Add `Pick wall` retargeting for selected detected doors/windows, using the same calm tap-to-wall flow as manual openings
+- [x] Keep `Hide selected` as the fallback for truly bad detections, and preserve adding/removing manual walls/openings plus wall endpoint correction
+- [x] Extend no-cost review QA to assert detected door/window preset edits, nudges, retargeting, edited wall compatibility, corrected analyzer payloads, and 3D conversion counts
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v30 review notes with what detected opening correction improves and what remains for direct drag handles or post-placement editing
+
+### v30 Review
+- Direction: v30 lets users correct AI-detected doors and windows before Sitea turns the reviewed plan into 3D.
+- Scope stayed inside the floor-plan review modal and shared correction utility: no paid analyzer call, no provider switch, and no renderer rewrite.
+- Detected doors/windows now support the same preset sizing, wall snapping, nudge, and `Pick wall` retarget flow as manually added openings.
+- Opening edits are stored separately from the original analyzer payload, then merged into corrected analyzer data before `convertFloorPlanToWorld`.
+- Edited detected openings use the visible review-wall geometry, including v29 edited wall endpoints, so corrected openings can stay aligned with corrected walls.
+- `Hide selected` remains the fallback for detections that should be removed entirely, while manual wall/opening correction and wall endpoint correction keep their existing behavior.
+- Extended `npm run qa:floor-plans:review` to assert detected door/window preset edits, nudge movement, wall retargeting, edited-wall compatibility, corrected analyzer payloads, and 3D conversion counts.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local in-app browser smoke test. Existing generated QA report/fixture churn was restored before final diff.
+- Remaining limitation: detected openings are still corrected from the review panel rather than with direct drag handles, and generated 3D openings are not yet editable after placement.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup
