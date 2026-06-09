@@ -1,5 +1,29 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v35 Placed Floor-Plan Provenance
+- [x] Keep v35 scoped to post-placement floor-plan trust metadata: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new blocking gate
+- [x] Preserve lean source-plan metadata when a reviewed floor plan is placed as a generated building: source filename, live readiness, corrected counts, and correction summary
+- [x] Continue stripping bulky review-only data before placement: source image, raw analyzer output, and review-only modal payloads must not be stored on the 3D scene object
+- [x] Add a selected generated-building lookup in `App.jsx` so the Build panel can know when the selected building came from an uploaded/reviewed floor plan
+- [x] Add a compact, mobile-safe `Source plan` card in `BuildPanel` when a floor-plan building is selected, showing readiness, detected counts, and what corrections were applied
+- [x] Keep existing selected-building behavior unchanged: drag/move, rotate with `R`, delete, explode with `E`, save/share restoration, and mobile controls
+- [x] Extend no-cost placement QA to assert placed/generated floor-plan scene fixtures can carry source-plan metadata without source images or raw analysis
+- [x] Verify with focused lint, floor-plan placement QA, floor-plan review QA if affected, agent text-action QA if affected, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v35 review notes with what provenance improves and what remains for deeper model uncertainty scoring or post-placement 3D editing
+
+### v35 Review
+- Direction: v35 preserves floor-plan trust context after review placement, so selected generated buildings can still show what source plan they came from.
+- Scope stayed post-placement only: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new blocking gate.
+- Added `buildFloorPlanSourcePlanMetadata`, a small shared helper that keeps only lean metadata: source filename, readiness, counts, and correction counts.
+- Reviewed floor-plan placement now stores `sourcePlan` before stripping bulky review-only data such as source image, raw analysis, full readout, and correction payload geometry.
+- Placed generated buildings now preserve `sourcePlan`, so save/share restoration keeps the provenance without carrying upload images or raw analyzer output.
+- `App.jsx` now looks up the selected generated building and passes its `sourcePlan` into the Build panel.
+- `BuildPanel` now shows a compact `Source plan` card when a floor-plan building is selected, including readiness, wall/door/window counts, and correction summary.
+- Existing selected-building behavior stays unchanged: drag/move, rotate with `R`, delete, explode with `E`, save/share payloads, and mobile controls.
+- Extended `npm run qa:floor-plans:placement` to assert generated floor-plan scene fixtures carry source-plan metadata and do not carry source images, raw analysis, full readouts, or hidden/added detection payloads.
+- Verification passed: focused ESLint for changed files with the existing warning baseline, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:check`, `npm run qa:agent-text-actions`, `npm run build`, `git diff --check`, and local in-app browser smoke. Existing generated QA report/fixture churn was restored before final diff.
+- Remaining limitation: v35 shows provenance after placement, but it does not yet add post-placement 3D editing, uncertainty scoring, or side-by-side visual self-review.
+
 ## Active Plan: v34 Live Readiness After Corrections
 - [x] Keep v34 scoped to live review-modal readiness updates: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new blocking gate
 - [x] Recompute the floor-plan readout from the corrected floor-plan payload inside `FloorPlanReviewModal` whenever the user hides/restores detections, adds walls/openings, edits endpoints, retargets openings, nudges, or drags handles

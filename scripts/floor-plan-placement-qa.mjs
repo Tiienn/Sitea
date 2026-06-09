@@ -4,6 +4,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { convertFloorPlanToWorld } from '../src/utils/floorPlanConverter.js'
+import { buildFloorPlanReadout } from '../src/utils/floorPlanReadout.js'
+import { buildFloorPlanSourcePlanMetadata } from '../src/utils/floorPlanSourcePlan.js'
 
 const ROOT = process.cwd()
 const QA_DIR = path.join(ROOT, 'fixtures/floor-plan-qa')
@@ -40,6 +42,10 @@ function readJson(filePath) {
 function writeJson(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`)
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message)
 }
 
 function wallLength(wall) {
@@ -167,7 +173,22 @@ function main() {
   for (const fixture of REAL_FIXTURES) {
     const rawResult = readJson(path.join(QA_DIR, fixture.rawResultFile))
     const converted = convertFloorPlanToWorld(rawResult)
-    summaries.push(summarizeBuilding(fixture, rawResult, converted))
+    const summary = summarizeBuilding(fixture, rawResult, converted)
+    const readout = buildFloorPlanReadout({
+      stats: converted.stats,
+      analysis: rawResult,
+      warnings: converted.warnings,
+      fileName: `${fixture.id}.png`,
+    })
+    const sourcePlan = buildFloorPlanSourcePlanMetadata({
+      ...converted,
+      sourceFileName: `${fixture.id}.png`,
+      readout,
+      correctionSummary: fixture.id === 'real-site-ground-floor'
+        ? { hiddenCount: 3, addedCount: 3, wallEditCount: 1, openingEditCount: 2 }
+        : {},
+    })
+    summaries.push(summary)
     generatedBuildings.push({
       id: `qa-${fixture.id}`,
       qaSource: fixture.id,
@@ -178,8 +199,20 @@ function main() {
       rooms: converted.rooms,
       stairs: converted.stairs,
       stats: converted.stats,
+      sourcePlan,
     })
   }
+
+  generatedBuildings.forEach(building => {
+    assert(building.sourcePlan?.type === 'reviewed_floor_plan', `${building.id} is missing source plan metadata`)
+    assert(building.sourcePlan?.readiness?.state, `${building.id} is missing source plan readiness`)
+    assert(Number.isFinite(building.sourcePlan?.counts?.wallCount), `${building.id} is missing source plan wall count`)
+    assert(!('sourceImage' in building.sourcePlan), `${building.id} source metadata should not include source image`)
+    assert(!('analysis' in building.sourcePlan), `${building.id} source metadata should not include raw analysis`)
+    assert(!('readout' in building.sourcePlan), `${building.id} source metadata should not include full readout`)
+    assert(!building.sourcePlan.corrections?.hiddenDetections, `${building.id} source metadata should not include hidden detection payloads`)
+    assert(!building.sourcePlan.corrections?.addedDetections, `${building.id} source metadata should not include added detection payloads`)
+  })
 
   const scene = {
     dimensions: { length: 50, width: 70 },

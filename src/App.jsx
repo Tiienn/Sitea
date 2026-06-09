@@ -59,6 +59,7 @@ import { buildScenePayload, createSharedScene, fetchSharedScene, formatShareExpi
 import { listProjects, countProjects, createProject, updateProject, renameProject, deleteProject, fetchProject } from './services/projectService'
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient'
 import { restoreScenePayload } from './utils/restoreScene'
+import { buildFloorPlanSourcePlanMetadata } from './utils/floorPlanSourcePlan'
 import {
   track,
   trackDefineClicked,
@@ -2041,6 +2042,8 @@ function App() {
     if (!floorPlanReview?.floorPlan) return
 
     const placementData = { ...(correctedFloorPlan || floorPlanReview.floorPlan) }
+    const sourcePlan = buildFloorPlanSourcePlanMetadata(placementData)
+    if (sourcePlan) placementData.sourcePlan = sourcePlan
     delete placementData.sourceImage
     delete placementData.analysis
     delete placementData.sourceFileName
@@ -2910,6 +2913,7 @@ function App() {
   // Place the pending floor plan as a building
   const placeFloorPlanBuilding = useCallback((position) => {
     if (!pendingFloorPlan) return
+    const sourcePlan = buildFloorPlanSourcePlanMetadata(pendingFloorPlan)
 
     const newBuilding = {
       id: crypto.randomUUID(),
@@ -2919,6 +2923,7 @@ function App() {
       rooms: pendingFloorPlan.rooms || [],
       stairs: pendingFloorPlan.stairs || [],
       stats: pendingFloorPlan.stats,
+      ...(sourcePlan ? { sourcePlan } : {}),
     }
 
     setBuildings(prev => [...prev, newBuilding])
@@ -3605,6 +3610,9 @@ function App() {
 
   // Get selected building type for preview
   const selectedBuildingType = selectedBuilding ? BUILDING_TYPES.find(b => b.id === selectedBuilding) : null
+  const selectedGeneratedBuilding = useMemo(() => (
+    selectedBuildingId ? buildings.find(building => building.id === selectedBuildingId) || null : null
+  ), [buildings, selectedBuildingId])
 
   // Load saved state on mount
   useEffect(() => {
@@ -4511,6 +4519,7 @@ function App() {
           floorCountToAdd={floorCountToAdd}
           setFloorCountToAdd={setFloorCountToAdd}
           selectedBuildingId={selectedBuildingId}
+          selectedFloorPlanSource={selectedGeneratedBuilding?.sourcePlan || null}
           onExplodeBuilding={explodeSelectedBuilding}
         />
       </div>

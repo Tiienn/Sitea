@@ -26,6 +26,23 @@ const getCoverageColorClass = (percent) => {
   return 'red'
 }
 
+const getReadinessBadgeClass = (state) => {
+  if (state === 'ready') return 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
+  if (state === 'needs_corrections') return 'border-rose-300/25 bg-rose-300/10 text-rose-100'
+  return 'border-amber-300/25 bg-amber-300/10 text-amber-100'
+}
+
+const formatSourceCorrections = (corrections = {}) => {
+  const items = [
+    corrections.hiddenCount ? `${corrections.hiddenCount} hidden` : null,
+    corrections.addedCount ? `${corrections.addedCount} added` : null,
+    corrections.wallEditCount ? `${corrections.wallEditCount} wall edits` : null,
+    corrections.openingEditCount ? `${corrections.openingEditCount} opening edits` : null,
+  ].filter(Boolean)
+
+  return items.length ? items.join(' · ') : 'No overlay corrections'
+}
+
 // Section definitions with icons
 const SECTIONS = [
   { id: 'tools', label: 'Tools', icon: 'hammer' },
@@ -341,6 +358,7 @@ export default function BuildPanel({
   onLoadHouseTemplate,
   // Building explode
   selectedBuildingId,
+  selectedFloorPlanSource = null,
   onExplodeBuilding,
 }) {
   const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed, setShowPricingModal } = useUser()
@@ -380,6 +398,9 @@ export default function BuildPanel({
     }
     return `${meters}m`
   }
+  const selectedSourceReadiness = selectedFloorPlanSource?.readiness || null
+  const selectedSourceCounts = selectedFloorPlanSource?.counts || {}
+  const selectedSourceCorrectionCopy = formatSourceCorrections(selectedFloorPlanSource?.corrections)
 
   // Handle file upload — go to preview instead of auto-analyzing
   const handleFileUpload = async (file) => {
@@ -766,6 +787,39 @@ export default function BuildPanel({
             {/* TOOLS Section */}
             {activeSection === 'tools' && (
               <div className="space-y-4">
+                {selectedFloorPlanSource && (
+                  <div className="rounded-2xl border border-teal-300/15 bg-teal-950/25 p-4 shadow-[0_14px_38px_rgba(15,23,42,0.24)]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-teal-300/25 bg-teal-300/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-teal-100">
+                        Source plan
+                      </span>
+                      {selectedSourceReadiness && (
+                        <span className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${getReadinessBadgeClass(selectedSourceReadiness.state)}`}>
+                          {selectedSourceReadiness.label}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-3 truncate text-sm font-semibold text-white">
+                      {selectedFloorPlanSource.sourceFileName || 'Reviewed floor plan'}
+                    </p>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {[
+                        ['Walls', selectedSourceCounts.wallCount],
+                        ['Doors', selectedSourceCounts.doorCount],
+                        ['Windows', selectedSourceCounts.windowCount],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{label}</div>
+                          <div className="mt-1 text-base font-bold text-white">{value || 0}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-[var(--color-text-secondary)]">
+                      {selectedSourceCorrectionCopy}
+                    </p>
+                  </div>
+                )}
+
                 {/* Tool Grid */}
                 <div className="grid grid-cols-3 gap-2">
                   {/* Room Tool */}
