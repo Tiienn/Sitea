@@ -5,10 +5,13 @@ import {
   countAddedDetections,
   countHiddenDetections,
   countVisibleDetections,
+  countWallEndpointEdits,
   createEmptyAddedDetections,
   createEmptyHiddenDetections,
   getManualOpeningPresetOptions,
+  getReviewWallForDetection,
   isDetectionHidden,
+  moveReviewWallEndpoint,
   nudgeManualOpeningAlongWall,
   retargetManualOpeningToWall,
   snapOpeningToNearestReviewWall,
@@ -135,7 +138,31 @@ function drawPointLabel(ctx, item, label, scale, offsetX, offsetY, selected = fa
   return { kind: 'point', x, y }
 }
 
-function drawLinearElement(ctx, item, scale, offsetX, offsetY, color, fallbackLength = 28, selected = false) {
+function drawWallEndpointHandles(ctx, geometry, activeEndpoint = null) {
+  const handles = [
+    { id: 'start', label: 'S', x: geometry.x1, y: geometry.y1 },
+    { id: 'end', label: 'E', x: geometry.x2, y: geometry.y2 },
+  ]
+
+  handles.forEach(handle => {
+    const active = activeEndpoint === handle.id
+    ctx.beginPath()
+    ctx.arc(handle.x, handle.y, active ? 8 : 7, 0, Math.PI * 2)
+    ctx.fillStyle = active ? 'rgba(250, 204, 21, 0.96)' : 'rgba(15, 23, 42, 0.92)'
+    ctx.fill()
+    ctx.strokeStyle = active ? 'rgba(254, 240, 138, 0.98)' : 'rgba(226, 232, 240, 0.9)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    ctx.font = '700 9px "DM Sans", sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = active ? '#0f172a' : '#f8fafc'
+    ctx.fillText(handle.label, handle.x, handle.y + 0.5)
+  })
+}
+
+function drawLinearElement(ctx, item, scale, offsetX, offsetY, color, fallbackLength = 28, selected = false, showEndpointHandles = false, activeEndpoint = null) {
   const geometry = getLinearGeometry(item, scale, offsetX, offsetY, fallbackLength)
   if (!geometry) return null
 
@@ -157,6 +184,10 @@ function drawLinearElement(ctx, item, scale, offsetX, offsetY, color, fallbackLe
   ctx.lineCap = 'round'
   ctx.stroke()
 
+  if (showEndpointHandles) {
+    drawWallEndpointHandles(ctx, geometry, activeEndpoint)
+  }
+
   return { kind: 'line', ...geometry }
 }
 
@@ -169,10 +200,12 @@ function FloorPlanReviewCanvas({
   addWallMode,
   addOpeningMode,
   retargetWallMode,
+  moveWallEndpointMode,
   pendingWallPoint,
   onAddWallPoint,
   onAddOpeningPoint,
   onRetargetWall,
+  onMoveWallEndpointPoint,
   onSelectDetection,
 }) {
   const canvasRef = useRef(null)
@@ -245,8 +278,20 @@ function FloorPlanReviewCanvas({
         if (isDetectionHidden(hiddenDetections, 'walls', index)) return
         const key = getDetectionKey('walls', index)
         const selected = selectedDetection?.key === key
-        const geometry = drawLinearElement(ctx, wall, scale, 0, 0, wall.isExterior ? 'rgba(20, 184, 166, 0.95)' : 'rgba(45, 212, 191, 0.85)', 28, selected)
-        addInteractiveItem('walls', index, wall, geometry, 12)
+        const editedWall = getReviewWallForDetection(analysis, addedDetections, { type: 'walls', index }) || wall
+        const geometry = drawLinearElement(
+          ctx,
+          editedWall,
+          scale,
+          0,
+          0,
+          editedWall.isExterior ? 'rgba(20, 184, 166, 0.95)' : 'rgba(45, 212, 191, 0.85)',
+          28,
+          selected,
+          selected,
+          selected ? moveWallEndpointMode : null,
+        )
+        addInteractiveItem('walls', index, editedWall, geometry, 12)
       })
       ;(analysis?.doors || []).forEach((door, index) => {
         if (isDetectionHidden(hiddenDetections, 'doors', index)) return
@@ -279,7 +324,7 @@ function FloorPlanReviewCanvas({
       ;(addedDetections?.walls || []).forEach((wall, index) => {
         const key = getDetectionKey('addedWalls', index)
         const selected = selectedDetection?.key === key
-        const geometry = drawLinearElement(ctx, wall, scale, 0, 0, 'rgba(244, 114, 182, 0.98)', 28, selected)
+        const geometry = drawLinearElement(ctx, wall, scale, 0, 0, 'rgba(244, 114, 182, 0.98)', 28, selected, selected, selected ? moveWallEndpointMode : null)
         addInteractiveItem('addedWalls', index, wall, geometry, 14)
       })
       ;(addedDetections?.doors || []).forEach((door, index) => {
@@ -313,7 +358,7 @@ function FloorPlanReviewCanvas({
     return () => {
       cancelled = true
     }
-  }, [addedDetections, analysis, frameWidth, hiddenDetections, pendingWallPoint, selectedDetection, sourceImage])
+  }, [addedDetections, analysis, frameWidth, hiddenDetections, moveWallEndpointMode, pendingWallPoint, selectedDetection, sourceImage])
 
   const handleCanvasClick = useCallback((event) => {
     const canvas = canvasRef.current
@@ -337,6 +382,16 @@ function FloorPlanReviewCanvas({
       const renderInfo = renderInfoRef.current
       if (!renderInfo) return
       onAddOpeningPoint({
+        x: clamp(x / renderInfo.scale, 0, renderInfo.naturalWidth),
+        y: clamp(y / renderInfo.scale, 0, renderInfo.naturalHeight),
+      })
+      return
+    }
+
+    if (moveWallEndpointMode) {
+      const renderInfo = renderInfoRef.current
+      if (!renderInfo) return
+      onMoveWallEndpointPoint({
         x: clamp(x / renderInfo.scale, 0, renderInfo.naturalWidth),
         y: clamp(y / renderInfo.scale, 0, renderInfo.naturalHeight),
       })
@@ -379,14 +434,14 @@ function FloorPlanReviewCanvas({
       key: bestMatch.key,
       label: bestMatch.label,
     })
-  }, [addOpeningMode, addWallMode, onAddOpeningPoint, onAddWallPoint, onRetargetWall, onSelectDetection, retargetWallMode])
+  }, [addOpeningMode, addWallMode, moveWallEndpointMode, onAddOpeningPoint, onAddWallPoint, onMoveWallEndpointPoint, onRetargetWall, onSelectDetection, retargetWallMode])
 
   return (
     <div ref={frameRef} className="w-full rounded-2xl border border-white/10 bg-slate-950/50 p-3 overflow-auto">
       <canvas
         ref={canvasRef}
         onClick={handleCanvasClick}
-        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${addWallMode || addOpeningMode || retargetWallMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
+        className={`mx-auto block rounded-xl bg-slate-900 shadow-2xl ${addWallMode || addOpeningMode || retargetWallMode || moveWallEndpointMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
       />
     </div>
   )
@@ -400,11 +455,18 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const [addWallMode, setAddWallMode] = useState(false)
   const [addOpeningMode, setAddOpeningMode] = useState(null)
   const [retargetWallMode, setRetargetWallMode] = useState(false)
+  const [moveWallEndpointMode, setMoveWallEndpointMode] = useState(null)
   const [pendingWallPoint, setPendingWallPoint] = useState(null)
   const hiddenCount = useMemo(() => countHiddenDetections(hiddenDetections), [hiddenDetections])
   const addedCount = useMemo(() => countAddedDetections(addedDetections), [addedDetections])
+  const wallEditCount = useMemo(() => countWallEndpointEdits(addedDetections), [addedDetections])
   const visibleCounts = useMemo(() => countVisibleDetections(analysis, hiddenDetections, addedDetections), [addedDetections, analysis, hiddenDetections])
   const correctedFloorPlan = useMemo(() => buildCorrectedFloorPlan(review, hiddenDetections, addedDetections), [addedDetections, review, hiddenDetections])
+  const selectedWall = useMemo(() => (
+    selectedDetection?.type === 'walls' || selectedDetection?.type === 'addedWalls'
+      ? getReviewWallForDetection(analysis, addedDetections, selectedDetection)
+      : null
+  ), [addedDetections, analysis, selectedDetection])
   const selectedAddedOpening = useMemo(() => {
     if (selectedDetection?.type === 'addedDoors') {
       return { kind: 'door', collection: 'doors', opening: addedDetections.doors?.[selectedDetection.index] }
@@ -430,6 +492,9 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     if (detection?.type !== 'addedDoors' && detection?.type !== 'addedWindows') {
       setRetargetWallMode(false)
     }
+    if (detection?.type !== 'walls' && detection?.type !== 'addedWalls') {
+      setMoveWallEndpointMode(null)
+    }
   }, [])
 
   const hideSelected = useCallback(() => {
@@ -437,6 +502,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     setHiddenDetections(prev => toggleHiddenDetection(prev, selectedDetection))
     setSelectedDetection(null)
     setRetargetWallMode(false)
+    setMoveWallEndpointMode(null)
   }, [selectedDetection])
 
   const removeSelectedAddedDetection = useCallback(() => {
@@ -454,6 +520,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     }))
     setSelectedDetection(null)
     setRetargetWallMode(false)
+    setMoveWallEndpointMode(null)
   }, [selectedDetection])
 
   const hideOrRemoveSelected = useCallback(() => {
@@ -468,6 +535,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     setHiddenDetections(createEmptyHiddenDetections())
     setSelectedDetection(null)
     setRetargetWallMode(false)
+    setMoveWallEndpointMode(null)
   }, [])
 
   const toggleAddWallMode = useCallback(() => {
@@ -477,6 +545,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       setSelectedDetection(null)
       setAddOpeningMode(null)
       setRetargetWallMode(false)
+      setMoveWallEndpointMode(null)
       return next
     })
   }, [])
@@ -488,6 +557,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
       setPendingWallPoint(null)
       setSelectedDetection(null)
       setRetargetWallMode(false)
+      setMoveWallEndpointMode(null)
       return next
     })
   }, [])
@@ -572,8 +642,24 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     setAddWallMode(false)
     setAddOpeningMode(null)
     setPendingWallPoint(null)
+    setMoveWallEndpointMode(null)
     setRetargetWallMode(prev => !prev)
   }, [selectedAddedOpening])
+
+  const toggleMoveWallEndpointMode = useCallback((endpoint) => {
+    if (!selectedWall) return
+    setAddWallMode(false)
+    setAddOpeningMode(null)
+    setRetargetWallMode(false)
+    setPendingWallPoint(null)
+    setMoveWallEndpointMode(prev => (prev === endpoint ? null : endpoint))
+  }, [selectedWall])
+
+  const moveSelectedWallEndpoint = useCallback((point) => {
+    if (!selectedWall || !selectedDetection || !moveWallEndpointMode) return
+    setAddedDetections(prev => moveReviewWallEndpoint(prev, selectedDetection, moveWallEndpointMode, point, analysis))
+    setMoveWallEndpointMode(null)
+  }, [analysis, moveWallEndpointMode, selectedDetection, selectedWall])
 
   const retargetSelectedOpening = useCallback((wallItem) => {
     if (!selectedAddedOpening || !selectedDetection || !wallItem?.key) return
@@ -617,6 +703,8 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
     ? pendingWallPoint
       ? 'Tap the wall end point on the plan.'
       : 'Tap the missing wall start point on the plan.'
+    : moveWallEndpointMode
+      ? `Tap the correct wall ${moveWallEndpointMode} point on the plan.`
     : retargetWallMode
       ? 'Tap the wall this opening belongs to.'
     : addOpeningMode === 'door'
@@ -668,10 +756,12 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
             addWallMode={addWallMode}
             addOpeningMode={addOpeningMode}
             retargetWallMode={retargetWallMode}
+            moveWallEndpointMode={moveWallEndpointMode}
             pendingWallPoint={pendingWallPoint}
             onAddWallPoint={handleAddWallPoint}
             onAddOpeningPoint={handleAddOpeningPoint}
             onRetargetWall={retargetSelectedOpening}
+            onMoveWallEndpointPoint={moveSelectedWallEndpoint}
             onSelectDetection={handleSelectDetection}
           />
 
@@ -683,6 +773,7 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                   {correctionText}
                   {hiddenCount > 0 ? ` Hidden detections: ${hiddenCount}.` : ''}
                   {addedCount > 0 ? ` Manual additions: ${addedCount}.` : ''}
+                  {wallEditCount > 0 ? ` Wall edits: ${wallEditCount}.` : ''}
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -737,6 +828,37 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
                 </button>
               </div>
             </div>
+            {selectedWall ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Wall endpoints</p>
+                    <p className="text-xs leading-5 text-slate-400">
+                      Move one end of the selected wall to match the plan line.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {['start', 'end'].map(endpoint => {
+                    const active = moveWallEndpointMode === endpoint
+                    return (
+                      <button
+                        key={endpoint}
+                        type="button"
+                        onClick={() => toggleMoveWallEndpointMode(endpoint)}
+                        className={`min-h-11 rounded-2xl px-4 py-2.5 text-sm font-semibold capitalize transition-all ${
+                          active
+                            ? 'border border-amber-300/40 bg-amber-400/15 text-amber-100 hover:bg-amber-400/20'
+                            : 'border border-white/10 text-slate-200 hover:bg-white/10'
+                        }`}
+                      >
+                        {active ? `Cancel ${endpoint}` : `Move ${endpoint}`}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
             {selectedAddedOpening ? (
               <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                 <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">

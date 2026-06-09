@@ -195,6 +195,31 @@
 - Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local browser smoke test. Existing generated QA report timestamp/fixture churn was restored before final diff.
 - Remaining limitation: users still cannot drag handles directly or edit generated openings after placement.
 
+## Active Plan: v29 Wall Endpoint Correction
+- [x] Keep v29 scoped to review-time wall geometry correction in `FloorPlanReviewModal`: no paid analyzer call, no freeform drag handles, no renderer rewrite
+- [x] Add shared correction helpers for wall endpoint edits so a selected detected wall or manually added wall can have its start/end point moved in source-image coordinates
+- [x] Apply edited wall coordinates before `convertFloorPlanToWorld` so the final 3D building uses the corrected wall line
+- [x] Make snapping/retargeting helpers read the edited visible wall geometry so manual doors/windows stay aligned with corrected walls
+- [x] Add a calm mobile-safe `Move start` / `Move end` control for selected walls; the next tap on the source plan updates that endpoint
+- [x] Draw small endpoint handles for the selected wall so users understand which side will move without cluttering the overlay
+- [x] Preserve hiding/restoring detections, adding/removing walls, adding/removing openings, size presets, nudging, retargeting, and placing corrected geometry
+- [x] Extend no-cost review QA to assert detected-wall endpoint edits, added-wall endpoint edits, corrected 3D conversion, and visible-wall snapping behavior
+- [x] Verify with focused lint, floor-plan review QA, existing placement/fixture QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v29 review notes with what endpoint correction improves and what remains for direct drag handles or post-placement editing
+
+### v29 Review
+- Direction: v29 improves floor-plan accuracy at the wall-geometry level, so users can correct a bad wall line before Sitea turns it into 3D.
+- Scope stayed inside the review modal and shared correction utility: no paid analyzer call, no freeform drag handles, no provider switch, and no renderer rewrite.
+- Added endpoint-edit support for detected walls. Sitea stores corrected start/end coordinates in review state and applies them before `convertFloorPlanToWorld`.
+- Added endpoint-edit support for manually added walls by updating the selected added wall directly.
+- Snapping and retargeting now read edited visible wall geometry, so new manual doors/windows can align to corrected wall lines.
+- The review overlay now draws small `S` and `E` endpoint handles on the selected wall. The active endpoint is highlighted while picking the new point.
+- The correction panel now shows mobile-safe `Move start` and `Move end` buttons for selected walls; the next tap on the source plan updates that endpoint.
+- Existing v21-v28 behavior is preserved: hide/restore detections, add/remove walls, add/remove openings, opening presets, nudge, wall retarget, and `Place in 3D`.
+- Extended `npm run qa:floor-plans:review` to assert detected-wall endpoint edits, added-wall endpoint edits, edited-wall snapping, corrected analyzer payloads, and 3D conversion.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:review`, `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:check`, `npm run build`, `git diff --check`, and a local in-app browser smoke test. Existing generated QA report/fixture churn was restored before final diff.
+- Remaining limitation: endpoint moves are tap-based rather than direct drag handles, and generated openings still need review-time corrections before placement rather than post-placement editing.
+
 ## Todo
 - [x] Re-read product docs, status docs, task history, and design constraints
 - [x] Map app architecture, core user flows, backend/API surfaces, data model, and deployment setup

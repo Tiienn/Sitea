@@ -9,9 +9,12 @@ import {
   countAddedDetections,
   countHiddenDetections,
   countVisibleDetections,
+  countWallEndpointEdits,
   getManualOpeningPresetOptions,
   getManualOpeningNudgeStep,
+  getReviewWallForDetection,
   getReviewPixelsPerMeter,
+  moveReviewWallEndpoint,
   nudgeManualOpeningAlongWall,
   retargetManualOpeningToWall,
   snapOpeningToNearestReviewWall,
@@ -60,6 +63,40 @@ const addedWall = {
   source: 'manual_review',
 }
 const addedWallsOnly = { walls: [addedWall], doors: [], windows: [] }
+const editedDetectedWallIndex = analysis.walls.findIndex((_, index) => !hiddenDetections.walls.includes(index))
+const editedDetectedSourceWall = analysis.walls[editedDetectedWallIndex] || { start: { x: 0, y: 0 }, end: { x: 20, y: 0 } }
+const editedDetectedWallPoint = {
+  x: editedDetectedSourceWall.start.x + 21,
+  y: editedDetectedSourceWall.start.y + 9,
+}
+const withEditedDetectedWall = moveReviewWallEndpoint(
+  addedWallsOnly,
+  { type: 'walls', index: editedDetectedWallIndex },
+  'start',
+  editedDetectedWallPoint,
+  analysis,
+)
+const editedDetectedWall = getReviewWallForDetection(
+  analysis,
+  withEditedDetectedWall,
+  { type: 'walls', index: editedDetectedWallIndex },
+)
+const editedDetectedWallSnap = snapOpeningToNearestReviewWall(
+  editedDetectedWallPoint,
+  analysis,
+  hiddenDetections,
+  withEditedDetectedWall,
+)
+const editedAddedWallPoint = { x: addedWall.end.x + 42, y: addedWall.end.y + 18 }
+const withEditedAddedWall = moveReviewWallEndpoint(
+  addedWallsOnly,
+  { type: 'addedWalls', index: 0 },
+  'end',
+  editedAddedWallPoint,
+  analysis,
+)
+const editedAddedWall = getReviewWallForDetection(analysis, withEditedAddedWall, { type: 'addedWalls', index: 0 })
+const invalidWallEdit = moveReviewWallEndpoint(addedWallsOnly, { type: 'doors', index: 0 }, 'start', { x: 1, y: 1 }, analysis)
 const doorTap = { x: 340, y: 332 }
 const windowTap = { x: 530, y: 636 }
 const snappedDoor = snapOpeningToNearestReviewWall(doorTap, analysis, hiddenDetections, addedWallsOnly)
@@ -108,6 +145,8 @@ const addedDetections = {
   windows: [manualWindow],
 }
 const hiddenOnlyFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections)
+const editedDetectedWallFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withEditedDetectedWall)
+const editedAddedWallFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, withEditedAddedWall)
 const correctedAnalysis = applyReviewCorrections(analysis, hiddenDetections, addedDetections)
 const correctedFloorPlan = buildCorrectedFloorPlan(reviewPayload, hiddenDetections, addedDetections)
 const visibleCounts = countVisibleDetections(analysis, hiddenDetections, addedDetections)
@@ -122,6 +161,17 @@ assert(Array.isArray(reviewPayload.analysis.doors), 'Review payload is missing r
 assert(Array.isArray(reviewPayload.analysis.windows), 'Review payload is missing raw windows')
 assert(countHiddenDetections(hiddenDetections) === 3, 'Hidden detection count should include wall, door, and window')
 assert(countAddedDetections(addedDetections) === 3, 'Added detection count should include the manual wall, door, and window')
+assert(editedDetectedWallIndex >= 0, 'Fixture should have a visible wall for endpoint editing')
+assert(countWallEndpointEdits(withEditedDetectedWall) === 1, 'Detected wall endpoint edit should be counted')
+assert(editedDetectedWall.start.x === editedDetectedWallPoint.x && editedDetectedWall.start.y === editedDetectedWallPoint.y, 'Detected wall start endpoint was not edited')
+assert(editedDetectedWall.end.x === editedDetectedSourceWall.end.x, 'Detected wall edit should preserve the opposite endpoint')
+assert(editedDetectedWallSnap.snap?.wallKey === `walls:${editedDetectedWallIndex}`, 'Snapping should use edited detected wall geometry')
+assert(editedDetectedWallFloorPlan.analysis.walls.some(wall => wall.start.x === editedDetectedWallPoint.x && wall.start.y === editedDetectedWallPoint.y), 'Corrected analysis should include edited detected wall geometry')
+assert(editedDetectedWallFloorPlan.walls.length > 0, 'Edited detected wall should survive 3D conversion')
+assert(editedAddedWall.end.x === editedAddedWallPoint.x && editedAddedWall.end.y === editedAddedWallPoint.y, 'Added wall end endpoint was not edited')
+assert(editedAddedWallFloorPlan.analysis.walls.some(wall => wall.end.x === editedAddedWallPoint.x && wall.end.y === editedAddedWallPoint.y), 'Corrected analysis should include edited added wall geometry')
+assert(editedAddedWallFloorPlan.stats.wallCount > hiddenOnlyFloorPlan.stats.wallCount, 'Edited added wall should survive 3D conversion')
+assert(invalidWallEdit === addedWallsOnly, 'Invalid wall endpoint edit should leave additions unchanged')
 assert(snappedDoor.snap?.wallKey, 'Manual door did not snap to a review wall')
 assert(snappedWindow.snap?.wallKey, 'Manual window did not snap to a review wall')
 assert(Number.isFinite(snappedDoor.rotation), 'Manual door is missing snapped wall rotation')
@@ -187,4 +237,5 @@ console.log('Floor plan review QA passed', {
   nudgedDoorPosition: nudgedDoor.positionAlongWall,
   nudgeStep,
   retargetWall: retargetedDoor.snap,
+  wallEdits: countWallEndpointEdits(withEditedDetectedWall),
 })

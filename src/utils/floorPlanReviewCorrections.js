@@ -23,6 +23,9 @@ export function createEmptyAddedDetections() {
     walls: [],
     doors: [],
     windows: [],
+    wallEdits: {
+      walls: {},
+    },
   }
 }
 
@@ -41,6 +44,20 @@ function formatReviewPoint(point) {
   return {
     x: roundReviewNumber(point?.x || 0),
     y: roundReviewNumber(point?.y || 0),
+  }
+}
+
+function normalizeAdditions(additions = {}) {
+  return {
+    walls: additions.walls || [],
+    doors: additions.doors || [],
+    windows: additions.windows || [],
+    wallEdits: {
+      ...(additions.wallEdits || {}),
+      walls: {
+        ...(additions.wallEdits?.walls || {}),
+      },
+    },
   }
 }
 
@@ -87,6 +104,18 @@ function getWallLengthPx(wall) {
   return Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
 }
 
+function getEditedDetectedWall(wall, additions = {}, index) {
+  const edit = additions.wallEdits?.walls?.[index]
+  if (!edit) return wall
+
+  return {
+    ...wall,
+    start: edit.start ? formatReviewPoint(edit.start) : wall.start,
+    end: edit.end ? formatReviewPoint(edit.end) : wall.end,
+    source: wall.source || 'detected_review',
+  }
+}
+
 function getPointAlongWall(wall, positionAlongWall) {
   const length = getWallLengthPx(wall)
   if (!length) return null
@@ -128,9 +157,10 @@ export function getVisibleReviewWalls(analysis = {}, hidden = {}, additions = {}
   const visibleWalls = []
 
   ;(analysis.walls || []).forEach((wall, index) => {
-    if (hiddenSets.walls.has(index) || getWallLengthPx(wall) === 0) return
+    const editedWall = getEditedDetectedWall(wall, additions, index)
+    if (hiddenSets.walls.has(index) || getWallLengthPx(editedWall) === 0) return
     visibleWalls.push({
-      wall,
+      wall: editedWall,
       type: 'walls',
       index,
       key: `walls:${index}`,
@@ -147,6 +177,70 @@ export function getVisibleReviewWalls(analysis = {}, hidden = {}, additions = {}
   })
 
   return visibleWalls
+}
+
+export function getReviewWallForDetection(analysis = {}, additions = {}, detection) {
+  if (!detection || !Number.isInteger(detection.index)) return null
+
+  if (detection.type === 'walls') {
+    const wall = analysis.walls?.[detection.index]
+    return wall ? getEditedDetectedWall(wall, additions, detection.index) : null
+  }
+
+  if (detection.type === 'addedWalls') {
+    return additions.walls?.[detection.index] || null
+  }
+
+  return null
+}
+
+export function moveReviewWallEndpoint(additions = {}, detection, endpoint, point, analysis = {}) {
+  if ((endpoint !== 'start' && endpoint !== 'end') || !point || !detection || !Number.isInteger(detection.index)) {
+    return additions
+  }
+
+  const nextPoint = formatReviewPoint(point)
+  const normalized = normalizeAdditions(additions)
+
+  if (detection.type === 'addedWalls') {
+    const wall = normalized.walls[detection.index]
+    if (!wall) return additions
+    const nextWall = {
+      ...wall,
+      [endpoint]: nextPoint,
+      source: wall.source || 'manual_review',
+    }
+    if (getWallLengthPx(nextWall) < 1) return additions
+
+    return {
+      ...normalized,
+      walls: normalized.walls.map((item, index) => (index === detection.index ? nextWall : item)),
+    }
+  }
+
+  if (detection.type !== 'walls') return additions
+
+  const wall = getReviewWallForDetection(analysis, normalized, detection)
+  if (!wall) return additions
+  const nextWall = {
+    ...wall,
+    [endpoint]: nextPoint,
+  }
+  if (getWallLengthPx(nextWall) < 1) return additions
+
+  return {
+    ...normalized,
+    wallEdits: {
+      ...normalized.wallEdits,
+      walls: {
+        ...normalized.wallEdits.walls,
+        [detection.index]: {
+          start: formatReviewPoint(nextWall.start),
+          end: formatReviewPoint(nextWall.end),
+        },
+      },
+    },
+  }
 }
 
 export function getManualOpeningNudgeStep(analysis = {}) {
@@ -289,7 +383,11 @@ export function applyHiddenDetections(analysis = {}, hidden = {}) {
 }
 
 export function applyReviewCorrections(analysis = {}, hidden = {}, additions = {}) {
-  const corrected = applyHiddenDetections(analysis, hidden)
+  const editedAnalysis = {
+    ...analysis,
+    walls: (analysis.walls || []).map((wall, index) => getEditedDetectedWall(wall, additions, index)),
+  }
+  const corrected = applyHiddenDetections(editedAnalysis, hidden)
   const addedWalls = additions.walls || []
   const addedDoors = additions.doors || []
   const addedWindows = additions.windows || []
@@ -303,6 +401,10 @@ export function applyReviewCorrections(analysis = {}, hidden = {}, additions = {
 
 export function countAddedDetections(additions = {}) {
   return (additions.walls?.length || 0) + (additions.doors?.length || 0) + (additions.windows?.length || 0)
+}
+
+export function countWallEndpointEdits(additions = {}) {
+  return Object.keys(additions.wallEdits?.walls || {}).length
 }
 
 export function countVisibleDetections(analysis = {}, hidden = {}, additions = {}) {
@@ -326,6 +428,7 @@ export function buildCorrectedFloorPlan(review = {}, hidden = {}, additions = {}
       hiddenDetections: hidden,
       addedCount: countAddedDetections(additions),
       addedDetections: additions,
+      wallEditCount: countWallEndpointEdits(additions),
     },
   }
 }
