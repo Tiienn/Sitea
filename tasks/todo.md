@@ -2194,3 +2194,35 @@ Start with **server-verified PayPal + subscription hardening**. It protects reve
 - HTTP smoke test: `curl -I https://sitea.live/` returned `HTTP/2 200`.
 - The raw Vercel deployment URL returns `HTTP/2 401` because Vercel protection is enabled there, while the public alias is live.
 - Vercel CLI used for deploy: `54.10.2`.
+
+---
+
+# Fix [object Object] chat error after floor-plan upload (v41)
+
+## Root cause
+The chat error chip renders `err.message`. Four call sites construct errors as
+`new Error(data.error || fallback)` assuming the response JSON `error` field is
+a string. Vercel platform-level failures (function invocation errors, payload
+limits, deployment protection) return `{"error": {"code", "message"}}` — an
+object — so the chip shows `[object Object]` and the real diagnostic is lost.
+Server logs show the v40 analysis itself completed (37 walls), so the failure
+was platform/transport level on response delivery; the frontend then destroyed
+the message.
+
+## Todo
+- [x] Add `toErrorMessage(value, fallback)` util that safely coerces string |
+      {message} | {code} | nested {error:{...}} payloads to readable strings.
+- [x] Apply it at the four unsafe sites: floor-plan response reader (×2),
+      site-plan quota throw, ai-chat send, upload-quota hook, image analysis.
+- [x] Log raw status + body in the floor-plan reader failure branch so the next
+      occurrence is diagnosable from DevTools.
+- [x] Unit-check the coercion against string/object/nested/null payloads.
+- [x] Lint + build.
+
+## Review
+- New util `src/utils/errorMessages.js` with `toErrorMessage()`; handles
+  strings, Error instances, `{message}`, `{error: {message}}`, `{code}`, and
+  falls back to JSON.stringify capped at 200 chars, then to the caller fallback.
+- `readFloorPlanAnalysisResponse` now logs `[FloorPlan] Analysis request failed`
+  with status and raw body on every failure path before throwing.
+- No behavior change on the happy path; error chips now always show readable text.

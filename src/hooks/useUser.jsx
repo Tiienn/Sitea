@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
+import { toErrorMessage } from '../utils/errorMessages'
 
 const UserContext = createContext(null)
 
@@ -238,7 +239,7 @@ export function UserProvider({ children }) {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok || data.error) {
-        const message = data.error || 'Upload limit reached'
+        const message = toErrorMessage(data.error, 'Upload limit reached')
         if (response.status === 401) setShowAuthModal(true)
         if (response.status === 403) setShowPricingModal(true)
         setUploadQuotaError(message)

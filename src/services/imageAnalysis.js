@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '../lib/supabaseClient'
+import { toErrorMessage } from '../utils/errorMessages'
 
 /**
  * Resize image to fit within maxDim while preserving aspect ratio.
@@ -64,7 +65,7 @@ export async function detectSitePlanBoundary(imageBase64) {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
-    throw new Error(err.error || `API error ${response.status}`)
+    throw new Error(toErrorMessage(err.error, `API error ${response.status}`))
   }
 
   const result = await response.json()

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { convertFloorPlanToWorld } from '../utils/floorPlanConverter'
 import { buildFloorPlanReadout } from '../utils/floorPlanReadout'
+import { toErrorMessage } from '../utils/errorMessages'
 import { analyzeImage } from '../services/imageAnalysis'
 
 const MAX_TOOL_ITERATIONS = 5
@@ -146,13 +147,14 @@ async function readFloorPlanAnalysisResponse(response) {
   }
 
   if (!response.ok || data.error) {
+    console.error('[FloorPlan] Analysis request failed:', response.status, text?.slice(0, 500))
     if (data.code === 'FLOOR_PLAN_ANALYSIS_TIMEOUT') {
-      throw new Error(data.error || FLOOR_PLAN_TIMEOUT_ERROR)
+      throw new Error(toErrorMessage(data.error, FLOOR_PLAN_TIMEOUT_ERROR))
     }
     if (response.status === 504) {
       throw new Error(FLOOR_PLAN_TIMEOUT_ERROR)
     }
-    throw new Error(data.error || `Analysis failed: ${response.status}`)
+    throw new Error(toErrorMessage(data.error, `Analysis failed: ${response.status}`))
   }
 
   return data
@@ -2806,7 +2808,7 @@ export function useAIChat({
     try {
       const quota = await markUploadUsed()
       if (!quota?.ok) {
-        throw new Error(quota?.error || 'Upload limit reached')
+        throw new Error(toErrorMessage(quota?.error, 'Upload limit reached'))
       }
 
       if (fileMeta?.imageData && onSitePlanUploaded) {
@@ -4172,7 +4174,7 @@ export function useAIChat({
 
         if (!response.ok) {
           const err = await response.json().catch(() => ({}))
-          throw new Error(err.error || `API error ${response.status}`)
+          throw new Error(toErrorMessage(err.error, `API error ${response.status}`))
         }
 
         const data = await response.json()
