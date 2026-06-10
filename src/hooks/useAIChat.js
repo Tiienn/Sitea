@@ -662,11 +662,31 @@ function getGeneratedBuildingTargetLabel(target) {
   return 'the uploaded floor-plan building'
 }
 
-function isFitAroundGeneratedBuildingRequest(normalizedText) {
-  const mentionsFit = hasFitIntent(normalizedText) || /\b(compare|comparison|scale)\b/.test(normalizedText)
+function isAroundGeneratedBuildingPlacementRequest(normalizedText) {
   const mentionsAround = /\b(around|beside|next to|near|nearby|outside|remaining|left over|leftover|else)\b/.test(normalizedText)
   const mentionsPlan = /\b(uploaded plan|floor plan|floor-plan|placed plan|source plan|this plan|that plan|uploaded floor-plan|generated building|this building|that building|building)\b/.test(normalizedText)
-  return mentionsFit && mentionsAround && mentionsPlan
+  return mentionsAround && mentionsPlan
+}
+
+function isFitAroundGeneratedBuildingRequest(normalizedText) {
+  const mentionsFit = hasFitIntent(normalizedText) || /\b(compare|comparison|scale)\b/.test(normalizedText)
+  return mentionsFit && isAroundGeneratedBuildingPlacementRequest(normalizedText)
+}
+
+function buildAroundGeneratedBuildingComparisonAction(object, {
+  generatedBuildings,
+  selectedGeneratedBuildingId,
+  label = `Show ${object.name} beside plan`,
+} = {}) {
+  const target = resolveGeneratedBuildingForFit(generatedBuildings, selectedGeneratedBuildingId)
+  if (!target?.building) return null
+
+  return createComparisonAction(object, label, {
+    placementMode: 'around_generated_building',
+    targetBuildingId: target.building.id,
+    targetSource: target.targetSource,
+    generatedBuildingCount: target.generatedBuildingCount,
+  })
 }
 
 function buildFitAroundGeneratedBuildingAction({ landArea, generatedBuildings, selectedGeneratedBuildingId }) {
@@ -693,7 +713,12 @@ function buildFitAroundGeneratedBuildingAction({ landArea, generatedBuildings, s
       return fit.count === null || fit.count > 0
     })
     .slice(0, 2)
-    .map(object => createComparisonAction(object))
+    .map(object => buildAroundGeneratedBuildingComparisonAction(object, {
+      generatedBuildings,
+      selectedGeneratedBuildingId,
+      label: `Show ${object.name} beside plan`,
+    }))
+    .filter(Boolean)
 
   return {
     type: 'fit_around_generated_building',
@@ -2204,14 +2229,18 @@ function parseSelectedGeneratedBuildingCommand(normalizedText) {
   return null
 }
 
-function createComparisonAction(object, label = `Show ${object.name} in 3D`) {
+function createComparisonAction(object, label = `Show ${object.name} in 3D`, options = {}) {
   return {
     type: 'activate_comparison',
     comparisonId: object.id,
     label,
     objectName: object.name,
     handoff: true,
-    toast: `${object.displayName} added • drag or rotate it to compare scale`,
+    ...(options.placementMode ? { placementMode: options.placementMode } : {}),
+    ...(options.targetBuildingId ? { targetBuildingId: options.targetBuildingId } : {}),
+    ...(options.targetSource ? { targetSource: options.targetSource } : {}),
+    ...(Number.isFinite(options.generatedBuildingCount) ? { generatedBuildingCount: options.generatedBuildingCount } : {}),
+    toast: options.toast || `${object.displayName} added • drag or rotate it to compare scale`,
   }
 }
 
@@ -2319,6 +2348,19 @@ function buildTextSceneAction(text, { landArea, generatedBuildings = [], selecte
 
   if (isClearStructuresRequest(normalizedText)) {
     return { type: 'clear_structures' }
+  }
+
+  const aroundPlanComparison = getComparisonFromCommand(normalizedText)
+  if (
+    aroundPlanComparison &&
+    isAroundGeneratedBuildingPlacementRequest(normalizedText) &&
+    (hasSceneAddIntent(normalizedText) || /\b(compare|comparison|scale|show|add|place)\b/.test(normalizedText))
+  ) {
+    const action = buildAroundGeneratedBuildingComparisonAction(aroundPlanComparison, {
+      generatedBuildings,
+      selectedGeneratedBuildingId,
+    })
+    if (action) return { ...action, object: aroundPlanComparison }
   }
 
   const selectedGeneratedBuildingAction = parseSelectedGeneratedBuildingCommand(normalizedText)
@@ -3495,17 +3537,30 @@ export function useAIChat({
     }
 
     if (action.type === 'activate_comparison') {
-      if (onSceneControl) {
-        onSceneControl({ type: 'activate_comparison', comparisonId: action.object.id })
-      } else {
+      const sceneAction = {
+        type: 'activate_comparison',
+        comparisonId: action.object.id,
+        ...(action.placementMode ? { placementMode: action.placementMode } : {}),
+        ...(action.targetBuildingId ? { targetBuildingId: action.targetBuildingId } : {}),
+        ...(action.targetSource ? { targetSource: action.targetSource } : {}),
+      }
+      const sceneResult = onSceneControl ? onSceneControl(sceneAction) : null
+      if (!onSceneControl) {
         activateComparison?.(action.object.id)
       }
+      const placedAroundPlan = action.placementMode === 'around_generated_building'
+      const placedNearPlan = placedAroundPlan && sceneResult?.placementStatus === 'placed'
+      const placementCopy = placedAroundPlan
+        ? placedNearPlan
+          ? ` I placed it beside ${sceneResult.targetLabel || 'the uploaded plan'} so the comparison starts in context.`
+          : ' I added it to the land; I could not find a clear beside-plan spot, so you can drag it into position.'
+        : ''
       setMessages(prev => [...prev, userMsg, {
         role: 'assistant',
-        content: `Done. I added a ${action.object.name} to the land so the scale is visible immediately. It measures ${formatMeters(action.object.width)} x ${formatMeters(action.object.length)}.`,
+        content: `Done. I added a ${action.object.name} to the land so the scale is visible immediately. It measures ${formatMeters(action.object.width)} x ${formatMeters(action.object.length)}.${placementCopy}`,
         nextSteps: [
           { label: `${action.object.displayName} added`, state: 'done' },
-          { label: '3D scene opened', state: 'done' },
+          { label: placedNearPlan ? 'Placed beside uploaded plan' : '3D scene opened', state: 'done' },
           { label: 'Drag or rotate to compare scale', state: 'current' },
         ],
         toolActions: [{
@@ -3515,11 +3570,16 @@ export function useAIChat({
             objectName: action.object.name,
             width: action.object.width,
             length: action.object.length,
+            ...(action.placementMode ? { placementMode: action.placementMode } : {}),
+            ...(sceneResult?.buildingId || action.targetBuildingId ? { buildingId: sceneResult?.buildingId || action.targetBuildingId } : {}),
+            ...(sceneResult?.targetSource || action.targetSource ? { targetSource: sceneResult?.targetSource || action.targetSource } : {}),
+            ...(sceneResult?.position ? { position: sceneResult.position } : {}),
+            ...(sceneResult?.placementStatus ? { placementStatus: sceneResult.placementStatus } : {}),
           },
-          success: true,
+          success: sceneResult?.ok !== false,
         }],
       }])
-      onVisualHandoff?.({ toast: `${action.object.displayName} added • drag or rotate it to compare scale` })
+      onVisualHandoff?.({ toast: action.toast || `${action.object.displayName} added • drag or rotate it to compare scale` })
       return true
     }
 
@@ -4180,12 +4240,26 @@ export function useAIChat({
     if (!action || isLoading) return
 
     if (action.type === 'activate_comparison' && action.comparisonId) {
-      if (onSceneControl) {
-        onSceneControl({ type: 'activate_comparison', comparisonId: action.comparisonId, toast: action.toast })
-      } else {
+      const sceneAction = {
+        type: 'activate_comparison',
+        comparisonId: action.comparisonId,
+        toast: action.toast,
+        ...(action.placementMode ? { placementMode: action.placementMode } : {}),
+        ...(action.targetBuildingId ? { targetBuildingId: action.targetBuildingId } : {}),
+        ...(action.targetSource ? { targetSource: action.targetSource } : {}),
+      }
+      const sceneResult = onSceneControl ? onSceneControl(sceneAction) : null
+      if (!onSceneControl) {
         activateComparison?.(action.comparisonId)
       }
       const label = action.objectName || 'comparison object'
+      const placedAroundPlan = action.placementMode === 'around_generated_building'
+      const placedNearPlan = placedAroundPlan && sceneResult?.placementStatus === 'placed'
+      const placementCopy = placedAroundPlan
+        ? placedNearPlan
+          ? ` I placed it beside ${sceneResult.targetLabel || 'the uploaded plan'} so you can compare scale in context.`
+          : ' I added it to the land; I could not find a clear beside-plan spot, so you can drag it into position.'
+        : ''
       setMessages(prev => [...prev, {
         role: 'user',
         content: action.label,
@@ -4193,7 +4267,20 @@ export function useAIChat({
         hasImage: false,
       }, {
         role: 'assistant',
-        content: `Done. I added the ${label} comparison to the land and opened the scene so you can inspect scale visually.`,
+        content: `Done. I added the ${label} comparison to the land and opened the scene so you can inspect scale visually.${placementCopy}`,
+        toolActions: [{
+          name: 'activate_comparison',
+          input: {
+            objectId: action.comparisonId,
+            objectName: label,
+            ...(action.placementMode ? { placementMode: action.placementMode } : {}),
+            ...(sceneResult?.buildingId || action.targetBuildingId ? { buildingId: sceneResult?.buildingId || action.targetBuildingId } : {}),
+            ...(sceneResult?.targetSource || action.targetSource ? { targetSource: sceneResult?.targetSource || action.targetSource } : {}),
+            ...(sceneResult?.position ? { position: sceneResult.position } : {}),
+            ...(sceneResult?.placementStatus ? { placementStatus: sceneResult.placementStatus } : {}),
+          },
+          success: sceneResult?.ok !== false,
+        }],
       }])
       if (action.handoff) {
         onVisualHandoff?.(action)

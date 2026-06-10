@@ -928,6 +928,25 @@ const CASES = [
     expectChatVisible: true,
   },
   {
+    name: 'desktop-click-fit-around-uploaded-floor-plan-action',
+    viewport: 'desktop',
+    seedScene: QA_SCENE_WITH_GENERATED_BUILDING,
+    prompt: 'What fits around the uploaded plan?',
+    expectedStoredText: 'footprint at about 48m²',
+    expectedAdditionalStoredText: [
+      'Show tennis court beside plan',
+      'beside the uploaded floor-plan building',
+    ],
+    clickActionLabel: 'Show tennis court beside plan',
+    expectedToolActionName: 'activate_comparison',
+    expectedToolActionBuildingId: 'qa-generated-plan-1',
+    expectedToolActionTargetSource: 'only',
+    expectedToolActionPlacementMode: 'around_generated_building',
+    expectedToolActionPlacementStatus: 'placed',
+    expectChatVisible: true,
+    expectChatVisibleAfterClick: false,
+  },
+  {
     name: 'desktop-fit-around-latest-floor-plan',
     viewport: 'desktop',
     seedScene: QA_SCENE_WITH_TWO_GENERATED_BUILDINGS,
@@ -941,6 +960,22 @@ const CASES = [
     expectedToolActionBuildingId: 'qa-generated-plan-2',
     expectedToolActionTargetSource: 'latest',
     expectChatVisible: true,
+  },
+  {
+    name: 'desktop-add-tennis-around-uploaded-floor-plan',
+    viewport: 'desktop',
+    seedScene: QA_SCENE_WITH_GENERATED_BUILDING,
+    prompt: 'Show a tennis court around the uploaded plan',
+    expectedStoredText: 'I added a tennis court',
+    expectedAdditionalStoredText: [
+      'beside the uploaded floor-plan building',
+    ],
+    expectedToolActionName: 'activate_comparison',
+    expectedToolActionBuildingId: 'qa-generated-plan-1',
+    expectedToolActionTargetSource: 'only',
+    expectedToolActionPlacementMode: 'around_generated_building',
+    expectedToolActionPlacementStatus: 'placed',
+    expectChatVisible: false,
   },
   {
     name: 'desktop-rotate-uploaded-floor-plan-auto-target',
@@ -1289,6 +1324,15 @@ async function runCase(browser, baseUrl, testCase) {
   }
   if (testCase.expectedToolActionTargetSource && audit.latestToolActionInput.targetSource !== testCase.expectedToolActionTargetSource) {
     fail('Unexpected generated building target source', { audit, testCase: testCase.name, expectedToolActionTargetSource: testCase.expectedToolActionTargetSource })
+  }
+  if (testCase.expectedToolActionPlacementMode && audit.latestToolActionInput.placementMode !== testCase.expectedToolActionPlacementMode) {
+    fail('Unexpected comparison placement mode', { audit, testCase: testCase.name, expectedToolActionPlacementMode: testCase.expectedToolActionPlacementMode })
+  }
+  if (testCase.expectedToolActionPlacementStatus && audit.latestToolActionInput.placementStatus !== testCase.expectedToolActionPlacementStatus) {
+    fail('Unexpected comparison placement status', { audit, testCase: testCase.name, expectedToolActionPlacementStatus: testCase.expectedToolActionPlacementStatus })
+  }
+  if (testCase.expectedToolActionPlacementStatus === 'placed' && !audit.latestToolActionInput.position) {
+    fail('Expected comparison placement position', { audit, testCase: testCase.name })
   }
   if (testCase.expectedMoveDirection && audit.latestToolActionInput.direction !== testCase.expectedMoveDirection) {
     fail('Unexpected move direction', { audit, testCase: testCase.name, expectedMoveDirection: testCase.expectedMoveDirection })

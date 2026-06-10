@@ -1,5 +1,31 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v39 Agent-Guided Comparison Placement Around Uploaded Plans
+- [x] Keep v39 scoped to local scene control after v38 fit-around answers: no paid analyzer call, no provider switch, no renderer rewrite, and no new comparison object definitions
+- [x] Add placement intent to around-plan comparison actions so buttons like `Show tennis court` know they came from `What fits around the uploaded plan?`
+- [x] Preserve generic comparison behavior: broad requests like `show tennis court` should still activate the object in the existing default position
+- [x] Add a small scene-control helper in `App.jsx` that resolves the selected/only/latest generated floor-plan building and estimates its footprint bounds
+- [x] Pick a simple nearby comparison position around the uploaded/generated floor-plan building using conservative candidates: right, left, back, then front
+- [x] Keep placement honest and safe: avoid obvious overlap with the generated building footprint, keep the comparison inside the land bounds where possible, and fall back to default placement if no nearby spot is available
+- [x] Apply the chosen position through existing `comparisonPositions`/`comparisonRotations` state and select the comparison object after activation
+- [x] Teach local text commands such as `show a tennis court around the uploaded plan` and `compare basketball beside this building` to use the new around-plan placement intent
+- [x] Extend no-cost agent text-action QA with seeded generated-building cases that assert around-plan comparison actions carry the placement intent, without uploading files or calling paid analyzers
+- [x] Verify with focused lint for changed files, `npm run qa:agent-text-actions`, `npm run build`, `git diff --check`, and a local browser smoke if scene placement changes need visual confirmation
+- [x] Add v39 review notes with what comparison placement improves and what remains for exact geometric packing/setbacks
+
+### v39 Review
+- Direction: v39 makes fit-around follow-ups act in the scene, so comparison objects can start beside an uploaded/generated floor-plan building instead of always using the generic default placement.
+- Scope stayed local and no-cost: no paid analyzer call, no provider switch, no renderer rewrite, and no new comparison object definitions.
+- Around-plan fit responses now create comparison actions with placement intent, target building ID, target source, and generated-building count.
+- Generic comparison behavior is preserved: broad requests like `show tennis court` still use the existing default comparison activation path.
+- `App.jsx` now resolves the selected/only/latest generated floor-plan building, estimates its world-space wall footprint, and tries nearby comparison placements in a conservative order: right, left, behind, then front.
+- Placement uses existing `comparisonPositions` and `comparisonRotations` state. When a nearby spot is valid, Sitea selects the comparison object and places it beside the plan.
+- The helper validates comparison footprints against the land polygon/setback rules and avoids overlapping the generated building footprint. If no nearby spot is clear, Sitea falls back to normal activation and says the user can drag it.
+- Text commands such as `Show a tennis court around the uploaded plan` now use the around-plan placement intent instead of accidentally selecting the uploaded plan.
+- Extended `npm run qa:agent-text-actions` with seeded uploaded-floor-plan cases for both the visible fit-around button and direct text command. They assert the action uses `around_generated_building`, targets the generated building, and returns a placed position. No upload or paid analyzer call is made.
+- Verification passed: focused ESLint for changed files with the existing App warning baseline, `npm run qa:agent-text-actions`, `npm run build`, `git diff --check`, and visual inspection of the generated QA screenshot/minimap for the new placement case.
+- Remaining limitation: v39 uses simple axis-aligned footprint placement around the generated building. It does not yet do exact open-space packing, driveway/access corridors, object rotation optimization, or setback-aware “best fit” ranking across irregular open regions.
+
 ## Active Plan: v38 Context-Aware Fit Around Uploaded Plans
 - [x] Keep v38 scoped to local agent reasoning for fit checks after a floor-plan building is placed: no paid analyzer call, no provider switch, no renderer rewrite, and no new UI panel
 - [x] Add a small helper in `useAIChat` to estimate generated floor-plan building footprint from its wall bounds and report approximate occupied area

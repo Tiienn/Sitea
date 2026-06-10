@@ -2644,6 +2644,151 @@ function App() {
       return 'the uploaded floor-plan building'
     }
 
+    const getGeneratedBuildingFootprintBounds = (building) => {
+      const points = (building?.walls || [])
+        .flatMap(wall => [wall.start, wall.end])
+        .filter(point => Number.isFinite(point?.x) && Number.isFinite(point?.z))
+      if (points.length < 2) return null
+
+      const rotation = building.rotation || 0
+      const cos = Math.cos(rotation)
+      const sin = Math.sin(rotation)
+      const origin = building.position || { x: 0, z: 0 }
+      const worldPoints = points.map(point => ({
+        x: origin.x + point.x * cos - point.z * sin,
+        z: origin.z + point.x * sin + point.z * cos,
+      }))
+      const xs = worldPoints.map(point => point.x)
+      const zs = worldPoints.map(point => point.z)
+      const minX = Math.min(...xs)
+      const maxX = Math.max(...xs)
+      const minZ = Math.min(...zs)
+      const maxZ = Math.max(...zs)
+
+      return {
+        minX,
+        maxX,
+        minZ,
+        maxZ,
+        width: maxX - minX,
+        length: maxZ - minZ,
+        center: { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 },
+      }
+    }
+
+    const getAxisAlignedBounds = (position, width, length) => ({
+      minX: position.x - width / 2,
+      maxX: position.x + width / 2,
+      minZ: position.z - length / 2,
+      maxZ: position.z + length / 2,
+    })
+
+    const boundsOverlap = (a, b, gap = 0) => (
+      a.minX - gap < b.maxX &&
+      a.maxX + gap > b.minX &&
+      a.minZ - gap < b.maxZ &&
+      a.maxZ + gap > b.minZ
+    )
+
+    const findComparisonPlacementAroundGeneratedBuilding = (comparisonId, targetBuildingId = null, requestedTargetSource = null) => {
+      const comparison = COMPARISON_OBJECTS.find(obj => obj.id === comparisonId)
+      if (!comparison) return null
+
+      const target = resolveGeneratedBuildingTarget(targetBuildingId)
+      if (!target.building) {
+        return {
+          ok: true,
+          placementMode: 'around_generated_building',
+          placementStatus: 'default',
+          reason: 'missing_generated_building',
+        }
+      }
+
+      const buildingBounds = getGeneratedBuildingFootprintBounds(target.building)
+      const targetSource = requestedTargetSource || target.targetSource
+      const targetLabel = getGeneratedBuildingTargetCopy({ ...target, targetSource })
+      if (!buildingBounds) {
+        return {
+          ok: true,
+          placementMode: 'around_generated_building',
+          placementStatus: 'default',
+          reason: 'missing_generated_building_bounds',
+          buildingId: target.building.id,
+          targetSource,
+          targetLabel,
+        }
+      }
+
+      const gap = 2
+      const candidates = [
+        {
+          direction: 'right',
+          position: {
+            x: buildingBounds.maxX + comparison.width / 2 + gap,
+            z: buildingBounds.center.z,
+          },
+        },
+        {
+          direction: 'left',
+          position: {
+            x: buildingBounds.minX - comparison.width / 2 - gap,
+            z: buildingBounds.center.z,
+          },
+        },
+        {
+          direction: 'behind',
+          position: {
+            x: buildingBounds.center.x,
+            z: buildingBounds.maxZ + comparison.length / 2 + gap,
+          },
+        },
+        {
+          direction: 'front',
+          position: {
+            x: buildingBounds.center.x,
+            z: buildingBounds.minZ - comparison.length / 2 - gap,
+          },
+        },
+      ]
+      const polygon = getLandPolygon()
+      const setback = setbacksEnabled ? setbackDistanceM : 0
+      const comparisonFootprint = { width: comparison.width, length: comparison.length }
+
+      for (const candidate of candidates) {
+        if (!isPlacementValid(candidate.position, comparisonFootprint, 0, polygon, setback)) continue
+        const comparisonBounds = getAxisAlignedBounds(candidate.position, comparison.width, comparison.length)
+        if (boundsOverlap(buildingBounds, comparisonBounds, 0.05)) continue
+
+        return {
+          ok: true,
+          placementMode: 'around_generated_building',
+          placementStatus: 'placed',
+          comparisonId,
+          buildingId: target.building.id,
+          targetSource,
+          generatedBuildingCount: target.generatedBuildingCount,
+          targetLabel,
+          direction: candidate.direction,
+          position: {
+            x: Number(candidate.position.x.toFixed(2)),
+            z: Number(candidate.position.z.toFixed(2)),
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        placementMode: 'around_generated_building',
+        placementStatus: 'default',
+        reason: 'no_nearby_spot',
+        comparisonId,
+        buildingId: target.building.id,
+        targetSource,
+        generatedBuildingCount: target.generatedBuildingCount,
+        targetLabel,
+      }
+    }
+
     const explodeGeneratedBuilding = (building) => {
       const { newWalls, newFurniture } = buildExplodedGeneratedBuildingParts(building)
       pushWallsState([...walls, ...newWalls])
@@ -2754,11 +2899,26 @@ function App() {
     }
 
     if (action.type === 'activate_comparison' && action.comparisonId) {
+      const placementResult = action.placementMode === 'around_generated_building'
+        ? findComparisonPlacementAroundGeneratedBuilding(action.comparisonId, action.targetBuildingId || action.buildingId || null, action.targetSource || null)
+        : null
+
+      if (placementResult?.placementStatus === 'placed' && placementResult.position) {
+        setComparisonPositions(prev => ({
+          ...prev,
+          [action.comparisonId]: placementResult.position,
+        }))
+        setComparisonRotations(prev => ({
+          ...prev,
+          [action.comparisonId]: 0,
+        }))
+      }
+
       setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: true }))
       setSelectedComparisonId(action.comparisonId)
       setActivePanel(null)
       setUndoRedoToast(action.toast || `${getComparisonName(action.comparisonId)} added`)
-      return true
+      return placementResult || { ok: true, comparisonId: action.comparisonId }
     }
 
     if (action.type === 'remove_comparison' && action.comparisonId) {
