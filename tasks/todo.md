@@ -2369,3 +2369,25 @@ nearest merged wall. All 5 doors + 7 windows on the fixture now place
 within 0.07m of plan truth. positionAlongWall no longer used.
 
 QA review + placement, lint, build pass.
+
+---
+
+# v46: Stair shield + opening-implies-wall (user-annotated v45 feedback)
+
+User marked three defects on the placed 3D: a phantom wall at the stairs,
+a missing/misplaced bath door area, and bath/toilet not matching the
+review overlay.
+
+- [x] Stair shield (analyzer): semantics schema now returns the stair
+      footprint bbox; CV walls lying fully inside the shrunk (15%/side)
+      stair region are rejected in the wall audit. Root cause: aligned
+      stair-tread ends form a vertical pixel column the tracer reads as a
+      wall. Bordering real walls are outside the shrunk core, never touched.
+      Paid validation run: bbox (130,540 140x170) returned, matches the
+      stair area; scale 42.7 px/m dimension_chain.
+- [x] Opening-implies-wall (converter): short walls with a detected
+      door/window center within 0.5m survive the short-wall filter — a door
+      has to swing from something. Recovers the bath-entry jamb wall
+      (fixture 11 → 12 walls), so the bath door lands on its real wall.
+- [x] Opening accuracy still <= 0.07m on all fixture doors/windows; all
+      QA suites, lint, build pass.

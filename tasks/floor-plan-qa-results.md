@@ -1,6 +1,6 @@
 # Floor Plan QA Results
 
-Generated: 2026-06-10T18:29:14.774Z
+Generated: 2026-06-10T20:41:12.881Z
 
 Demo-ready fixtures: 3/3
 Review-only real fixtures with results: 4/4
@@ -13,7 +13,7 @@ Review-only real fixtures with results: 4/4
 | real-wide-40x30 | samples/real/real-wide-40x30.webp | Review-only | 46 detected | 8 detected | 9 detected | 9 detected | 0 detected | local analyzer fixture run; scale: dimension_label_wall_bounds, 124.5 px/m, 93% confidence |
 | real-site-ground-floor | samples/real/real-site-ground-floor.png | Review-only | 34 detected | 5 detected | 6 detected | 6 detected | 1 detected | local analyzer fixture run; scale: dimension_label, 34.8 px/m, 92% confidence |
 | real-site-upper-floor | samples/real/real-site-upper-floor.png | Review-only | 59 detected | 5 detected | 5 detected | 10 detected | 1 detected | local analyzer fixture run; scale: dimension_label, 43.4 px/m, 93% confidence |
-| real-lot-127sqm | samples/real/real-lot-127sqm.png | Review-only | 33 detected | 5 detected | 7 detected | 6 detected | 1 detected | local analyzer fixture run; scale: dimension_chain, 45.8 px/m, 93% confidence |
+| real-lot-127sqm | samples/real/real-lot-127sqm.png | Review-only | 32 detected | 6 detected | 6 detected | 6 detected | 1 detected | local analyzer fixture run; scale: dimension_chain, 42.7 px/m, 93% confidence |
 
 ## Demo Readiness Rules
 

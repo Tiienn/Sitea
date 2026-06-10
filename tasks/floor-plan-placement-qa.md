@@ -6,7 +6,7 @@ Local scene: `fixtures/floor-plan-qa/placement/real-floor-plan-scene.json`
 
 | Fixture | Status | Raw Walls | 3D Walls | Doors | Windows | Rooms | Stairs | Bounds | Scale | Notes |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| real-wide-40x30 | Needs visual fix | 46 | 14 | 8 | 9 | 9 | 0 | 12.15m x 9.04m | dimension_label_wall_bounds, 124.5 px/m, 93% | converter filtered 32/46 detected walls; shortest wall 0.88m; longest wall 12.12m |
+| real-wide-40x30 | Needs visual fix | 46 | 13 | 8 | 9 | 9 | 0 | 12.13m x 9.14m | dimension_label_wall_bounds, 124.5 px/m, 93% | converter filtered 33/46 detected walls; shortest wall 0.88m; longest wall 12.12m |
 | real-site-ground-floor | Needs visual fix | 34 | 18 | 5 | 6 | 6 | 1 | 15.52m x 11.78m | dimension_label, 34.8 px/m, 92% | converter filtered 16/34 detected walls; shortest wall 1.15m; longest wall 15.52m |
 | real-site-upper-floor | Needs visual fix | 59 | 21 | 5 | 5 | 10 | 1 | 13.36m x 8.29m | dimension_label, 43.4 px/m, 93% | converter filtered 38/59 detected walls; 59 walls detected - may include furniture or duplicates; shortest wall 1.15m; longest wall 13.36m |
 

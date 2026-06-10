@@ -33,24 +33,11 @@
     },
     {
       "start": {
-        "x": 127,
+        "x": 193,
         "y": 416
       },
       "end": {
-        "x": 190,
-        "y": 416
-      },
-      "thickness": 10,
-      "isExterior": true,
-      "confidence": 0.9
-    },
-    {
-      "start": {
-        "x": 190,
-        "y": 416
-      },
-      "end": {
-        "x": 235,
+        "x": 242,
         "y": 416
       },
       "thickness": 10,
@@ -63,8 +50,8 @@
         "y": 448
       },
       "end": {
-        "x": 489,
-        "y": 449
+        "x": 490,
+        "y": 448
       },
       "thickness": 11,
       "isExterior": false,
@@ -124,7 +111,20 @@
     },
     {
       "start": {
-        "x": 528,
+        "x": 490,
+        "y": 448
+      },
+      "end": {
+        "x": 527,
+        "y": 447
+      },
+      "thickness": 4,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 527,
         "y": 447
       },
       "end": {
@@ -137,7 +137,20 @@
     },
     {
       "start": {
-        "x": 612,
+        "x": 578,
+        "y": 447
+      },
+      "end": {
+        "x": 611,
+        "y": 447
+      },
+      "thickness": 4,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 611,
         "y": 447
       },
       "end": {
@@ -271,19 +284,6 @@
         "y": 387
       },
       "end": {
-        "x": 127,
-        "y": 416
-      },
-      "thickness": 10,
-      "isExterior": true,
-      "confidence": 0.9
-    },
-    {
-      "start": {
-        "x": 127,
-        "y": 416
-      },
-      "end": {
         "x": 126,
         "y": 510
       },
@@ -340,19 +340,6 @@
         "y": 535
       },
       "thickness": 11,
-      "isExterior": false,
-      "confidence": 0.9
-    },
-    {
-      "start": {
-        "x": 235,
-        "y": 390
-      },
-      "end": {
-        "x": 235,
-        "y": 416
-      },
-      "thickness": 10,
       "isExterior": false,
       "confidence": 0.9
     },
@@ -438,56 +425,67 @@
   "doors": [
     {
       "center": {
-        "x": 226,
-        "y": 472
+        "x": 217.5,
+        "y": 694
       },
-      "width": 35,
-      "wallIndex": 11,
-      "positionAlongWall": 18,
-      "rotation": 0,
-      "doorType": "single"
-    },
-    {
-      "center": {
-        "x": 214,
-        "y": 416
-      },
-      "width": 35,
-      "wallIndex": 3,
-      "positionAlongWall": 21,
+      "width": 47,
+      "wallIndex": 15,
+      "positionAlongWall": 49.5,
       "rotation": 0,
       "doorType": "single"
     },
     {
       "center": {
         "x": 289,
-        "y": 335
+        "y": 330
       },
-      "width": 35,
-      "wallIndex": 27,
-      "positionAlongWall": 79,
+      "width": 46,
+      "wallIndex": 26,
+      "positionAlongWall": 74,
       "rotation": 90,
       "doorType": "single"
     },
     {
       "center": {
-        "x": 126,
-        "y": 650
+        "x": 217.5,
+        "y": 416
       },
-      "width": 35,
-      "wallIndex": 23,
-      "positionAlongWall": 115,
-      "rotation": 90,
+      "width": 40,
+      "wallIndex": 2,
+      "positionAlongWall": 24.5,
+      "rotation": 0,
       "doorType": "single"
     },
     {
       "center": {
-        "x": 468,
-        "y": 449
+        "x": 226,
+        "y": 472
       },
-      "width": 70,
-      "wallIndex": 4,
-      "positionAlongWall": 21,
+      "width": 36,
+      "wallIndex": 12,
+      "positionAlongWall": 18,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 480,
+        "y": 447
+      },
+      "width": 90,
+      "wallIndex": 7,
+      "positionAlongWall": 71,
+      "rotation": 0,
+      "doorType": "sliding"
+    },
+    {
+      "center": {
+        "x": 572.5,
+        "y": 694
+      },
+      "width": 121,
+      "wallIndex": 17,
+      "positionAlongWall": 126.5,
       "rotation": 0,
       "doorType": "sliding"
     }
@@ -495,66 +493,57 @@
   "windows": [
     {
       "center": {
-        "x": 155,
+        "x": 223.5,
         "y": 253
       },
-      "width": 46,
+      "width": 85,
       "wallIndex": 0,
-      "positionAlongWall": 26
+      "positionAlongWall": 94.5
     },
     {
       "center": {
-        "x": 479,
+        "x": 126,
+        "y": 310
+      },
+      "width": 70,
+      "wallIndex": 20,
+      "positionAlongWall": 61
+    },
+    {
+      "center": {
+        "x": 126,
+        "y": 450
+      },
+      "width": 40,
+      "wallIndex": 21,
+      "positionAlongWall": 60
+    },
+    {
+      "center": {
+        "x": 327.5,
         "y": 694
       },
-      "width": 62,
+      "width": 35,
       "wallIndex": 16,
-      "positionAlongWall": 33
+      "positionAlongWall": 86.5
     },
     {
       "center": {
-        "x": 379,
+        "x": 429,
         "y": 697
       },
-      "width": 62,
-      "wallIndex": 18,
-      "positionAlongWall": 34
+      "width": 34,
+      "wallIndex": 19,
+      "positionAlongWall": 84
     },
     {
       "center": {
-        "x": 669,
-        "y": 550
+        "x": 572.5,
+        "y": 694
       },
-      "width": 62,
-      "wallIndex": 31,
-      "positionAlongWall": 105
-    },
-    {
-      "center": {
-        "x": 353,
-        "y": 447
-      },
-      "width": 46,
-      "wallIndex": 6,
-      "positionAlongWall": 21
-    },
-    {
-      "center": {
-        "x": 426,
-        "y": 447
-      },
-      "width": 46,
-      "wallIndex": 8,
-      "positionAlongWall": 17
-    },
-    {
-      "center": {
-        "x": 546,
-        "y": 447
-      },
-      "width": 46,
-      "wallIndex": 9,
-      "positionAlongWall": 18
+      "width": 121,
+      "wallIndex": 17,
+      "positionAlongWall": 126.5
     }
   ],
   "rooms": [
@@ -562,47 +551,47 @@
       "name": "Bedroom",
       "center": {
         "x": 205,
-        "y": 325
+        "y": 320
       },
       "labeledArea": null
     },
     {
       "name": "Bath / Toilet",
       "center": {
-        "x": 175,
+        "x": 165,
         "y": 455
       },
       "labeledArea": null
     },
     {
-      "name": "Hall",
-      "center": {
-        "x": 210,
-        "y": 575
-      },
-      "labeledArea": null
-    },
-    {
-      "name": "Living / Dining / Kitchen",
+      "name": "Living / Dining",
       "center": {
         "x": 470,
-        "y": 565
+        "y": 585
       },
       "labeledArea": null
     },
     {
-      "name": "Covered terrace",
+      "name": "Covered Terrace",
       "center": {
-        "x": 455,
-        "y": 360
+        "x": 470,
+        "y": 380
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Entry / Hall",
+      "center": {
+        "x": 210,
+        "y": 640
       },
       "labeledArea": null
     },
     {
       "name": "Stairs",
       "center": {
-        "x": 190,
-        "y": 610
+        "x": 185,
+        "y": 625
       },
       "labeledArea": null
     }
@@ -610,18 +599,24 @@
   "stairs": [
     {
       "center": {
-        "x": 190,
-        "y": 610
+        "x": 185,
+        "y": 625
       },
-      "direction": "up"
+      "direction": "up",
+      "bbox": {
+        "x": 130,
+        "y": 540,
+        "w": 140,
+        "h": 170
+      }
     }
   ],
   "scale": {
-    "pixelsPerMeter": 45.78531445505433,
+    "pixelsPerMeter": 42.72260273972603,
     "confidence": 0.93,
     "source": "dimension_chain"
   },
-  "overallShape": "rectangular",
+  "overallShape": "rectangular_with_covered_terrace_recess",
   "totalArea": {
     "value": 127,
     "unit": "sqm"

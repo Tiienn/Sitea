@@ -464,6 +464,12 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     if (wallLength(w) < 0.05) return false;
     if (wallLength(w) >= MIN_WALL_LENGTH_M) return true;
 
+    // A detected door/window beside a short wall proves it's real — a door
+    // has to swing from something (e.g. a bath-entry jamb wall).
+    if (openingPoints.some(p => pointToLineDistance(p, w.start, w.end) <= 0.5)) {
+      return true;
+    }
+
     // Check if BOTH endpoints connect to at least one other wall
     let startConnected = false;
     let endConnected = false;

@@ -21,37 +21,37 @@
         {
           "id": "wall-qa-real-wide-40x30-0",
           "start": {
-            "x": -5.888028439541314,
-            "z": -5.003209256309134
+            "x": -5.89355974703554,
+            "z": -5.0007515061107775
           },
           "end": {
-            "x": 6.18864723397705,
-            "z": -5.003209256309134
+            "x": 6.188647233977051,
+            "z": -5.0007515061107775
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
           "openings": [
             {
-              "id": "window-qa-real-wide-40x30-1",
+              "id": "window-qa-real-wide-40x30-0",
               "type": "window",
-              "position": 1.4042370510499276,
-              "width": 1.4484067994414371,
+              "position": 1.504448233576639,
+              "width": 1.7556446053835602,
               "height": 1.2,
               "sillHeight": 0.9
             },
             {
-              "id": "window-qa-real-wide-40x30-0",
+              "id": "window-qa-real-wide-40x30-1",
               "type": "window",
-              "position": 1.5505117438676286,
-              "width": 1.7556446053835602,
+              "position": 5.191301904882116,
+              "width": 1.4484067994414371,
               "height": 1.2,
               "sillHeight": 0.9
             },
             {
               "id": "window-qa-real-wide-40x30-2",
               "type": "window",
-              "position": 1.989335822320731,
+              "position": 10.165628286802203,
               "width": 1.9019483224988567,
               "height": 1.2,
               "sillHeight": 0.9
@@ -77,46 +77,46 @@
           "id": "wall-qa-real-wide-40x30-8",
           "start": {
             "x": -5.888028439541314,
-            "z": -1.132778346234311
+            "z": -1.110217155928326
           },
           "end": {
             "x": 6.233438020578526,
-            "z": -1.132778346234311
+            "z": -1.110217155928326
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
           "openings": [
             {
-              "id": "door-qa-real-wide-40x30-3",
+              "id": "door-qa-real-wide-40x30-0",
               "type": "door",
               "doorType": "single",
-              "position": 0.5120630099035384,
-              "width": 1.0241260198070767,
-              "height": 2.1
-            },
-            {
-              "id": "door-qa-real-wide-40x30-2",
-              "type": "door",
-              "doorType": "single",
-              "position": 1.477374397458778,
-              "width": 1.1704297369223733,
+              "position": 2.4791518307549003,
+              "width": 0.9656045329609582,
               "height": 2.1
             },
             {
               "id": "door-qa-real-wide-40x30-1",
               "type": "door",
               "doorType": "single",
-              "position": 2.1209830458566614,
+              "position": 5.902658811252843,
               "width": 0.7607793289995428,
               "height": 2.1
             },
             {
-              "id": "door-qa-real-wide-40x30-0",
+              "id": "door-qa-real-wide-40x30-2",
               "type": "door",
               "doorType": "single",
-              "position": 2.530552185746224,
-              "width": 0.9656045329609582,
+              "position": 8.082584196270762,
+              "width": 1.1704297369223733,
+              "height": 2.1
+            },
+            {
+              "id": "door-qa-real-wide-40x30-3",
+              "type": "door",
+              "doorType": "single",
+              "position": 9.691925084539028,
+              "width": 1.0241260198070767,
               "height": 2.1
             }
           ]
@@ -139,7 +139,7 @@
               "id": "door-qa-real-wide-40x30-5",
               "type": "door",
               "doorType": "double",
-              "position": 0.9215305647515151,
+              "position": 0.8873545360909452,
               "width": 1.31673345403767,
               "height": 2.1
             }
@@ -149,11 +149,11 @@
           "id": "wall-qa-real-wide-40x30-17",
           "start": {
             "x": 4.233275562944438,
-            "z": 3.203929870688726
+            "z": 3.198731343149942
           },
           "end": {
-            "x": 6.233438020578526,
-            "z": 3.203929870688726
+            "x": 6.232001288646755,
+            "z": 3.198731343149942
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -164,21 +164,21 @@
           "id": "wall-qa-real-wide-40x30-19",
           "start": {
             "x": -5.837518312900338,
-            "z": 3.9622228598062574
+            "z": 4.012334116113898
           },
           "end": {
             "x": 6.233438020578526,
-            "z": 3.9622228598062574
+            "z": 4.012334116113898
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
           "openings": [
             {
-              "id": "window-qa-real-wide-40x30-7",
+              "id": "window-qa-real-wide-40x30-6",
               "type": "window",
-              "position": 1.0239228497239057,
-              "width": 0.746148957288013,
+              "position": 2.1799253850179205,
+              "width": 1.097277878364725,
               "height": 1.2,
               "sillHeight": 0.9
             },
@@ -186,22 +186,22 @@
               "id": "door-qa-real-wide-40x30-6",
               "type": "door",
               "doorType": "single",
-              "position": 1.6236490902764789,
+              "position": 4.345220398324312,
               "width": 0.9070830461148394,
               "height": 2.1
             },
             {
-              "id": "window-qa-real-wide-40x30-6",
+              "id": "window-qa-real-wide-40x30-7",
               "type": "window",
-              "position": 2.179492922983742,
-              "width": 1.097277878364725,
+              "position": 5.822887941188808,
+              "width": 0.746148957288013,
               "height": 1.2,
               "sillHeight": 0.9
             },
             {
               "id": "window-qa-real-wide-40x30-8",
               "type": "window",
-              "position": 2.618317001436844,
+              "position": 8.807483770340859,
               "width": 0.8631919309802504,
               "height": 1.2,
               "sillHeight": 0.9
@@ -212,11 +212,11 @@
           "id": "wall-qa-real-wide-40x30-26",
           "start": {
             "z": -1.6672006211291956,
-            "x": -5.862773376220826
+            "x": -5.850145844560582
           },
           "end": {
-            "z": 0.014624566852010993,
-            "x": -5.862773376220826
+            "z": 3.948633050042833,
+            "x": -5.850145844560582
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -229,27 +229,11 @@
               "width": 2.882183227171345,
               "height": 1.2,
               "sillHeight": 0.9
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-28",
-          "start": {
-            "x": -5.837518312900338,
-            "z": 2.910288803550089
-          },
-          "end": {
-            "x": -5.837518312900338,
-            "z": 3.948633050042833
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": [
+            },
             {
               "id": "window-qa-real-wide-40x30-4",
               "type": "window",
-              "position": 1.4484067994414371,
+              "position": 3.1296573063302455,
               "width": 2.8968135988828743,
               "height": 1.2,
               "sillHeight": 0.9
@@ -257,29 +241,29 @@
           ]
         },
         {
-          "id": "wall-qa-real-wide-40x30-31",
+          "id": "wall-qa-real-wide-40x30-29",
           "start": {
-            "x": -2.9640961721565415,
-            "z": -3.1006534483805557
+            "z": -5.036553658379814,
+            "x": -2.9543800844367007
           },
           "end": {
-            "x": -2.9236901073158057,
-            "z": -1.088431419311918
+            "z": -1.088431419311918,
+            "x": -2.9543800844367007
           },
           "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
           "openings": []
         },
         {
           "id": "wall-qa-real-wide-40x30-32",
           "start": {
-            "z": -5.049873623398528,
-            "x": -2.0994040940689143
+            "z": -5.045504068269041,
+            "x": -2.1371943566331506
           },
           "end": {
-            "z": -1.1004909907464666,
-            "x": -2.0994040940689143
+            "z": -1.1035569471179973,
+            "x": -2.1371943566331506
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -320,11 +304,11 @@
           "id": "wall-qa-real-wide-40x30-37",
           "start": {
             "z": -1.1647532383812969,
-            "x": 4.253186149336629
+            "x": 4.2940334170602
           },
           "end": {
-            "z": 3.9922921343138245,
-            "x": 4.253186149336629
+            "z": 3.9952646792364774,
+            "x": 4.2940334170602
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -334,7 +318,7 @@
               "id": "door-qa-real-wide-40x30-4",
               "type": "door",
               "doorType": "single",
-              "position": 1.287217296795767,
+              "position": 1.25250063949336,
               "width": 0.9509741612494284,
               "height": 2.1
             }
@@ -343,32 +327,32 @@
         {
           "id": "wall-qa-real-wide-40x30-40",
           "start": {
-            "z": -4.986977296535577,
-            "x": 6.257280981674325
+            "z": -5.036553658379814,
+            "x": 6.232157654141005
           },
           "end": {
-            "z": 3.949918752519929,
-            "x": 6.257280981674325
+            "z": 4.096026535295778,
+            "x": 6.232157654141005
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
           "openings": [
             {
-              "id": "door-qa-real-wide-40x30-7",
-              "type": "door",
-              "doorType": "single",
-              "position": 1.4042370510499276,
-              "width": 0.8631919309802504,
-              "height": 2.1
-            },
-            {
               "id": "window-qa-real-wide-40x30-5",
               "type": "window",
-              "position": 1.4920018667405481,
+              "position": 1.5412821807493073,
               "width": 2.1652950133063906,
               "height": 1.2,
               "sillHeight": 0.9
+            },
+            {
+              "id": "door-qa-real-wide-40x30-7",
+              "type": "door",
+              "doorType": "single",
+              "position": 7.493480889517579,
+              "width": 0.8631919309802504,
+              "height": 2.1
             }
           ]
         }
@@ -458,7 +442,7 @@
       ],
       "stairs": [],
       "stats": {
-        "wallCount": 14,
+        "wallCount": 13,
         "doorCount": 8,
         "windowCount": 9,
         "roomCount": 9,
@@ -474,7 +458,7 @@
           "action": "Check the overlay, then place in 3D."
         },
         "counts": {
-          "wallCount": 14,
+          "wallCount": 13,
           "doorCount": 8,
           "windowCount": 9,
           "roomCount": 9,
@@ -776,11 +760,11 @@
         {
           "id": "wall-qa-real-site-ground-floor-26",
           "start": {
-            "x": -5.89080459770115,
+            "x": -7.040229885057472,
             "z": -1.6954022988505748
           },
           "end": {
-            "x": -4.454022988505748,
+            "x": -3.304597701149426,
             "z": -1.6954022988505748
           },
           "height": 2.7,
@@ -856,7 +840,7 @@
           },
           "end": {
             "x": -6.178160919540231,
-            "z": 3.477011494252874
+            "z": 5.2011494252873565
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -1132,11 +1116,11 @@
           "id": "wall-qa-real-site-upper-floor-24",
           "start": {
             "x": -4.8963133640553,
-            "z": -3.364055299539171
+            "z": -5.207373271889401
           },
           "end": {
             "x": -4.8963133640553,
-            "z": -1.2903225806451613
+            "z": 0.32258064516129026
           },
           "height": 2.7,
           "thickness": 0.15,

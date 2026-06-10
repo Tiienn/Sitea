@@ -1,14 +1,14 @@
 {
   "fixtureId": "real-lot-127sqm",
-  "capturedAt": "2026-06-10T18:28:44.665Z",
+  "capturedAt": "2026-06-10T20:40:40.215Z",
   "sourceFile": "samples/real/real-lot-127sqm.png",
   "imageFile": "samples/real/real-lot-127sqm.png",
   "analyzer": "api/analyze-floor-plan.js",
   "rawResultFile": "results/raw/real-lot-127sqm.json",
   "detected": {
-    "walls": 33,
-    "doors": 5,
-    "windows": 7,
+    "walls": 32,
+    "doors": 6,
+    "windows": 6,
     "rooms": 6,
     "stairs": 1
   },
@@ -19,7 +19,7 @@
   "artifacts": {},
   "placementOk": true,
   "scale": {
-    "pixelsPerMeter": 45.78531445505433,
+    "pixelsPerMeter": 42.72260273972603,
     "confidence": 0.93,
     "source": "dimension_chain"
   }

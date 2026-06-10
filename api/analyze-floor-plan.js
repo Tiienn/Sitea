@@ -289,6 +289,16 @@ function floorPlanResultSchema({ includeRejectWallIndices = false } = {}) {
           properties: {
             center: pointSchema(),
             direction: { type: 'string', enum: ['up', 'down', 'unknown'] },
+            bbox: {
+              type: ['object', 'null'],
+              additionalProperties: false,
+              properties: {
+                x: { type: 'number' },
+                y: { type: 'number' },
+                w: { type: 'number' },
+                h: { type: 'number' },
+              },
+            },
           },
         },
       },
@@ -1380,6 +1390,7 @@ Rooms:
 
 Stairs:
 - Detect stair symbols as stairs, not rooms.
+- Include bbox: the pixel bounding box of the FULL stair footprint (every tread, landing, and the UP/DN arrow). The CV tracer often misreads tread edges as walls, and this box is used to remove those phantom walls.
 
 Scale:
 ${scaleHint}
@@ -1853,6 +1864,30 @@ export default async function handler(req, res) {
         const rejectSet = new Set(
           Array.isArray(semantics.rejectWallIndices) ? semantics.rejectWallIndices : []
         );
+
+        // Stair shield: tread edges trace as phantom walls (their aligned ends
+        // form a solid pixel column). Reject CV walls that lie fully inside a
+        // detected stair footprint — shrunk per side so the real walls that
+        // BORDER the stair (often the building exterior) are never touched.
+        const stairBoxes = (semantics.stairs || [])
+          .map(s => s.bbox)
+          .filter(b => b && b.w > 20 && b.h > 20);
+        if (stairBoxes.length > 0) {
+          cvResult.walls.forEach((w, idx) => {
+            if (rejectSet.has(idx)) return;
+            for (const b of stairBoxes) {
+              const x1 = b.x + b.w * 0.15, x2 = b.x + b.w * 0.85;
+              const y1 = b.y + b.h * 0.15, y2 = b.y + b.h * 0.85;
+              const inside = (p) => p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2;
+              if (inside(w.start) && inside(w.end)) {
+                rejectSet.add(idx);
+                console.log(`[FloorPlan] Stair shield: rejected wall ${idx} inside stair footprint`);
+                break;
+              }
+            }
+          });
+        }
+
         if (rejectSet.size > 0 && rejectSet.size < cvResult.walls.length) {
           const indexMap = new Map();
           auditedWalls = [];
@@ -1993,6 +2028,10 @@ export default async function handler(req, res) {
       });
       (result.stairs || []).forEach(stair => {
         if (stair.center) { stair.center.x *= coordScaleX; stair.center.y *= coordScaleY; }
+        if (stair.bbox) {
+          stair.bbox.x *= coordScaleX; stair.bbox.y *= coordScaleY;
+          stair.bbox.w *= coordScaleX; stair.bbox.h *= coordScaleY;
+        }
       });
       if (result.scale?.pixelsPerMeter) {
         result.scale.pixelsPerMeter *= Math.max(coordScaleX, coordScaleY);
