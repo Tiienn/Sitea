@@ -115,6 +115,62 @@ const formatArea = (sqMeters, areaUnit) => {
   return `${value.toFixed(0)} ${areaUnit}`
 }
 
+const GENERATED_BUILDING_ROOM_FURNITURE_MAP = {
+  bathroom: ['toilet'],
+  toilet: ['toilet'],
+  wc: ['toilet'],
+  kitchen: ['fridge'],
+  living: ['sofa', 'coffeeTable'],
+  lounge: ['sofa'],
+  family: ['sofa'],
+  bedroom: ['bed', 'nightstand'],
+  master: ['bed', 'nightstand'],
+  dining: ['diningTable', 'chair'],
+}
+
+function buildExplodedGeneratedBuildingParts(building) {
+  const pos = building.position
+  const rot = building.rotation || 0
+  const cosR = Math.cos(rot)
+  const sinR = Math.sin(rot)
+  const transform = (p) => ({
+    x: p.x * cosR - p.z * sinR + pos.x,
+    z: p.x * sinR + p.z * cosR + pos.z,
+  })
+
+  const newWalls = (building.walls || []).map(wall => ({
+    id: crypto.randomUUID(),
+    start: transform(wall.start),
+    end: transform(wall.end),
+    height: wall.height || 2.7,
+    thickness: wall.thickness || 0.15,
+    openings: (wall.openings || []).map(o => ({ ...o, id: crypto.randomUUID() })),
+    isExterior: wall.isExterior,
+    floorLevel: 0,
+  }))
+
+  const newFurniture = []
+  for (const room of (building.rooms || [])) {
+    const roomName = (room.name || '').toLowerCase()
+    for (const [keyword, catalogIds] of Object.entries(GENERATED_BUILDING_ROOM_FURNITURE_MAP)) {
+      if (roomName.includes(keyword)) {
+        const center = transform(room.center)
+        catalogIds.forEach((catalogId, i) => {
+          newFurniture.push({
+            id: crypto.randomUUID(),
+            catalogId,
+            position: { x: center.x + i * 0.8, z: center.z },
+            rotation: rot,
+          })
+        })
+        break
+      }
+    }
+  }
+
+  return { newWalls, newFurniture }
+}
+
 async function copyTextToClipboard(text) {
   if (navigator.clipboard?.writeText) {
     try {
@@ -2552,6 +2608,54 @@ function App() {
       return target.position
     }
 
+    const resolveGeneratedBuildingTarget = (targetBuildingId = null) => {
+      if (!Array.isArray(buildings) || buildings.length === 0) {
+        return { building: null, targetSource: 'none', generatedBuildingCount: 0 }
+      }
+
+      if (targetBuildingId) {
+        const explicitBuilding = buildings.find(building => building.id === targetBuildingId)
+        if (explicitBuilding) {
+          return { building: explicitBuilding, targetSource: 'explicit', generatedBuildingCount: buildings.length }
+        }
+      }
+
+      if (selectedBuildingId) {
+        const selectedBuilding = buildings.find(building => building.id === selectedBuildingId)
+        if (selectedBuilding) {
+          return { building: selectedBuilding, targetSource: 'selected', generatedBuildingCount: buildings.length }
+        }
+      }
+
+      if (buildings.length === 1) {
+        return { building: buildings[0], targetSource: 'only', generatedBuildingCount: buildings.length }
+      }
+
+      return { building: buildings[buildings.length - 1], targetSource: 'latest', generatedBuildingCount: buildings.length }
+    }
+
+    const getGeneratedBuildingTargetCopy = ({ targetSource, generatedBuildingCount }) => {
+      if (targetSource === 'latest' && generatedBuildingCount > 1) {
+        return 'the latest uploaded floor-plan building'
+      }
+      if (targetSource === 'selected') {
+        return 'the selected floor-plan building'
+      }
+      return 'the uploaded floor-plan building'
+    }
+
+    const explodeGeneratedBuilding = (building) => {
+      const { newWalls, newFurniture } = buildExplodedGeneratedBuildingParts(building)
+      pushWallsState([...walls, ...newWalls])
+      if (newFurniture.length > 0) {
+        setFurnitureItems(prev => [...prev, ...newFurniture])
+      }
+      setBuildings(prev => prev.filter(b => b.id !== building.id))
+      setSelectedBuildingId(prev => prev === building.id ? null : prev)
+      showToast(`Exploded building into ${newWalls.length} walls and ${newFurniture.length} furniture items`, 3000)
+      return { wallCount: newWalls.length, furnitureCount: newFurniture.length }
+    }
+
     if (action.type === 'set_land_dimensions') {
       handleAgentLandDimensionsUpdated(action)
       return true
@@ -2567,39 +2671,86 @@ function App() {
     }
 
     if (
+      action.type === 'select_generated_building' ||
       action.type === 'rotate_selected_generated_building' ||
       action.type === 'explode_selected_generated_building' ||
       action.type === 'deselect_selected_generated_building'
     ) {
-      const selectedGenerated = selectedBuildingId
-        ? buildings.find(building => building.id === selectedBuildingId)
-        : null
-      if (!selectedGenerated) {
+      const target = resolveGeneratedBuildingTarget(action.buildingId || null)
+      if (!target.building) {
         return {
           ok: false,
-          reason: 'missing_selected_building',
-          message: 'Select a placed floor-plan building first.',
+          reason: 'missing_generated_building',
+          message: 'No uploaded floor-plan building is placed yet.',
+          generatedBuildingCount: 0,
+        }
+      }
+
+      const targetCopy = getGeneratedBuildingTargetCopy(target)
+      const latestCopy = target.targetSource === 'latest' && target.generatedBuildingCount > 1
+        ? ` There are ${target.generatedBuildingCount}; I used the latest placed one.`
+        : ''
+
+      if (action.type === 'select_generated_building') {
+        setSelectedBuildingId(target.building.id)
+        setActivePanel('build')
+        setUndoRedoToast(action.toast || 'Floor-plan building selected')
+        return {
+          ok: true,
+          buildingId: target.building.id,
+          targetSource: target.targetSource,
+          generatedBuildingCount: target.generatedBuildingCount,
+          message: `Done. I selected ${targetCopy}.${latestCopy}`,
+          toast: 'Floor-plan building selected',
         }
       }
 
       if (action.type === 'rotate_selected_generated_building') {
-        selectedGeneratedBuildingActionsRef.current.rotate?.()
+        const degrees = Number.isFinite(action.degrees) ? action.degrees : 90
+        const angle = (degrees * Math.PI) / 180
+        setBuildings(prev => prev.map(building =>
+          building.id === target.building.id
+            ? { ...building, rotation: (building.rotation || 0) + angle }
+            : building
+        ))
+        setSelectedBuildingId(target.building.id)
         setActivePanel('build')
-        setUndoRedoToast(action.toast || 'Selected building rotated')
-        return { ok: true, buildingId: selectedGenerated.id }
+        setUndoRedoToast(action.toast || 'Floor-plan building rotated')
+        return {
+          ok: true,
+          buildingId: target.building.id,
+          targetSource: target.targetSource,
+          generatedBuildingCount: target.generatedBuildingCount,
+          message: `Done. I rotated ${targetCopy} ${Math.abs(degrees)} degrees.${latestCopy}`,
+          toast: 'Floor-plan building rotated',
+        }
       }
 
       if (action.type === 'explode_selected_generated_building') {
-        selectedGeneratedBuildingActionsRef.current.explode?.()
+        explodeGeneratedBuilding(target.building)
         setActivePanel('build')
         setUndoRedoToast(action.toast || 'Building made editable')
-        return { ok: true, buildingId: selectedGenerated.id }
+        return {
+          ok: true,
+          buildingId: target.building.id,
+          targetSource: target.targetSource,
+          generatedBuildingCount: target.generatedBuildingCount,
+          message: `Done. I turned ${targetCopy} into editable walls.${latestCopy}`,
+          toast: 'Building made editable',
+        }
       }
 
       selectedGeneratedBuildingActionsRef.current.deselect?.()
       setActivePanel(null)
       setUndoRedoToast(action.toast || 'Building deselected')
-      return { ok: true, buildingId: selectedGenerated.id }
+      return {
+        ok: true,
+        buildingId: target.building.id,
+        targetSource: target.targetSource,
+        generatedBuildingCount: target.generatedBuildingCount,
+        message: `Done. I deselected ${targetCopy}.${latestCopy}`,
+        toast: 'Building deselected',
+      }
     }
 
     if (action.type === 'activate_comparison' && action.comparisonId) {
@@ -2908,13 +3059,16 @@ function App() {
     handleAgentLandDimensionsUpdated,
     buildings,
     placedBuildings,
+    pushWallsState,
     resetComparisonTransform,
     selectedBuildingId,
     selectedPlacedBuildingId,
+    showToast,
     snapEnabled,
     setbackDistanceM,
     setbacksEnabled,
     shapeMode,
+    walls,
   ])
 
   const handleAgentVisualHandoff = useCallback((action = {}) => {
@@ -2985,12 +3139,12 @@ function App() {
   }, [])
 
   // Rotate building preview (or selected building)
-  const rotateBuildingPreview = useCallback((angle = Math.PI / 2) => {
-    if (floorPlanPlacementMode) {
+  const rotateBuildingPreview = useCallback((angle = Math.PI / 2, targetBuildingId = selectedBuildingId) => {
+    if (floorPlanPlacementMode && !targetBuildingId) {
       setBuildingPreviewRotation(prev => prev + angle)
-    } else if (selectedBuildingId) {
+    } else if (targetBuildingId) {
       setBuildings(prev => prev.map(b =>
-        b.id === selectedBuildingId
+        b.id === targetBuildingId
           ? { ...b, rotation: (b.rotation || 0) + angle }
           : b
       ))
@@ -3016,81 +3170,27 @@ function App() {
   }, [selectedBuildingId])
 
   // Explode building into individual walls + furniture
-  const explodeSelectedBuilding = useCallback(() => {
-    if (!selectedBuildingId) return
-    const building = buildings.find(b => b.id === selectedBuildingId)
+  const explodeSelectedBuilding = useCallback((targetBuildingId = selectedBuildingId) => {
+    if (!targetBuildingId) return
+    const building = buildings.find(b => b.id === targetBuildingId)
     if (!building) return
 
-    const pos = building.position
-    const rot = building.rotation || 0
-    const cosR = Math.cos(rot)
-    const sinR = Math.sin(rot)
-
-    // Transform a local point by building position + rotation
-    const transform = (p) => ({
-      x: p.x * cosR - p.z * sinR + pos.x,
-      z: p.x * sinR + p.z * cosR + pos.z,
-    })
-
-    // Add walls to scene (with openings preserved)
-    const newWalls = building.walls.map(wall => ({
-      id: crypto.randomUUID(),
-      start: transform(wall.start),
-      end: transform(wall.end),
-      height: wall.height || 2.7,
-      thickness: wall.thickness || 0.15,
-      openings: (wall.openings || []).map(o => ({ ...o, id: crypto.randomUUID() })),
-      isExterior: wall.isExterior,
-      floorLevel: 0,
-    }))
+    const { newWalls, newFurniture } = buildExplodedGeneratedBuildingParts(building)
     pushWallsState([...walls, ...newWalls])
-
-    // Place furniture from catalog based on room type
-    const roomFurnitureMap = {
-      bathroom: ['toilet'],
-      toilet: ['toilet'],
-      wc: ['toilet'],
-      kitchen: ['fridge'],
-      living: ['sofa', 'coffeeTable'],
-      lounge: ['sofa'],
-      family: ['sofa'],
-      bedroom: ['bed', 'nightstand'],
-      master: ['bed', 'nightstand'],
-      dining: ['diningTable', 'chair'],
-    }
-
-    const newFurniture = []
-    for (const room of (building.rooms || [])) {
-      const roomName = (room.name || '').toLowerCase()
-      for (const [keyword, catalogIds] of Object.entries(roomFurnitureMap)) {
-        if (roomName.includes(keyword)) {
-          const center = transform(room.center)
-          catalogIds.forEach((catalogId, i) => {
-            newFurniture.push({
-              id: crypto.randomUUID(),
-              catalogId,
-              position: { x: center.x + i * 0.8, z: center.z },
-              rotation: rot,
-            })
-          })
-          break
-        }
-      }
-    }
     if (newFurniture.length > 0) {
       setFurnitureItems(prev => [...prev, ...newFurniture])
     }
 
     // Remove the building
-    setBuildings(prev => prev.filter(b => b.id !== selectedBuildingId))
-    setSelectedBuildingId(null)
+    setBuildings(prev => prev.filter(b => b.id !== targetBuildingId))
+    setSelectedBuildingId(prev => prev === targetBuildingId ? null : prev)
     showToast(`Exploded building into ${newWalls.length} walls and ${newFurniture.length} furniture items`, 3000)
   }, [selectedBuildingId, buildings, walls, pushWallsState, setFurnitureItems])
 
   useEffect(() => {
     selectedGeneratedBuildingActionsRef.current = {
-      rotate: () => rotateBuildingPreview(Math.PI / 2),
-      explode: () => explodeSelectedBuilding(),
+      rotate: (buildingId) => rotateBuildingPreview(Math.PI / 2, buildingId),
+      explode: (buildingId) => explodeSelectedBuilding(buildingId),
       deselect: () => setSelectedBuildingId(null),
     }
   }, [rotateBuildingPreview, explodeSelectedBuilding])

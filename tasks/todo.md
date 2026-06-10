@@ -1,5 +1,31 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v37 Agent-Led Floor-Plan Building Control
+- [x] Keep v37 scoped to local agent-to-scene control for placed/generated floor-plan buildings: no paid analyzer call, no provider switch, no renderer rewrite, and no new editor mode
+- [x] Add a small resolver in `App.jsx` that can find the active generated floor-plan building by selected ID, explicit action target, only building, or latest building
+- [x] Extend scene-control handling so agent actions can select/focus the uploaded floor-plan building before rotating, exploding to editable walls, or deselecting it
+- [x] Teach the local text parser in `useAIChat` commands like `select the uploaded plan`, `rotate the floor plan`, `make the uploaded plan editable`, and `deselect the plan`
+- [x] Make vague commands safe: if there is exactly one generated floor-plan building, Sitea should act on it; if there are multiple, Sitea should prefer the latest placed generated building and say what it did
+- [x] Improve post-upload suggested actions in the chat so the next steps feel agent-led: rotate plan, edit walls, see what fits around it, and summarize the site
+- [x] Preserve v36 behavior for manual selection, Build panel actions, keyboard shortcuts, save/share restoration, and selected source-plan metadata
+- [x] Extend no-cost agent text-action QA to cover generated floor-plan building auto-targeting without uploading files or calling paid analyzers
+- [x] Verify with focused lint, agent text-action QA, floor-plan placement QA if affected, build, `git diff --check`, and a local browser smoke
+- [x] Add v37 review notes with what the agent can now do and what remains for true post-placement wall/opening editing
+
+### v37 Review
+- Direction: v37 makes uploaded floor-plan buildings feel more agent-led after placement. Users can say what they want instead of manually selecting the generated building first.
+- Scope stayed local and no-cost: no paid analyzer call, no provider switch, no renderer rewrite, and no new editor mode.
+- Sitea Agent now understands commands like `select the uploaded plan`, `rotate the floor plan`, `make the uploaded plan editable`, and `deselect it`.
+- `App.jsx` now resolves a generated floor-plan building from an explicit target, current selection, the only generated building, or the latest generated building when multiple exist.
+- When multiple generated floor-plan buildings exist, vague commands use the latest placed one and the agent says that clearly.
+- Rotate and edit-wall commands now act directly on the resolved generated-building ID, so they no longer depend on React selection state updating first.
+- Manual v36 behavior is preserved: selected generated buildings still support Build panel actions, `R` to rotate, `E` to make editable, `Delete`, `ESC`, save/share restoration, and source-plan metadata.
+- The generated-building explode conversion now uses one shared helper for both manual and agent paths, reducing drift between the two flows.
+- Successful floor-plan building actions now offer agent-style follow-ups: rotate plan, edit walls, see what fits around it, and summarize site.
+- Extended `npm run qa:agent-text-actions` with seeded generated-building scenes for select, rotate, edit walls, latest-building targeting, and empty-scene failure. These tests do not upload files or call paid analyzers.
+- Verification passed: focused ESLint for changed files, `npm run qa:agent-text-actions`, `npm run qa:floor-plans:placement`, `npm run build`, and `git diff --check`. The agent QA includes local Playwright browser smoke across desktop/mobile cases.
+- Remaining limitation: `Edit walls` still explodes a generated building into editable scene walls as a one-way conversion. True in-place post-placement wall/opening edits inside the generated-building object remain a later feature.
+
 ## Active Plan: v36 Selected Floor-Plan Building Actions
 - [x] Keep v36 scoped to post-placement actions for selected generated floor-plan buildings: no paid analyzer call, no provider switch, no renderer rewrite, and no new full editor mode
 - [x] Add a compact `Selected building` action card in `BuildPanel` when a generated building is selected, paired with the existing v35 source-plan card

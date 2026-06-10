@@ -1478,6 +1478,15 @@ function createPromptAction(label, prompt) {
   return { label, prompt }
 }
 
+function getFloorPlanBuildingFollowUpActions() {
+  return [
+    createPromptAction('Rotate plan', 'Rotate the uploaded plan'),
+    createPromptAction('Edit walls', 'Make the uploaded plan editable'),
+    createPromptAction('See what fits around it', 'What can fit on my land?'),
+    createPromptAction('Summarize site', 'Summarize the site'),
+  ]
+}
+
 function createDecisionLayoutAction(optionId, structures, label) {
   const action = createLayoutOptionAction(optionId, structures)
   return { ...action, label: label || action.label }
@@ -2044,9 +2053,14 @@ function parseSelectedGeneratedBuildingCommand(normalizedText) {
   const mentionsPlacedPlan = /\b(floor plan|floor-plan|uploaded plan|placed plan|source plan|selected plan|current plan|this plan|that plan|selected building|current building|this building|that building)\b/.test(normalizedText)
   const mentionsSelectedThing = /\b(selected|current|this|that|it)\b/.test(normalizedText)
   const wantsDeselect = /\b(deselect|unselect|clear selection|clear selected|cancel selection)\b/.test(normalizedText)
+  const wantsSelect = /\b(select|focus|highlight|target|open|show me|show)\b/.test(normalizedText)
 
   if (wantsDeselect && (mentionsPlacedPlan || mentionsSelectedThing)) {
     return { type: 'deselect_selected_generated_building' }
+  }
+
+  if (wantsSelect && mentionsPlacedPlan) {
+    return { type: 'select_generated_building' }
   }
 
   const mentionsBuildingActionTarget = mentionsPlacedPlan ||
@@ -3529,19 +3543,25 @@ export function useAIChat({
     }
 
     if (
+      action.type === 'select_generated_building' ||
       action.type === 'rotate_selected_generated_building' ||
       action.type === 'explode_selected_generated_building' ||
       action.type === 'deselect_selected_generated_building'
     ) {
       const labels = {
+        select_generated_building: {
+          action: 'selected',
+          content: 'Done. I selected the uploaded floor-plan building.',
+          toast: 'Floor-plan building selected',
+        },
         rotate_selected_generated_building: {
           action: 'rotated',
-          content: 'Done. I rotated the selected floor-plan building.',
-          toast: 'Selected building rotated',
+          content: 'Done. I rotated the uploaded floor-plan building.',
+          toast: 'Floor-plan building rotated',
         },
         explode_selected_generated_building: {
           action: 'made editable',
-          content: 'Done. I turned the selected floor-plan building into editable walls.',
+          content: 'Done. I turned the uploaded floor-plan building into editable walls.',
           toast: 'Building made editable',
         },
         deselect_selected_generated_building: {
@@ -3557,29 +3577,32 @@ export function useAIChat({
       setMessages(prev => [...prev, userMsg, {
         role: 'assistant',
         content: success
-          ? label.content
-          : `${result?.message || 'Select a placed floor-plan building first.'} Then I can rotate it, make it editable, or deselect it for you.`,
+          ? (result?.message || label.content)
+          : `${result?.message || 'Place or select an uploaded floor-plan building first.'} Then I can select it, rotate it, make it editable, or deselect it for you.`,
         nextSteps: success ? [
           { label: `Floor-plan building ${label.action}`, state: 'done' },
           { label: 'Scene updated', state: 'done' },
           { label: 'Ask for the next adjustment', state: 'current' },
         ] : [
           { label: 'Floor-plan building command understood', state: 'done' },
-          { label: 'Select a placed building first', state: 'current' },
+          { label: 'Place or select a floor-plan building first', state: 'current' },
         ],
         toolActions: [{
           name: action.type,
           input: {
             buildingId: result?.buildingId || null,
+            targetSource: result?.targetSource || null,
+            generatedBuildingCount: result?.generatedBuildingCount || generatedBuildings.length,
             degrees: action.degrees || null,
             reason: result?.reason,
           },
           success,
         }],
+        suggestedActions: success ? getFloorPlanBuildingFollowUpActions() : undefined,
       }])
 
       if (success) {
-        onVisualHandoff?.({ toast: label.toast })
+        onVisualHandoff?.({ toast: result?.toast || label.toast })
       }
       return true
     }

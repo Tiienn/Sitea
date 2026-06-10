@@ -9,6 +9,54 @@ const VIEWPORTS = {
   desktop: { width: 1280, height: 720, isMobile: false },
 }
 
+const QA_GENERATED_BUILDING = {
+  id: 'qa-generated-plan-1',
+  position: { x: 0, z: 0 },
+  rotation: 0,
+  stats: { wallCount: 4, doorCount: 1, windowCount: 2, roomCount: 1 },
+  sourcePlan: {
+    sourceFileName: 'qa-floor-plan.png',
+    readiness: { state: 'ready', label: 'Ready for 3D' },
+    counts: { wallCount: 4, doorCount: 1, windowCount: 2, roomCount: 1 },
+    corrections: { hiddenCount: 0, addedCount: 0, wallEditCount: 0, openingEditCount: 0 },
+  },
+  walls: [
+    { id: 'qa-wall-1', start: { x: -4, z: -3 }, end: { x: 4, z: -3 }, height: 2.7, thickness: 0.15, isExterior: true, openings: [{ id: 'qa-window-1', type: 'window', position: 4, width: 1.2, height: 1.2, sillHeight: 0.9 }] },
+    { id: 'qa-wall-2', start: { x: 4, z: -3 }, end: { x: 4, z: 3 }, height: 2.7, thickness: 0.15, isExterior: true, openings: [] },
+    { id: 'qa-wall-3', start: { x: 4, z: 3 }, end: { x: -4, z: 3 }, height: 2.7, thickness: 0.15, isExterior: true, openings: [{ id: 'qa-door-1', type: 'door', position: 4, width: 0.9, height: 2.1, sillHeight: 0 }] },
+    { id: 'qa-wall-4', start: { x: -4, z: 3 }, end: { x: -4, z: -3 }, height: 2.7, thickness: 0.15, isExterior: true, openings: [{ id: 'qa-window-2', type: 'window', position: 3, width: 1.2, height: 1.2, sillHeight: 0.9 }] },
+  ],
+  rooms: [{ id: 'qa-room-1', name: 'Living room', center: { x: 0, z: 0 } }],
+  stairs: [],
+}
+
+const QA_SECOND_GENERATED_BUILDING = {
+  ...QA_GENERATED_BUILDING,
+  id: 'qa-generated-plan-2',
+  position: { x: 12, z: 0 },
+  sourcePlan: {
+    ...QA_GENERATED_BUILDING.sourcePlan,
+    sourceFileName: 'qa-second-floor-plan.png',
+  },
+  walls: QA_GENERATED_BUILDING.walls.map(wall => ({ ...wall, id: `${wall.id}-second` })),
+  rooms: [{ id: 'qa-room-2', name: 'Bedroom', center: { x: 0, z: 0 } }],
+}
+
+const QA_SCENE_WITH_GENERATED_BUILDING = {
+  dimensions: { length: 55, width: 50 },
+  shapeMode: 'rectangle',
+  polygonPoints: [],
+  confirmedPolygon: null,
+  placedBuildings: [],
+  activeComparisons: {},
+  generatedBuildings: [QA_GENERATED_BUILDING],
+}
+
+const QA_SCENE_WITH_TWO_GENERATED_BUILDINGS = {
+  ...QA_SCENE_WITH_GENERATED_BUILDING,
+  generatedBuildings: [QA_GENERATED_BUILDING, QA_SECOND_GENERATED_BUILDING],
+}
+
 const CASES = [
   {
     name: 'mobile-set-land',
@@ -854,26 +902,55 @@ const CASES = [
     expectChatVisible: false,
   },
   {
-    name: 'desktop-rotate-selected-floor-plan-needs-selection',
+    name: 'desktop-select-uploaded-floor-plan',
     viewport: 'desktop',
-    prompt: 'Rotate this plan',
-    expectedStoredText: 'Select a placed floor-plan building first',
+    seedScene: QA_SCENE_WITH_GENERATED_BUILDING,
+    prompt: 'Select the uploaded plan',
+    expectedStoredText: 'I selected the uploaded floor-plan building',
+    expectedToolActionName: 'select_generated_building',
+    expectedToolActionBuildingId: 'qa-generated-plan-1',
+    expectedToolActionTargetSource: 'only',
+    expectChatVisible: false,
+  },
+  {
+    name: 'desktop-rotate-uploaded-floor-plan-auto-target',
+    viewport: 'desktop',
+    seedScene: QA_SCENE_WITH_GENERATED_BUILDING,
+    prompt: 'Rotate the uploaded plan',
+    expectedStoredText: 'I rotated the uploaded floor-plan building 90 degrees',
     expectedToolActionName: 'rotate_selected_generated_building',
-    expectChatVisible: true,
+    expectedToolActionBuildingId: 'qa-generated-plan-1',
+    expectedToolActionTargetSource: 'only',
+    expectChatVisible: false,
   },
   {
-    name: 'mobile-edit-selected-floor-plan-needs-selection',
+    name: 'mobile-edit-uploaded-floor-plan-auto-target',
     viewport: 'mobile',
-    prompt: 'Make this building editable',
-    expectedStoredText: 'Select a placed floor-plan building first',
+    seedScene: QA_SCENE_WITH_GENERATED_BUILDING,
+    prompt: 'Make the uploaded plan editable',
+    expectedStoredText: 'turned the uploaded floor-plan building into editable walls',
     expectedToolActionName: 'explode_selected_generated_building',
-    expectChatVisible: true,
+    expectedToolActionBuildingId: 'qa-generated-plan-1',
+    expectedToolActionTargetSource: 'only',
+    expectChatVisible: false,
   },
   {
-    name: 'desktop-deselect-selected-floor-plan-needs-selection',
+    name: 'desktop-rotate-latest-floor-plan-auto-target',
+    viewport: 'desktop',
+    seedScene: QA_SCENE_WITH_TWO_GENERATED_BUILDINGS,
+    prompt: 'Rotate the floor plan',
+    expectedStoredText: 'I rotated the latest uploaded floor-plan building 90 degrees',
+    expectedAdditionalStoredText: ['There are 2; I used the latest placed one.'],
+    expectedToolActionName: 'rotate_selected_generated_building',
+    expectedToolActionBuildingId: 'qa-generated-plan-2',
+    expectedToolActionTargetSource: 'latest',
+    expectChatVisible: false,
+  },
+  {
+    name: 'desktop-deselect-floor-plan-empty-scene',
     viewport: 'desktop',
     prompt: 'Deselect it',
-    expectedStoredText: 'Select a placed floor-plan building first',
+    expectedStoredText: 'No uploaded floor-plan building is placed yet',
     expectedToolActionName: 'deselect_selected_generated_building',
     expectChatVisible: true,
   },
@@ -931,6 +1008,7 @@ async function readAudit(page, expectedToast) {
       action.name === 'apply_structure_layout_option' ||
       action.name === 'place_structure_layout' ||
       action.name === 'retry_structure_layout' ||
+      action.name === 'select_generated_building' ||
       action.name === 'rotate_selected_generated_building' ||
       action.name === 'explode_selected_generated_building' ||
       action.name === 'deselect_selected_generated_building'
@@ -1043,17 +1121,23 @@ async function runCase(browser, baseUrl, testCase) {
     hasTouch: viewport.isMobile,
   })
 
-  await context.addInitScript((seedMessages) => {
+  await context.addInitScript(({ seedMessages, seedScene }) => {
     if (sessionStorage.getItem('siteaQaInitialized') === 'true') return
     sessionStorage.setItem('siteaQaInitialized', 'true')
     localStorage.removeItem('sitea-ai-chat')
     localStorage.removeItem('landVisualizer')
     localStorage.setItem('landVisualizerIntroSeen', 'true')
     localStorage.setItem('fsmCompleted', 'true')
+    if (seedScene) {
+      localStorage.setItem('landVisualizer', JSON.stringify(seedScene))
+    }
     if (Array.isArray(seedMessages) && seedMessages.length > 0) {
       localStorage.setItem('sitea-ai-chat', JSON.stringify(seedMessages))
     }
-  }, testCase.seedMessages || null)
+  }, {
+    seedMessages: testCase.seedMessages || null,
+    seedScene: testCase.seedScene || null,
+  })
 
   const page = await context.newPage()
   const consoleErrors = []
@@ -1168,6 +1252,12 @@ async function runCase(browser, baseUrl, testCase) {
   }
   if (testCase.expectedToolActionName && audit.latestToolActionName !== testCase.expectedToolActionName) {
     fail('Unexpected latest tool action', { audit, testCase: testCase.name, expectedToolActionName: testCase.expectedToolActionName })
+  }
+  if (testCase.expectedToolActionBuildingId && audit.latestToolActionInput.buildingId !== testCase.expectedToolActionBuildingId) {
+    fail('Unexpected generated building target', { audit, testCase: testCase.name, expectedToolActionBuildingId: testCase.expectedToolActionBuildingId })
+  }
+  if (testCase.expectedToolActionTargetSource && audit.latestToolActionInput.targetSource !== testCase.expectedToolActionTargetSource) {
+    fail('Unexpected generated building target source', { audit, testCase: testCase.name, expectedToolActionTargetSource: testCase.expectedToolActionTargetSource })
   }
   if (testCase.expectedMoveDirection && audit.latestToolActionInput.direction !== testCase.expectedMoveDirection) {
     fail('Unexpected move direction', { audit, testCase: testCase.name, expectedMoveDirection: testCase.expectedMoveDirection })
