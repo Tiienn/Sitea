@@ -10,6 +10,7 @@ import {
   countWallEndpointEdits,
   createEmptyAddedDetections,
   createEmptyHiddenDetections,
+  findSuspectDetections,
   getManualOpeningPresetOptions,
   getReviewOpeningForDetection,
   getReviewWallForDetection,
@@ -699,6 +700,10 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
   const selectedOpeningPresets = useMemo(() => (
     selectedOpening ? getManualOpeningPresetOptions(selectedOpening.kind, analysis) : []
   ), [analysis, selectedOpening])
+  const suspectDetections = useMemo(
+    () => findSuspectDetections(analysis, hiddenDetections, addedDetections),
+    [addedDetections, analysis, hiddenDetections]
+  )
   const counts = useMemo(() => ({
     walls: correctedFloorPlan?.stats?.wallCount ?? visibleCounts.walls ?? getCount(analysis?.walls),
     doors: correctedFloorPlan?.stats?.doorCount ?? visibleCounts.doors ?? getCount(analysis?.doors),
@@ -1034,6 +1039,45 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
               </div>
             ))}
           </div>
+
+          {suspectDetections.length > 0 && (
+            <div className="mb-4 rounded-2xl border border-rose-300/25 bg-rose-950/20 px-4 py-3">
+              <div className="mb-2 flex items-center gap-2.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-60"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-400"></span>
+                </span>
+                <p className="text-xs font-bold uppercase tracking-wide text-rose-100">
+                  Needs a look · {suspectDetections.length} suspect detection{suspectDetections.length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {suspectDetections.slice(0, 4).map(suspect => (
+                  <button
+                    key={suspect.id}
+                    type="button"
+                    onClick={() => handleSelectDetection(suspect.detection)}
+                    className={`min-h-11 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                      selectedDetection?.key === suspect.detection.key
+                        ? 'border-rose-300/50 bg-rose-400/15'
+                        : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold text-rose-50">{suspect.title}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-slate-400">{suspect.hint}</span>
+                  </button>
+                ))}
+              </div>
+              {suspectDetections.length > 4 && (
+                <p className="mt-2 text-xs text-slate-400">
+                  +{suspectDetections.length - 4} more — fixing the ones above usually clears the rest.
+                </p>
+              )}
+              <p className="mt-2 text-xs leading-5 text-rose-100/60">
+                Tap an item to highlight it on the plan, then use Hide selected or drag it into place.
+              </p>
+            </div>
+          )}
 
           <FloorPlanReviewCanvas
             analysis={analysis}
