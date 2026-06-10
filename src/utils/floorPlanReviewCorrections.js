@@ -633,3 +633,107 @@ export function buildCorrectedFloorPlan(review = {}, hidden = {}, additions = {}
     },
   }
 }
+
+// Proactive review hints: detections that are statistically likely to be
+// errors. Each entry carries the detection reference so the review UI can
+// select it for a one-tap fix. Recomputed live as corrections are applied.
+export function findSuspectDetections(analysis = {}, hidden = {}, additions = {}) {
+  const suspects = []
+  const ppm = getReviewPixelsPerMeter(analysis)
+  if (!ppm || ppm <= 0) return suspects
+
+  const visibleWalls = getVisibleReviewWalls(analysis, hidden, additions)
+  // Distance to walls treated as segments extended ~2m along their axis:
+  // openings sitting in trace gaps between collinear fragments are bridged by
+  // the converter later, so they should not be flagged as off-wall.
+  const distToWallPx = (point) => {
+    let best = Infinity
+    const extPx = ppm * 2
+    for (const { wall } of visibleWalls) {
+      if (!wall?.start || !wall?.end) continue
+      const dx = wall.end.x - wall.start.x
+      const dy = wall.end.y - wall.start.y
+      const lengthSq = dx * dx + dy * dy
+      if (lengthSq === 0) continue
+      const len = Math.sqrt(lengthSq)
+      const ext = extPx / len
+      const t = Math.max(-ext, Math.min(1 + ext,
+        ((point.x - wall.start.x) * dx + (point.y - wall.start.y) * dy) / lengthSq))
+      const px = wall.start.x + t * dx
+      const py = wall.start.y + t * dy
+      best = Math.min(best, Math.hypot(point.x - px, point.y - py))
+    }
+    return best
+  }
+
+  // 1. Walls crossing a stair footprint — tread edges often trace as walls
+  const stairCores = (analysis.stairs || [])
+    .map(stair => stair?.bbox)
+    .filter(b => b && b.w > 20 && b.h > 20)
+    .map(b => ({
+      x1: b.x + b.w * 0.15, x2: b.x + b.w * 0.85,
+      y1: b.y + b.h * 0.15, y2: b.y + b.h * 0.85,
+    }))
+  if (stairCores.length > 0) {
+    for (const { wall, type, index, key } of visibleWalls) {
+      const midX = (wall.start.x + wall.end.x) / 2
+      const midY = (wall.start.y + wall.end.y) / 2
+      const inCore = stairCores.some(c => midX >= c.x1 && midX <= c.x2 && midY >= c.y1 && midY <= c.y2)
+      if (inCore) {
+        suspects.push({
+          id: `stair-wall-${key}`,
+          detection: { type, index, key },
+          title: 'Wall crosses the staircase',
+          hint: 'Stair treads often trace as a wall. If the plan shows no wall here, hide it.',
+        })
+      }
+    }
+  }
+
+  // 2. Doors/windows that are not on any wall
+  const offWallChecks = [
+    ['doors', analysis.doors || [], 'Door'],
+    ['windows', analysis.windows || [], 'Window'],
+  ]
+  for (const [type, list, label] of offWallChecks) {
+    list.forEach((opening, index) => {
+      if (isDetectionHidden(hidden, type, index)) return
+      const edited = getReviewOpeningForDetection(analysis, additions, { type, index }) || opening
+      if (!edited?.center) return
+      const dist = distToWallPx(edited.center)
+      if (dist > ppm * 0.55) {
+        suspects.push({
+          id: `off-wall-${type}:${index}`,
+          detection: { type, index, key: `${type}:${index}` },
+          title: `${label} is not on a wall`,
+          hint: 'Drag it onto the wall it belongs to, or hide it if it is a misread.',
+        })
+      }
+    })
+  }
+
+  // 3. Tiny stray walls: short, touching nothing, no opening nearby
+  for (const { wall, type, index, key } of visibleWalls) {
+    const lenM = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y) / ppm
+    if (lenM >= 0.7 || lenM <= 0.01) continue
+    const touchTol = ppm * 0.4
+    const touches = visibleWalls.some(other => {
+      if (other.key === key) return false
+      const o = other.wall
+      return [wall.start, wall.end].some(p =>
+        [o.start, o.end].some(q => Math.hypot(p.x - q.x, p.y - q.y) <= touchTol))
+    })
+    if (touches) continue
+    const openingNear = [...(analysis.doors || []), ...(analysis.windows || [])].some(op =>
+      op?.center && Math.hypot(op.center.x - (wall.start.x + wall.end.x) / 2, op.center.y - (wall.start.y + wall.end.y) / 2) <= ppm * 0.6)
+    if (openingNear) continue
+    suspects.push({
+      id: `stray-wall-${key}`,
+      detection: { type, index, key },
+      title: `Stray ${lenM.toFixed(1)}m wall fragment`,
+      hint: 'Short and connected to nothing — usually a symbol misread. Hide it unless the plan shows a wall.',
+    })
+  }
+
+  return suspects
+}

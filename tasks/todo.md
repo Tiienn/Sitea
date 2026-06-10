@@ -2427,3 +2427,22 @@ printed); the 500 body was non-JSON — a Vercel platform transient at
 response delivery, not an analyzer bug. Local repro at identical size:
 200 OK. Client now retries the analysis once (2s delay) when the response
 status is 5xx before surfacing an error.
+
+---
+
+# v49: Review modal flags suspect detections (item 3b) + PR merged
+
+- [x] Merged PR #4 to main (production and main now in sync).
+- [x] New `findSuspectDetections()` in floorPlanReviewCorrections: flags
+      (1) walls crossing a stair footprint, (2) doors/windows not on any
+      wall — walls treated as segments extended ~2m so openings in
+      converter-bridgeable trace gaps aren't false-flagged, (3) tiny stray
+      wall fragments touching nothing. Synthetic fixtures: 0 suspects;
+      real fixtures flag only genuine issues.
+- [x] "Needs a look" advisory panel in the review modal above the canvas:
+      tap an item to select/highlight it on the plan, then Hide or drag.
+      List recomputes live as corrections are applied.
+- [x] Lint, review QA, build pass.
+- [ ] Item 4 partial: user supplied 3 plans; one is the existing
+      real-wide-40x30 fixture; the other two (villa with verandahs, 71 m²
+      apartment) need their image files to add as fixtures.
