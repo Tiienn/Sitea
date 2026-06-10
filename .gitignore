@@ -28,3 +28,4 @@ output/
 .vercel
 .mcp.json
 .env*.local
+.playwright-mcp/
