@@ -1188,10 +1188,15 @@ async function extractWallsFromCleanImage(cleanImageBase64, textBoxes = [], srcW
     allWalls = allWalls.filter(wall => {
       const midX = (wall.start.x + wall.end.x) / 2;
       const midY = (wall.start.y + wall.end.y) / 2;
+      const wallLen = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y);
       for (const tb of scaledBoxes) {
         if (midX >= tb.x - PAD && midX <= tb.x + tb.w + PAD &&
             midY >= tb.y - PAD && midY <= tb.y + tb.h + PAD) {
-          return false;
+          // Only shield label-sized artifacts. Dimension text often sits ON a
+          // real wall; deleting a long wall because a label covers its
+          // midpoint is what made traces vary run to run.
+          const boxDiag = Math.hypot(tb.w, tb.h);
+          if (wallLen <= boxDiag * 1.5) return false;
         }
       }
       return true;

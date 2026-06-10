@@ -278,9 +278,27 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
   // Two moves, tried in order:
   //  1. Extend the endpoint ALONG its own wall axis to a wall body ahead —
   //     directional, so it can reach further without grabbing parallel walls.
-  //  2. Pull the endpoint laterally onto a very close wall body.
+  //     Reach is hull-aware: in a real building interior walls terminate at
+  //     exterior walls, so a wall ending short of the hull is a trace gap,
+  //     not a passage — extensions toward hull walls may bridge further.
   const EXTEND_TOL_M = 1.0;
+  const EXTEND_TO_HULL_M = 2.0;
+  const EXTEND_HULL_TO_HULL_M = 3.0;
   const WELD_TOL_M = 0.35;
+  const HULL_BAND_M = 0.35;
+  const weldXs = rawWalls.flatMap(w => [w.start.x, w.end.x]);
+  const weldZs = rawWalls.flatMap(w => [w.start.z, w.end.z]);
+  const weldHull = {
+    minX: Math.min(...weldXs), maxX: Math.max(...weldXs),
+    minZ: Math.min(...weldZs), maxZ: Math.max(...weldZs),
+  };
+  const wallOnHull = (w) => {
+    const horiz = Math.abs(w.end.x - w.start.x) >= Math.abs(w.end.z - w.start.z);
+    const cross = horiz ? (w.start.z + w.end.z) / 2 : (w.start.x + w.end.x) / 2;
+    return horiz
+      ? (Math.abs(cross - weldHull.minZ) <= HULL_BAND_M || Math.abs(cross - weldHull.maxZ) <= HULL_BAND_M)
+      : (Math.abs(cross - weldHull.minX) <= HULL_BAND_M || Math.abs(cross - weldHull.maxX) <= HULL_BAND_M);
+  };
   let weldedCount = 0;
   for (const w of rawWalls) {
     const len = wallLength(w);
@@ -294,8 +312,10 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
 
       let moved = false;
       // 1. Directional extension: march forward and find the nearest wall
-      //    body crossing the ray within EXTEND_TOL_M.
-      let bestT = EXTEND_TOL_M;
+      //    body crossing the ray, within a reach that depends on whether the
+      //    target (and source) wall sits on the building hull.
+      const sourceOnHull = wallOnHull(w);
+      let bestT = Infinity;
       let bestHit = null;
       for (const other of rawWalls) {
         if (other === w) continue;
@@ -310,7 +330,10 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
         const s = (rx * uz - rz * ux) / denom;
         const otherLen = Math.sqrt(dx * dx + dz * dz);
         const sTol = otherLen > 0 ? 0.35 / otherLen : 0;
-        if (t > 1e-6 && t < bestT && s >= -sTol && s <= 1 + sTol) {
+        const reach = wallOnHull(other)
+          ? (sourceOnHull ? EXTEND_HULL_TO_HULL_M : EXTEND_TO_HULL_M)
+          : EXTEND_TOL_M;
+        if (t > 1e-6 && t <= reach && t < bestT && s >= -sTol && s <= 1 + sTol) {
           bestT = t;
           bestHit = { x: p.x + ux * t, z: p.z + uz * t };
         }

@@ -2332,3 +2332,21 @@ and walls not connected in 3D.
       layout (perimeter + bedroom + mid band + bath/stairs partitions).
 - [x] Review QA + placement QA + lint + build pass; demo fixture geometry
       visually verified intact (consolidated 28 → 12 wall objects).
+
+---
+
+# v44: Trace stability + hull-aware junction closure
+
+Live v43 test: layout now faithful (closed perimeter, bedroom + band +
+partitions, scale 43.6 px/m ≈ truth). Remaining: junction gaps at the
+band/right-wall corner and bottom-right corner, varying run to run.
+
+- [x] Analyzer: OCR shield only removes label-sized artifacts (wall length
+      <= 1.5x text-box diagonal). Long walls whose midpoint a label happens
+      to cover survive — this was the main run-to-run trace variance.
+      Captured-OCR replay: 33 walls survive shields (was 30), still filters
+      the 2 real label artifacts.
+- [x] Converter: hull-aware extension reach — interior walls must terminate
+      at exterior walls, so extensions toward hull walls may bridge up to
+      2.0m (3.0m hull-to-hull); interior-to-interior stays 1.0m.
+- [x] All fixtures convert cleanly; review + placement QA, lint, build pass.
