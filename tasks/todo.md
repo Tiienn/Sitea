@@ -2226,3 +2226,71 @@ the message.
 - `readFloorPlanAnalysisResponse` now logs `[FloorPlan] Analysis request failed`
   with status and raw body on every failure path before throwing.
 - No behavior change on the happy path; error chips now always show readable text.
+
+---
+
+# v42: Faithful building reproduction for plans with lot context (PLANNED)
+
+## Review findings (root causes, confirmed against production logs)
+1. `cvWallCoverageLooksIncomplete()` compares the traced building footprint
+   against the two LARGEST printed dimensions — on plans that show the lot
+   (19.97m / 19.45m here), those are lot dims, not building dims. The accurate
+   32-wall trace measured ~14.9m × 12.4m, scored 64% coverage, missed the
+   aspect rescue by 0.006 (0.156 > 0.15), and was DISCARDED in favor of
+   LLM-imagined geometry — the fragmented 3D the user saw.
+2. `adjustScaleFromWallBounds()` has the same lot-blindness: with slightly
+   different numbers it would rescale a correct building UP to lot size.
+3. Scale source `dimension_label` (36.5 px/m) was likely derived from lot
+   labels; mm dimension chains (9650, 5000, 3600…) and the `AREA: 127sqm`
+   label — the building-truth on the drawing — are not used to cross-check.
+4. Fallback hierarchy replaces measured geometry instead of only fixing scale.
+
+## Plan
+- [x] A1. Added `scripts/floor-plan-trace-debug.mjs` (free, no-API-key) +
+      `__qaInternals` export in the analyzer; renders wall-overlay PNG with
+      bounds/connectivity stats.
+- [x] A2. Verified on `real-lot-127sqm.png`: the 33-wall trace sits exactly
+      on the drawing; true scale ~43 px/m from lot span (model had guessed
+      36.5, assuming building = lot width).
+- [x] B1+B2. Implemented `calibrateScaleFromDimensionChains()` instead of
+      label classification (stronger): printed dimensions vote on the traced
+      wall spans they measure. Hard filters: wall-proximity (extension lines
+      only reach nearby walls — lot labels get zero votes since no walls
+      exist at the lot boundary), span containment (text lies within the
+      span it measures), cluster plausibility (a building can't be smaller
+      than the dimensions printed inside it — kills coincidence clusters),
+      ≥4 distinct agreeing labels. Refinement: span-weighted ratio over a
+      ±10% second pass. A chain-calibrated trace is never discarded by
+      `cvWallCoverageLooksIncomplete` — scale comes from the plan's own
+      printed numbers, so lot-dim "coverage" is meaningless.
+- [x] B3. `adjustScaleFromWallBounds` auto-skipped for chain-calibrated
+      results (source `dimension_chain` doesn't match its
+      `dimension_label*` guard). totalArea rescue path untouched.
+- [x] C1. Registered `real-lot-127sqm` review-only fixture.
+- [x] C2. Paid verification runs (3 total, within budget): final run keeps
+      the 33-wall trace (no fallback), scale `dimension_chain` 45.8 px/m
+      (semantics had guessed 38.4), building 11.9m × 9.8m (true ~12.5 × 10.4,
+      within ~5%), 5 doors / 7 windows / 6 rooms / 1 stair attached.
+- [x] C3. Free QA: 3/3 demo-ready fixtures unchanged (chain calibration
+      returns null for them — verified with simulated labels), review +
+      placement QA pass, lint + build clean.
+- [x] D1. SITEA_QA_DEBUG_DIR OCR capture added so future scale iterations
+      replay real OCR without paid calls.
+
+Out of scope per user: furniture reproduction, pool/terrace objects, land
+auto-sizing from lot boundary. Building structure only.
+
+## Review
+- Root cause of the user's bad 3D: an accurate direct CV trace was being
+  discarded by a coverage check comparing the building footprint to LOT
+  dimensions printed on the plan, triggering the LLM-drawn geometry
+  fallback (fragmented walls); separately, scale was lot-derived (36.5-38.4
+  px/m instead of ~43-45), inflating the building ~15-20%.
+- Fix is additive and surgical: one new pure function + a guarded branch in
+  the trace path. When chain calibration finds no consensus (synthetic
+  fixtures, plans without positioned dimension text), behavior is byte-for-
+  byte identical to v40.
+- Remaining known gaps: short left wall beside the stairs is missed by the
+  tracer (converter snapping bridges part of it); scale within ~5% (band
+  centers vs face-to-face dimension references); diagonal walls still
+  unsupported.

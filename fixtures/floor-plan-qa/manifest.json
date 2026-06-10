@@ -97,6 +97,19 @@
         "Upper floor bedroom walls, WC, closet, stair, terrace, doors, and windows are detected",
         "Dimension strings and arrows are used as measurements rather than walls"
       ]
+    },
+    {
+      "id": "real-lot-127sqm",
+      "title": "Real CAD plan with lot boundary and setbacks (127 sqm building)",
+      "sourceFile": "samples/real/real-lot-127sqm.png",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Lot dimensions (15.00m / 19.45m / 19.97m / 14.99m) are NOT used as building scale or coverage targets",
+        "The 32-wall direct CV trace is kept; no fallback to model-drawn geometry",
+        "Scale comes from interior mm dimension chains (~43-45 px/m); building bounds ~12.5m x ~10.4m, not lot-sized",
+        "Bedroom, bath, stairs, living/dining walls and the covered-terrace edge are present and connected"
+      ]
     }
   ]
 }

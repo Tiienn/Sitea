@@ -550,6 +550,139 @@ function adjustScaleFromWallBounds(result, dimensionLabels) {
   };
 }
 
+// Derive pixels-per-meter by matching printed dimension labels to the traced
+// wall spans they measure. A label's extension lines only reach nearby walls,
+// so each label is matched against wall positions close to it — which means
+// lot/site dimensions printed along the drawing border cast no votes (no walls
+// there) and cannot poison the scale the way they can in the bounds-based
+// heuristics above. Walls are in trace space; label bboxes arrive in original
+// image space and are mapped via labelScaleX/Y.
+function calibrateScaleFromDimensionChains(walls, dimensionLabels, labelScaleX, labelScaleY, imageW, imageH) {
+  if (!Array.isArray(walls) || walls.length < 4) return null;
+  const labels = (Array.isArray(dimensionLabels) ? dimensionLabels : [])
+    .filter(d => Number.isFinite(d.meters) && d.meters >= 1.5 && d.meters <= 30)
+    .filter(d => d.bbox && d.bbox.w > 0 && d.bbox.h > 0)
+    .map(d => ({
+      meters: d.meters,
+      cx: (d.bbox.x + d.bbox.w / 2) * labelScaleX,
+      cy: (d.bbox.y + d.bbox.h / 2) * labelScaleY,
+    }));
+  if (labels.length < 4) {
+    console.log(`[FloorPlan] Chain calibration skipped: ${labels.length} usable labels (need 4+ with bbox and 1.5-30m)`);
+    return null;
+  }
+
+  const maxDim = Math.max(imageW || 0, imageH || 0) || 1000;
+  const REACH = Math.max(40, maxDim * 0.07);   // how far extension lines may reach to a wall
+  const MIN_SPAN = Math.max(30, maxDim * 0.045);
+  const MERGE = 6;
+
+  const clusterVals = (values) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const out = [];
+    for (const v of sorted) {
+      if (!out.length || v - out[out.length - 1] > MERGE) out.push(v);
+      else out[out.length - 1] = (out[out.length - 1] + v) / 2;
+    }
+    return out;
+  };
+
+  const vertical = walls.filter(w => Math.abs(w.end.x - w.start.x) < Math.abs(w.end.y - w.start.y));
+  const horizontal = walls.filter(w => Math.abs(w.end.x - w.start.x) >= Math.abs(w.end.y - w.start.y));
+
+  const votes = [];
+  for (const label of labels) {
+    // Horizontal measurement: x-positions of vertical walls reachable from the label
+    const xCands = clusterVals(vertical
+      .filter(w => label.cy >= Math.min(w.start.y, w.end.y) - REACH &&
+                   label.cy <= Math.max(w.start.y, w.end.y) + REACH)
+      .map(w => (w.start.x + w.end.x) / 2));
+    // Vertical measurement: y-positions of horizontal walls reachable from the label
+    const yCands = clusterVals(horizontal
+      .filter(w => label.cx >= Math.min(w.start.x, w.end.x) - REACH &&
+                   label.cx <= Math.max(w.start.x, w.end.x) + REACH)
+      .map(w => (w.start.y + w.end.y) / 2));
+
+    for (const [coords, center, axis] of [[xCands, label.cx, 'x'], [yCands, label.cy, 'y']]) {
+      for (let i = 0; i < coords.length; i++) {
+        for (let j = i + 1; j < coords.length; j++) {
+          const span = coords[j] - coords[i];
+          if (span < MIN_SPAN) continue;
+          // Dimension text lies somewhere along the span it measures — real
+          // plans rarely center it exactly, but it never sits outside. This
+          // also structurally disqualifies lot/site labels: their text lies
+          // beyond the building's outermost walls, so no span contains them.
+          const margin = Math.max(20, span * 0.05);
+          if (center < coords[i] - margin || center > coords[j] + margin) continue;
+          const offset = Math.abs((coords[i] + coords[j]) / 2 - center);
+          const ppm = span / label.meters;
+          if (ppm >= 5 && ppm <= 500) {
+            votes.push({ ppm, span, offset, key: `${label.meters.toFixed(2)}:${axis}`, meters: label.meters });
+          }
+        }
+      }
+    }
+  }
+  if (votes.length < 3) {
+    console.log(`[FloorPlan] Chain calibration skipped: ${votes.length} votes from ${labels.length} labels`);
+    return null;
+  }
+
+  // Plausibility bound per cluster: the building cannot be smaller than the
+  // dimensions printed inside it. Coincidence clusters (small label × large
+  // span → high ppm) imply absurdly tiny buildings and die here.
+  const allX = walls.flatMap(w => [w.start.x, w.end.x]);
+  const allY = walls.flatMap(w => [w.start.y, w.end.y]);
+  const maxExtentPx = Math.max(
+    Math.max(...allX) - Math.min(...allX),
+    Math.max(...allY) - Math.min(...allY)
+  );
+  const votingValues = [...new Set(votes.map(v => v.meters))].sort((a, b) => a - b);
+  const p90Label = votingValues[Math.min(votingValues.length - 1, Math.floor(votingValues.length * 0.9))];
+
+  // Find the ppm cluster supported by the most distinct (label, axis) pairs
+  votes.sort((a, b) => a.ppm - b.ppm);
+  let best = null;
+  for (let i = 0; i < votes.length; i++) {
+    const hi = votes[i].ppm * 1.08;
+    const members = votes.filter(v => v.ppm >= votes[i].ppm && v.ppm <= hi);
+    const ppms = members.map(v => v.ppm).sort((a, b) => a - b);
+    const clusterPpm = ppms[Math.floor(ppms.length / 2)];
+    if (p90Label > (maxExtentPx / clusterPpm) * 1.15) continue;
+    const distinct = new Set(members.map(v => v.key)).size;
+    if (!best || distinct > best.distinct ||
+        (distinct === best.distinct && members.length > best.members.length)) {
+      best = { members, distinct };
+    }
+  }
+  if (!best || best.distinct < 4) {
+    console.log(`[FloorPlan] Chain calibration skipped: best cluster has ${best ? best.distinct : 0} distinct labels (need 4+) from ${votes.length} votes`);
+    return null;
+  }
+
+  // Second pass: the seed window is one-sided, so slightly-low votes from
+  // long spans (small per-pixel error, high weight) can just miss it.
+  // Re-collect two-sided around the validated cluster before refining —
+  // traced band centers vs printed face-to-face references spread honest
+  // votes by up to a wall thickness per span.
+  const seedPpms = best.members.map(v => v.ppm).sort((a, b) => a - b);
+  const seedMedian = seedPpms[Math.floor(seedPpms.length / 2)];
+  const expanded = votes.filter(v => v.ppm >= seedMedian * 0.9 && v.ppm <= seedMedian * 1.1);
+
+  // Refine: per (label, axis) keep the best-centered vote, then a span-weighted
+  // ratio — large spans carry proportionally smaller pixel error.
+  const byKey = new Map();
+  for (const vote of expanded) {
+    const prev = byKey.get(vote.key);
+    if (!prev || vote.offset < prev.offset) byKey.set(vote.key, vote);
+  }
+  const picked = [...byKey.values()];
+  const pixelsPerMeter = picked.reduce((s, v) => s + v.span, 0) / picked.reduce((s, v) => s + v.meters, 0);
+  if (!Number.isFinite(pixelsPerMeter) || pixelsPerMeter <= 0) return null;
+
+  return { pixelsPerMeter, distinctLabels: best.distinct, votes: best.members.length };
+}
+
 // --- Roboflow CV detection (CubiCasa5K model) ---
 
 async function callRoboflow(base64Image) {
@@ -1624,6 +1757,18 @@ export default async function handler(req, res) {
     const cvHints = formatRoboflowHints(roboflowData);
     const dimensionHints = knownWidthMeters ? '' : formatDimensionHints(ocrDimensions);
 
+    // QA-only capture so scale calibration can be iterated offline without
+    // re-running paid OCR (see scripts/floor-plan-trace-debug.mjs)
+    if (process.env.SITEA_QA_DEBUG_DIR) {
+      try {
+        const fsDebug = await import('node:fs');
+        fsDebug.writeFileSync(
+          `${process.env.SITEA_QA_DEBUG_DIR}/ocr-capture.json`,
+          JSON.stringify({ dimensions: ocrDimensions, textBoxes: ocrInfo.textBoxes, actualWidth, actualHeight }, null, 2)
+        );
+      } catch { /* debug-only */ }
+    }
+
     // ============================================================
     // PIPELINE v6: Direct CV trace of the uploaded plan → LLM semantics + audit.
     // Wall geometry is measured from the user's own pixels; the image-gen
@@ -1714,7 +1859,28 @@ export default async function handler(req, res) {
         }
 
         const semanticScale = semantics.scale || { pixelsPerMeter: geminiW / 15, confidence: 0.3, source: 'estimated' };
-        if (cvWallCoverageLooksIncomplete(auditedWalls, semanticScale, ocrDimensions)) {
+
+        // Printed building dimensions matched against traced wall spans beat any
+        // model guess: lot/site dims printed along the border (which fooled the
+        // semantics model into lot-sized scales) cast no votes here.
+        const chainScale = calibrateScaleFromDimensionChains(
+          auditedWalls, ocrDimensions,
+          geminiW / actualWidth, geminiH / actualHeight, geminiW, geminiH
+        );
+        let traceScale = semanticScale;
+        if (chainScale) {
+          const semanticPpm = semanticScale.pixelsPerMeter;
+          console.log(
+            `[FloorPlan] Dimension-chain calibration: ${chainScale.pixelsPerMeter.toFixed(1)} px/m ` +
+            `(${chainScale.distinctLabels} labels, ${chainScale.votes} votes; semantic said ${semanticPpm ? semanticPpm.toFixed(1) : 'n/a'})`
+          );
+          traceScale = { pixelsPerMeter: chainScale.pixelsPerMeter, confidence: 0.93, source: 'dimension_chain' };
+        }
+
+        // A chain-calibrated trace is verified against the plan's own printed
+        // dimensions — never discard it over a coverage heuristic that may be
+        // comparing the building to lot dimensions.
+        if (!chainScale && cvWallCoverageLooksIncomplete(auditedWalls, traceScale, ocrDimensions)) {
           console.warn('[FloorPlan] CV wall coverage looks incomplete; falling back to direct structured analysis');
         } else {
           // Combine CV walls + semantic info
@@ -1726,7 +1892,7 @@ export default async function handler(req, res) {
             windows: auditedWindows,
             rooms: semantics.rooms || [],
             stairs: semantics.stairs || [],
-            scale: semanticScale,
+            scale: traceScale,
             overallShape: semantics.overallShape || 'rectangular',
             totalArea: semantics.totalArea || null,
           };
@@ -2173,3 +2339,15 @@ export default async function handler(req, res) {
     });
   }
 }
+
+// Internal CV functions exposed for the free local trace debugger
+// (scripts/floor-plan-trace-debug.mjs). Not used by the API route.
+export const __qaInternals = {
+  resizeForGemini,
+  preprocessImage,
+  extractWallsFromCleanImage,
+  splitWallsAtJunctions,
+  wallBoundsInMeters,
+  cvWallCoverageLooksIncomplete,
+  calibrateScaleFromDimensionChains,
+};

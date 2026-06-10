@@ -1,0 +1,629 @@
+{
+  "success": true,
+  "imageSize": {
+    "width": 830,
+    "height": 958
+  },
+  "walls": [
+    {
+      "start": {
+        "x": 128,
+        "y": 251
+      },
+      "end": {
+        "x": 181,
+        "y": 253
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 266,
+        "y": 253
+      },
+      "end": {
+        "x": 289,
+        "y": 255
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 127,
+        "y": 416
+      },
+      "end": {
+        "x": 190,
+        "y": 416
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 190,
+        "y": 416
+      },
+      "end": {
+        "x": 235,
+        "y": 416
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 446,
+        "y": 448
+      },
+      "end": {
+        "x": 489,
+        "y": 449
+      },
+      "thickness": 11,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 297,
+        "y": 447
+      },
+      "end": {
+        "x": 331,
+        "y": 447
+      },
+      "thickness": 4,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 331,
+        "y": 447
+      },
+      "end": {
+        "x": 370,
+        "y": 447
+      },
+      "thickness": 4,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 370,
+        "y": 447
+      },
+      "end": {
+        "x": 408,
+        "y": 447
+      },
+      "thickness": 4,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 408,
+        "y": 447
+      },
+      "end": {
+        "x": 446,
+        "y": 448
+      },
+      "thickness": 4,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 528,
+        "y": 447
+      },
+      "end": {
+        "x": 565,
+        "y": 447
+      },
+      "thickness": 4,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 612,
+        "y": 447
+      },
+      "end": {
+        "x": 641,
+        "y": 447
+      },
+      "thickness": 4,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 207,
+        "y": 472
+      },
+      "end": {
+        "x": 244,
+        "y": 472
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 126,
+        "y": 535
+      },
+      "end": {
+        "x": 188,
+        "y": 535
+      },
+      "thickness": 11,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 205,
+        "y": 535
+      },
+      "end": {
+        "x": 243,
+        "y": 535
+      },
+      "thickness": 11,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 168,
+        "y": 694
+      },
+      "end": {
+        "x": 194,
+        "y": 694
+      },
+      "thickness": 11,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 241,
+        "y": 694
+      },
+      "end": {
+        "x": 310,
+        "y": 694
+      },
+      "thickness": 11,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 446,
+        "y": 694
+      },
+      "end": {
+        "x": 512,
+        "y": 694
+      },
+      "thickness": 11,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 633,
+        "y": 694
+      },
+      "end": {
+        "x": 669,
+        "y": 694
+      },
+      "thickness": 11,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 345,
+        "y": 697
+      },
+      "end": {
+        "x": 412,
+        "y": 697
+      },
+      "thickness": 4,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 128,
+        "y": 251
+      },
+      "end": {
+        "x": 126,
+        "y": 387
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 126,
+        "y": 387
+      },
+      "end": {
+        "x": 127,
+        "y": 416
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 127,
+        "y": 416
+      },
+      "end": {
+        "x": 126,
+        "y": 510
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 126,
+        "y": 510
+      },
+      "end": {
+        "x": 126,
+        "y": 535
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 126,
+        "y": 535
+      },
+      "end": {
+        "x": 126,
+        "y": 701
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 207,
+        "y": 472
+      },
+      "end": {
+        "x": 205,
+        "y": 507
+      },
+      "thickness": 11,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 205,
+        "y": 507
+      },
+      "end": {
+        "x": 205,
+        "y": 535
+      },
+      "thickness": 11,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 235,
+        "y": 390
+      },
+      "end": {
+        "x": 235,
+        "y": 416
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 289,
+        "y": 255
+      },
+      "end": {
+        "x": 289,
+        "y": 374
+      },
+      "thickness": 10,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 289,
+        "y": 385
+      },
+      "end": {
+        "x": 289,
+        "y": 423
+      },
+      "thickness": 10,
+      "isExterior": false,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 652,
+        "y": 304
+      },
+      "end": {
+        "x": 652,
+        "y": 376
+      },
+      "thickness": 19,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 654,
+        "y": 386
+      },
+      "end": {
+        "x": 654,
+        "y": 417
+      },
+      "thickness": 16,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 669,
+        "y": 445
+      },
+      "end": {
+        "x": 669,
+        "y": 664
+      },
+      "thickness": 11,
+      "isExterior": true,
+      "confidence": 0.9
+    },
+    {
+      "start": {
+        "x": 669,
+        "y": 664
+      },
+      "end": {
+        "x": 669,
+        "y": 694
+      },
+      "thickness": 11,
+      "isExterior": true,
+      "confidence": 0.9
+    }
+  ],
+  "doors": [
+    {
+      "center": {
+        "x": 226,
+        "y": 472
+      },
+      "width": 35,
+      "wallIndex": 11,
+      "positionAlongWall": 18,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 214,
+        "y": 416
+      },
+      "width": 35,
+      "wallIndex": 3,
+      "positionAlongWall": 21,
+      "rotation": 0,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 289,
+        "y": 335
+      },
+      "width": 35,
+      "wallIndex": 27,
+      "positionAlongWall": 79,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 126,
+        "y": 650
+      },
+      "width": 35,
+      "wallIndex": 23,
+      "positionAlongWall": 115,
+      "rotation": 90,
+      "doorType": "single"
+    },
+    {
+      "center": {
+        "x": 468,
+        "y": 449
+      },
+      "width": 70,
+      "wallIndex": 4,
+      "positionAlongWall": 21,
+      "rotation": 0,
+      "doorType": "sliding"
+    }
+  ],
+  "windows": [
+    {
+      "center": {
+        "x": 155,
+        "y": 253
+      },
+      "width": 46,
+      "wallIndex": 0,
+      "positionAlongWall": 26
+    },
+    {
+      "center": {
+        "x": 479,
+        "y": 694
+      },
+      "width": 62,
+      "wallIndex": 16,
+      "positionAlongWall": 33
+    },
+    {
+      "center": {
+        "x": 379,
+        "y": 697
+      },
+      "width": 62,
+      "wallIndex": 18,
+      "positionAlongWall": 34
+    },
+    {
+      "center": {
+        "x": 669,
+        "y": 550
+      },
+      "width": 62,
+      "wallIndex": 31,
+      "positionAlongWall": 105
+    },
+    {
+      "center": {
+        "x": 353,
+        "y": 447
+      },
+      "width": 46,
+      "wallIndex": 6,
+      "positionAlongWall": 21
+    },
+    {
+      "center": {
+        "x": 426,
+        "y": 447
+      },
+      "width": 46,
+      "wallIndex": 8,
+      "positionAlongWall": 17
+    },
+    {
+      "center": {
+        "x": 546,
+        "y": 447
+      },
+      "width": 46,
+      "wallIndex": 9,
+      "positionAlongWall": 18
+    }
+  ],
+  "rooms": [
+    {
+      "name": "Bedroom",
+      "center": {
+        "x": 205,
+        "y": 325
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Bath / Toilet",
+      "center": {
+        "x": 175,
+        "y": 455
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Hall",
+      "center": {
+        "x": 210,
+        "y": 575
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Living / Dining / Kitchen",
+      "center": {
+        "x": 470,
+        "y": 565
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Covered terrace",
+      "center": {
+        "x": 455,
+        "y": 360
+      },
+      "labeledArea": null
+    },
+    {
+      "name": "Stairs",
+      "center": {
+        "x": 190,
+        "y": 610
+      },
+      "labeledArea": null
+    }
+  ],
+  "stairs": [
+    {
+      "center": {
+        "x": 190,
+        "y": 610
+      },
+      "direction": "up"
+    }
+  ],
+  "scale": {
+    "pixelsPerMeter": 45.78531445505433,
+    "confidence": 0.93,
+    "source": "dimension_chain"
+  },
+  "overallShape": "rectangular",
+  "totalArea": {
+    "value": 127,
+    "unit": "sqm"
+  }
+}
