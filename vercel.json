@@ -2,9 +2,15 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/s/:id",
+      "destination": "/index.html"
+    }
+  ],
   "functions": {
     "api/*.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   }
 }

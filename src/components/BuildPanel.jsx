@@ -3,6 +3,7 @@ import { houseTemplates, HOUSE_TEMPLATE_ORDER, DEFAULT_HOUSE_TEMPLATE } from '..
 import { FURNITURE_CATEGORIES, FURNITURE_ITEMS } from '../data/furnitureCatalog'
 import { analyzeImage } from '../services/imageAnalysis'
 import { useUser } from '../hooks/useUser.jsx'
+import { fileToImageData } from '../utils/pdfToImage'
 
 // Confidence threshold for auto-routing
 const AUTO_ROUTE_THRESHOLD = 0.7
@@ -23,6 +24,23 @@ const getCoverageColorClass = (percent) => {
   if (percent < COVERAGE_THRESHOLDS.green) return 'green'
   if (percent < COVERAGE_THRESHOLDS.yellow) return 'yellow'
   return 'red'
+}
+
+const getReadinessBadgeClass = (state) => {
+  if (state === 'ready') return 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
+  if (state === 'needs_corrections') return 'border-rose-300/25 bg-rose-300/10 text-rose-100'
+  return 'border-amber-300/25 bg-amber-300/10 text-amber-100'
+}
+
+const formatSourceCorrections = (corrections = {}) => {
+  const items = [
+    corrections.hiddenCount ? `${corrections.hiddenCount} hidden` : null,
+    corrections.addedCount ? `${corrections.addedCount} added` : null,
+    corrections.wallEditCount ? `${corrections.wallEditCount} wall edits` : null,
+    corrections.openingEditCount ? `${corrections.openingEditCount} opening edits` : null,
+  ].filter(Boolean)
+
+  return items.length ? items.join(' · ') : 'No overlay corrections'
 }
 
 // Section definitions with icons
@@ -338,6 +356,12 @@ export default function BuildPanel({
   hasSelection = false,
   // House templates
   onLoadHouseTemplate,
+  // Building explode
+  selectedBuildingId,
+  selectedFloorPlanSource = null,
+  onExplodeBuilding,
+  onRotateSelectedBuilding,
+  onClearSelectedBuilding,
 }) {
   const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed, setShowPricingModal } = useUser()
   const [activeSection, setActiveSection] = useState('tools')
@@ -376,10 +400,17 @@ export default function BuildPanel({
     }
     return `${meters}m`
   }
+  const selectedSourceReadiness = selectedFloorPlanSource?.readiness || null
+  const selectedSourceCounts = selectedFloorPlanSource?.counts || {}
+  const selectedSourceCorrectionCopy = formatSourceCorrections(selectedFloorPlanSource?.corrections)
 
   // Handle file upload — go to preview instead of auto-analyzing
-  const handleFileUpload = (file) => {
+  const handleFileUpload = async (file) => {
     if (!file) return
+
+    if (!canUseUpload()) {
+      return
+    }
 
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
     if (!validTypes.includes(file.type)) {
@@ -387,18 +418,14 @@ export default function BuildPanel({
       return
     }
 
-    // PDF not yet supported
-    if (file.type === 'application/pdf') {
-      alert('PDF support coming soon. Please use PNG or JPG for now.')
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setPendingImage(e.target.result)
+    try {
+      const { imageData } = await fileToImageData(file)
+      setPendingImage(imageData)
       setShowPreview(true)
+    } catch (err) {
+      console.error('File render failed:', err)
+      alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
     }
-    reader.readAsDataURL(file)
   }
 
   // Called when user clicks "Generate 3D" from preview
@@ -410,10 +437,15 @@ export default function BuildPanel({
       const result = await analyzeImage(pendingImage, isPaidUser)
 
       if (result.confidence >= AUTO_ROUTE_THRESHOLD) {
-        markUploadUsed()
         if (result.type === 'floor-plan') {
           onOpenFloorPlanGenerator?.(pendingImage)
         } else {
+          const quota = await markUploadUsed()
+          if (!quota?.ok) {
+            setPendingImage(null)
+            setIsAnalyzing(false)
+            return
+          }
           onDetectedSitePlan?.(pendingImage)
         }
         setPendingImage(null)
@@ -431,12 +463,13 @@ export default function BuildPanel({
   }
 
   // Confirm detected type (for low confidence)
-  const confirmType = (type) => {
-    markUploadUsed() // Consume free trial
+  const confirmType = async (type) => {
     if (type === 'floor-plan') {
       // Open AI generator modal for floor plans
       onOpenFloorPlanGenerator?.(pendingImage)
     } else {
+      const quota = await markUploadUsed()
+      if (!quota?.ok) return
       onDetectedSitePlan?.(pendingImage)
     }
     setShowConfirm(false)
@@ -499,7 +532,7 @@ export default function BuildPanel({
                           onClick={() => setShowPricingModal(true)}
                           className="w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold rounded-lg transition-all mb-2"
                         >
-                          Try Pro — $29
+                          Try Pro — $20
                         </button>
                         <button
                           onClick={() => { setShowPreview(false); setPendingImage(null) }}
@@ -549,7 +582,7 @@ export default function BuildPanel({
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/jpg,application/pdf"
+                        accept="image/png,image/jpeg,image/jpg,application/pdf,.pdf"
                         onChange={(e) => handleFileUpload(e.target.files?.[0])}
                         className="hidden"
                       />
@@ -721,7 +754,7 @@ export default function BuildPanel({
                           value={floorPlanSettings.offsetX}
                           onChange={(e) => setFloorPlanSettings(prev => ({ ...prev, offsetX: parseFloat(e.target.value) || 0 }))}
                           step={0.5}
-                          className="w-full px-2 py-1 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:border-[var(--color-accent)]"
+                          className="sitea-field w-full text-sm"
                         />
                       </div>
                       <div>
@@ -731,7 +764,7 @@ export default function BuildPanel({
                           value={floorPlanSettings.offsetZ}
                           onChange={(e) => setFloorPlanSettings(prev => ({ ...prev, offsetZ: parseFloat(e.target.value) || 0 }))}
                           step={0.5}
-                          className="w-full px-2 py-1 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded focus:outline-none focus:border-[var(--color-accent)]"
+                          className="sitea-field w-full text-sm"
                         />
                       </div>
                     </div>
@@ -741,10 +774,11 @@ export default function BuildPanel({
                     </p>
 
                     {/* Upload new button */}
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full py-2 text-xs text-[var(--color-text-muted)] hover:text-white transition-colors"
-                    >
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="sitea-btn sitea-btn-secondary w-full text-xs"
+                        style={{ minHeight: 40, padding: '8px 12px' }}
+                      >
                       Upload different image
                     </button>
                   </div>
@@ -755,6 +789,80 @@ export default function BuildPanel({
             {/* TOOLS Section */}
             {activeSection === 'tools' && (
               <div className="space-y-4">
+                {selectedBuildingId && (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_14px_38px_rgba(15,23,42,0.2)]">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-teal-300/20 bg-teal-300/10 text-teal-100">
+                        <span className="h-5 w-5">{Icons.home}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white">Selected building</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
+                          Move, rotate, or turn the placed plan into editable walls.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => canEdit && onRotateSelectedBuilding?.()}
+                        disabled={!canEdit}
+                        className="sitea-btn sitea-btn-secondary min-h-11 px-3 py-2 text-xs"
+                      >
+                        Rotate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => canEdit && onExplodeBuilding?.()}
+                        disabled={!canEdit}
+                        className="sitea-btn sitea-btn-primary min-h-11 px-3 py-2 text-xs"
+                      >
+                        Edit walls
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onClearSelectedBuilding?.()}
+                        className="sitea-btn sitea-btn-secondary min-h-11 px-3 py-2 text-xs"
+                      >
+                        Deselect
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedFloorPlanSource && (
+                  <div className="rounded-2xl border border-teal-300/15 bg-teal-950/25 p-4 shadow-[0_14px_38px_rgba(15,23,42,0.24)]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-teal-300/25 bg-teal-300/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-teal-100">
+                        Source plan
+                      </span>
+                      {selectedSourceReadiness && (
+                        <span className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${getReadinessBadgeClass(selectedSourceReadiness.state)}`}>
+                          {selectedSourceReadiness.label}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-3 truncate text-sm font-semibold text-white">
+                      {selectedFloorPlanSource.sourceFileName || 'Reviewed floor plan'}
+                    </p>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {[
+                        ['Walls', selectedSourceCounts.wallCount],
+                        ['Doors', selectedSourceCounts.doorCount],
+                        ['Windows', selectedSourceCounts.windowCount],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{label}</div>
+                          <div className="mt-1 text-base font-bold text-white">{value || 0}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-[var(--color-text-secondary)]">
+                      {selectedSourceCorrectionCopy}
+                    </p>
+                  </div>
+                )}
+
                 {/* Tool Grid */}
                 <div className="grid grid-cols-3 gap-2">
                   {/* Room Tool */}
@@ -857,6 +965,18 @@ export default function BuildPanel({
                     <span className="text-[10px]">Copy</span>
                   </button>
 
+                  {/* Explode Tool — always visible, disabled when no building selected */}
+                  <button
+                    onClick={() => selectedBuildingId && onExplodeBuilding?.()}
+                    disabled={!selectedBuildingId}
+                    className={`tool-btn ${selectedBuildingId ? 'active' : ''}`}
+                  >
+                    <span className="w-5 h-5">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    </span>
+                    <span className="text-[10px]">Explode <kbd className="opacity-40 text-[8px]">E</kbd></span>
+                  </button>
+
                   {/* Delete Tool */}
                   <button
                     onClick={() => canEdit && setActiveBuildTool?.(activeBuildTool === BUILD_TOOLS.DELETE ? BUILD_TOOLS.NONE : BUILD_TOOLS.DELETE)}
@@ -870,31 +990,23 @@ export default function BuildPanel({
 
                 {/* Undo/Redo Buttons */}
                 <div className="flex gap-2 border-t border-[var(--color-border)]" style={{ paddingTop: 10 }}>
-                  <button
-                    onClick={onUndo}
-                    disabled={!canUndo}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      canUndo
-                        ? 'bg-[var(--color-bg-elevated)] hover:bg-white/10 text-[var(--color-text-primary)]'
-                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] opacity-50 cursor-not-allowed'
-                    }`}
-                    title="Undo (Ctrl+Z)"
-                  >
+                    <button
+                      onClick={onUndo}
+                      disabled={!canUndo}
+                      className="sitea-btn sitea-btn-secondary flex-1"
+                      title="Undo (Ctrl+Z)"
+                    >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 0 1 5 5v2M3 10l4-4M3 10l4 4" />
                     </svg>
                     <span>Undo</span>
                   </button>
-                  <button
-                    onClick={onRedo}
-                    disabled={!canRedo}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      canRedo
-                        ? 'bg-[var(--color-bg-elevated)] hover:bg-white/10 text-[var(--color-text-primary)]'
-                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] opacity-50 cursor-not-allowed'
-                    }`}
-                    title="Redo (Ctrl+Shift+Z)"
-                  >
+                    <button
+                      onClick={onRedo}
+                      disabled={!canRedo}
+                      className="sitea-btn sitea-btn-secondary flex-1"
+                      title="Redo (Ctrl+Shift+Z)"
+                    >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 10H11a5 5 0 0 0-5 5v2M21 10l-4-4M21 10l-4 4" />
                     </svg>
@@ -1622,7 +1734,7 @@ export default function BuildPanel({
       {activeSection && (
         <button
           onClick={() => setActiveSection(null)}
-          className="w-4 h-full flex items-center justify-center bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-l border-[var(--color-border)]"
+            className="sitea-collapse-handle h-full flex items-center justify-center bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-l border-[var(--color-border)]"
         >
           <svg className="w-4 h-4 text-[var(--color-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />

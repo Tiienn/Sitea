@@ -5,6 +5,61 @@ import * as THREE from 'three'
 import { formatDimension, FEET_PER_METER } from '../../constants/landSceneConstants'
 import { getDragThreshold } from '../../utils/pointerUtils'
 
+function createCanvasTexture(canvas) {
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = 4
+  texture.needsUpdate = true
+  return texture
+}
+
+function drawCanvasSpeckles(ctx, width, height, count, color, size = 1) {
+  ctx.fillStyle = color
+  for (let i = 0; i < count; i++) {
+    const x = (i * 73) % width
+    const y = (i * 131) % height
+    ctx.fillRect(x, y, size, size)
+  }
+}
+
+function SurfaceLine({ x = 0, z = 0, width, depth, y = 0.085, color = '#ffffff' }) {
+  return (
+    <mesh position={[x, y, z]}>
+      <boxGeometry args={[width, 0.024, depth]} />
+      <meshBasicMaterial color={color} toneMapped={false} />
+    </mesh>
+  )
+}
+
+function SurfaceRect({ x = 0, z = 0, width, length, lineWidth, y = 0.085, color = '#ffffff' }) {
+  return (
+    <group position={[x, 0, z]}>
+      <SurfaceLine width={width} depth={lineWidth} y={y} z={length / 2} color={color} />
+      <SurfaceLine width={width} depth={lineWidth} y={y} z={-length / 2} color={color} />
+      <SurfaceLine width={lineWidth} depth={length} y={y} x={width / 2} color={color} />
+      <SurfaceLine width={lineWidth} depth={length} y={y} x={-width / 2} color={color} />
+    </group>
+  )
+}
+
+function SurfaceCircle({ x = 0, z = 0, radius, lineWidth, y = 0.09, color = '#ffffff', arc = Math.PI * 2, rotationZ = 0 }) {
+  return (
+    <mesh position={[x, y, z]} rotation={[Math.PI / 2, 0, rotationZ]}>
+      <torusGeometry args={[radius, lineWidth / 2, 8, 96, arc]} />
+      <meshBasicMaterial color={color} toneMapped={false} />
+    </mesh>
+  )
+}
+
+function SurfaceSpot({ x = 0, z = 0, radius = 0.22, y = 0.1, color = '#ffffff' }) {
+  return (
+    <mesh position={[x, y, z]}>
+      <cylinderGeometry args={[radius, radius, 0.026, 24]} />
+      <meshBasicMaterial color={color} toneMapped={false} />
+    </mesh>
+  )
+}
+
 // Create textures for comparison objects
 function useSoccerFieldTexture(width, length) {
   return useMemo(() => {
@@ -14,51 +69,17 @@ function useSoccerFieldTexture(width, length) {
     const ctx = canvas.getContext('2d')
     const w = canvas.width, h = canvas.height
 
-    // Green grass base
-    ctx.fillStyle = '#2d8a2d'
+    // Turf base with alternating mow stripes
+    ctx.fillStyle = '#0f6f3d'
     ctx.fillRect(0, 0, w, h)
-
-    // Grass stripes
-    ctx.fillStyle = '#259925'
-    for (let i = 0; i < h; i += h / 12) {
-      ctx.fillRect(0, i, w, h / 24)
+    for (let i = 0; i < 14; i++) {
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.045)'
+      ctx.fillRect(0, i * h / 14, w, h / 14)
     }
+    drawCanvasSpeckles(ctx, w, h, 700, 'rgba(255,255,255,0.045)')
+    drawCanvasSpeckles(ctx, w, h, 700, 'rgba(0,0,0,0.055)', 2)
 
-    // White lines
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 4
-
-    // Outer boundary
-    ctx.strokeRect(20, 20, w - 40, h - 40)
-
-    // Center line
-    ctx.beginPath()
-    ctx.moveTo(20, h / 2)
-    ctx.lineTo(w - 20, h / 2)
-    ctx.stroke()
-
-    // Center circle
-    ctx.beginPath()
-    ctx.arc(w / 2, h / 2, w * 0.15, 0, Math.PI * 2)
-    ctx.stroke()
-
-    // Center dot
-    ctx.beginPath()
-    ctx.arc(w / 2, h / 2, 4, 0, Math.PI * 2)
-    ctx.fillStyle = '#ffffff'
-    ctx.fill()
-
-    // Penalty areas
-    const penaltyW = w * 0.6, penaltyH = h * 0.15
-    ctx.strokeRect((w - penaltyW) / 2, 20, penaltyW, penaltyH)
-    ctx.strokeRect((w - penaltyW) / 2, h - 20 - penaltyH, penaltyW, penaltyH)
-
-    // Goal areas
-    const goalW = w * 0.3, goalH = h * 0.05
-    ctx.strokeRect((w - goalW) / 2, 20, goalW, goalH)
-    ctx.strokeRect((w - goalW) / 2, h - 20 - goalH, goalW, goalH)
-
-    return new THREE.CanvasTexture(canvas)
+    return createCanvasTexture(canvas)
   }, [width, length])
 }
 
@@ -70,55 +91,31 @@ function useBasketballCourtTexture(width, length) {
     const ctx = canvas.getContext('2d')
     const w = canvas.width, h = canvas.height
 
-    // Tan court
-    ctx.fillStyle = '#c4a66a'
+    // Varnished hardwood base
+    ctx.fillStyle = '#c89c5d'
     ctx.fillRect(0, 0, w, h)
 
-    // Wood grain effect
-    ctx.strokeStyle = 'rgba(139, 90, 43, 0.15)'
-    ctx.lineWidth = 1
-    for (let i = 0; i < w; i += 8) {
+    // Wood planks and grain
+    for (let x = 0; x < w; x += 18) {
+      ctx.fillStyle = x % 36 === 0 ? 'rgba(255,255,255,0.04)' : 'rgba(87,49,22,0.045)'
+      ctx.fillRect(x, 0, 18, h)
+      ctx.strokeStyle = 'rgba(87,49,22,0.16)'
+      ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.moveTo(i, 0)
-      ctx.lineTo(i, h)
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, h)
+      ctx.stroke()
+    }
+    for (let i = 0; i < 70; i++) {
+      const y = (i * 37) % h
+      ctx.strokeStyle = 'rgba(87,49,22,0.11)'
+      ctx.beginPath()
+      ctx.moveTo((i * 61) % w, y)
+      ctx.lineTo(((i * 61) % w) + 40, y + 4)
       ctx.stroke()
     }
 
-    // White lines
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 3
-
-    // Outer boundary
-    ctx.strokeRect(15, 15, w - 30, h - 30)
-
-    // Center line
-    ctx.beginPath()
-    ctx.moveTo(15, h / 2)
-    ctx.lineTo(w - 15, h / 2)
-    ctx.stroke()
-
-    // Center circle
-    ctx.beginPath()
-    ctx.arc(w / 2, h / 2, w * 0.12, 0, Math.PI * 2)
-    ctx.stroke()
-
-    // Keys/paint areas
-    const keyW = w * 0.25, keyH = h * 0.18
-    ctx.fillStyle = 'rgba(139, 69, 19, 0.3)'
-    ctx.fillRect((w - keyW) / 2, 15, keyW, keyH)
-    ctx.fillRect((w - keyW) / 2, h - 15 - keyH, keyW, keyH)
-    ctx.strokeRect((w - keyW) / 2, 15, keyW, keyH)
-    ctx.strokeRect((w - keyW) / 2, h - 15 - keyH, keyW, keyH)
-
-    // Three-point arcs
-    ctx.beginPath()
-    ctx.arc(w / 2, 15, w * 0.35, 0, Math.PI)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(w / 2, h - 15, w * 0.35, Math.PI, Math.PI * 2)
-    ctx.stroke()
-
-    return new THREE.CanvasTexture(canvas)
+    return createCanvasTexture(canvas)
   }, [width, length])
 }
 
@@ -130,51 +127,19 @@ function useTennisCourtTexture(width, length) {
     const ctx = canvas.getContext('2d')
     const w = canvas.width, h = canvas.height
 
-    // Blue court
-    ctx.fillStyle = '#2563eb'
+    // Two-tone hard court
+    ctx.fillStyle = '#1d4ed8'
     ctx.fillRect(0, 0, w, h)
+    ctx.fillStyle = '#2563eb'
+    ctx.fillRect(34, 34, w - 68, h - 68)
+    ctx.fillStyle = 'rgba(20, 83, 45, 0.28)'
+    ctx.fillRect(0, 0, w, 34)
+    ctx.fillRect(0, h - 34, w, 34)
+    ctx.fillRect(0, 0, 34, h)
+    ctx.fillRect(w - 34, 0, 34, h)
+    drawCanvasSpeckles(ctx, w, h, 420, 'rgba(255,255,255,0.035)')
 
-    // White lines
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 3
-
-    // Outer boundary
-    ctx.strokeRect(20, 20, w - 40, h - 40)
-
-    // Service boxes
-    const serviceH = h * 0.35
-    ctx.beginPath()
-    ctx.moveTo(20, h / 2 - serviceH / 2)
-    ctx.lineTo(w - 20, h / 2 - serviceH / 2)
-    ctx.moveTo(20, h / 2 + serviceH / 2)
-    ctx.lineTo(w - 20, h / 2 + serviceH / 2)
-    ctx.stroke()
-
-    // Center service line
-    ctx.beginPath()
-    ctx.moveTo(w / 2, h / 2 - serviceH / 2)
-    ctx.lineTo(w / 2, h / 2 + serviceH / 2)
-    ctx.stroke()
-
-    // Center mark
-    ctx.beginPath()
-    ctx.moveTo(w / 2, 20)
-    ctx.lineTo(w / 2, 35)
-    ctx.moveTo(w / 2, h - 20)
-    ctx.lineTo(w / 2, h - 35)
-    ctx.stroke()
-
-    // Net line
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 2
-    ctx.setLineDash([8, 4])
-    ctx.beginPath()
-    ctx.moveTo(15, h / 2)
-    ctx.lineTo(w - 15, h / 2)
-    ctx.stroke()
-    ctx.setLineDash([])
-
-    return new THREE.CanvasTexture(canvas)
+    return createCanvasTexture(canvas)
   }, [width, length])
 }
 
@@ -221,29 +186,46 @@ function useParkingTexture(width, length) {
     const w = canvas.width, h = canvas.height
 
     // Asphalt gray
-    ctx.fillStyle = '#374151'
+    ctx.fillStyle = '#343a40'
     ctx.fillRect(0, 0, w, h)
 
     // Asphalt texture
-    for (let i = 0; i < 200; i++) {
-      const shade = Math.random() * 20 - 10
-      ctx.fillStyle = `rgb(${55 + shade}, ${65 + shade}, ${81 + shade})`
-      ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2)
+    for (let i = 0; i < 450; i++) {
+      const shade = (i % 17) - 8
+      const x = (i * 47) % w
+      const y = (i * 83) % h
+      ctx.fillStyle = `rgb(${52 + shade}, ${58 + shade}, ${64 + shade})`
+      ctx.fillRect(x, y, i % 3 === 0 ? 2 : 1, i % 4 === 0 ? 2 : 1)
     }
 
     // White border lines
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 6
-    ctx.strokeRect(10, 10, w - 20, h - 20)
+    ctx.strokeStyle = '#f8fafc'
+    ctx.lineWidth = 8
+    ctx.beginPath()
+    ctx.moveTo(16, 12)
+    ctx.lineTo(16, h - 12)
+    ctx.moveTo(w - 16, 12)
+    ctx.lineTo(w - 16, h - 12)
+    ctx.stroke()
+
+    // Front curb and wheel-stop marks
+    ctx.strokeStyle = '#facc15'
+    ctx.lineWidth = 5
+    ctx.beginPath()
+    ctx.moveTo(28, 36)
+    ctx.lineTo(w - 28, 36)
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(248,250,252,0.28)'
+    ctx.fillRect(42, h * 0.62, w - 84, 14)
 
     // Parking symbol (P)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.26)'
     ctx.font = 'bold 80px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('P', w / 2, h / 2)
 
-    return new THREE.CanvasTexture(canvas)
+    return createCanvasTexture(canvas)
   }, [width, length])
 }
 
@@ -251,13 +233,68 @@ function useParkingTexture(width, length) {
 function SoccerField3D({ obj }) {
   const texture = useSoccerFieldTexture(obj.width, obj.length)
   const goalWidth = 7.32, goalHeight = 2.44, goalDepth = 2
+  const lineWidth = 0.22
+  const penaltyWidth = Math.min(40.3, obj.width * 0.62)
+  const penaltyDepth = Math.min(16.5, obj.length * 0.18)
+  const goalAreaWidth = Math.min(18.32, obj.width * 0.32)
+  const goalAreaDepth = Math.min(5.5, obj.length * 0.07)
+  const centerCircleRadius = Math.min(9.15, obj.width * 0.14)
+  const penaltySpotOffset = Math.min(11, obj.length * 0.12)
 
   return (
     <group>
+      <mesh position={[0, 0.005, 0]} receiveShadow>
+        <boxGeometry args={[obj.width + 0.6, 0.04, obj.length + 0.6]} />
+        <meshStandardMaterial color="#0c5f36" roughness={0.88} />
+      </mesh>
+
       {/* Field surface */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} />
+        <meshStandardMaterial map={texture} roughness={0.78} />
+      </mesh>
+
+      {/* Raised pitch markings stay visible even when the texture is filtered from distance */}
+      <SurfaceRect width={obj.width} length={obj.length} lineWidth={lineWidth} y={0.085} />
+      <SurfaceLine width={obj.width} depth={lineWidth} y={0.088} />
+      <SurfaceCircle radius={centerCircleRadius} lineWidth={lineWidth} y={0.092} />
+      <SurfaceSpot radius={0.28} y={0.105} />
+      {[-1, 1].map((side) => (
+        <group key={`pitch-markings-${side}`}>
+          <SurfaceRect
+            width={penaltyWidth}
+            length={penaltyDepth}
+            lineWidth={lineWidth}
+            y={0.09}
+            z={side * (obj.length / 2 - penaltyDepth / 2)}
+          />
+          <SurfaceRect
+            width={goalAreaWidth}
+            length={goalAreaDepth}
+            lineWidth={lineWidth}
+            y={0.095}
+            z={side * (obj.length / 2 - goalAreaDepth / 2)}
+          />
+          <SurfaceSpot z={side * (obj.length / 2 - penaltySpotOffset)} radius={0.24} y={0.11} />
+        </group>
+      ))}
+
+      {/* Subtle turf edge trim */}
+      <mesh position={[0, 0.06, obj.length / 2 + 0.1]}>
+        <boxGeometry args={[obj.width + 0.35, 0.08, 0.2]} />
+        <meshStandardMaterial color="#0a4d2d" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 0.06, -obj.length / 2 - 0.1]}>
+        <boxGeometry args={[obj.width + 0.35, 0.08, 0.2]} />
+        <meshStandardMaterial color="#0a4d2d" roughness={0.7} />
+      </mesh>
+      <mesh position={[obj.width / 2 + 0.1, 0.06, 0]}>
+        <boxGeometry args={[0.2, 0.08, obj.length]} />
+        <meshStandardMaterial color="#0a4d2d" roughness={0.7} />
+      </mesh>
+      <mesh position={[-obj.width / 2 - 0.1, 0.06, 0]}>
+        <boxGeometry args={[0.2, 0.08, obj.length]} />
+        <meshStandardMaterial color="#0a4d2d" roughness={0.7} />
       </mesh>
 
       {/* Goal posts - both ends */}
@@ -281,8 +318,22 @@ function SoccerField3D({ obj }) {
           {/* Net (simple back frame) */}
           <mesh position={[0, goalHeight / 2, side * goalDepth / 2]}>
             <boxGeometry args={[goalWidth, goalHeight, 0.05]} />
-            <meshStandardMaterial color="#ffffff" transparent opacity={0.3} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#ffffff" transparent opacity={0.24} side={THREE.DoubleSide} />
           </mesh>
+          <mesh position={[-goalWidth / 2, goalHeight / 2, side * goalDepth / 2]} rotation={[0, 0, 0]}>
+            <boxGeometry args={[0.04, goalHeight, goalDepth]} />
+            <meshStandardMaterial color="#ffffff" transparent opacity={0.18} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh position={[goalWidth / 2, goalHeight / 2, side * goalDepth / 2]} rotation={[0, 0, 0]}>
+            <boxGeometry args={[0.04, goalHeight, goalDepth]} />
+            <meshStandardMaterial color="#ffffff" transparent opacity={0.18} side={THREE.DoubleSide} />
+          </mesh>
+          {[-1, 1].map((sx) => (
+            <mesh key={`flag-${sx}`} position={[sx * (obj.width / 2 + 0.28), 0.75, -side * 0.28]} castShadow>
+              <cylinderGeometry args={[0.03, 0.03, 1.5, 8]} />
+              <meshStandardMaterial color="#facc15" />
+            </mesh>
+          ))}
         </group>
       ))}
     </group>
@@ -293,14 +344,64 @@ function SoccerField3D({ obj }) {
 function BasketballCourt3D({ obj }) {
   const texture = useBasketballCourtTexture(obj.width, obj.length)
   const poleHeight = 3, rimHeight = 3.05, backboardWidth = 1.8, backboardHeight = 1.05
+  const lineWidth = 0.09
+  const keyWidth = Math.min(4.9, obj.width * 0.38)
+  const keyDepth = Math.min(5.8, obj.length * 0.23)
+  const circleRadius = Math.min(1.8, obj.width * 0.14)
+  const threePointRadius = Math.min(6.75, obj.width / 2 - 0.35)
+  const basketOffset = Math.min(1.575, obj.length * 0.06)
 
   return (
     <group>
+      <mesh position={[0, 0.005, 0]} receiveShadow>
+        <boxGeometry args={[obj.width + 0.35, 0.05, obj.length + 0.35]} />
+        <meshStandardMaterial color="#8a5a2b" roughness={0.65} />
+      </mesh>
+
       {/* Court surface */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} />
+        <meshStandardMaterial map={texture} roughness={0.44} metalness={0.02} />
       </mesh>
+
+      {/* Raised court markings */}
+      <SurfaceRect width={obj.width} length={obj.length} lineWidth={lineWidth} y={0.085} />
+      <SurfaceLine width={obj.width} depth={lineWidth} y={0.088} />
+      <SurfaceCircle radius={circleRadius} lineWidth={lineWidth} y={0.092} />
+      {[-1, 1].map((side) => {
+        const keyZ = side * (obj.length / 2 - keyDepth / 2)
+        const basketZ = side * (obj.length / 2 - basketOffset)
+        const freeThrowZ = side * (obj.length / 2 - keyDepth)
+
+        return (
+          <group key={`basketball-markings-${side}`}>
+            <SurfaceRect width={keyWidth} length={keyDepth} lineWidth={lineWidth} y={0.092} z={keyZ} />
+            <SurfaceCircle radius={circleRadius} lineWidth={lineWidth} y={0.096} z={freeThrowZ} />
+            <SurfaceCircle
+              radius={threePointRadius}
+              lineWidth={lineWidth}
+              y={0.098}
+              z={basketZ}
+              arc={Math.PI}
+              rotationZ={side > 0 ? Math.PI : 0}
+            />
+            <SurfaceLine
+              x={-threePointRadius}
+              z={side * (obj.length / 2 - keyDepth / 2)}
+              width={lineWidth}
+              depth={keyDepth}
+              y={0.1}
+            />
+            <SurfaceLine
+              x={threePointRadius}
+              z={side * (obj.length / 2 - keyDepth / 2)}
+              width={lineWidth}
+              depth={keyDepth}
+              y={0.1}
+            />
+          </group>
+        )
+      })}
 
       {/* Hoops at each end */}
       {[-1, 1].map((side) => (
@@ -310,20 +411,35 @@ function BasketballCourt3D({ obj }) {
             <cylinderGeometry args={[0.1, 0.1, poleHeight, 8]} />
             <meshStandardMaterial color="#333333" />
           </mesh>
+          {/* Support arm */}
+          <mesh position={[0, rimHeight + 0.1, side * 0.24]} castShadow>
+            <boxGeometry args={[0.16, 0.16, 0.68]} />
+            <meshStandardMaterial color="#333333" roughness={0.52} />
+          </mesh>
           {/* Backboard */}
           <mesh position={[0, rimHeight + backboardHeight / 2 - 0.15, 0]} castShadow>
             <boxGeometry args={[backboardWidth, backboardHeight, 0.05]} />
-            <meshStandardMaterial color="#ffffff" transparent opacity={0.8} />
+            <meshStandardMaterial color="#e0f2fe" transparent opacity={0.68} roughness={0.18} />
           </mesh>
           {/* Backboard frame */}
           <mesh position={[0, rimHeight + backboardHeight / 2 - 0.15, -side * 0.03]}>
             <boxGeometry args={[backboardWidth + 0.1, backboardHeight + 0.1, 0.02]} />
             <meshStandardMaterial color="#333333" />
           </mesh>
+          {/* Shooter square */}
+          <mesh position={[0, rimHeight + 0.18, side * 0.04]}>
+            <boxGeometry args={[0.62, 0.42, 0.025]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.3} />
+          </mesh>
           {/* Rim */}
           <mesh position={[0, rimHeight, side * 0.25]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.23, 0.02, 8, 24]} />
             <meshStandardMaterial color="#ff6600" />
+          </mesh>
+          {/* Simple net */}
+          <mesh position={[0, rimHeight - 0.18, side * 0.25]}>
+            <cylinderGeometry args={[0.2, 0.14, 0.36, 12, 1, true]} />
+            <meshStandardMaterial color="#ffffff" transparent opacity={0.42} side={THREE.DoubleSide} />
           </mesh>
         </group>
       ))}
@@ -334,14 +450,39 @@ function BasketballCourt3D({ obj }) {
 // Tennis Court with net
 function TennisCourt3D({ obj }) {
   const texture = useTennisCourtTexture(obj.width, obj.length)
+  const lineWidth = 0.07
+  const singlesWidth = Math.min(8.23, obj.width - lineWidth * 4)
+  const serviceDepth = Math.min(6.4, obj.length * 0.28)
 
   return (
     <group>
+      <mesh position={[0, 0.005, 0]} receiveShadow>
+        <boxGeometry args={[obj.width + 0.35, 0.04, obj.length + 0.35]} />
+        <meshStandardMaterial color="#1e3a8a" roughness={0.72} />
+      </mesh>
+
       {/* Court surface */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} />
+        <meshStandardMaterial map={texture} roughness={0.62} />
       </mesh>
+
+      {/* Raised tennis markings */}
+      <SurfaceRect width={obj.width} length={obj.length} lineWidth={lineWidth} y={0.085} />
+      <SurfaceLine x={-singlesWidth / 2} width={lineWidth} depth={obj.length} y={0.09} />
+      <SurfaceLine x={singlesWidth / 2} width={lineWidth} depth={obj.length} y={0.09} />
+      <SurfaceLine width={singlesWidth} depth={lineWidth} z={-serviceDepth} y={0.092} />
+      <SurfaceLine width={singlesWidth} depth={lineWidth} z={serviceDepth} y={0.092} />
+      <SurfaceLine width={lineWidth} depth={serviceDepth * 2} y={0.095} />
+      {[-1, 1].map((side) => (
+        <SurfaceLine
+          key={`center-mark-${side}`}
+          width={lineWidth}
+          depth={0.72}
+          z={side * (obj.length / 2 - 0.36)}
+          y={0.098}
+        />
+      ))}
 
       {/* Net posts */}
       {[-1, 1].map((side) => (
@@ -354,7 +495,25 @@ function TennisCourt3D({ obj }) {
       {/* Net */}
       <mesh position={[0, 0.5, 0]}>
         <boxGeometry args={[obj.width, 0.91, 0.02]} />
-        <meshStandardMaterial color="#ffffff" transparent opacity={0.7} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#ffffff" transparent opacity={0.34} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.96, 0]}>
+        <boxGeometry args={[obj.width + 0.2, 0.06, 0.04]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.35} />
+      </mesh>
+      {[-0.36, -0.24, -0.12, 0, 0.12, 0.24, 0.36].map((xRatio) => (
+        <mesh key={xRatio} position={[obj.width * xRatio, 0.5, 0.018]}>
+          <boxGeometry args={[0.015, 0.78, 0.015]} />
+          <meshStandardMaterial color="#f8fafc" transparent opacity={0.38} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.04, obj.length / 2 + 0.12]}>
+        <boxGeometry args={[obj.width + 0.2, 0.08, 0.24]} />
+        <meshStandardMaterial color="#1e3a8a" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 0.04, -obj.length / 2 - 0.12]}>
+        <boxGeometry args={[obj.width + 0.2, 0.08, 0.24]} />
+        <meshStandardMaterial color="#1e3a8a" roughness={0.6} />
       </mesh>
     </group>
   )
@@ -732,6 +891,7 @@ function House3D({ obj }) {
   const roofOverhang = 0.4
   const roofAngle = Math.atan2(roofHeight, obj.width / 2)
   const roofSlope = Math.sqrt(roofHeight * roofHeight + (obj.width / 2) * (obj.width / 2))
+  const roofY = wallHeight + roofHeight / 2
 
   return (
     <group>
@@ -749,28 +909,64 @@ function House3D({ obj }) {
 
       {/* Roof - left slope */}
       <mesh
-        position={[-obj.width / 4, wallHeight + roofHeight / 2, 0]}
+        position={[-obj.width / 4, roofY, 0]}
         rotation={[0, 0, roofAngle]}
         castShadow
       >
         <boxGeometry args={[roofSlope + 0.3, 0.12, obj.length + roofOverhang * 2]} />
-        <meshStandardMaterial color="#8B4513" />
+        <meshStandardMaterial color="#7c2d12" roughness={0.72} />
       </mesh>
 
       {/* Roof - right slope */}
       <mesh
-        position={[obj.width / 4, wallHeight + roofHeight / 2, 0]}
+        position={[obj.width / 4, roofY, 0]}
         rotation={[0, 0, -roofAngle]}
         castShadow
       >
         <boxGeometry args={[roofSlope + 0.3, 0.12, obj.length + roofOverhang * 2]} />
-        <meshStandardMaterial color="#8B4513" />
+        <meshStandardMaterial color="#7c2d12" roughness={0.72} />
       </mesh>
 
       {/* Roof ridge cap */}
       <mesh position={[0, wallHeight + roofHeight + 0.05, 0]} castShadow>
         <boxGeometry args={[0.2, 0.1, obj.length + roofOverhang * 2]} />
         <meshStandardMaterial color="#6B3A1F" />
+      </mesh>
+
+      {/* Roof shingle ribs and gutters */}
+      {[-0.28, -0.14, 0, 0.14, 0.28].map((offset) => (
+        <mesh
+          key={`shingle-left-${offset}`}
+          position={[-obj.width / 4, roofY + 0.08, obj.length * offset]}
+          rotation={[0, 0, roofAngle]}
+        >
+          <boxGeometry args={[roofSlope + 0.25, 0.025, 0.035]} />
+          <meshStandardMaterial color="#5f2711" roughness={0.8} />
+        </mesh>
+      ))}
+      {[-0.28, -0.14, 0, 0.14, 0.28].map((offset) => (
+        <mesh
+          key={`shingle-right-${offset}`}
+          position={[obj.width / 4, roofY + 0.08, obj.length * offset]}
+          rotation={[0, 0, -roofAngle]}
+        >
+          <boxGeometry args={[roofSlope + 0.25, 0.025, 0.035]} />
+          <meshStandardMaterial color="#5f2711" roughness={0.8} />
+        </mesh>
+      ))}
+      {[-1, 1].map((side) => (
+        <mesh key={`gutter-${side}`} position={[side * (obj.width / 2 + 0.04), wallHeight + 0.05, 0]}>
+          <boxGeometry args={[0.08, 0.08, obj.length + roofOverhang]} />
+          <meshStandardMaterial color="#d1d5db" metalness={0.3} roughness={0.35} />
+        </mesh>
+      ))}
+      <mesh position={[obj.width * 0.32, wallHeight + roofHeight * 0.52, -obj.length * 0.24]} castShadow>
+        <boxGeometry args={[0.55, 1.2, 0.55]} />
+        <meshStandardMaterial color="#7f1d1d" roughness={0.78} />
+      </mesh>
+      <mesh position={[obj.width * 0.32, wallHeight + roofHeight + 0.16, -obj.length * 0.24]}>
+        <boxGeometry args={[0.7, 0.2, 0.7]} />
+        <meshStandardMaterial color="#4b1d1d" roughness={0.72} />
       </mesh>
 
       {/* Gable ends (triangular fill) - front */}
@@ -825,6 +1021,22 @@ function House3D({ obj }) {
         <meshStandardMaterial color="#C0C0C0" metalness={0.8} roughness={0.2} />
       </mesh>
 
+      {/* Porch, steps, and path */}
+      <mesh position={[0, 0.18, obj.length / 2 + 0.8]}>
+        <boxGeometry args={[3.2, 0.18, 1.2]} />
+        <meshStandardMaterial color="#c8b89b" roughness={0.82} />
+      </mesh>
+      {[0.35, 0.7].map((z, i) => (
+        <mesh key={`step-${i}`} position={[0, 0.08 + i * 0.08, obj.length / 2 + 1.25 + z]}>
+          <boxGeometry args={[2.2 - i * 0.3, 0.12, 0.38]} />
+          <meshStandardMaterial color="#a8a29e" roughness={0.8} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.025, obj.length / 2 + 2.8]}>
+        <boxGeometry args={[1.4, 0.05, 2.2]} />
+        <meshStandardMaterial color="#b6a17a" roughness={0.88} />
+      </mesh>
+
       {/* Windows - front */}
       {[-obj.width / 3, obj.width / 3].map((x, i) => (
         <group key={`front-${i}`} position={[x, wallHeight / 2 + 0.3, obj.length / 2 + 0.06]}>
@@ -837,6 +1049,10 @@ function House3D({ obj }) {
           <mesh position={[0, 0, 0.05]}>
             <boxGeometry args={[1.0, 1.0, 0.02]} />
             <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
+          </mesh>
+          <mesh position={[0, -0.72, 0.07]}>
+            <boxGeometry args={[1.28, 0.1, 0.08]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.5} />
           </mesh>
           {/* Window cross bars */}
           <mesh position={[0, 0, 0.07]}>
@@ -876,9 +1092,21 @@ function ParkingSpace3D({ obj }) {
 
   return (
     <group>
+      <mesh position={[0, -0.005, 0]} receiveShadow>
+        <boxGeometry args={[obj.width + 0.18, 0.04, obj.length + 0.18]} />
+        <meshStandardMaterial color="#222831" roughness={0.92} />
+      </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial map={texture} />
+        <meshStandardMaterial map={texture} roughness={0.86} />
+      </mesh>
+      <mesh position={[0, 0.12, -obj.length * 0.3]}>
+        <boxGeometry args={[obj.width * 0.72, 0.2, 0.18]} />
+        <meshStandardMaterial color="#d1d5db" roughness={0.68} />
+      </mesh>
+      <mesh position={[0, 0.08, obj.length / 2 + 0.06]}>
+        <boxGeometry args={[obj.width + 0.15, 0.16, 0.12]} />
+        <meshStandardMaterial color="#facc15" roughness={0.5} />
       </mesh>
     </group>
   )
@@ -3740,64 +3968,102 @@ function StudioApartment3D({ obj }) {
   )
 }
 
-function CarSedan3D({ obj }) {
+function VehicleWheel({ x, z, radius = 0.28, tireWidth = 0.16, hub = '#cbd5e1' }) {
+  const side = x >= 0 ? 1 : -1
   return (
     <group>
-      {/* Car body - main */}
-      <mesh position={[0, 0.5, 0]}>
-        <boxGeometry args={[obj.width, 0.5, obj.length * 0.9]} />
-        <meshStandardMaterial color="#4A4A4A" />
+      <mesh position={[x, radius + 0.08, z]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[radius, radius, tireWidth, 18]} />
+        <meshStandardMaterial color="#111827" roughness={0.92} />
       </mesh>
-      {/* Car cabin */}
-      <mesh position={[0, 0.9, -obj.length * 0.05]}>
-        <boxGeometry args={[obj.width * 0.85, 0.5, obj.length * 0.5]} />
-        <meshStandardMaterial color="#4A4A4A" />
+      <mesh position={[x + side * tireWidth * 0.52, radius + 0.08, z]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[radius * 0.52, radius * 0.52, 0.04, 14]} />
+        <meshStandardMaterial color={hub} metalness={0.55} roughness={0.28} />
       </mesh>
-      {/* Windshield front */}
-      <mesh position={[0, 0.9, obj.length * 0.18]} rotation={[0.4, 0, 0]}>
-        <planeGeometry args={[obj.width * 0.8, 0.5]} />
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.7} />
+    </group>
+  )
+}
+
+function CarSedan3D({ obj }) {
+  const w = obj.width, l = obj.length
+  const body = '#4b5563', bodyDark = '#374151', glass = '#7dd3fc'
+  return (
+    <group>
+      <mesh position={[0, 0.25, 0]} castShadow>
+        <boxGeometry args={[w * 0.82, 0.18, l * 0.88]} />
+        <meshStandardMaterial color="#111827" roughness={0.82} />
       </mesh>
-      {/* Windshield rear */}
-      <mesh position={[0, 0.9, -obj.length * 0.28]} rotation={[-0.4, 0, 0]}>
-        <planeGeometry args={[obj.width * 0.8, 0.5]} />
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.7} />
+
+      {/* Lower body with hood/trunk taper cues */}
+      <mesh position={[0, 0.58, 0]} castShadow>
+        <boxGeometry args={[w, 0.55, l * 0.9]} />
+        <meshStandardMaterial color={body} roughness={0.42} metalness={0.06} />
       </mesh>
-      {/* Wheels */}
-      <mesh position={[-obj.width * 0.4, 0.25, obj.length * 0.3]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.25, 0.25, 0.15, 16]} />
-        <meshStandardMaterial color="#1A1A1A" />
+      <mesh position={[0, 0.78, l * 0.36]} castShadow>
+        <boxGeometry args={[w * 0.9, 0.22, l * 0.22]} />
+        <meshStandardMaterial color={bodyDark} roughness={0.45} metalness={0.05} />
       </mesh>
-      <mesh position={[obj.width * 0.4, 0.25, obj.length * 0.3]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.25, 0.25, 0.15, 16]} />
-        <meshStandardMaterial color="#1A1A1A" />
+      <mesh position={[0, 0.78, -l * 0.38]} castShadow>
+        <boxGeometry args={[w * 0.88, 0.2, l * 0.2]} />
+        <meshStandardMaterial color={bodyDark} roughness={0.45} metalness={0.05} />
       </mesh>
-      <mesh position={[-obj.width * 0.4, 0.25, -obj.length * 0.3]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.25, 0.25, 0.15, 16]} />
-        <meshStandardMaterial color="#1A1A1A" />
+
+      {/* Cabin and glass */}
+      <mesh position={[0, 1.03, -l * 0.05]} castShadow>
+        <boxGeometry args={[w * 0.78, 0.65, l * 0.48]} />
+        <meshStandardMaterial color={bodyDark} roughness={0.36} metalness={0.08} />
       </mesh>
-      <mesh position={[obj.width * 0.4, 0.25, -obj.length * 0.3]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.25, 0.25, 0.15, 16]} />
-        <meshStandardMaterial color="#1A1A1A" />
+      <mesh position={[0, 1.05, l * 0.2]} rotation={[-0.22, 0, 0]}>
+        <boxGeometry args={[w * 0.68, 0.42, 0.05]} />
+        <meshStandardMaterial color={glass} transparent opacity={0.58} roughness={0.1} metalness={0.02} />
       </mesh>
-      {/* Headlights */}
-      <mesh position={[-obj.width * 0.3, 0.5, obj.length * 0.45]}>
-        <boxGeometry args={[0.2, 0.15, 0.05]} />
-        <meshStandardMaterial color="#FFFFCC" emissive="#FFFFCC" emissiveIntensity={0.3} />
+      <mesh position={[0, 1.05, -l * 0.3]} rotation={[0.2, 0, 0]}>
+        <boxGeometry args={[w * 0.64, 0.36, 0.05]} />
+        <meshStandardMaterial color={glass} transparent opacity={0.5} roughness={0.1} metalness={0.02} />
       </mesh>
-      <mesh position={[obj.width * 0.3, 0.5, obj.length * 0.45]}>
-        <boxGeometry args={[0.2, 0.15, 0.05]} />
-        <meshStandardMaterial color="#FFFFCC" emissive="#FFFFCC" emissiveIntensity={0.3} />
+
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          <mesh position={[side * (w / 2 + 0.035), 1.02, l * 0.02]} rotation={[0, Math.PI / 2, 0]}>
+            <boxGeometry args={[l * 0.34, 0.38, 0.04]} />
+            <meshStandardMaterial color={glass} transparent opacity={0.46} roughness={0.1} />
+          </mesh>
+          <mesh position={[side * (w / 2 + 0.055), 0.74, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <boxGeometry args={[l * 0.5, 0.04, 0.035]} />
+            <meshStandardMaterial color="#9ca3af" metalness={0.35} roughness={0.3} />
+          </mesh>
+          <mesh position={[side * (w / 2 + 0.12), 0.94, l * 0.2]} castShadow>
+            <boxGeometry args={[0.08, 0.12, 0.28]} />
+            <meshStandardMaterial color={bodyDark} roughness={0.4} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Bumpers, lights, and plate */}
+      <mesh position={[0, 0.48, l / 2 + 0.08]}>
+        <boxGeometry args={[w * 0.82, 0.18, 0.12]} />
+        <meshStandardMaterial color="#cbd5e1" metalness={0.5} roughness={0.28} />
       </mesh>
-      {/* Taillights */}
-      <mesh position={[-obj.width * 0.3, 0.5, -obj.length * 0.45]}>
-        <boxGeometry args={[0.2, 0.1, 0.05]} />
-        <meshStandardMaterial color="#FF0000" />
+      <mesh position={[0, 0.48, -l / 2 - 0.08]}>
+        <boxGeometry args={[w * 0.78, 0.16, 0.12]} />
+        <meshStandardMaterial color="#cbd5e1" metalness={0.45} roughness={0.32} />
       </mesh>
-      <mesh position={[obj.width * 0.3, 0.5, -obj.length * 0.45]}>
-        <boxGeometry args={[0.2, 0.1, 0.05]} />
-        <meshStandardMaterial color="#FF0000" />
-      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={`head-${side}`} position={[side * w * 0.32, 0.66, l / 2 + 0.11]}>
+          <boxGeometry args={[0.24, 0.13, 0.04]} />
+          <meshStandardMaterial color="#fef3c7" emissive="#fde68a" emissiveIntensity={0.42} />
+        </mesh>
+      ))}
+      {[-1, 1].map((side) => (
+        <mesh key={`tail-${side}`} position={[side * w * 0.33, 0.66, -l / 2 - 0.1]}>
+          <boxGeometry args={[0.18, 0.14, 0.04]} />
+          <meshStandardMaterial color="#ef4444" emissive="#dc2626" emissiveIntensity={0.22} />
+        </mesh>
+      ))}
+
+      {[l * 0.31, -l * 0.31].map((z) => [-1, 1].map((side) => (
+        <VehicleWheel key={`${side}-${z}`} x={side * (w * 0.51)} z={z} radius={0.28} tireWidth={0.18} />
+      )))}
     </group>
   )
 }
@@ -3990,6 +4256,7 @@ function SchoolBus3D({ obj }) {
 }
 
 function SwimmingPool3D({ obj }) {
+  const laneCount = 8
   return (
     <group>
       {/* Pool deck surround — raised concrete slab with hole for pool */}
@@ -4014,21 +4281,43 @@ function SwimmingPool3D({ obj }) {
         <meshStandardMaterial color="#D4C4A8" />
       </mesh>
 
+      {/* Coping lip around the water */}
+      <mesh position={[0, 0.22, obj.length / 2 + 0.18]}>
+        <boxGeometry args={[obj.width + 0.5, 0.18, 0.36]} />
+        <meshStandardMaterial color="#f1e7d0" roughness={0.78} />
+      </mesh>
+      <mesh position={[0, 0.22, -obj.length / 2 - 0.18]}>
+        <boxGeometry args={[obj.width + 0.5, 0.18, 0.36]} />
+        <meshStandardMaterial color="#f1e7d0" roughness={0.78} />
+      </mesh>
+      <mesh position={[obj.width / 2 + 0.18, 0.22, 0]}>
+        <boxGeometry args={[0.36, 0.18, obj.length]} />
+        <meshStandardMaterial color="#f1e7d0" roughness={0.78} />
+      </mesh>
+      <mesh position={[-obj.width / 2 - 0.18, 0.22, 0]}>
+        <boxGeometry args={[0.36, 0.18, obj.length]} />
+        <meshStandardMaterial color="#f1e7d0" roughness={0.78} />
+      </mesh>
+
       {/* Pool basin — light blue interior */}
       <mesh position={[0, -0.75, 0]}>
         <boxGeometry args={[obj.width, 1.5, obj.length]} />
-        <meshStandardMaterial color="#7CC4D6" />
+        <meshStandardMaterial color="#7CC4D6" roughness={0.62} />
       </mesh>
 
       {/* Water surface */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
         <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial color="#2CB5D6" transparent opacity={0.7} />
+        <meshStandardMaterial color="#2CB5D6" transparent opacity={0.68} roughness={0.12} metalness={0.02} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.095, 0]}>
+        <planeGeometry args={[obj.width * 0.92, obj.length * 0.92]} />
+        <meshStandardMaterial color="#a7f3d0" transparent opacity={0.12} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Lane lines — 8 lanes for Olympic pool */}
-      {Array.from({ length: 9 }, (_, i) => {
-        const x = -obj.width / 2 + (obj.width / 8) * i
+      {Array.from({ length: laneCount + 1 }, (_, i) => {
+        const x = -obj.width / 2 + (obj.width / laneCount) * i
         return (
           <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.09, 0]}>
             <planeGeometry args={[0.1, obj.length * 0.95]} />
@@ -4036,10 +4325,27 @@ function SwimmingPool3D({ obj }) {
           </mesh>
         )
       })}
+      {Array.from({ length: laneCount - 1 }, (_, i) => {
+        const x = -obj.width / 2 + (obj.width / laneCount) * (i + 1)
+        return (
+          <group key={`rope-${i}`}>
+            <mesh position={[x, 0.16, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.055, 0.055, obj.length * 0.92, 12]} />
+              <meshStandardMaterial color={i % 2 === 0 ? '#ef4444' : '#f8fafc'} roughness={0.45} />
+            </mesh>
+            {[0.36, -0.36].map((zRatio) => (
+              <mesh key={zRatio} position={[x, 0.2, obj.length * zRatio]}>
+                <boxGeometry args={[0.22, 0.08, 0.7]} />
+                <meshStandardMaterial color="#facc15" roughness={0.5} />
+              </mesh>
+            ))}
+          </group>
+        )
+      })}
 
       {/* Starting blocks at both ends */}
-      {Array.from({ length: 8 }, (_, i) => {
-        const x = -obj.width / 2 + (obj.width / 8) * (i + 0.5)
+      {Array.from({ length: laneCount }, (_, i) => {
+        const x = -obj.width / 2 + (obj.width / laneCount) * (i + 0.5)
         return (
           <group key={i}>
             <mesh position={[x, 0.4, obj.length / 2 + 0.1]}>
@@ -4053,6 +4359,20 @@ function SwimmingPool3D({ obj }) {
           </group>
         )
       })}
+
+      {/* Ladder rails on one side */}
+      {[-0.36, -0.26].map((zRatio) => (
+        <mesh key={`ladder-${zRatio}`} position={[obj.width / 2 + 0.32, 0.55, obj.length * zRatio]} rotation={[0, 0, 0]}>
+          <cylinderGeometry args={[0.04, 0.04, 1.05, 10]} />
+          <meshStandardMaterial color="#d1d5db" metalness={0.55} roughness={0.25} />
+        </mesh>
+      ))}
+      {[0.24, 0.48].map((y) => (
+        <mesh key={`ladder-rung-${y}`} position={[obj.width / 2 + 0.32, y, -obj.length * 0.31]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.035, 0.035, obj.length * 0.1, 10]} />
+          <meshStandardMaterial color="#d1d5db" metalness={0.55} roughness={0.25} />
+        </mesh>
+      ))}
     </group>
   )
 }
@@ -4126,22 +4446,32 @@ function MediumHouse3D({ obj }) {
         <boxGeometry args={[w * 0.6, 5.6, l]} />
         <meshStandardMaterial color="#F5F5F5" />
       </mesh>
-      {/* Main roof slab */}
-      <mesh position={[-w * 0.15, 5.7, 0]} castShadow>
-        <boxGeometry args={[w * 0.6 + 0.5, 0.2, l + 0.3]} />
-        <meshStandardMaterial color="#404040" />
-      </mesh>
+        {/* Main roof slab */}
+        <mesh position={[-w * 0.15, 5.7, 0]} castShadow>
+          <boxGeometry args={[w * 0.6 + 0.5, 0.2, l + 0.3]} />
+          <meshStandardMaterial color="#404040" />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={`main-parapet-${side}`} position={[-w * 0.15 + side * (w * 0.3 + 0.28), 5.9, 0]}>
+            <boxGeometry args={[0.12, 0.35, l + 0.35]} />
+            <meshStandardMaterial color="#2b2b2b" roughness={0.5} />
+          </mesh>
+        ))}
 
-      {/* Secondary volume — shorter right block */}
-      <mesh position={[w * 0.28, 2, 0]} castShadow>
-        <boxGeometry args={[w * 0.38, 4, l * 0.85]} />
+        {/* Secondary volume — shorter right block */}
+        <mesh position={[w * 0.28, 2, 0]} castShadow>
+          <boxGeometry args={[w * 0.38, 4, l * 0.85]} />
         <meshStandardMaterial color="#E8E0D0" />
       </mesh>
-      {/* Secondary roof slab */}
-      <mesh position={[w * 0.28, 4.1, 0]} castShadow>
-        <boxGeometry args={[w * 0.38 + 0.4, 0.18, l * 0.85 + 0.3]} />
-        <meshStandardMaterial color="#404040" />
-      </mesh>
+        {/* Secondary roof slab */}
+        <mesh position={[w * 0.28, 4.1, 0]} castShadow>
+          <boxGeometry args={[w * 0.38 + 0.4, 0.18, l * 0.85 + 0.3]} />
+          <meshStandardMaterial color="#404040" />
+        </mesh>
+        <mesh position={[w * 0.28, 4.28, l * 0.43]}>
+          <boxGeometry args={[w * 0.38 + 0.45, 0.18, 0.12]} />
+          <meshStandardMaterial color="#2b2b2b" roughness={0.5} />
+        </mesh>
 
       {/* Dark accent wall — front of main volume */}
       <mesh position={[-w * 0.15, 2.8, l / 2 + 0.08]}>
@@ -4154,10 +4484,14 @@ function MediumHouse3D({ obj }) {
         <boxGeometry args={[1.6, 2.6, 0.08]} />
         <meshStandardMaterial color="#1A1A1A" />
       </mesh>
-      <mesh position={[-w * 0.02, 1.3, l / 2 + 0.13]}>
-        <boxGeometry args={[1.3, 2.3, 0.02]} />
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.4} />
-      </mesh>
+        <mesh position={[-w * 0.02, 1.3, l / 2 + 0.13]}>
+          <boxGeometry args={[1.3, 2.3, 0.02]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.4} />
+        </mesh>
+        <mesh position={[-w * 0.02, 2.75, l / 2 + 0.5]} castShadow>
+          <boxGeometry args={[2.4, 0.16, 0.85]} />
+          <meshStandardMaterial color="#333333" roughness={0.48} />
+        </mesh>
 
       {/* Floor-to-ceiling windows — main volume front */}
       {[-w * 0.32, -w * 0.22].map((x, i) => (
@@ -4168,10 +4502,16 @@ function MediumHouse3D({ obj }) {
           </mesh>
         </group>
       ))}
-      <mesh position={[-w * 0.27, 2.8, l / 2 + 0.12]}>
-        <boxGeometry args={[w * 0.12, 5.2, 0.02]} />
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.35} />
-      </mesh>
+        <mesh position={[-w * 0.27, 2.8, l / 2 + 0.12]}>
+          <boxGeometry args={[w * 0.12, 5.2, 0.02]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.35} />
+        </mesh>
+        {[-0.31, -0.27, -0.23].map((xRatio) => (
+          <mesh key={`main-window-mullion-${xRatio}`} position={[w * xRatio, 2.8, l / 2 + 0.15]}>
+            <boxGeometry args={[0.035, 5.1, 0.03]} />
+            <meshStandardMaterial color="#111827" roughness={0.38} />
+          </mesh>
+        ))}
 
       {/* Windows — secondary volume front (horizontal band) */}
       <mesh position={[w * 0.28, 2.8, l * 0.85 / 2 + 0.08]}>
@@ -4193,14 +4533,22 @@ function MediumHouse3D({ obj }) {
         <meshStandardMaterial color="#87CEEB" transparent opacity={0.35} />
       </mesh>
 
-      {/* Wooden planter box at entrance */}
-      <mesh position={[-w * 0.15, 0.35, l / 2 + 0.8]}>
-        <boxGeometry args={[2.5, 0.5, 0.6]} />
-        <meshStandardMaterial color="#8B6F4E" />
-      </mesh>
-    </group>
-  )
-}
+        {/* Wooden planter box at entrance */}
+        <mesh position={[-w * 0.15, 0.35, l / 2 + 0.8]}>
+          <boxGeometry args={[2.5, 0.5, 0.6]} />
+          <meshStandardMaterial color="#8B6F4E" />
+        </mesh>
+        <mesh position={[w * 0.22, 0.05, l / 2 + 1.35]}>
+          <boxGeometry args={[2.2, 0.1, 2.2]} />
+          <meshStandardMaterial color="#b8a17a" roughness={0.82} />
+        </mesh>
+        <mesh position={[w * 0.22, 0.12, l / 2 + 0.35]}>
+          <boxGeometry args={[2.8, 0.08, 0.24]} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.62} />
+        </mesh>
+      </group>
+    )
+  }
 
 // Large House — modern luxury with three volumes and garage
 function LargeHouse3D({ obj }) {
@@ -4218,10 +4566,20 @@ function LargeHouse3D({ obj }) {
         <boxGeometry args={[w * 0.5, 7, l * 0.6]} />
         <meshStandardMaterial color="#F5F5F5" />
       </mesh>
-      <mesh position={[-w * 0.1, 7.1, -l * 0.1]} castShadow>
-        <boxGeometry args={[w * 0.5 + 0.6, 0.2, l * 0.6 + 0.4]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
+        <mesh position={[-w * 0.1, 7.1, -l * 0.1]} castShadow>
+          <boxGeometry args={[w * 0.5 + 0.6, 0.2, l * 0.6 + 0.4]} />
+          <meshStandardMaterial color="#333333" />
+        </mesh>
+        <mesh position={[-w * 0.1, 7.28, -l * 0.1 + l * 0.3]}>
+          <boxGeometry args={[w * 0.5 + 0.7, 0.24, 0.14]} />
+          <meshStandardMaterial color="#1f2937" roughness={0.5} />
+        </mesh>
+        {[0, 1, 2].map((i) => (
+          <mesh key={`solar-${i}`} position={[-w * 0.2 + i * w * 0.09, 7.25, -l * 0.2]} rotation={[-0.05, 0, 0]}>
+            <boxGeometry args={[w * 0.07, 0.04, l * 0.12]} />
+            <meshStandardMaterial color="#0f172a" metalness={0.25} roughness={0.22} />
+          </mesh>
+        ))}
 
       {/* Left wing — lower living area */}
       <mesh position={[-w * 0.38, 2, l * 0.2]} castShadow>
@@ -4238,10 +4596,14 @@ function LargeHouse3D({ obj }) {
         <boxGeometry args={[w * 0.35, 3.5, l * 0.45]} />
         <meshStandardMaterial color="#E0E0E0" />
       </mesh>
-      <mesh position={[w * 0.3, 3.6, l * 0.15]} castShadow>
-        <boxGeometry args={[w * 0.35 + 0.5, 0.18, l * 0.45 + 0.4]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
+        <mesh position={[w * 0.3, 3.6, l * 0.15]} castShadow>
+          <boxGeometry args={[w * 0.35 + 0.5, 0.18, l * 0.45 + 0.4]} />
+          <meshStandardMaterial color="#333333" />
+        </mesh>
+        <mesh position={[w * 0.3, 3.78, l * 0.15 + l * 0.225]}>
+          <boxGeometry args={[w * 0.35 + 0.55, 0.2, 0.12]} />
+          <meshStandardMaterial color="#1f2937" roughness={0.5} />
+        </mesh>
 
       {/* Garage door */}
       <mesh position={[w * 0.3, 1.4, l * 0.15 + l * 0.225 + 0.08]}>
@@ -4279,10 +4641,16 @@ function LargeHouse3D({ obj }) {
           <meshStandardMaterial color="#1A1A1A" />
         </mesh>
       ))}
-      <mesh position={[-w * 0.215, 3.5, -l * 0.1 + l * 0.3 + 0.12]}>
-        <boxGeometry args={[w * 0.1, 6.5, 0.02]} />
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.3} />
-      </mesh>
+        <mesh position={[-w * 0.215, 3.5, -l * 0.1 + l * 0.3 + 0.12]}>
+          <boxGeometry args={[w * 0.1, 6.5, 0.02]} />
+          <meshStandardMaterial color="#87CEEB" transparent opacity={0.3} />
+        </mesh>
+        {[2.2, 3.5, 4.8].map((y) => (
+          <mesh key={`window-floor-${y}`} position={[-w * 0.215, y, -l * 0.1 + l * 0.3 + 0.15]}>
+            <boxGeometry args={[w * 0.1, 0.045, 0.03]} />
+            <meshStandardMaterial color="#111827" roughness={0.38} />
+          </mesh>
+        ))}
 
       {/* Horizontal window — left wing front */}
       <mesh position={[-w * 0.38, 2.5, l * 0.2 + l * 0.25 + 0.08]}>
@@ -4304,14 +4672,28 @@ function LargeHouse3D({ obj }) {
         <meshStandardMaterial color="#87CEEB" transparent opacity={0.3} />
       </mesh>
 
-      {/* Wooden deck at entrance */}
-      <mesh position={[-w * 0.1, 0.25, l * 0.2 + l * 0.3]}>
-        <boxGeometry args={[w * 0.4, 0.1, 2.5]} />
-        <meshStandardMaterial color="#8B6F4E" />
-      </mesh>
+        {/* Wooden deck at entrance */}
+        <mesh position={[-w * 0.1, 0.25, l * 0.2 + l * 0.3]}>
+          <boxGeometry args={[w * 0.4, 0.1, 2.5]} />
+          <meshStandardMaterial color="#8B6F4E" />
+        </mesh>
+        <mesh position={[w * 0.3, 0.04, l * 0.15 + l * 0.225 + 2.2]}>
+          <boxGeometry args={[w * 0.35, 0.08, 3.8]} />
+          <meshStandardMaterial color="#9ca3af" roughness={0.84} />
+        </mesh>
+        <mesh position={[-w * 0.1, 1.08, l * 0.2 + l * 0.3 + 0.95]}>
+          <boxGeometry args={[w * 0.38, 0.08, 0.08]} />
+          <meshStandardMaterial color="#d1d5db" metalness={0.35} roughness={0.28} />
+        </mesh>
+        {[-0.25, -0.1, 0.05].map((xRatio) => (
+          <mesh key={`deck-post-${xRatio}`} position={[w * xRatio, 0.62, l * 0.2 + l * 0.3 + 0.95]}>
+            <boxGeometry args={[0.08, 1.0, 0.08]} />
+            <meshStandardMaterial color="#d1d5db" metalness={0.35} roughness={0.28} />
+          </mesh>
+        ))}
 
-      {/* Planter boxes */}
-      <mesh position={[-w * 0.32, 0.4, l * 0.2 + l * 0.3 + 0.8]}>
+        {/* Planter boxes */}
+        <mesh position={[-w * 0.32, 0.4, l * 0.2 + l * 0.3 + 0.8]}>
         <boxGeometry args={[1.5, 0.6, 0.6]} />
         <meshStandardMaterial color="#606060" />
       </mesh>
@@ -4846,26 +5228,58 @@ function FordF1503D({ obj }) {
       <mesh position={[0, chassisY * 0.4, 0]}><boxGeometry args={[w * 0.85, 0.18, l * 0.9]} /><meshStandardMaterial color={black} /></mesh>
       <mesh position={[0, chassisY + bodyH / 2, l * 0.12]} castShadow><boxGeometry args={[w, bodyH, cabL]} /><meshStandardMaterial color={blue} /></mesh>
       <mesh position={[0, chassisY + bodyH + cabH / 2, l * 0.12]} castShadow><boxGeometry args={[w * 0.9, cabH, cabL * 0.75]} /><meshStandardMaterial color={blue} /></mesh>
-      <mesh position={[0, chassisY + bodyH / 2, -l * 0.27]} castShadow><boxGeometry args={[w, bodyH, bedL]} /><meshStandardMaterial color={blue} /></mesh>
-      <mesh position={[0, chassisY + 0.12, -l * 0.27]}><boxGeometry args={[w * 0.88, 0.08, bedL * 0.92]} /><meshStandardMaterial color={blueDk} /></mesh>
-      <mesh position={[0, chassisY + bodyH * 0.8, l * 0.42]} castShadow><boxGeometry args={[w, bodyH * 0.55, l * 0.12]} /><meshStandardMaterial color={blue} /></mesh>
-      <mesh position={[0, chassisY + bodyH * 0.5, l / 2 + 0.06]}><boxGeometry args={[w * 0.8, bodyH * 0.6, 0.1]} /><meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} /></mesh>
-      <mesh position={[0, chassisY + bodyH + cabH * 0.5, l * 0.32]} rotation={[0.25, 0, 0]}><boxGeometry args={[w * 0.85, cabH * 0.8, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.6} /></mesh>
-      <mesh position={[0, chassisY + bodyH + cabH * 0.5, -l * 0.08]} rotation={[-0.2, 0, 0]}><boxGeometry args={[w * 0.8, cabH * 0.65, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.6} /></mesh>
-      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.7, l / 2 + 0.07]}><boxGeometry args={[0.25, 0.18, 0.06]} /><meshStandardMaterial color="#FFFFAA" emissive="#FFFF88" emissiveIntensity={0.4} /></mesh>))}
-      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.7, -l / 2 - 0.06]}><boxGeometry args={[0.18, 0.22, 0.06]} /><meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} /></mesh>))}
-      <mesh position={[0, chassisY + 0.18, l / 2 + 0.1]}><boxGeometry args={[w + 0.1, 0.22, 0.15]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.4} /></mesh>
-      <mesh position={[0, chassisY + 0.18, -l / 2 - 0.1]}><boxGeometry args={[w + 0.1, 0.22, 0.15]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.4} /></mesh>
-      {[[-1, l * 0.32], [-1, -l * 0.32], [1, l * 0.32], [1, -l * 0.32]].map(([sx, sz], i) => (
-        <group key={i}>
-          <mesh position={[sx * (w * 0.5 + 0.12), 0.42, sz]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.42, 0.42, 0.22, 14]} /><meshStandardMaterial color={black} /></mesh>
-          <mesh position={[sx * (w * 0.5 + 0.22), 0.42, sz]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.28, 0.28, 0.06, 12]} /><meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} /></mesh>
-        </group>
-      ))}
-      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w * 0.48), chassisY - 0.05, 0]}><boxGeometry args={[0.08, 0.06, l * 0.55]} /><meshStandardMaterial color={chrome} metalness={0.5} /></mesh>))}
-    </group>
-  )
-}
+        <mesh position={[0, chassisY + bodyH / 2, -l * 0.27]} castShadow><boxGeometry args={[w, bodyH, bedL]} /><meshStandardMaterial color={blue} /></mesh>
+        <mesh position={[0, chassisY + 0.12, -l * 0.27]}><boxGeometry args={[w * 0.88, 0.08, bedL * 0.92]} /><meshStandardMaterial color={blueDk} /></mesh>
+        <mesh position={[0, chassisY + bodyH * 0.8, l * 0.42]} castShadow><boxGeometry args={[w, bodyH * 0.55, l * 0.12]} /><meshStandardMaterial color={blue} /></mesh>
+        <mesh position={[0, chassisY + bodyH + 0.08, -l * 0.27]}><boxGeometry args={[w + 0.08, 0.14, bedL * 0.92]} /><meshStandardMaterial color={blueDk} roughness={0.42} /></mesh>
+        {[-1, 1].map((s) => (
+          <mesh key={`bed-rail-${s}`} position={[s * (w / 2 + 0.04), chassisY + bodyH + 0.18, -l * 0.27]}>
+            <boxGeometry args={[0.08, 0.18, bedL * 0.9]} />
+            <meshStandardMaterial color={blueDk} roughness={0.38} />
+          </mesh>
+        ))}
+        <mesh position={[0, chassisY + bodyH * 0.55, -l / 2 - 0.06]}>
+          <boxGeometry args={[w * 0.9, bodyH * 0.7, 0.08]} />
+          <meshStandardMaterial color={blueDk} roughness={0.45} />
+        </mesh>
+        <mesh position={[0, chassisY + bodyH * 0.5, l / 2 + 0.06]}><boxGeometry args={[w * 0.8, bodyH * 0.6, 0.1]} /><meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} /></mesh>
+        {[0.25, 0.5, 0.75].map((t) => (
+          <mesh key={`grille-${t}`} position={[0, chassisY + bodyH * (0.22 + t * 0.42), l / 2 + 0.13]}>
+            <boxGeometry args={[w * 0.72, 0.05, 0.04]} />
+            <meshStandardMaterial color={black} metalness={0.25} roughness={0.4} />
+          </mesh>
+        ))}
+        <mesh position={[0, chassisY + bodyH + cabH * 0.5, l * 0.32]} rotation={[0.25, 0, 0]}><boxGeometry args={[w * 0.85, cabH * 0.8, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.6} /></mesh>
+        <mesh position={[0, chassisY + bodyH + cabH * 0.5, -l * 0.08]} rotation={[-0.2, 0, 0]}><boxGeometry args={[w * 0.8, cabH * 0.65, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.6} /></mesh>
+        {[-1, 1].map((s) => (
+          <group key={`cab-side-${s}`}>
+            <mesh position={[s * (w / 2 + 0.04), chassisY + bodyH + cabH * 0.52, l * 0.18]} rotation={[0, Math.PI / 2, 0]}>
+              <boxGeometry args={[cabL * 0.55, cabH * 0.48, 0.05]} />
+              <meshStandardMaterial color="#87CEEB" transparent opacity={0.5} />
+            </mesh>
+            <mesh position={[s * (w / 2 + 0.07), chassisY + bodyH * 0.5, l * 0.14]} rotation={[0, Math.PI / 2, 0]}>
+              <boxGeometry args={[cabL * 0.7, 0.05, 0.04]} />
+              <meshStandardMaterial color={chrome} metalness={0.45} roughness={0.28} />
+            </mesh>
+          </group>
+        ))}
+        {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.7, l / 2 + 0.07]}><boxGeometry args={[0.25, 0.18, 0.06]} /><meshStandardMaterial color="#FFFFAA" emissive="#FFFF88" emissiveIntensity={0.4} /></mesh>))}
+        {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.7, -l / 2 - 0.06]}><boxGeometry args={[0.18, 0.22, 0.06]} /><meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} /></mesh>))}
+        <mesh position={[0, chassisY + 0.18, l / 2 + 0.1]}><boxGeometry args={[w + 0.1, 0.22, 0.15]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.4} /></mesh>
+        <mesh position={[0, chassisY + 0.18, -l / 2 - 0.1]}><boxGeometry args={[w + 0.1, 0.22, 0.15]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.4} /></mesh>
+        {[l * 0.32, -l * 0.32].map((z) => [-1, 1].map((side) => (
+          <group key={`${side}-${z}`}>
+            <VehicleWheel x={side * (w * 0.52)} z={z} radius={0.42} tireWidth={0.23} />
+            <mesh position={[side * (w / 2 + 0.035), 0.74, z]}>
+              <boxGeometry args={[0.06, 0.45, 0.92]} />
+              <meshStandardMaterial color={blueDk} roughness={0.42} />
+            </mesh>
+          </group>
+        )))}
+        {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w * 0.48), chassisY - 0.05, 0]}><boxGeometry args={[0.08, 0.06, l * 0.55]} /><meshStandardMaterial color={chrome} metalness={0.5} /></mesh>))}
+      </group>
+    )
+  }
 
 function SemiTruck3D({ obj }) {
   const w = obj.width, l = obj.length
@@ -4932,20 +5346,43 @@ function SUV3D({ obj }) {
       <mesh position={[0, chassisY + bodyH + roofH * 0.55, l * 0.3]} rotation={[-0.25, 0, 0]}><boxGeometry args={[w * 0.84, roofH * 0.8, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.55} /></mesh>
       <mesh position={[0, chassisY + bodyH + roofH * 0.55, -l * 0.38]} rotation={[0.2, 0, 0]}><boxGeometry args={[w * 0.8, roofH * 0.7, 0.08]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.55} /></mesh>
       {[-1, 1].map((s, i) => (<group key={i}><mesh position={[s * (w / 2 + 0.04), chassisY + bodyH + roofH * 0.5, l * 0.1]}><boxGeometry args={[0.08, roofH * 0.65, l * 0.28]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.5} /></mesh><mesh position={[s * (w / 2 + 0.04), chassisY + bodyH + roofH * 0.5, -l * 0.22]}><boxGeometry args={[0.08, roofH * 0.6, l * 0.2]} /><meshStandardMaterial color="#87CEEB" transparent opacity={0.5} /></mesh></group>))}
-      <mesh position={[0, chassisY + bodyH * 0.9, l * 0.42]}><boxGeometry args={[w, bodyH * 0.25, l * 0.15]} /><meshStandardMaterial color={darkMid} /></mesh>
-      <mesh position={[0, chassisY + bodyH * 0.4, l / 2 + 0.07]}><boxGeometry args={[w * 0.75, bodyH * 0.55, 0.1]} /><meshStandardMaterial color={black} /></mesh>
-      {[0.25, 0.5, 0.75].map((t, i) => (<mesh key={i} position={[0, chassisY + bodyH * 0.15 + bodyH * 0.55 * t, l / 2 + 0.13]}><boxGeometry args={[w * 0.73, 0.05, 0.05]} /><meshStandardMaterial color={chrome} metalness={0.6} /></mesh>))}
-      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.78, l / 2 + 0.07]}><boxGeometry args={[0.22, 0.14, 0.07]} /><meshStandardMaterial color="#FFFFCC" emissive="#FFFF99" emissiveIntensity={0.4} /></mesh>))}
-      <mesh position={[0, chassisY + 0.12, l / 2 + 0.12]}><boxGeometry args={[w + 0.2, 0.35, 0.2]} /><meshStandardMaterial color={dark} /></mesh>
-      <mesh position={[0, chassisY - 0.05, l / 2 + 0.12]}><boxGeometry args={[w * 0.7, 0.12, 0.2]} /><meshStandardMaterial color="#555" metalness={0.5} /></mesh>
-      <mesh position={[0, chassisY + 0.12, -l / 2 - 0.1]}><boxGeometry args={[w + 0.1, 0.28, 0.16]} /><meshStandardMaterial color={dark} /></mesh>
-      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.42, chassisY + bodyH * 0.6, -l / 2 - 0.06]}><boxGeometry args={[0.14, 0.3, 0.07]} /><meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} /></mesh>))}
-      {[l * 0.3, -l * 0.3].map((z, j) => [-1, 1].map((s, i) => (<group key={i * 2 + j}><mesh position={[s * (w * 0.52), 0.46, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.46, 0.46, 0.22, 14]} /><meshStandardMaterial color={black} roughness={0.9} /></mesh><mesh position={[s * (w * 0.52 + 0.11), 0.46, z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.3, 0.3, 0.08, 10]} /><meshStandardMaterial color={chrome} metalness={0.5} roughness={0.3} /></mesh></group>)))}
-      {[l * 0.3, -l * 0.3].map((z, j) => [-1, 1].map((s, i) => (<mesh key={i * 2 + j} position={[s * (w / 2 + 0.06), chassisY + 0.3, z]}><boxGeometry args={[0.1, 0.35, 0.85]} /><meshStandardMaterial color={darkMid} /></mesh>)))}
-      {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w * 0.52), chassisY - 0.1, 0]}><boxGeometry args={[0.08, 0.08, l * 0.45]} /><meshStandardMaterial color={black} metalness={0.3} /></mesh>))}
-    </group>
-  )
-}
+        <mesh position={[0, chassisY + bodyH * 0.9, l * 0.42]}><boxGeometry args={[w, bodyH * 0.25, l * 0.15]} /><meshStandardMaterial color={darkMid} /></mesh>
+        <mesh position={[0, chassisY + bodyH * 0.4, l / 2 + 0.07]}><boxGeometry args={[w * 0.75, bodyH * 0.55, 0.1]} /><meshStandardMaterial color={black} /></mesh>
+        {[0.25, 0.5, 0.75].map((t, i) => (<mesh key={i} position={[0, chassisY + bodyH * 0.15 + bodyH * 0.55 * t, l / 2 + 0.13]}><boxGeometry args={[w * 0.73, 0.05, 0.05]} /><meshStandardMaterial color={chrome} metalness={0.6} /></mesh>))}
+        {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.38, chassisY + bodyH * 0.78, l / 2 + 0.07]}><boxGeometry args={[0.22, 0.14, 0.07]} /><meshStandardMaterial color="#FFFFCC" emissive="#FFFF99" emissiveIntensity={0.4} /></mesh>))}
+        <mesh position={[0, chassisY + 0.12, l / 2 + 0.12]}><boxGeometry args={[w + 0.2, 0.35, 0.2]} /><meshStandardMaterial color={dark} /></mesh>
+        <mesh position={[0, chassisY - 0.05, l / 2 + 0.12]}><boxGeometry args={[w * 0.7, 0.12, 0.2]} /><meshStandardMaterial color="#555" metalness={0.5} /></mesh>
+        <mesh position={[0, chassisY + 0.12, -l / 2 - 0.1]}><boxGeometry args={[w + 0.1, 0.28, 0.16]} /><meshStandardMaterial color={dark} /></mesh>
+        {[-1, 1].map((s, i) => (<mesh key={i} position={[s * w * 0.42, chassisY + bodyH * 0.6, -l / 2 - 0.06]}><boxGeometry args={[0.14, 0.3, 0.07]} /><meshStandardMaterial color="#FF3333" emissive="#FF0000" emissiveIntensity={0.2} /></mesh>))}
+        {[l * 0.3, -l * 0.3].map((z) => [-1, 1].map((s) => (
+          <group key={`${s}-${z}`}>
+            <VehicleWheel x={s * (w * 0.52)} z={z} radius={0.46} tireWidth={0.22} />
+            <mesh position={[s * (w / 2 + 0.06), chassisY + 0.3, z]}>
+              <boxGeometry args={[0.1, 0.35, 0.85]} />
+              <meshStandardMaterial color={darkMid} roughness={0.48} />
+            </mesh>
+          </group>
+        )))}
+        {[-1, 1].map((s) => (
+          <group key={`side-detail-${s}`}>
+            <mesh position={[s * (w / 2 + 0.06), chassisY + 0.1, 0]} rotation={[0, Math.PI / 2, 0]}>
+              <boxGeometry args={[l * 0.72, 0.08, 0.08]} />
+              <meshStandardMaterial color={chrome} metalness={0.45} roughness={0.28} />
+            </mesh>
+            <mesh position={[s * (w / 2 + 0.08), chassisY + bodyH * 0.68, l * 0.22]} rotation={[0, Math.PI / 2, 0]}>
+              <boxGeometry args={[l * 0.18, 0.05, 0.04]} />
+              <meshStandardMaterial color={chrome} metalness={0.45} roughness={0.28} />
+            </mesh>
+            <mesh position={[s * (w / 2 + 0.08), chassisY + bodyH * 0.68, -l * 0.12]} rotation={[0, Math.PI / 2, 0]}>
+              <boxGeometry args={[l * 0.18, 0.05, 0.04]} />
+              <meshStandardMaterial color={chrome} metalness={0.45} roughness={0.28} />
+            </mesh>
+          </group>
+        ))}
+        {[-1, 1].map((s, i) => (<mesh key={i} position={[s * (w * 0.52), chassisY - 0.1, 0]}><boxGeometry args={[0.08, 0.08, l * 0.45]} /><meshStandardMaterial color={black} metalness={0.3} /></mesh>))}
+      </group>
+    )
+  }
 
 // Render the appropriate 3D model based on object id
 function render3DModel(obj) {

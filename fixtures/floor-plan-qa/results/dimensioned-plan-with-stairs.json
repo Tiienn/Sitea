@@ -1,0 +1,26 @@
+{
+  "fixtureId": "dimensioned-plan-with-stairs",
+  "capturedAt": "2026-06-10T14:18:53.614Z",
+  "sourceFile": "samples/dimensioned-plan-with-stairs.pdf",
+  "imageFile": "samples/dimensioned-plan-with-stairs.png",
+  "analyzer": "api/analyze-floor-plan.js",
+  "rawResultFile": "results/raw/dimensioned-plan-with-stairs.json",
+  "detected": {
+    "walls": 54,
+    "doors": 10,
+    "windows": 12,
+    "rooms": 10,
+    "stairs": 1
+  },
+  "criticalMisses": [],
+  "notes": [
+    "local analyzer fixture run"
+  ],
+  "artifacts": {},
+  "placementOk": true,
+  "scale": {
+    "pixelsPerMeter": 84.60416666666666,
+    "confidence": 0.93,
+    "source": "dimension_label_wall_bounds"
+  }
+}

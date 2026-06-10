@@ -1,0 +1,1498 @@
+{
+  "dimensions": {
+    "length": 50,
+    "width": 70
+  },
+  "shapeMode": "rectangle",
+  "polygonPoints": [],
+  "confirmedPolygon": null,
+  "placedBuildings": [],
+  "generatedBuildings": [
+    {
+      "id": "qa-real-wide-40x30",
+      "qaSource": "real-wide-40x30",
+      "title": "Real wide residential floor plan, 40 by 30 feet",
+      "position": {
+        "x": -24,
+        "z": -7
+      },
+      "rotation": 0,
+      "walls": [
+        {
+          "id": "wall-qa-real-wide-40x30-0",
+          "start": {
+            "x": -5.89355974703554,
+            "z": -5.0007515061107775
+          },
+          "end": {
+            "x": 6.188647233977051,
+            "z": -5.0007515061107775
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-wide-40x30-0",
+              "type": "window",
+              "position": 1.504448233576639,
+              "width": 1.7556446053835602,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "window-qa-real-wide-40x30-1",
+              "type": "window",
+              "position": 5.191301904882116,
+              "width": 1.4484067994414371,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "window-qa-real-wide-40x30-2",
+              "type": "window",
+              "position": 10.165628286802203,
+              "width": 1.9019483224988567,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-7",
+          "start": {
+            "x": -2.9640961721565415,
+            "z": -3.1006534483805557
+          },
+          "end": {
+            "x": -2.080490267177627,
+            "z": -3.1006534483805557
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-8",
+          "start": {
+            "x": -5.888028439541314,
+            "z": -1.110217155928326
+          },
+          "end": {
+            "x": 6.233438020578526,
+            "z": -1.110217155928326
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-qa-real-wide-40x30-0",
+              "type": "door",
+              "doorType": "single",
+              "position": 2.4791518307549003,
+              "width": 0.9656045329609582,
+              "height": 2.1
+            },
+            {
+              "id": "door-qa-real-wide-40x30-1",
+              "type": "door",
+              "doorType": "single",
+              "position": 5.902658811252843,
+              "width": 0.7607793289995428,
+              "height": 2.1
+            },
+            {
+              "id": "door-qa-real-wide-40x30-2",
+              "type": "door",
+              "doorType": "single",
+              "position": 8.082584196270762,
+              "width": 1.1704297369223733,
+              "height": 2.1
+            },
+            {
+              "id": "door-qa-real-wide-40x30-3",
+              "type": "door",
+              "doorType": "single",
+              "position": 9.691925084539028,
+              "width": 1.0241260198070767,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-16",
+          "start": {
+            "x": 4.233275562944438,
+            "z": 1.052294305020344
+          },
+          "end": {
+            "x": 6.233438020578526,
+            "z": 1.052294305020344
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-qa-real-wide-40x30-5",
+              "type": "door",
+              "doorType": "double",
+              "position": 0.8873545360909452,
+              "width": 1.31673345403767,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-17",
+          "start": {
+            "x": 4.233275562944438,
+            "z": 3.198731343149942
+          },
+          "end": {
+            "x": 6.232001288646755,
+            "z": 3.198731343149942
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-19",
+          "start": {
+            "x": -5.837518312900338,
+            "z": 4.012334116113898
+          },
+          "end": {
+            "x": 6.233438020578526,
+            "z": 4.012334116113898
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-wide-40x30-6",
+              "type": "window",
+              "position": 2.1799253850179205,
+              "width": 1.097277878364725,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "door-qa-real-wide-40x30-6",
+              "type": "door",
+              "doorType": "single",
+              "position": 4.345220398324312,
+              "width": 0.9070830461148394,
+              "height": 2.1
+            },
+            {
+              "id": "window-qa-real-wide-40x30-7",
+              "type": "window",
+              "position": 5.822887941188808,
+              "width": 0.746148957288013,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "window-qa-real-wide-40x30-8",
+              "type": "window",
+              "position": 8.807483770340859,
+              "width": 0.8631919309802504,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-26",
+          "start": {
+            "z": -1.6672006211291956,
+            "x": -5.850145844560582
+          },
+          "end": {
+            "z": 3.948633050042833,
+            "x": -5.850145844560582
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-wide-40x30-3",
+              "type": "window",
+              "position": 1.4410916135856724,
+              "width": 2.882183227171345,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "window-qa-real-wide-40x30-4",
+              "type": "window",
+              "position": 3.1296573063302455,
+              "width": 2.8968135988828743,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-29",
+          "start": {
+            "z": -5.036553658379814,
+            "x": -2.9543800844367007
+          },
+          "end": {
+            "z": -1.088431419311918,
+            "x": -2.9543800844367007
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-32",
+          "start": {
+            "z": -5.045504068269041,
+            "x": -2.1371943566331506
+          },
+          "end": {
+            "z": -1.1035569471179973,
+            "x": -2.1371943566331506
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-35",
+          "start": {
+            "x": 0.7149175049374856,
+            "z": -5.036553658379814
+          },
+          "end": {
+            "x": 0.7149175049374856,
+            "z": -1.1004909907464666
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-36",
+          "start": {
+            "x": 2.281309791036471,
+            "z": -5.036553658379814
+          },
+          "end": {
+            "x": 2.2793802314195974,
+            "z": -1.1540269091790623
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-37",
+          "start": {
+            "z": -1.1647532383812969,
+            "x": 4.2940334170602
+          },
+          "end": {
+            "z": 3.9952646792364774,
+            "x": 4.2940334170602
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-qa-real-wide-40x30-4",
+              "type": "door",
+              "doorType": "single",
+              "position": 1.25250063949336,
+              "width": 0.9509741612494284,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-wide-40x30-40",
+          "start": {
+            "z": -5.036553658379814,
+            "x": 6.232157654141005
+          },
+          "end": {
+            "z": 4.096026535295778,
+            "x": 6.232157654141005
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-wide-40x30-5",
+              "type": "window",
+              "position": 1.5412821807493073,
+              "width": 2.1652950133063906,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "door-qa-real-wide-40x30-7",
+              "type": "door",
+              "doorType": "single",
+              "position": 7.493480889517579,
+              "width": 0.8631919309802504,
+              "height": 2.1
+            }
+          ]
+        }
+      ],
+      "rooms": [
+        {
+          "id": "room-qa-real-wide-40x30-0",
+          "name": "Bedroom #2",
+          "center": {
+            "x": -4.096504079228307,
+            "z": -3.202780140590297
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-wide-40x30-1",
+          "name": "Bedroom #3",
+          "center": {
+            "x": -0.43891115134589087,
+            "z": -3.202780140590297
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-wide-40x30-2",
+          "name": "Bathroom",
+          "center": {
+            "x": 2.1945557567294487,
+            "z": -3.202780140590297
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-wide-40x30-3",
+          "name": "Master Bedroom",
+          "center": {
+            "x": 4.389111513458899,
+            "z": -3.202780140590297
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-wide-40x30-4",
+          "name": "Family Room",
+          "center": {
+            "x": -3.9502003621130104,
+            "z": 1.403958417793008
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-wide-40x30-5",
+          "name": "Dining Area",
+          "center": {
+            "x": -0.14630371711529697,
+            "z": 1.403958417793008
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-wide-40x30-6",
+          "name": "Kitchen",
+          "center": {
+            "x": 2.4871631909600427,
+            "z": 1.403958417793008
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-wide-40x30-7",
+          "name": "Closet",
+          "center": {
+            "x": 4.974326381920087,
+            "z": 0.5264844066723784
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-wide-40x30-8",
+          "name": "Washroom",
+          "center": {
+            "x": 5.120630099035383,
+            "z": 2.6470466002139004
+          },
+          "area": 0
+        }
+      ],
+      "stairs": [],
+      "stats": {
+        "wallCount": 13,
+        "doorCount": 8,
+        "windowCount": 9,
+        "roomCount": 9,
+        "stairCount": 0
+      },
+      "sourcePlan": {
+        "type": "reviewed_floor_plan",
+        "sourceFileName": "real-wide-40x30.png",
+        "readiness": {
+          "state": "ready",
+          "label": "Ready for 3D",
+          "detail": "The detected plan has enough walls, openings, and scale information to place after a quick overlay check.",
+          "action": "Check the overlay, then place in 3D."
+        },
+        "counts": {
+          "wallCount": 13,
+          "doorCount": 8,
+          "windowCount": 9,
+          "roomCount": 9,
+          "stairCount": 0
+        },
+        "corrections": {
+          "hiddenCount": 0,
+          "addedCount": 0,
+          "wallEditCount": 0,
+          "openingEditCount": 0
+        }
+      }
+    },
+    {
+      "id": "qa-real-site-ground-floor",
+      "qaSource": "real-site-ground-floor",
+      "title": "Real dimensioned site plan ground floor",
+      "position": {
+        "x": 0,
+        "z": 7
+      },
+      "rotation": 0,
+      "walls": [
+        {
+          "id": "wall-qa-real-site-ground-floor-0",
+          "start": {
+            "z": -6.580459770114944,
+            "x": -7.040229885057472
+          },
+          "end": {
+            "z": 5.2011494252873565,
+            "x": -7.040229885057472
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-site-ground-floor-0",
+              "type": "window",
+              "position": 0.7471264367816093,
+              "width": 1.4942528735632186,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-3",
+          "start": {
+            "x": -7.040229885057472,
+            "z": -6.580459770114944
+          },
+          "end": {
+            "x": -3.304597701149426,
+            "z": -6.580459770114944
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-site-ground-floor-1",
+              "type": "window",
+              "position": 3.103448275862069,
+              "width": 0.6609195402298851,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-4",
+          "start": {
+            "x": -7.040229885057472,
+            "z": 5.2011494252873565
+          },
+          "end": {
+            "x": 8.477011494252874,
+            "z": 5.2011494252873565
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-qa-real-site-ground-floor-3",
+              "type": "door",
+              "doorType": "single",
+              "position": 0.7183908045977012,
+              "width": 1.4367816091954024,
+              "height": 2.1
+            },
+            {
+              "id": "window-qa-real-site-ground-floor-2",
+              "type": "window",
+              "position": 3.0172413793103448,
+              "width": 1.7241379310344829,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "window-qa-real-site-ground-floor-3",
+              "type": "window",
+              "position": 6.005747126436782,
+              "width": 1.7241379310344829,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "window-qa-real-site-ground-floor-4",
+              "type": "window",
+              "position": 8.879310344827587,
+              "width": 1.7241379310344829,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "door-qa-real-site-ground-floor-4",
+              "type": "door",
+              "doorType": "sliding",
+              "position": 13.793103448275863,
+              "width": 1.8,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-7",
+          "start": {
+            "x": 8.477011494252874,
+            "z": -2.327586206896552
+          },
+          "end": {
+            "x": 8.477011494252874,
+            "z": 5.2011494252873565
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-8",
+          "start": {
+            "x": 7.902298850574714,
+            "z": -6.580459770114944
+          },
+          "end": {
+            "x": 7.902298850574714,
+            "z": -2.327586206896552
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-site-ground-floor-5",
+              "type": "window",
+              "position": 2.586206896551725,
+              "width": 1.7241379310344829,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-9",
+          "start": {
+            "x": 5.603448275862069,
+            "z": -2.34375
+          },
+          "end": {
+            "x": 8.477011494252874,
+            "z": -2.34375
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-10",
+          "start": {
+            "x": -7.040229885057472,
+            "z": -3.1321839080459775
+          },
+          "end": {
+            "x": -3.304597701149426,
+            "z": -3.1321839080459775
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-12",
+          "start": {
+            "z": -6.580459770114944,
+            "x": -3.304597701149426
+          },
+          "end": {
+            "z": 5.2011494252873565,
+            "x": -3.304597701149426
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-qa-real-site-ground-floor-0",
+              "type": "door",
+              "doorType": "single",
+              "position": 2.298850574712645,
+              "width": 0.9195402298850576,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-18",
+          "start": {
+            "x": -3.304597701149426,
+            "z": -2.4137931034482762
+          },
+          "end": {
+            "x": 0.14367816091954025,
+            "z": -2.4137931034482762
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-19",
+          "start": {
+            "x": 1.8678160919540232,
+            "z": -2.4137931034482762
+          },
+          "end": {
+            "x": 3.8793103448275867,
+            "z": -2.4137931034482762
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-qa-real-site-ground-floor-2",
+              "type": "door",
+              "doorType": "sliding",
+              "position": 1.0057471264367817,
+              "width": 1.8,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-21",
+          "start": {
+            "z": -3.1321839080459775,
+            "x": -4.454022988505748
+          },
+          "end": {
+            "z": -0.5459770114942529,
+            "x": -4.454022988505748
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-23",
+          "start": {
+            "x": -7.040229885057472,
+            "z": -0.5459770114942529
+          },
+          "end": {
+            "x": -3.304597701149426,
+            "z": -0.5459770114942529
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-qa-real-site-ground-floor-1",
+              "type": "door",
+              "doorType": "single",
+              "position": 1.0057471264367817,
+              "width": 0.8620689655172414,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-26",
+          "start": {
+            "x": -7.040229885057472,
+            "z": -1.6954022988505748
+          },
+          "end": {
+            "x": -3.304597701149426,
+            "z": -1.6954022988505748
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-27",
+          "start": {
+            "x": -5.89080459770115,
+            "z": -1.6954022988505748
+          },
+          "end": {
+            "x": -5.89080459770115,
+            "z": -0.5459770114942529
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-28",
+          "start": {
+            "z": -0.5459770114942529,
+            "x": -5.028735632183909
+          },
+          "end": {
+            "z": 2.327586206896552,
+            "x": -5.028735632183909
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-30",
+          "start": {
+            "x": -5.028735632183909,
+            "z": 2.327586206896552
+          },
+          "end": {
+            "x": -3.304597701149426,
+            "z": 2.327586206896552
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-31",
+          "start": {
+            "x": -7.040229885057472,
+            "z": 1.17816091954023
+          },
+          "end": {
+            "x": -3.304597701149426,
+            "z": 1.17816091954023
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-ground-floor-32",
+          "start": {
+            "x": -6.178160919540231,
+            "z": 1.17816091954023
+          },
+          "end": {
+            "x": -6.178160919540231,
+            "z": 5.2011494252873565
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        }
+      ],
+      "rooms": [
+        {
+          "id": "room-qa-real-site-ground-floor-0",
+          "name": "Bedroom",
+          "center": {
+            "x": -6.178160919540231,
+            "z": -4.56896551724138
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-ground-floor-1",
+          "name": "Bath / Toilet",
+          "center": {
+            "x": -7.3275862068965525,
+            "z": -0.1149425287356322
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-ground-floor-2",
+          "name": "Stairs",
+          "center": {
+            "x": -6.8965517241379315,
+            "z": 4.051724137931035
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-ground-floor-3",
+          "name": "Living / Dining / Kitchen",
+          "center": {
+            "x": 1.5804597701149428,
+            "z": 3.0459770114942533
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-ground-floor-4",
+          "name": "Covered terrace",
+          "center": {
+            "x": 1.149425287356322,
+            "z": -3.275862068965518
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-ground-floor-5",
+          "name": "Stairs",
+          "center": {
+            "x": -6.8965517241379315,
+            "z": 4.051724137931035
+          },
+          "area": 0
+        }
+      ],
+      "stairs": [
+        {
+          "id": "stair-qa-real-site-ground-floor-0",
+          "center": {
+            "x": -6.8965517241379315,
+            "z": 4.051724137931035
+          },
+          "direction": "up"
+        }
+      ],
+      "stats": {
+        "wallCount": 18,
+        "doorCount": 5,
+        "windowCount": 6,
+        "roomCount": 6,
+        "stairCount": 1
+      },
+      "sourcePlan": {
+        "type": "reviewed_floor_plan",
+        "sourceFileName": "real-site-ground-floor.png",
+        "readiness": {
+          "state": "ready",
+          "label": "Ready for 3D",
+          "detail": "The detected plan has enough walls, openings, and scale information to place after a quick overlay check.",
+          "action": "Check the overlay, then place in 3D."
+        },
+        "counts": {
+          "wallCount": 18,
+          "doorCount": 5,
+          "windowCount": 6,
+          "roomCount": 6,
+          "stairCount": 1
+        },
+        "corrections": {
+          "hiddenCount": 3,
+          "addedCount": 3,
+          "wallEditCount": 1,
+          "openingEditCount": 2
+        }
+      }
+    },
+    {
+      "id": "qa-real-site-upper-floor",
+      "qaSource": "real-site-upper-floor",
+      "title": "Real dimensioned site plan upper floor",
+      "position": {
+        "x": 24,
+        "z": -7
+      },
+      "rotation": 0,
+      "walls": [
+        {
+          "id": "wall-qa-real-site-upper-floor-0",
+          "start": {
+            "z": -5.207373271889401,
+            "x": -6.278801843317972
+          },
+          "end": {
+            "z": 3.087557603686636,
+            "x": -6.278801843317972
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-site-upper-floor-4",
+              "type": "window",
+              "position": 7.949308755760369,
+              "width": 0.6912442396313364,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-4",
+          "start": {
+            "x": -6.278801843317972,
+            "z": -5.207373271889401
+          },
+          "end": {
+            "x": -3.283410138248848,
+            "z": -5.207373271889401
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-site-upper-floor-0",
+              "type": "window",
+              "position": 2.1889400921658986,
+              "width": 1.6129032258064517,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
+            {
+              "id": "window-qa-real-site-upper-floor-1",
+              "type": "window",
+              "position": 2.71889400921659,
+              "width": 0.5529953917050692,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-5",
+          "start": {
+            "z": -5.207373271889401,
+            "x": -3.283410138248848
+          },
+          "end": {
+            "z": 3.087557603686636,
+            "x": -3.283410138248848
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-6",
+          "start": {
+            "x": -3.283410138248848,
+            "z": -4.055299539170507
+          },
+          "end": {
+            "x": 7.085253456221198,
+            "z": -4.055299539170507
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-8",
+          "start": {
+            "z": -4.055299539170507,
+            "x": 7.085253456221198
+          },
+          "end": {
+            "z": 3.087557603686636,
+            "x": 7.085253456221198
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "window-qa-real-site-upper-floor-2",
+              "type": "window",
+              "position": 2.534562211981567,
+              "width": 0.9216589861751152,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-12",
+          "start": {
+            "x": -6.278801843317972,
+            "z": 3.087557603686636
+          },
+          "end": {
+            "x": 7.085253456221198,
+            "z": 3.087557603686636
+          },
+          "height": 2.7,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
+          "openings": [
+            {
+              "id": "door-qa-real-site-upper-floor-2",
+              "type": "door",
+              "doorType": "single",
+              "position": 8.571428571428571,
+              "width": 0.8986175115207373,
+              "height": 2.1
+            },
+            {
+              "id": "window-qa-real-site-upper-floor-3",
+              "type": "window",
+              "position": 11.405529953917052,
+              "width": 1.1520737327188941,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-21",
+          "start": {
+            "x": -6.278801843317972,
+            "z": -3.364055299539171
+          },
+          "end": {
+            "x": -3.283410138248848,
+            "z": -3.364055299539171
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-24",
+          "start": {
+            "x": -4.8963133640553,
+            "z": -5.207373271889401
+          },
+          "end": {
+            "x": -4.8963133640553,
+            "z": 0.32258064516129026
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-25",
+          "start": {
+            "x": -6.278801843317972,
+            "z": -1.2903225806451613
+          },
+          "end": {
+            "x": -1.900921658986175,
+            "z": -1.2903225806451613
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-27",
+          "start": {
+            "z": -1.2903225806451613,
+            "x": -5.587557603686636
+          },
+          "end": {
+            "z": 3.087557603686636,
+            "x": -5.587557603686636
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-29",
+          "start": {
+            "x": -6.278801843317972,
+            "z": 0.3225806451612903
+          },
+          "end": {
+            "x": -3.283410138248848,
+            "z": 0.3225806451612903
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-qa-real-site-upper-floor-3",
+              "type": "door",
+              "doorType": "single",
+              "position": 2.0276497695852536,
+              "width": 0.8986175115207373,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-36",
+          "start": {
+            "x": -3.283410138248848,
+            "z": -2.903225806451613
+          },
+          "end": {
+            "x": 7.085253456221198,
+            "z": -2.903225806451613
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-qa-real-site-upper-floor-4",
+              "type": "door",
+              "doorType": "single",
+              "position": 1.0138248847926268,
+              "width": 0.8986175115207373,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-39",
+          "start": {
+            "z": -2.903225806451613,
+            "x": -1.9009216589861753
+          },
+          "end": {
+            "z": 3.087557603686636,
+            "x": -1.9009216589861753
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-42",
+          "start": {
+            "z": -2.903225806451613,
+            "x": 1.3248847926267282
+          },
+          "end": {
+            "z": 3.087557603686636,
+            "x": 1.3248847926267282
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-qa-real-site-upper-floor-1",
+              "type": "door",
+              "doorType": "single",
+              "position": 4.838709677419356,
+              "width": 0.8986175115207373,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-45",
+          "start": {
+            "x": -3.283410138248848,
+            "z": -0.8294930875576038
+          },
+          "end": {
+            "x": 1.3248847926267282,
+            "z": -0.8294930875576038
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-48",
+          "start": {
+            "x": -3.283410138248848,
+            "z": 0.783410138248848
+          },
+          "end": {
+            "x": 7.085253456221198,
+            "z": 0.783410138248848
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-52",
+          "start": {
+            "x": -1.2096774193548387,
+            "z": 0.783410138248848
+          },
+          "end": {
+            "x": -1.2096774193548387,
+            "z": 3.087557603686636
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": [
+            {
+              "id": "door-qa-real-site-upper-floor-0",
+              "type": "door",
+              "doorType": "single",
+              "position": 1.1520737327188941,
+              "width": 0.8986175115207373,
+              "height": 2.1
+            }
+          ]
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-53",
+          "start": {
+            "x": 2.0161290322580645,
+            "z": 0.783410138248848
+          },
+          "end": {
+            "x": 2.0161290322580645,
+            "z": 3.087557603686636
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-54",
+          "start": {
+            "z": 0.783410138248848,
+            "x": 4.78110599078341
+          },
+          "end": {
+            "z": 3.087557603686636,
+            "x": 4.78110599078341
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-56",
+          "start": {
+            "x": 4.78110599078341,
+            "z": 1.935483870967742
+          },
+          "end": {
+            "x": 7.085253456221198,
+            "z": 1.935483870967742
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        },
+        {
+          "id": "wall-qa-real-site-upper-floor-58",
+          "start": {
+            "x": 5.933179723502304,
+            "z": 1.935483870967742
+          },
+          "end": {
+            "x": 5.933179723502304,
+            "z": 3.087557603686636
+          },
+          "height": 2.7,
+          "thickness": 0.15,
+          "isExterior": false,
+          "openings": []
+        }
+      ],
+      "rooms": [
+        {
+          "id": "room-qa-real-site-upper-floor-0",
+          "name": "Open Terrace",
+          "center": {
+            "x": 2.0161290322580645,
+            "z": -3.5944700460829493
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-1",
+          "name": "Bedroom",
+          "center": {
+            "x": -4.2050691244239635,
+            "z": -3.5944700460829493
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-2",
+          "name": "Bedroom",
+          "center": {
+            "x": -0.7488479262672811,
+            "z": -0.4838709677419355
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-3",
+          "name": "Bedroom",
+          "center": {
+            "x": 3.9746543778801846,
+            "z": -0.3686635944700461
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-4",
+          "name": "Bath",
+          "center": {
+            "x": -5.0115207373271895,
+            "z": -0.8294930875576038
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-5",
+          "name": "Closet",
+          "center": {
+            "x": 0.1728110599078341,
+            "z": 3.4331797235023043
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-6",
+          "name": "WC",
+          "center": {
+            "x": 4.435483870967742,
+            "z": 3.2027649769585254
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-7",
+          "name": "Hall",
+          "center": {
+            "x": -1.2096774193548387,
+            "z": 2.857142857142857
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-8",
+          "name": "Stair",
+          "center": {
+            "x": -4.665898617511521,
+            "z": 2.857142857142857
+          },
+          "area": 0
+        },
+        {
+          "id": "room-qa-real-site-upper-floor-9",
+          "name": "Stairs",
+          "center": {
+            "x": -4.665898617511521,
+            "z": 2.857142857142857
+          },
+          "area": 0
+        }
+      ],
+      "stairs": [
+        {
+          "id": "stair-qa-real-site-upper-floor-0",
+          "center": {
+            "x": -4.665898617511521,
+            "z": 2.857142857142857
+          },
+          "direction": "down"
+        }
+      ],
+      "stats": {
+        "wallCount": 21,
+        "doorCount": 5,
+        "windowCount": 5,
+        "roomCount": 10,
+        "stairCount": 1
+      },
+      "sourcePlan": {
+        "type": "reviewed_floor_plan",
+        "sourceFileName": "real-site-upper-floor.png",
+        "readiness": {
+          "state": "review",
+          "label": "Needs quick review",
+          "detail": "The plan is usable, but one or two signals need a look before trusting the 3D result.",
+          "action": "Review the highlighted checks, then place in 3D."
+        },
+        "counts": {
+          "wallCount": 21,
+          "doorCount": 5,
+          "windowCount": 5,
+          "roomCount": 10,
+          "stairCount": 1
+        },
+        "corrections": {
+          "hiddenCount": 0,
+          "addedCount": 0,
+          "wallEditCount": 0,
+          "openingEditCount": 0
+        }
+      }
+    }
+  ],
+  "activeComparisons": {},
+  "walls": []
+}

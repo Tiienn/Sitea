@@ -7,6 +7,7 @@ import nipplejs from 'nipplejs'
 // Lazy load heavy components for better initial bundle size
 const LandScene = lazy(() => import('./components/LandScene'))
 const FloorPlanGeneratorModal = lazy(() => import('./components/FloorPlanGeneratorModal'))
+const FloorPlanReviewModal = lazy(() => import('./components/FloorPlanReviewModal'))
 const UploadImageModal = lazy(() => import('./components/UploadImageModal'))
 const PricingModal = lazy(() => import('./components/PricingModal'))
 const AuthModal = lazy(() => import('./components/AuthModal'))
@@ -29,8 +30,6 @@ const LoadingFallback = () => (
 import Minimap from './components/Minimap'
 import Onboarding from './components/Onboarding'
 import GuidedOnboarding from './components/GuidedOnboarding'
-import LandingHero from './components/LandingHero'
-import PlotReveal from './components/PlotReveal'
 import { FSM_HOUSE_WALLS, FSM_LAND, FSM_CAMERA_START, FSM_HOUSE_BOUNDS } from './data/houseTemplate'
 import { houseTemplates } from './data/houseTemplates'
 import BuildPanel from './components/BuildPanel'
@@ -43,6 +42,9 @@ import FencePropertiesPanel from './components/FencePropertiesPanel'
 import PoolPropertiesPanel from './components/PoolPropertiesPanel'
 import FoundationPropertiesPanel from './components/FoundationPropertiesPanel'
 import StairsPropertiesPanel from './components/StairsPropertiesPanel'
+import AIChatButton from './components/AIChatButton'
+import AIChatPanel from './components/AIChatPanel'
+import { useAIChat } from './hooks/useAIChat'
 
 // Import constants from LandScene (these are re-exported)
 import { CAMERA_MODE, DEFAULT_TP_DISTANCE, ORBIT_START_DISTANCE, QUALITY } from './constants/landSceneConstants'
@@ -53,9 +55,11 @@ import { exportModel } from './utils/modelExport'
 import { exportToPDF } from './utils/pdfExport'
 import { computeOverlappingIds, checkPreviewOverlap } from './utils/collision2d'
 import { detectRooms, findWallsForRoom } from './utils/roomDetection'
-import { buildScenePayload, createSharedScene, fetchSharedScene } from './services/shareScene'
+import { buildScenePayload, createSharedScene, fetchSharedScene, formatShareExpiration } from './services/shareScene'
 import { listProjects, countProjects, createProject, updateProject, renameProject, deleteProject, fetchProject } from './services/projectService'
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient'
+import { restoreScenePayload } from './utils/restoreScene'
+import { buildFloorPlanSourcePlanMetadata } from './utils/floorPlanSourcePlan'
 import {
   track,
   trackDefineClicked,
@@ -109,6 +113,92 @@ const formatArea = (sqMeters, areaUnit) => {
     return `${value.toFixed(2)} ${areaUnit}`
   }
   return `${value.toFixed(0)} ${areaUnit}`
+}
+
+const GENERATED_BUILDING_ROOM_FURNITURE_MAP = {
+  bathroom: ['toilet'],
+  toilet: ['toilet'],
+  wc: ['toilet'],
+  kitchen: ['fridge'],
+  living: ['sofa', 'coffeeTable'],
+  lounge: ['sofa'],
+  family: ['sofa'],
+  bedroom: ['bed', 'nightstand'],
+  master: ['bed', 'nightstand'],
+  dining: ['diningTable', 'chair'],
+}
+
+function buildExplodedGeneratedBuildingParts(building) {
+  const pos = building.position
+  const rot = building.rotation || 0
+  const cosR = Math.cos(rot)
+  const sinR = Math.sin(rot)
+  const transform = (p) => ({
+    x: p.x * cosR - p.z * sinR + pos.x,
+    z: p.x * sinR + p.z * cosR + pos.z,
+  })
+
+  const newWalls = (building.walls || []).map(wall => ({
+    id: crypto.randomUUID(),
+    start: transform(wall.start),
+    end: transform(wall.end),
+    height: wall.height || 2.7,
+    thickness: wall.thickness || 0.15,
+    openings: (wall.openings || []).map(o => ({ ...o, id: crypto.randomUUID() })),
+    isExterior: wall.isExterior,
+    floorLevel: 0,
+  }))
+
+  const newFurniture = []
+  for (const room of (building.rooms || [])) {
+    const roomName = (room.name || '').toLowerCase()
+    for (const [keyword, catalogIds] of Object.entries(GENERATED_BUILDING_ROOM_FURNITURE_MAP)) {
+      if (roomName.includes(keyword)) {
+        const center = transform(room.center)
+        catalogIds.forEach((catalogId, i) => {
+          newFurniture.push({
+            id: crypto.randomUUID(),
+            catalogId,
+            position: { x: center.x + i * 0.8, z: center.z },
+            rotation: rot,
+          })
+        })
+        break
+      }
+    }
+  }
+
+  return { newWalls, newFurniture }
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Clipboard write timed out')), 2000))
+      ])
+      return true
+    } catch (error) {
+      console.warn('Clipboard API unavailable:', error)
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  textarea.style.pointerEvents = 'none'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+
+  try {
+    return document.execCommand('copy')
+  } finally {
+    document.body.removeChild(textarea)
+  }
 }
 
 const COMPARISON_OBJECTS = [
@@ -217,6 +307,10 @@ const BUILD_TOOLS = {
 const SNAP_DIST_M = 2.0     // meters - snap threshold distance
 const GRID_SIZE_M = 1.0     // meters - grid cell size
 const ROT_SNAP_DEG = 15     // degrees - rotation snap increment
+const PENDING_SAVE_AFTER_AUTH_KEY = 'siteaPendingSaveAfterAuth'
+const PENDING_SAVE_PAYLOAD_KEY = 'siteaPendingSavePayload'
+const AGENT_STRUCTURE_HISTORY_LIMIT = 10
+const AGENT_RETRY_LAYOUT_VARIANT = 'mirror_x'
 
 // Snap utility: get closest point on line segment (XZ plane)
 const getClosestPointOnSegment = (p, a, b) => {
@@ -535,7 +629,7 @@ function VirtualJoystick({ joystickInput, isRunning, setIsRunning, onJump, onTal
 
 function App() {
   // User context for paid features
-  const { user, isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid, signOut, showAuthModal, setShowAuthModal, planType, theme, setTheme, hasUsedUpload } = useUser()
+  const { user, isPaidUser, showPricingModal, setShowPricingModal, onPaymentSuccess, requirePaid, signOut, showAuthModal, setShowAuthModal, planType, theme, setTheme, hasUsedUpload, markUploadUsed } = useUser()
   const isMobile = useIsMobile()
   const isLandscape = useIsLandscape()
   const [showOverflow, setShowOverflow] = useState(false)
@@ -565,6 +659,9 @@ function App() {
   const [confirmedPolygon, setConfirmedPolygon] = useState(null)
   const [selectedBuilding, setSelectedBuilding] = useState(null)
   const [placedBuildings, setPlacedBuildings] = useState([])
+  const agentStructureHistoryRef = useRef([])
+  const lastAgentLayoutRequestRef = useRef(null)
+  const lastAgentLayoutVariantRef = useRef('default')
   const [saveStatus, setSaveStatus] = useState(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [activePanel, setActivePanel] = useState(null) // 'land', 'compare', 'build', or null
@@ -575,8 +672,6 @@ function App() {
   const [guidedStep, setGuidedStep] = useState(0) // 0=off, 1=welcome, 2=walk, 3=inside, 4=unlock
   const isGuidedMode = guidedStep > 0
   const [userHasLand, setUserHasLand] = useState(false) // Will be set true when user defines their land
-  const [landingStep, setLandingStep] = useState('hero') // 'hero' | 'reveal' | null
-  const [revealData, setRevealData] = useState(null) // { sizeM2, unit } for PlotReveal
   const [isDefiningLand, setIsDefiningLand] = useState(false) // Shows land definition flow
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     return localStorage.getItem('landVisualizerIntroSeen') === 'true'
@@ -636,6 +731,14 @@ function App() {
 
   // Toast state for undo/redo feedback
   const [undoRedoToast, setUndoRedoToast] = useState(null)
+  const toastTimerRef = useRef(null)
+  const showToast = useCallback((msg, duration = 1500) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setUndoRedoToast(msg)
+    if (msg !== null && duration > 0) {
+      toastTimerRef.current = setTimeout(() => setUndoRedoToast(null), duration)
+    }
+  }, [])
   const [wallDrawingMode, setWallDrawingMode] = useState(false)
   const [wallDrawingPoints, setWallDrawingPoints] = useState([]) // Points being drawn
   const [openingPlacementMode, setOpeningPlacementMode] = useState('none') // 'none' | 'door' | 'window'
@@ -644,7 +747,13 @@ function App() {
   const [buildings, setBuildings] = useState([])
   const [floorPlanPlacementMode, setFloorPlanPlacementMode] = useState(false)
   const [pendingFloorPlan, setPendingFloorPlan] = useState(null) // { walls, rooms, stats }
+  const [floorPlanReview, setFloorPlanReview] = useState(null)
   const [selectedBuildingId, setSelectedBuildingId] = useState(null)
+  const selectedGeneratedBuildingActionsRef = useRef({
+    rotate: null,
+    explode: null,
+    deselect: null,
+  })
   const [selectedComparisonId, setSelectedComparisonId] = useState(null)
   const [selectedRoomId, setSelectedRoomId] = useState(null)
   const [roomLabels, setRoomLabels] = useState({}) // { [roomId]: string } for Phase 2
@@ -784,13 +893,22 @@ function App() {
   const [isReadOnly, setIsReadOnly] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
   const [shareError, setShareError] = useState(null)
-  const [shareStatus, setShareStatus] = useState(null) // 'copied' | 'error' | null
+  const [shareErrorTitle, setShareErrorTitle] = useState(null)
+  const [shareStatus, setShareStatus] = useState(null) // 'copied' | 'ready' | 'error' | null
+  const [shareExpiryMessage, setShareExpiryMessage] = useState(null)
+  const [shareUrl, setShareUrl] = useState(null)
+  const [sharedSceneExpiryMessage, setSharedSceneExpiryMessage] = useState(null)
   // Project state (saved projects)
   const [currentProjectId, setCurrentProjectId] = useState(null)
   const [currentProjectName, setCurrentProjectName] = useState('Untitled Project')
-  const [projectSaveStatus, setProjectSaveStatus] = useState(null) // 'saving'|'saved'|'error'
+  const [projectSaveStatus, setProjectSaveStatus] = useState(null) // 'auth'|'saving'|'saved'|'error'
   const [showProjectsModal, setShowProjectsModal] = useState(false)
   const isLoadingProjectRef = useRef(false) // prevents auto-save during project load
+  const pendingSaveInFlightRef = useRef(false)
+  const authSuccessRef = useRef(false)
+  const [pendingSaveAfterAuth, setPendingSaveAfterAuth] = useState(() => {
+    return sessionStorage.getItem(PENDING_SAVE_AFTER_AUTH_KEY) === 'true'
+  })
 
   const [isExporting, setIsExporting] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
@@ -799,11 +917,22 @@ function App() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
   const [aiRenderResult, setAiRenderResult] = useState(null)
   const [showAiRenderModal, setShowAiRenderModal] = useState(false)
+  const [showAIChat, setShowAIChat] = useState(true)
   const canvasRef = useRef(null)
   const sceneRef = useRef(null)
 
   // Centralized edit permission - gates all editing actions
   const canEdit = !isReadOnly
+  const isAIChatVisible = showAIChat && !isReadOnly && !showPricingModal && !showAuthModal && !isGuidedMode && !isDefiningLand
+  const isMobileChatFocused = isMobile && isAIChatVisible
+
+  useEffect(() => {
+    if (!isMobileChatFocused) return
+    setShowOverflow(false)
+    setShowMobileViewControls(false)
+    setMobileCtaExpanded(false)
+    setActivePanel(null)
+  }, [isMobileChatFocused])
 
   // Camera mode state (persisted)
   const [cameraMode, setCameraMode] = useState(() => {
@@ -895,7 +1024,7 @@ function App() {
 
   // Initialize guided mode for first-time visitors (FSM), or fallback to walkthrough
   useEffect(() => {
-    // New users see LandingHero instead of guided FSM — skip auto-trigger
+    // New users start directly in the workspace; skip the legacy guided auto-trigger.
     if (!localStorage.getItem('fsmCompleted') && !userHasLand && !isReadOnly) {
       return
     }
@@ -1112,24 +1241,19 @@ function App() {
         // If actively drawing points, undo the last point instead of undoing walls
         if (activeBuildTool === BUILD_TOOLS.POOL && poolPolygonPoints.length > 0) {
           setPoolPolygonPoints(prev => prev.slice(0, -1))
-          setUndoRedoToast('Point undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Point undone', 1500)
         } else if (activeBuildTool === BUILD_TOOLS.FOUNDATION && foundationPolygonPoints.length > 0) {
           setFoundationPolygonPoints(prev => prev.slice(0, -1))
-          setUndoRedoToast('Point undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Point undone', 1500)
         } else if (activeBuildTool === BUILD_TOOLS.POLYGON_ROOM && roomPolygonPoints.length > 0) {
           setRoomPolygonPoints(prev => prev.slice(0, -1))
-          setUndoRedoToast('Point undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Point undone', 1500)
         } else if ((activeBuildTool === BUILD_TOOLS.WALL || activeBuildTool === BUILD_TOOLS.HALF_WALL || activeBuildTool === BUILD_TOOLS.FENCE) && wallDrawingPoints.length > 0) {
           setWallDrawingPoints(prev => prev.slice(0, -1))
-          setUndoRedoToast('Point undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Point undone', 1500)
         } else if (canUndo) {
           undoWalls()
-          setUndoRedoToast('Undone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Undone', 1500)
         }
       }
 
@@ -1138,16 +1262,14 @@ function App() {
         e.preventDefault()
         if (canRedo) {
           redoWalls()
-          setUndoRedoToast('Redone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Redone', 1500)
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault()
         if (canRedo) {
           redoWalls()
-          setUndoRedoToast('Redone')
-          setTimeout(() => setUndoRedoToast(null), 1500)
+          showToast('Redone', 1500)
         }
       }
 
@@ -1171,100 +1293,29 @@ function App() {
   const loadSharedScene = useCallback(async (shareId) => {
     setShareLoading(true)
     setShareError(null)
+    setShareErrorTitle(null)
+    setSharedSceneExpiryMessage(null)
 
     const result = await fetchSharedScene(shareId)
 
     if (result.error) {
       setShareError(result.error)
+      setShareErrorTitle(result.title || 'Shared link unavailable')
       setShareLoading(false)
       return
     }
 
     const payload = result.payload
+    setSharedSceneExpiryMessage(formatShareExpiration(result.expiresAt))
 
-    // Restore land
-    if (payload.land) {
-      setDimensions(payload.land.dimensions || { length: 20, width: 15 })
-      setShapeMode(payload.land.type === 'rectangle' ? 'rectangle' : 'polygon')
-      if (payload.land.vertices) {
-        setConfirmedPolygon(payload.land.vertices)
-        setPolygonPoints(payload.land.vertices)
-      }
+        const sceneSetters = {
+      setDimensions, setShapeMode, setConfirmedPolygon, setPolygonPoints,
+      setPlacedBuildings, setLengthUnit, setAreaUnit, setSetbacksEnabled,
+      setSetbackDistanceM, setLabels, setActiveComparisons, clearWallsHistory,
+      setPools, setFoundations, setStairs, setFurnitureItems, setBuildings,
+      setRoomLabels, setRoomStyles, setComparisonPositions, setComparisonRotations,
     }
-
-    // Restore buildings (map typeId back to full type object)
-    if (payload.buildings) {
-      const restoredBuildings = payload.buildings.map(b => {
-        const buildingType = BUILDING_TYPES.find(t => t.id === b.typeId)
-        return buildingType ? {
-          id: b.id,
-          type: buildingType,
-          position: { x: b.x, z: b.z },
-          rotationY: b.rotationY
-        } : null
-      }).filter(Boolean)
-      setPlacedBuildings(restoredBuildings)
-    }
-
-    // Restore settings
-    if (payload.settings) {
-      if (payload.settings.unitSystem) {
-        setLengthUnit(payload.settings.unitSystem.lengthUnit || 'm')
-        setAreaUnit(payload.settings.unitSystem.areaUnit || 'm²')
-      }
-      if (payload.settings.setbacksEnabled !== undefined) {
-        setSetbacksEnabled(payload.settings.setbacksEnabled)
-      }
-      if (payload.settings.setbackDistanceM !== undefined) {
-        setSetbackDistanceM(payload.settings.setbackDistanceM)
-      }
-      if (payload.settings.labels) {
-        setLabels(payload.settings.labels)
-      }
-    }
-
-    // Restore comparisons
-    if (payload.comparisons) {
-      const comparisons = {}
-      payload.comparisons.forEach(id => { comparisons[id] = true })
-      setActiveComparisons(comparisons)
-    }
-
-    // Restore walls with openings (backward compatible - old shares may not have walls)
-    if (payload.walls && Array.isArray(payload.walls)) {
-      const loadedWalls = payload.walls
-        .filter(w => w && w.start && w.end) // Validate structure
-        .map(wall => ({
-          id: wall.id || `wall-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          start: { x: wall.start.x, z: wall.start.z },
-          end: { x: wall.end.x, z: wall.end.z },
-          height: wall.height || 2.7,
-          thickness: wall.thickness || 0.15,
-          openings: (wall.openings || [])
-            .filter(o => o && o.type && typeof o.position === 'number')
-            .map(opening => ({
-              id: opening.id || `${opening.type}-${Date.now()}`,
-              type: opening.type,
-              position: opening.position,
-              width: opening.width,
-              height: opening.height,
-              sillHeight: opening.sillHeight || 0
-            }))
-        }))
-      clearWallsHistory(loadedWalls)
-    } else {
-      clearWallsHistory([]) // No walls in old shares
-    }
-
-    // Restore v2 fields (backward compatible — guards skip if absent)
-    if (payload.pools && Array.isArray(payload.pools)) setPools(payload.pools)
-    if (payload.foundations && Array.isArray(payload.foundations)) setFoundations(payload.foundations)
-    if (payload.stairs && Array.isArray(payload.stairs)) setStairs(payload.stairs)
-    if (payload.furniture && Array.isArray(payload.furniture)) setFurnitureItems(payload.furniture)
-    if (payload.roomLabels) setRoomLabels(payload.roomLabels)
-    if (payload.roomStyles) setRoomStyles(payload.roomStyles)
-    if (payload.comparisonPositions) setComparisonPositions(payload.comparisonPositions)
-    if (payload.comparisonRotations) setComparisonRotations(payload.comparisonRotations)
+    restoreScenePayload(payload, sceneSetters, BUILDING_TYPES)
 
     // Mark as user land (not example) and read-only
     setUserHasLand(true)
@@ -1283,81 +1334,14 @@ function App() {
     isLoadingProjectRef.current = true
     const payload = result.data.scene_json
 
-    // Restore land
-    if (payload.land) {
-      setDimensions(payload.land.dimensions || { length: 20, width: 15 })
-      setShapeMode(payload.land.type === 'rectangle' ? 'rectangle' : 'polygon')
-      if (payload.land.vertices) {
-        setConfirmedPolygon(payload.land.vertices)
-        setPolygonPoints(payload.land.vertices)
-      }
+        const sceneSetters = {
+      setDimensions, setShapeMode, setConfirmedPolygon, setPolygonPoints,
+      setPlacedBuildings, setLengthUnit, setAreaUnit, setSetbacksEnabled,
+      setSetbackDistanceM, setLabels, setActiveComparisons, clearWallsHistory,
+      setPools, setFoundations, setStairs, setFurnitureItems, setBuildings,
+      setRoomLabels, setRoomStyles, setComparisonPositions, setComparisonRotations,
     }
-
-    // Restore buildings
-    if (payload.buildings) {
-      const restoredBuildings = payload.buildings.map(b => {
-        const buildingType = BUILDING_TYPES.find(t => t.id === b.typeId)
-        return buildingType ? { id: b.id, type: buildingType, position: { x: b.x, z: b.z }, rotationY: b.rotationY } : null
-      }).filter(Boolean)
-      setPlacedBuildings(restoredBuildings)
-    }
-
-    // Restore settings
-    if (payload.settings) {
-      if (payload.settings.unitSystem) {
-        setLengthUnit(payload.settings.unitSystem.lengthUnit || 'm')
-        setAreaUnit(payload.settings.unitSystem.areaUnit || 'm²')
-      }
-      if (payload.settings.setbacksEnabled !== undefined) setSetbacksEnabled(payload.settings.setbacksEnabled)
-      if (payload.settings.setbackDistanceM !== undefined) setSetbackDistanceM(payload.settings.setbackDistanceM)
-      if (payload.settings.labels) setLabels(payload.settings.labels)
-    }
-
-    // Restore comparisons
-    if (payload.comparisons) {
-      const comparisons = {}
-      payload.comparisons.forEach(id => { comparisons[id] = true })
-      setActiveComparisons(comparisons)
-    }
-
-    // Restore walls
-    if (payload.walls && Array.isArray(payload.walls)) {
-      const loadedWalls = payload.walls
-        .filter(w => w && w.start && w.end)
-        .map(wall => ({
-          id: wall.id || `wall-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          start: { x: wall.start.x, z: wall.start.z },
-          end: { x: wall.end.x, z: wall.end.z },
-          height: wall.height || 2.7,
-          thickness: wall.thickness || 0.15,
-          openings: (wall.openings || [])
-            .filter(o => o && o.type && typeof o.position === 'number')
-            .map(opening => ({
-              id: opening.id || `${opening.type}-${Date.now()}`,
-              type: opening.type, position: opening.position,
-              width: opening.width, height: opening.height, sillHeight: opening.sillHeight || 0
-            }))
-        }))
-      clearWallsHistory(loadedWalls)
-    } else {
-      clearWallsHistory([])
-    }
-
-    // Restore v2 fields
-    if (payload.pools && Array.isArray(payload.pools)) setPools(payload.pools)
-    else setPools([])
-    if (payload.foundations && Array.isArray(payload.foundations)) setFoundations(payload.foundations)
-    else setFoundations([])
-    if (payload.stairs && Array.isArray(payload.stairs)) setStairs(payload.stairs)
-    else setStairs([])
-    if (payload.furniture && Array.isArray(payload.furniture)) setFurnitureItems(payload.furniture)
-    else setFurnitureItems([])
-    if (payload.roomLabels) setRoomLabels(payload.roomLabels)
-    else setRoomLabels({})
-    if (payload.roomStyles) setRoomStyles(payload.roomStyles)
-    else setRoomStyles({})
-    if (payload.comparisonPositions) setComparisonPositions(payload.comparisonPositions)
-    if (payload.comparisonRotations) setComparisonRotations(payload.comparisonRotations)
+    restoreScenePayload(payload, sceneSetters, BUILDING_TYPES)
 
     // Set project context (editable)
     setCurrentProjectId(result.data.id)
@@ -1376,18 +1360,19 @@ function App() {
       lengthUnit, areaUnit, setbacksEnabled, setbackDistanceM, labels,
       activeComparisons, cameraState: null, walls,
       pools, foundations, stairs, furnitureItems,
-      roomLabels, roomStyles, comparisonPositions, comparisonRotations
+      roomLabels, roomStyles, comparisonPositions, comparisonRotations,
+      generatedBuildings: buildings
     })
   }, [shapeMode, dimensions, confirmedPolygon, placedBuildings, lengthUnit, areaUnit,
       setbacksEnabled, setbackDistanceM, labels, activeComparisons, walls,
       pools, foundations, stairs, furnitureItems, roomLabels, roomStyles,
-      comparisonPositions, comparisonRotations])
+      comparisonPositions, comparisonRotations, buildings])
 
   // Save project to cloud
-  const saveProjectToCloud = useCallback(async () => {
-    if (!user || isLoadingProjectRef.current) return
+  const saveProjectToCloud = useCallback(async (payloadOverride = null) => {
+    if (!user || isLoadingProjectRef.current) return { error: 'Authentication required' }
 
-    const payload = buildCurrentPayload()
+    const payload = payloadOverride || buildCurrentPayload()
 
     if (currentProjectId) {
       // Update existing project
@@ -1395,13 +1380,15 @@ function App() {
       const result = await updateProject(currentProjectId, payload)
       setProjectSaveStatus(result.error ? 'error' : 'saved')
       if (!result.error) setTimeout(() => setProjectSaveStatus(null), 2000)
+      return result
     } else {
       // Create new project — check limit for free users
       if (!isPaidUser) {
         const { count } = await countProjects()
         if (count >= 1) {
+          setProjectSaveStatus(null)
           setShowPricingModal(true)
-          return
+          return { error: 'Free project limit reached' }
         }
       }
       setProjectSaveStatus('saving')
@@ -1414,6 +1401,7 @@ function App() {
         setProjectSaveStatus('saved')
         setTimeout(() => setProjectSaveStatus(null), 2000)
       }
+      return result
     }
   }, [user, isPaidUser, currentProjectId, currentProjectName, buildCurrentPayload, setShowPricingModal])
 
@@ -1426,6 +1414,58 @@ function App() {
     return () => clearTimeout(timer)
   }, [buildCurrentPayload, currentProjectId, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const clearPendingAuthSave = useCallback(() => {
+    sessionStorage.removeItem(PENDING_SAVE_AFTER_AUTH_KEY)
+    sessionStorage.removeItem(PENDING_SAVE_PAYLOAD_KEY)
+    setPendingSaveAfterAuth(false)
+  }, [])
+
+  useEffect(() => {
+    if (!user || !pendingSaveAfterAuth || pendingSaveInFlightRef.current) return
+
+    pendingSaveInFlightRef.current = true
+
+    const finishPendingSave = async () => {
+      let pendingPayload = null
+      const savedPayload = sessionStorage.getItem(PENDING_SAVE_PAYLOAD_KEY)
+      if (savedPayload) {
+        try {
+          pendingPayload = JSON.parse(savedPayload)
+        } catch (error) {
+          console.warn('Failed to restore pending save payload:', error)
+        }
+      }
+
+      try {
+        await saveProjectToCloud(pendingPayload)
+      } finally {
+        clearPendingAuthSave()
+        pendingSaveInFlightRef.current = false
+      }
+    }
+
+    finishPendingSave()
+  }, [user, pendingSaveAfterAuth, saveProjectToCloud, clearPendingAuthSave])
+
+  const handleAuthModalClose = useCallback(() => {
+    setShowAuthModal(false)
+
+    if (authSuccessRef.current) {
+      authSuccessRef.current = false
+      return
+    }
+
+    if (pendingSaveAfterAuth) {
+      clearPendingAuthSave()
+      setProjectSaveStatus(null)
+    }
+  }, [pendingSaveAfterAuth, clearPendingAuthSave, setShowAuthModal])
+
+  const handleAuthSuccess = useCallback(() => {
+    authSuccessRef.current = true
+    setShowAuthModal(false)
+  }, [setShowAuthModal])
+
   // Handle "New Project" — clear design state and project context
   const handleNewProject = useCallback(() => {
     setCurrentProjectId(null)
@@ -1437,6 +1477,7 @@ function App() {
     setPolygonPoints([])
     setConfirmedPolygon(null)
     setPlacedBuildings([])
+    setBuildings([])
     setActiveComparisons({})
     clearWallsHistory([])
     setPools([])
@@ -1467,8 +1508,15 @@ function App() {
       if (sizeParam) {
         const sizeM2 = parseFloat(sizeParam)
         if (sizeM2 > 0) {
-          setRevealData({ sizeM2, unit: 'sqm' })
-          setLandingStep('reveal')
+          const side = Math.sqrt(sizeM2)
+          setDimensions({ length: side, width: side })
+          setShapeMode('rectangle')
+          setConfirmedPolygon(null)
+          setUserHasLand(true)
+          setHasSeenIntro(true)
+          localStorage.setItem('landVisualizerIntroSeen', 'true')
+          localStorage.setItem('fsmCompleted', 'true')
+          setActiveComparisons({ basketballCourt: true, tennisCourt: true })
         }
       }
       // Check if user has saved land data
@@ -1513,6 +1561,12 @@ function App() {
   const area = (shapeMode === 'polygon' || shapeMode === 'upload') && confirmedPolygon
     ? calculatePolygonArea(confirmedPolygon)
     : dimensions.length * dimensions.width
+
+  // Memoize coverage so we don't recompute on every render
+  const coverage = useMemo(
+    () => computeCoverage(placedBuildings, area),
+    [placedBuildings, area]
+  )
 
   const handleInputChange = (field, value) => {
     setInputValues(prev => ({ ...prev, [field]: value }))
@@ -1585,7 +1639,7 @@ function App() {
     const newWalls = []
     for (let i = 0; i < points.length - 1; i++) {
       newWalls.push({
-        id: `wall-${Date.now()}-${i}`,
+        id: crypto.randomUUID(),
         start: { x: points[i].x, z: points[i].z },
         end: { x: points[i + 1].x, z: points[i + 1].z },
         height: isFence ? 1.0 : wallHeight, // Fences are 1.0m tall by default
@@ -1834,7 +1888,7 @@ function App() {
         // Duplicate wall with new ID and floor level
         newWalls.push({
           ...wall,
-          id: `wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: crypto.randomUUID(),
           floorLevel: newFloorLevel,
           openings: [] // New floors start without doors/windows
         })
@@ -1851,7 +1905,7 @@ function App() {
     const xs = points.map(p => p.x)
     const zs = points.map(p => p.z)
     const newPool = {
-      id: `pool-${Date.now()}`,
+      id: crypto.randomUUID(),
       points,
       depth: poolDepth,
       deckWidth: 0.8,
@@ -1877,7 +1931,7 @@ function App() {
     const xs = points.map(p => p.x)
     const zs = points.map(p => p.z)
     const newFoundation = {
-      id: `foundation-${Date.now()}`,
+      id: crypto.randomUUID(),
       points,
       height: foundationHeight,
       hasSteps: true,
@@ -1915,7 +1969,7 @@ function App() {
       const end = { x: position.x + (stairsWidth / 2 * turnDir) + (segmentLength * turnDir), z: position.z - segmentLength }
 
       newStairs = {
-        id: `stairs-${Date.now()}`,
+        id: crypto.randomUUID(),
         start,
         mid, // Landing center (first segment ends here)
         mid2, // Edge of landing (second segment starts here)
@@ -1934,7 +1988,7 @@ function App() {
       const end = { x: position.x, z: position.z - length }
 
       newStairs = {
-        id: `stairs-${Date.now()}`,
+        id: crypto.randomUUID(),
         start,
         end,
         bottomY: 0,
@@ -1961,7 +2015,7 @@ function App() {
   // Furniture callbacks
   const addFurniture = useCallback((catalogId, position) => {
     const newItem = {
-      id: `furniture-${Date.now()}`,
+      id: crypto.randomUUID(),
       catalogId,
       position: { x: position.x, z: position.z },
       rotation: 0,
@@ -2006,7 +2060,7 @@ function App() {
   }, [walls, pushWallsState])
 
   // Handle generated floor plan from AI - enters placement mode
-  const handleFloorPlanGenerated = useCallback((generatedData) => {
+  const startFloorPlanPlacement = useCallback((generatedData) => {
     // Store pending floor plan and enter placement mode
     setPendingFloorPlan(generatedData)
     setFloorPlanPlacementMode(true)
@@ -2026,24 +2080,1214 @@ function App() {
     setUndoRedoToast('Click on land to place building • R to rotate • ESC to cancel')
   }, [])
 
+  const handleFloorPlanGenerated = useCallback((generatedData) => {
+    if (generatedData?.sourceImage && generatedData?.analysis) {
+      setFloorPlanReview({
+        floorPlan: generatedData,
+        analysis: generatedData.analysis,
+        sourceImage: generatedData.sourceImage,
+        sourceFileName: generatedData.sourceFileName || null,
+        readout: generatedData.readout || null,
+      })
+      setShowFloorPlanGenerator(false)
+      setFloorPlanImageForGenerator(null)
+      setActivePanel(null)
+      setUndoRedoToast('Detected plan ready • review overlay before 3D')
+      return
+    }
+
+    startFloorPlanPlacement(generatedData)
+  }, [startFloorPlanPlacement])
+
+  const handlePlaceReviewedFloorPlan = useCallback((correctedFloorPlan = null) => {
+    if (!floorPlanReview?.floorPlan) return
+
+    const placementData = { ...(correctedFloorPlan || floorPlanReview.floorPlan) }
+    const sourcePlan = buildFloorPlanSourcePlanMetadata(placementData)
+    if (sourcePlan) placementData.sourcePlan = sourcePlan
+    delete placementData.sourceImage
+    delete placementData.analysis
+    delete placementData.sourceFileName
+    delete placementData.readout
+    delete placementData.correctionSummary
+    setFloorPlanReview(null)
+    startFloorPlanPlacement(placementData)
+  }, [floorPlanReview, startFloorPlanPlacement])
+
+  const handleAgentSitePlanUploaded = useCallback((imageData) => {
+    setUploadedImage(imageData)
+    setActivePanel('land')
+    setUndoRedoToast('Site plan prepared • review boundary when needed')
+  }, [])
+
+  const activateAgentComparison = useCallback((comparisonId) => {
+    setActiveComparisons(prev => ({ ...prev, [comparisonId]: true }))
+    setActivePanel(null)
+    setUndoRedoToast('Added comparison to land')
+  }, [])
+
+  const handleAgentLandDimensionsUpdated = useCallback(({ length, width }) => {
+    const safeLength = Math.max(0.3, length)
+    const safeWidth = Math.max(0.3, width)
+    setDimensions({ length: safeLength, width: safeWidth })
+    setInputValues({
+      length: convertLength(safeLength, lengthUnit).toFixed(1),
+      width: convertLength(safeWidth, lengthUnit).toFixed(1),
+    })
+    setShapeMode('rectangle')
+    setPolygonPoints([])
+    setConfirmedPolygon(null)
+    setUserHasLand(true)
+    setIsDefiningLand(false)
+    setHasSeenIntro(true)
+    localStorage.setItem('landVisualizerIntroSeen', 'true')
+    localStorage.setItem('fsmCompleted', 'true')
+  }, [lengthUnit])
+
+  const handleAgentSceneControl = useCallback((action = {}) => {
+    const getComparisonName = (id) => COMPARISON_OBJECTS.find(obj => obj.id === id)?.name || 'Comparison object'
+    const getLandPolygon = () => {
+      if ((shapeMode === 'polygon' || shapeMode === 'upload') && confirmedPolygon) {
+        return confirmedPolygon
+      }
+
+      const hw = dimensions.width / 2
+      const hl = dimensions.length / 2
+      return [
+        { x: -hw, y: -hl },
+        { x: hw, y: -hl },
+        { x: hw, y: hl },
+        { x: -hw, y: hl },
+      ]
+    }
+
+    const getLandBounds = () => {
+      const polygon = getLandPolygon()
+      const xs = polygon.map(point => point.x)
+      const zs = polygon.map(point => point.z ?? point.y)
+      const minX = Math.min(...xs)
+      const maxX = Math.max(...xs)
+      const minZ = Math.min(...zs)
+      const maxZ = Math.max(...zs)
+      return {
+        polygon,
+        minX,
+        maxX,
+        minZ,
+        maxZ,
+        width: maxX - minX,
+        length: maxZ - minZ,
+        center: { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 },
+      }
+    }
+
+    const tryStructureCandidates = (buildingType, existingBuildings, candidates, rotationY = snapRotation(0)) => {
+      const { polygon } = getLandBounds()
+      const setback = setbacksEnabled ? setbackDistanceM : 0
+
+      for (const candidate of candidates) {
+        const { snappedPos } = applyPositionSnapping(
+          { x: candidate.x, z: candidate.z },
+          polygon,
+          { positionSnap: snapEnabled, gridSnap: gridSnapEnabled }
+        )
+        if (!isPlacementValid(snappedPos, buildingType, rotationY, polygon, setback)) continue
+        if (checkPreviewOverlap(snappedPos, buildingType, rotationY, existingBuildings)) continue
+        return { position: snappedPos, rotationY }
+      }
+
+      return null
+    }
+
+    const findStructurePlacement = (buildingType, existingBuildings = placedBuildings) => {
+      const { center } = getLandBounds()
+      const stepX = Math.max(buildingType.width + 2, 4)
+      const stepZ = Math.max(buildingType.length + 2, 4)
+      const candidates = []
+
+      for (let ring = 0; ring <= 5; ring++) {
+        for (let ix = -ring; ix <= ring; ix++) {
+          for (let iz = -ring; iz <= ring; iz++) {
+            if (Math.max(Math.abs(ix), Math.abs(iz)) !== ring) continue
+            candidates.push({
+              x: center.x + ix * stepX,
+              z: center.z + iz * stepZ,
+              distance: Math.abs(ix) + Math.abs(iz),
+            })
+          }
+        }
+      }
+
+      candidates.sort((a, b) => a.distance - b.distance)
+      return tryStructureCandidates(buildingType, existingBuildings, candidates)
+    }
+
+    const getStructureRole = (buildingType, requestedRole) => {
+      if (requestedRole) return requestedRole
+      if (['mediumHouse', 'largeHouse'].includes(buildingType.id)) return 'primary_home'
+      if (['garage', 'carport'].includes(buildingType.id)) return 'vehicle_storage'
+      if (['pool', 'greenhouse', 'gazebo'].includes(buildingType.id)) return 'outdoor_amenity'
+      if (['barn', 'workshop'].includes(buildingType.id)) return 'work_agricultural'
+      return 'small_accessory'
+    }
+
+    const getPrimaryHome = (buildings) => buildings.find(building =>
+      building.source === 'agent' && ['mediumHouse', 'largeHouse'].includes(building.type?.id)
+    )
+
+    const buildRoleAwareCandidates = (buildingType, role, existingBuildings, layoutVariant = 'default') => {
+      const bounds = getLandBounds()
+      const { center, width, length } = bounds
+      const primaryHome = getPrimaryHome(existingBuildings)
+      const sideX = Math.max(width * 0.18, buildingType.width + 3)
+      const frontZ = Math.max(length * 0.14, buildingType.length + 3)
+      const backZ = Math.max(length * 0.18, buildingType.length + 4)
+      const candidates = []
+      const add = (x, z, priority = 0) => candidates.push({ x, z, distance: priority })
+      const finish = () => {
+        if (layoutVariant !== AGENT_RETRY_LAYOUT_VARIANT) return candidates
+        return candidates.map(candidate => ({
+          ...candidate,
+          x: center.x - (candidate.x - center.x),
+        }))
+      }
+
+      if (layoutVariant === 'open_backyard') {
+        if (role === 'primary_home') {
+          add(center.x - sideX * 0.2, center.z - frontZ * 0.4, 0)
+          add(center.x + sideX * 0.2, center.z - frontZ * 0.4, 1)
+          add(center.x, center.z - frontZ * 0.32, 2)
+          return finish()
+        }
+
+        if (role === 'vehicle_storage') {
+          if (primaryHome) {
+            const gap = 3
+            add(
+              primaryHome.position.x - primaryHome.type.width / 2 - buildingType.width / 2 - gap,
+              primaryHome.position.z - Math.max(buildingType.length * 0.2, 1),
+              0
+            )
+            add(
+              primaryHome.position.x + primaryHome.type.width / 2 + buildingType.width / 2 + gap,
+              primaryHome.position.z - Math.max(buildingType.length * 0.2, 1),
+              1
+            )
+            add(primaryHome.position.x, primaryHome.position.z - primaryHome.type.length / 2 - buildingType.length / 2 - gap, 2)
+          }
+          add(center.x - sideX, center.z - frontZ * 0.4, 3)
+          add(center.x + sideX, center.z - frontZ * 0.4, 4)
+          return finish()
+        }
+
+        if (role === 'outdoor_amenity') {
+          if (primaryHome) {
+            add(primaryHome.position.x + sideX * 0.75, primaryHome.position.z + backZ * 0.1, 0)
+            add(primaryHome.position.x - sideX * 0.75, primaryHome.position.z + backZ * 0.1, 1)
+            add(primaryHome.position.x + sideX, primaryHome.position.z - frontZ * 0.15, 2)
+          }
+          add(center.x + sideX, center.z - frontZ * 0.2, 3)
+          add(center.x - sideX, center.z - frontZ * 0.2, 4)
+          return finish()
+        }
+
+        if (role === 'work_agricultural') {
+          add(center.x + sideX, center.z - frontZ * 0.1, 0)
+          add(center.x - sideX, center.z - frontZ * 0.1, 1)
+          add(center.x + sideX * 1.2, center.z + backZ * 0.15, 2)
+          add(center.x - sideX * 1.2, center.z + backZ * 0.15, 2)
+          return finish()
+        }
+
+        add(center.x + sideX, center.z - frontZ * 0.15, 0)
+        add(center.x - sideX, center.z - frontZ * 0.15, 1)
+        add(center.x + sideX * 1.1, center.z + backZ * 0.1, 2)
+        add(center.x - sideX * 1.1, center.z + backZ * 0.1, 2)
+        return finish()
+      }
+
+      if (layoutVariant === 'privacy') {
+        if (role === 'primary_home') {
+          add(center.x, center.z + backZ * 0.25, 0)
+          add(center.x - sideX * 0.25, center.z + backZ * 0.18, 1)
+          add(center.x + sideX * 0.25, center.z + backZ * 0.18, 1)
+          add(center.x, center.z, 2)
+          return finish()
+        }
+
+        if (role === 'vehicle_storage') {
+          if (primaryHome) {
+            const gap = 3
+            add(primaryHome.position.x, primaryHome.position.z - primaryHome.type.length / 2 - buildingType.length / 2 - gap, 0)
+            add(
+              primaryHome.position.x - primaryHome.type.width / 2 - buildingType.width / 2 - gap,
+              primaryHome.position.z - Math.max(primaryHome.type.length, buildingType.length) * 0.35,
+              1
+            )
+            add(
+              primaryHome.position.x + primaryHome.type.width / 2 + buildingType.width / 2 + gap,
+              primaryHome.position.z - Math.max(primaryHome.type.length, buildingType.length) * 0.35,
+              2
+            )
+          }
+          add(center.x, center.z - frontZ * 0.65, 3)
+          add(center.x - sideX, center.z - frontZ * 0.45, 4)
+          add(center.x + sideX, center.z - frontZ * 0.45, 4)
+          return finish()
+        }
+
+        if (role === 'outdoor_amenity') {
+          if (primaryHome) {
+            add(primaryHome.position.x + sideX * 0.65, primaryHome.position.z + backZ * 0.22, 0)
+            add(primaryHome.position.x - sideX * 0.65, primaryHome.position.z + backZ * 0.22, 1)
+            add(primaryHome.position.x, primaryHome.position.z + backZ * 0.35, 2)
+          }
+          add(center.x + sideX, center.z + backZ * 0.35, 3)
+          add(center.x - sideX, center.z + backZ * 0.35, 3)
+          return finish()
+        }
+
+        if (role === 'work_agricultural') {
+          add(center.x + sideX, center.z + backZ * 0.75, 0)
+          add(center.x - sideX, center.z + backZ * 0.75, 1)
+          add(center.x + sideX * 1.2, center.z + backZ * 0.2, 2)
+          add(center.x - sideX * 1.2, center.z + backZ * 0.2, 2)
+          return finish()
+        }
+
+        add(center.x - sideX, center.z + backZ * 0.55, 0)
+        add(center.x + sideX, center.z + backZ * 0.55, 1)
+        add(center.x - sideX * 1.1, center.z + backZ * 0.1, 2)
+        add(center.x + sideX * 1.1, center.z + backZ * 0.1, 2)
+        return finish()
+      }
+
+      if (role === 'primary_home') {
+        add(center.x, center.z - frontZ * 0.35, 0)
+        add(center.x - sideX * 0.35, center.z - frontZ * 0.25, 1)
+        add(center.x + sideX * 0.35, center.z - frontZ * 0.25, 1)
+        add(center.x, center.z, 2)
+        return finish()
+      }
+
+      if (role === 'vehicle_storage') {
+        if (primaryHome) {
+          const gap = 3
+          add(
+            primaryHome.position.x - (primaryHome.type.width / 2) - (buildingType.width / 2) - gap,
+            primaryHome.position.z - Math.max(primaryHome.type.length, buildingType.length) * 0.12,
+            0
+          )
+          add(
+            primaryHome.position.x + (primaryHome.type.width / 2) + (buildingType.width / 2) + gap,
+            primaryHome.position.z - Math.max(primaryHome.type.length, buildingType.length) * 0.12,
+            1
+          )
+          add(primaryHome.position.x, primaryHome.position.z - primaryHome.type.length / 2 - buildingType.length / 2 - gap, 2)
+        }
+        add(center.x - sideX, center.z - frontZ * 0.45, 3)
+        add(center.x + sideX, center.z - frontZ * 0.45, 4)
+        return finish()
+      }
+
+      if (role === 'outdoor_amenity') {
+        if (primaryHome) {
+          const gap = 4
+          add(primaryHome.position.x, primaryHome.position.z + primaryHome.type.length / 2 + buildingType.length / 2 + gap, 0)
+          add(primaryHome.position.x + sideX * 0.75, primaryHome.position.z + backZ * 0.65, 1)
+          add(primaryHome.position.x - sideX * 0.75, primaryHome.position.z + backZ * 0.65, 1)
+        }
+        add(center.x, center.z + backZ * 0.65, 2)
+        add(center.x + sideX, center.z + backZ * 0.45, 3)
+        add(center.x - sideX, center.z + backZ * 0.45, 3)
+        return finish()
+      }
+
+      if (role === 'work_agricultural') {
+        add(center.x + sideX, center.z + backZ * 0.7, 0)
+        add(center.x - sideX, center.z + backZ * 0.7, 1)
+        add(center.x + sideX * 1.2, center.z, 2)
+        add(center.x - sideX * 1.2, center.z, 2)
+        return finish()
+      }
+
+      add(center.x - sideX, center.z + backZ * 0.7, 0)
+      add(center.x + sideX, center.z + backZ * 0.7, 1)
+      add(center.x - sideX * 1.1, center.z - frontZ * 0.15, 2)
+      add(center.x + sideX * 1.1, center.z - frontZ * 0.15, 2)
+      return finish()
+    }
+
+    const findRoleAwareStructurePlacement = (buildingType, role, existingBuildings = placedBuildings, layoutVariant = 'default') => {
+      const candidates = buildRoleAwareCandidates(buildingType, role, existingBuildings, layoutVariant)
+      return tryStructureCandidates(buildingType, existingBuildings, candidates)
+    }
+
+    const createAgentBuilding = (buildingType, placement) => ({
+      id: crypto.randomUUID(),
+      type: buildingType,
+      position: placement.position,
+      rotationY: placement.rotationY,
+      source: 'agent',
+    })
+
+    const getStructureName = (buildingType) => buildingType?.name?.toLowerCase() || 'structure'
+    const getAgentPlacedBuildings = () => placedBuildings.filter(building => building.source === 'agent')
+    const cloneAgentStructure = (building) => ({
+      ...building,
+      type: building.type ? { ...building.type } : building.type,
+      position: {
+        x: building.position?.x || 0,
+        z: building.position?.z || 0,
+      },
+    })
+    const getAgentStructureSnapshot = () => getAgentPlacedBuildings().map(cloneAgentStructure)
+    const pushAgentStructureHistory = () => {
+      const history = [...agentStructureHistoryRef.current, getAgentStructureSnapshot()]
+      agentStructureHistoryRef.current = history.slice(-AGENT_STRUCTURE_HISTORY_LIMIT)
+    }
+    const normalizeRequestedStructures = () => {
+      const rawStructures = Array.isArray(action.structures)
+        ? action.structures
+        : (action.structureIds || []).map(structureId => ({ id: structureId }))
+      return rawStructures
+        .map(structure => typeof structure === 'string' ? { id: structure } : structure)
+        .filter(structure => structure?.id)
+    }
+    const buildAgentStructureLayout = (requestedStructures, baseBuildings, layoutVariant = 'default') => {
+      const nextBuildings = [...baseBuildings]
+      const placed = []
+      const skipped = []
+
+      for (const requestedStructure of requestedStructures) {
+        const structureId = requestedStructure.id
+        const buildingType = BUILDING_TYPES.find(building => building.id === structureId)
+        if (!buildingType) {
+          skipped.push({ structureId, name: structureId, reason: 'unknown_structure' })
+          continue
+        }
+
+        const role = getStructureRole(buildingType, requestedStructure.role)
+        let placement = findRoleAwareStructurePlacement(buildingType, role, nextBuildings, layoutVariant)
+        let placementMode = 'role_aware'
+        if (!placement) {
+          placement = findStructurePlacement(buildingType, nextBuildings)
+          placementMode = placement ? 'fallback' : 'blocked'
+        }
+        if (!placement) {
+          skipped.push({ structureId, name: buildingType.name.toLowerCase(), reason: 'no_safe_spot' })
+          continue
+        }
+
+        const newBuilding = createAgentBuilding(buildingType, placement)
+        nextBuildings.push(newBuilding)
+        placed.push({
+          structureId,
+          name: buildingType.name.toLowerCase(),
+          buildingId: newBuilding.id,
+          position: placement.position,
+          rotationY: placement.rotationY,
+          role,
+          placementMode,
+        })
+      }
+
+      return { nextBuildings, placed, skipped }
+    }
+    const getLandCenter = () => {
+      const polygon = getLandPolygon()
+      const xs = polygon.map(point => point.x)
+      const zs = polygon.map(point => point.z ?? point.y)
+      return {
+        x: (Math.min(...xs) + Math.max(...xs)) / 2,
+        z: (Math.min(...zs) + Math.max(...zs)) / 2,
+      }
+    }
+
+    const resolveAgentStructureTarget = (structureId, excludedIds = new Set()) => {
+      const agentBuildings = getAgentPlacedBuildings().filter(building => !excludedIds.has(building.id))
+      if (structureId) {
+        const matches = agentBuildings.filter(building => building.type?.id === structureId)
+        const structureName = getStructureName(BUILDING_TYPES.find(building => building.id === structureId))
+        if (matches.length === 1) return { ok: true, building: matches[0] }
+        if (matches.length > 1) {
+          return {
+            ok: false,
+            reason: 'ambiguous_target',
+            message: `I found ${matches.length} agent-placed ${structureName} structures. Select one in the scene or remove duplicates first.`,
+          }
+        }
+        return {
+          ok: false,
+          reason: 'missing_target',
+          message: `I could not find an agent-placed ${structureName} to adjust.`,
+        }
+      }
+
+      const selected = agentBuildings.find(building => building.id === selectedPlacedBuildingId)
+      if (selected) return { ok: true, building: selected }
+      if (agentBuildings.length > 0) return { ok: true, building: agentBuildings[agentBuildings.length - 1] }
+      return {
+        ok: false,
+        reason: 'missing_target',
+        message: 'I could not find an agent-placed structure to adjust yet.',
+      }
+    }
+
+    const validateStructureCandidate = (building, position, buildingType, rotationY, { snapPosition = false } = {}) => {
+      const polygon = getLandPolygon()
+      const nextPosition = snapPosition
+        ? applyPositionSnapping(
+            { x: position.x, z: position.z },
+            polygon,
+            { positionSnap: snapEnabled, gridSnap: gridSnapEnabled }
+          ).snappedPos
+        : { x: position.x, z: position.z }
+      const setback = setbacksEnabled ? setbackDistanceM : 0
+
+      if (!isPlacementValid(nextPosition, buildingType, rotationY, polygon, setback)) {
+        return {
+          ok: false,
+          reason: 'boundary_or_setback',
+          message: 'That would break the land boundary or setback rules.',
+        }
+      }
+
+      const otherBuildings = placedBuildings.filter(other => other.id !== building.id)
+      if (checkPreviewOverlap(nextPosition, buildingType, rotationY, otherBuildings)) {
+        return {
+          ok: false,
+          reason: 'overlap',
+          message: 'That would overlap another placed structure.',
+        }
+      }
+
+      return { ok: true, position: nextPosition }
+    }
+
+    const getRelativeStructurePosition = (target, direction, distanceM, reference = null) => {
+      const gap = distanceM || (reference ? 2 : Math.max(target.type?.width || 4, target.type?.length || 4, 4))
+      const targetWidth = target.type?.width || 0
+      const targetLength = target.type?.length || 0
+
+      if (reference) {
+        const referenceWidth = reference.type?.width || 0
+        const referenceLength = reference.type?.length || 0
+        if (direction === 'left') {
+          return { x: reference.position.x - referenceWidth / 2 - targetWidth / 2 - gap, z: reference.position.z }
+        }
+        if (direction === 'right') {
+          return { x: reference.position.x + referenceWidth / 2 + targetWidth / 2 + gap, z: reference.position.z }
+        }
+        if (direction === 'front') {
+          return { x: reference.position.x, z: reference.position.z - referenceLength / 2 - targetLength / 2 - gap }
+        }
+        if (direction === 'behind') {
+          return { x: reference.position.x, z: reference.position.z + referenceLength / 2 + targetLength / 2 + gap }
+        }
+        if (direction === 'away') {
+          const dx = target.position.x - reference.position.x
+          const dz = target.position.z - reference.position.z
+          const length = Math.hypot(dx, dz) || 1
+          return { x: target.position.x + (dx / length) * gap, z: target.position.z + (dz / length) * gap }
+        }
+      }
+
+      if (direction === 'left') return { x: target.position.x - gap, z: target.position.z }
+      if (direction === 'right') return { x: target.position.x + gap, z: target.position.z }
+      if (direction === 'front') return { x: target.position.x, z: target.position.z - gap }
+      if (direction === 'behind') return { x: target.position.x, z: target.position.z + gap }
+      if (direction === 'away') {
+        const center = getLandCenter()
+        const dx = target.position.x - center.x
+        const dz = target.position.z - center.z
+        const length = Math.hypot(dx, dz) || 1
+        return { x: target.position.x + (dx / length) * gap, z: target.position.z + (dz / length) * gap }
+      }
+
+      return target.position
+    }
+
+    const resolveGeneratedBuildingTarget = (targetBuildingId = null) => {
+      if (!Array.isArray(buildings) || buildings.length === 0) {
+        return { building: null, targetSource: 'none', generatedBuildingCount: 0 }
+      }
+
+      if (targetBuildingId) {
+        const explicitBuilding = buildings.find(building => building.id === targetBuildingId)
+        if (explicitBuilding) {
+          return { building: explicitBuilding, targetSource: 'explicit', generatedBuildingCount: buildings.length }
+        }
+      }
+
+      if (selectedBuildingId) {
+        const selectedBuilding = buildings.find(building => building.id === selectedBuildingId)
+        if (selectedBuilding) {
+          return { building: selectedBuilding, targetSource: 'selected', generatedBuildingCount: buildings.length }
+        }
+      }
+
+      if (buildings.length === 1) {
+        return { building: buildings[0], targetSource: 'only', generatedBuildingCount: buildings.length }
+      }
+
+      return { building: buildings[buildings.length - 1], targetSource: 'latest', generatedBuildingCount: buildings.length }
+    }
+
+    const getGeneratedBuildingTargetCopy = ({ targetSource, generatedBuildingCount }) => {
+      if (targetSource === 'latest' && generatedBuildingCount > 1) {
+        return 'the latest uploaded floor-plan building'
+      }
+      if (targetSource === 'selected') {
+        return 'the selected floor-plan building'
+      }
+      return 'the uploaded floor-plan building'
+    }
+
+    const getGeneratedBuildingFootprintBounds = (building) => {
+      const points = (building?.walls || [])
+        .flatMap(wall => [wall.start, wall.end])
+        .filter(point => Number.isFinite(point?.x) && Number.isFinite(point?.z))
+      if (points.length < 2) return null
+
+      const rotation = building.rotation || 0
+      const cos = Math.cos(rotation)
+      const sin = Math.sin(rotation)
+      const origin = building.position || { x: 0, z: 0 }
+      const worldPoints = points.map(point => ({
+        x: origin.x + point.x * cos - point.z * sin,
+        z: origin.z + point.x * sin + point.z * cos,
+      }))
+      const xs = worldPoints.map(point => point.x)
+      const zs = worldPoints.map(point => point.z)
+      const minX = Math.min(...xs)
+      const maxX = Math.max(...xs)
+      const minZ = Math.min(...zs)
+      const maxZ = Math.max(...zs)
+
+      return {
+        minX,
+        maxX,
+        minZ,
+        maxZ,
+        width: maxX - minX,
+        length: maxZ - minZ,
+        center: { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 },
+      }
+    }
+
+    const getAxisAlignedBounds = (position, width, length) => ({
+      minX: position.x - width / 2,
+      maxX: position.x + width / 2,
+      minZ: position.z - length / 2,
+      maxZ: position.z + length / 2,
+    })
+
+    const boundsOverlap = (a, b, gap = 0) => (
+      a.minX - gap < b.maxX &&
+      a.maxX + gap > b.minX &&
+      a.minZ - gap < b.maxZ &&
+      a.maxZ + gap > b.minZ
+    )
+
+    const findComparisonPlacementAroundGeneratedBuilding = (comparisonId, targetBuildingId = null, requestedTargetSource = null) => {
+      const comparison = COMPARISON_OBJECTS.find(obj => obj.id === comparisonId)
+      if (!comparison) return null
+
+      const target = resolveGeneratedBuildingTarget(targetBuildingId)
+      if (!target.building) {
+        return {
+          ok: true,
+          placementMode: 'around_generated_building',
+          placementStatus: 'default',
+          reason: 'missing_generated_building',
+        }
+      }
+
+      const buildingBounds = getGeneratedBuildingFootprintBounds(target.building)
+      const targetSource = requestedTargetSource || target.targetSource
+      const targetLabel = getGeneratedBuildingTargetCopy({ ...target, targetSource })
+      if (!buildingBounds) {
+        return {
+          ok: true,
+          placementMode: 'around_generated_building',
+          placementStatus: 'default',
+          reason: 'missing_generated_building_bounds',
+          buildingId: target.building.id,
+          targetSource,
+          targetLabel,
+        }
+      }
+
+      const gap = 2
+      const candidates = [
+        {
+          direction: 'right',
+          position: {
+            x: buildingBounds.maxX + comparison.width / 2 + gap,
+            z: buildingBounds.center.z,
+          },
+        },
+        {
+          direction: 'left',
+          position: {
+            x: buildingBounds.minX - comparison.width / 2 - gap,
+            z: buildingBounds.center.z,
+          },
+        },
+        {
+          direction: 'behind',
+          position: {
+            x: buildingBounds.center.x,
+            z: buildingBounds.maxZ + comparison.length / 2 + gap,
+          },
+        },
+        {
+          direction: 'front',
+          position: {
+            x: buildingBounds.center.x,
+            z: buildingBounds.minZ - comparison.length / 2 - gap,
+          },
+        },
+      ]
+      const polygon = getLandPolygon()
+      const setback = setbacksEnabled ? setbackDistanceM : 0
+      const comparisonFootprint = { width: comparison.width, length: comparison.length }
+
+      for (const candidate of candidates) {
+        if (!isPlacementValid(candidate.position, comparisonFootprint, 0, polygon, setback)) continue
+        const comparisonBounds = getAxisAlignedBounds(candidate.position, comparison.width, comparison.length)
+        if (boundsOverlap(buildingBounds, comparisonBounds, 0.05)) continue
+
+        return {
+          ok: true,
+          placementMode: 'around_generated_building',
+          placementStatus: 'placed',
+          comparisonId,
+          buildingId: target.building.id,
+          targetSource,
+          generatedBuildingCount: target.generatedBuildingCount,
+          targetLabel,
+          direction: candidate.direction,
+          position: {
+            x: Number(candidate.position.x.toFixed(2)),
+            z: Number(candidate.position.z.toFixed(2)),
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        placementMode: 'around_generated_building',
+        placementStatus: 'default',
+        reason: 'no_nearby_spot',
+        comparisonId,
+        buildingId: target.building.id,
+        targetSource,
+        generatedBuildingCount: target.generatedBuildingCount,
+        targetLabel,
+      }
+    }
+
+    const explodeGeneratedBuilding = (building) => {
+      const { newWalls, newFurniture } = buildExplodedGeneratedBuildingParts(building)
+      pushWallsState([...walls, ...newWalls])
+      if (newFurniture.length > 0) {
+        setFurnitureItems(prev => [...prev, ...newFurniture])
+      }
+      setBuildings(prev => prev.filter(b => b.id !== building.id))
+      setSelectedBuildingId(prev => prev === building.id ? null : prev)
+      showToast(`Exploded building into ${newWalls.length} walls and ${newFurniture.length} furniture items`, 3000)
+      return { wallCount: newWalls.length, furnitureCount: newFurniture.length }
+    }
+
+    if (action.type === 'set_land_dimensions') {
+      handleAgentLandDimensionsUpdated(action)
+      return true
+    }
+
+    if (action.type === 'review_site_boundary') {
+      setShowAIChat(false)
+      setShowOverflow(false)
+      setShowMobileViewControls(false)
+      setActivePanel('land')
+      setUndoRedoToast(action.toast || 'Site plan prepared • review boundary in Land tools')
+      return { ok: true }
+    }
+
+    if (
+      action.type === 'select_generated_building' ||
+      action.type === 'rotate_selected_generated_building' ||
+      action.type === 'explode_selected_generated_building' ||
+      action.type === 'deselect_selected_generated_building'
+    ) {
+      const target = resolveGeneratedBuildingTarget(action.buildingId || null)
+      if (!target.building) {
+        return {
+          ok: false,
+          reason: 'missing_generated_building',
+          message: 'No uploaded floor-plan building is placed yet.',
+          generatedBuildingCount: 0,
+        }
+      }
+
+      const targetCopy = getGeneratedBuildingTargetCopy(target)
+      const latestCopy = target.targetSource === 'latest' && target.generatedBuildingCount > 1
+        ? ` There are ${target.generatedBuildingCount}; I used the latest placed one.`
+        : ''
+
+      if (action.type === 'select_generated_building') {
+        setSelectedBuildingId(target.building.id)
+        setActivePanel('build')
+        setUndoRedoToast(action.toast || 'Floor-plan building selected')
+        return {
+          ok: true,
+          buildingId: target.building.id,
+          targetSource: target.targetSource,
+          generatedBuildingCount: target.generatedBuildingCount,
+          message: `Done. I selected ${targetCopy}.${latestCopy}`,
+          toast: 'Floor-plan building selected',
+        }
+      }
+
+      if (action.type === 'rotate_selected_generated_building') {
+        const degrees = Number.isFinite(action.degrees) ? action.degrees : 90
+        const angle = (degrees * Math.PI) / 180
+        setBuildings(prev => prev.map(building =>
+          building.id === target.building.id
+            ? { ...building, rotation: (building.rotation || 0) + angle }
+            : building
+        ))
+        setSelectedBuildingId(target.building.id)
+        setActivePanel('build')
+        setUndoRedoToast(action.toast || 'Floor-plan building rotated')
+        return {
+          ok: true,
+          buildingId: target.building.id,
+          targetSource: target.targetSource,
+          generatedBuildingCount: target.generatedBuildingCount,
+          message: `Done. I rotated ${targetCopy} ${Math.abs(degrees)} degrees.${latestCopy}`,
+          toast: 'Floor-plan building rotated',
+        }
+      }
+
+      if (action.type === 'explode_selected_generated_building') {
+        explodeGeneratedBuilding(target.building)
+        setActivePanel('build')
+        setUndoRedoToast(action.toast || 'Building made editable')
+        return {
+          ok: true,
+          buildingId: target.building.id,
+          targetSource: target.targetSource,
+          generatedBuildingCount: target.generatedBuildingCount,
+          message: `Done. I turned ${targetCopy} into editable walls.${latestCopy}`,
+          toast: 'Building made editable',
+        }
+      }
+
+      selectedGeneratedBuildingActionsRef.current.deselect?.()
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Building deselected')
+      return {
+        ok: true,
+        buildingId: target.building.id,
+        targetSource: target.targetSource,
+        generatedBuildingCount: target.generatedBuildingCount,
+        message: `Done. I deselected ${targetCopy}.${latestCopy}`,
+        toast: 'Building deselected',
+      }
+    }
+
+    if (action.type === 'activate_comparison' && action.comparisonId) {
+      const placementResult = action.placementMode === 'around_generated_building'
+        ? findComparisonPlacementAroundGeneratedBuilding(action.comparisonId, action.targetBuildingId || action.buildingId || null, action.targetSource || null)
+        : null
+
+      if (placementResult?.placementStatus === 'placed' && placementResult.position) {
+        setComparisonPositions(prev => ({
+          ...prev,
+          [action.comparisonId]: placementResult.position,
+        }))
+        setComparisonRotations(prev => ({
+          ...prev,
+          [action.comparisonId]: 0,
+        }))
+      }
+
+      setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: true }))
+      setSelectedComparisonId(action.comparisonId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${getComparisonName(action.comparisonId)} added`)
+      return placementResult || { ok: true, comparisonId: action.comparisonId }
+    }
+
+    if (action.type === 'remove_comparison' && action.comparisonId) {
+      setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: false }))
+      resetComparisonTransform(action.comparisonId)
+      setSelectedComparisonId(prev => prev === action.comparisonId ? null : prev)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${getComparisonName(action.comparisonId)} removed`)
+      return true
+    }
+
+    if (action.type === 'replace_comparison' && action.fromComparisonId && action.toComparisonId) {
+      setActiveComparisons(prev => ({
+        ...prev,
+        [action.fromComparisonId]: false,
+        [action.toComparisonId]: true,
+      }))
+      resetComparisonTransform(action.fromComparisonId)
+      resetComparisonTransform(action.toComparisonId)
+      setSelectedComparisonId(action.toComparisonId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${getComparisonName(action.toComparisonId)} added`)
+      return true
+    }
+
+    if (action.type === 'clear_comparisons') {
+      setActiveComparisons({})
+      setComparisonPositions({})
+      setComparisonRotations({})
+      setSelectedComparisonId(null)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Comparison objects cleared')
+      return true
+    }
+
+    if (action.type === 'reset_comparison_transform' && action.comparisonId) {
+      resetComparisonTransform(action.comparisonId)
+      setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: true }))
+      setSelectedComparisonId(action.comparisonId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${getComparisonName(action.comparisonId)} reset`)
+      return true
+    }
+
+    if (action.type === 'reset_all_comparison_transforms') {
+      setComparisonPositions({})
+      setComparisonRotations({})
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Comparison objects reset')
+      return true
+    }
+
+    if (action.type === 'place_structure_layout' && (Array.isArray(action.structures) || Array.isArray(action.structureIds))) {
+      const requestedStructures = normalizeRequestedStructures()
+      const baseBuildings = action.replaceAgentStructures
+        ? placedBuildings.filter(building => building.source !== 'agent')
+        : placedBuildings
+      const { nextBuildings, placed, skipped } = buildAgentStructureLayout(
+        requestedStructures,
+        baseBuildings,
+        action.layoutVariant || 'default'
+      )
+
+      if (placed.length === 0) {
+        return { ok: false, placed, skipped }
+      }
+
+      pushAgentStructureHistory()
+      setPlacedBuildings(nextBuildings)
+      if (placedBuildings.length === 0) {
+        trackFirstBuildingPlaced(placed[0].structureId)
+      }
+      const { coveragePercent } = computeCoverage(nextBuildings, area)
+      trackCoverageThreshold(coveragePercent)
+      setSelectedBuilding(null)
+      setSelectedPlacedBuildingId(placed[placed.length - 1].buildingId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Starter layout placed')
+      lastAgentLayoutRequestRef.current = requestedStructures.map(structure => ({ ...structure }))
+      lastAgentLayoutVariantRef.current = action.layoutVariant || 'default'
+      return { ok: true, placed, skipped, layoutVariant: action.layoutVariant || 'default' }
+    }
+
+    if (action.type === 'undo_agent_structure_change') {
+      const snapshot = agentStructureHistoryRef.current[agentStructureHistoryRef.current.length - 1]
+      if (!snapshot) {
+        return {
+          ok: false,
+          reason: 'empty_history',
+          message: 'There is no agent layout change to undo yet.',
+        }
+      }
+
+      agentStructureHistoryRef.current = agentStructureHistoryRef.current.slice(0, -1)
+      const restoredAgentStructures = snapshot.map(cloneAgentStructure)
+      const restoredIds = new Set(restoredAgentStructures.map(building => building.id))
+      setPlacedBuildings(prev => [
+        ...prev.filter(building => building.source !== 'agent'),
+        ...restoredAgentStructures,
+      ])
+      setSelectedPlacedBuildingId(prev =>
+        restoredIds.has(prev) ? prev : (restoredAgentStructures[restoredAgentStructures.length - 1]?.id || null)
+      )
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Agent change undone')
+      return { ok: true, restoredCount: restoredAgentStructures.length }
+    }
+
+    if (action.type === 'retry_structure_layout') {
+      const requestedStructures = lastAgentLayoutRequestRef.current
+      if (!Array.isArray(requestedStructures) || requestedStructures.length === 0) {
+        return {
+          ok: false,
+          reason: 'no_last_layout',
+          message: 'I do not have a recent agent layout to retry yet.',
+        }
+      }
+
+      const nextVariant = lastAgentLayoutVariantRef.current === AGENT_RETRY_LAYOUT_VARIANT
+        ? 'default'
+        : AGENT_RETRY_LAYOUT_VARIANT
+      const baseBuildings = placedBuildings.filter(building => building.source !== 'agent')
+      const { nextBuildings, placed, skipped } = buildAgentStructureLayout(
+        requestedStructures,
+        baseBuildings,
+        nextVariant
+      )
+
+      if (placed.length === 0) {
+        return {
+          ok: false,
+          placed,
+          skipped,
+          reason: 'no_safe_spot',
+          message: 'I tried another layout, but no safe alternate placement was available.',
+        }
+      }
+
+      pushAgentStructureHistory()
+      setPlacedBuildings(nextBuildings)
+      const { coveragePercent } = computeCoverage(nextBuildings, area)
+      trackCoverageThreshold(coveragePercent)
+      setSelectedBuilding(null)
+      setSelectedPlacedBuildingId(placed[placed.length - 1].buildingId)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Tried another layout')
+      lastAgentLayoutVariantRef.current = nextVariant
+      return { ok: true, placed, skipped, layoutVariant: nextVariant }
+    }
+
+    if (action.type === 'place_structure' && action.structureId) {
+      const buildingType = BUILDING_TYPES.find(building => building.id === action.structureId)
+      if (!buildingType) return { ok: false, reason: 'unknown_structure' }
+
+      const placement = findStructurePlacement(buildingType)
+      if (!placement) return { ok: false, reason: 'no_safe_spot' }
+
+      const newBuilding = createAgentBuilding(buildingType, placement)
+
+      pushAgentStructureHistory()
+      setPlacedBuildings(prev => {
+        const next = [...prev, newBuilding]
+        if (prev.length === 0) {
+          trackFirstBuildingPlaced(buildingType.id)
+        }
+        const { coveragePercent } = computeCoverage(next, area)
+        trackCoverageThreshold(coveragePercent)
+        return next
+      })
+      setSelectedBuilding(null)
+      setSelectedPlacedBuildingId(newBuilding.id)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${buildingType.name} placed`)
+      return { ok: true, buildingId: newBuilding.id, position: placement.position, rotationY: placement.rotationY }
+    }
+
+    if (action.type === 'move_structure') {
+      const target = resolveAgentStructureTarget(action.structureId)
+      if (!target.ok) return { ok: false, ...target }
+
+      let reference = null
+      if (action.referenceStructureId) {
+        const resolvedReference = resolveAgentStructureTarget(action.referenceStructureId, new Set([target.building.id]))
+        if (!resolvedReference.ok) return { ok: false, ...resolvedReference }
+        reference = resolvedReference.building
+      }
+
+      const nextPosition = getRelativeStructurePosition(target.building, action.direction, action.distanceM, reference)
+      const validation = validateStructureCandidate(
+        target.building,
+        nextPosition,
+        target.building.type,
+        target.building.rotationY || 0,
+        { snapPosition: true }
+      )
+      if (!validation.ok) return { ok: false, ...validation, name: getStructureName(target.building.type) }
+
+      pushAgentStructureHistory()
+      setPlacedBuildings(prev => prev.map(building =>
+        building.id === target.building.id ? { ...building, position: validation.position } : building
+      ))
+      setSelectedPlacedBuildingId(target.building.id)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${target.building.type.name} moved`)
+      return { ok: true, name: getStructureName(target.building.type), position: validation.position }
+    }
+
+    if (action.type === 'rotate_structure') {
+      const target = resolveAgentStructureTarget(action.structureId)
+      if (!target.ok) return { ok: false, ...target }
+
+      const nextRotation = snapRotation((target.building.rotationY || 0) + (action.degrees || 90))
+      const validation = validateStructureCandidate(
+        target.building,
+        target.building.position,
+        target.building.type,
+        nextRotation
+      )
+      if (!validation.ok) return { ok: false, ...validation, name: getStructureName(target.building.type) }
+
+      pushAgentStructureHistory()
+      setPlacedBuildings(prev => prev.map(building =>
+        building.id === target.building.id ? { ...building, rotationY: nextRotation } : building
+      ))
+      setSelectedPlacedBuildingId(target.building.id)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${target.building.type.name} rotated`)
+      return { ok: true, name: getStructureName(target.building.type), rotationY: nextRotation }
+    }
+
+    if ((action.type === 'resize_structure' || action.type === 'replace_structure') && action.replacementStructureId) {
+      const target = resolveAgentStructureTarget(action.structureId)
+      if (!target.ok) return { ok: false, ...target }
+
+      const replacementType = BUILDING_TYPES.find(building => building.id === action.replacementStructureId)
+      if (!replacementType) {
+        return { ok: false, reason: 'unknown_structure', message: 'I do not know that replacement structure yet.' }
+      }
+
+      const oldName = getStructureName(target.building.type)
+      const newName = getStructureName(replacementType)
+      const validation = validateStructureCandidate(
+        target.building,
+        target.building.position,
+        replacementType,
+        target.building.rotationY || 0
+      )
+      if (!validation.ok) return { ok: false, ...validation, oldName, newName }
+
+      const nextBuildings = placedBuildings.map(building =>
+        building.id === target.building.id ? { ...building, type: replacementType } : building
+      )
+      pushAgentStructureHistory()
+      setPlacedBuildings(nextBuildings)
+      const { coveragePercent } = computeCoverage(nextBuildings, area)
+      trackCoverageThreshold(coveragePercent)
+      setSelectedPlacedBuildingId(target.building.id)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${target.building.type.name} updated`)
+      return { ok: true, oldName, newName }
+    }
+
+    if (action.type === 'remove_structure' && action.structureId) {
+      const removed = placedBuildings.filter(building =>
+        building.source === 'agent' && building.type?.id === action.structureId
+      )
+      if (removed.length === 0) return { ok: false, removedCount: 0 }
+
+      const removedIds = new Set(removed.map(building => building.id))
+      pushAgentStructureHistory()
+      setPlacedBuildings(prev => prev.filter(building => !removedIds.has(building.id)))
+      setSelectedPlacedBuildingId(prev => removedIds.has(prev) ? null : prev)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || `${removed.length} structure${removed.length === 1 ? '' : 's'} removed`)
+      return { ok: true, removedCount: removed.length }
+    }
+
+    if (action.type === 'clear_structures') {
+      const removed = placedBuildings.filter(building => building.source === 'agent')
+      const removedIds = new Set(removed.map(building => building.id))
+      if (removed.length > 0) {
+        pushAgentStructureHistory()
+      }
+      setPlacedBuildings(prev => prev.filter(building => building.source !== 'agent'))
+      setSelectedPlacedBuildingId(prev => removedIds.has(prev) ? null : prev)
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Agent structures cleared')
+      return { ok: true, removedCount: removed.length }
+    }
+
+    return false
+  }, [
+    area,
+    confirmedPolygon,
+    dimensions.length,
+    dimensions.width,
+    gridSnapEnabled,
+    handleAgentLandDimensionsUpdated,
+    buildings,
+    placedBuildings,
+    pushWallsState,
+    resetComparisonTransform,
+    selectedBuildingId,
+    selectedPlacedBuildingId,
+    showToast,
+    snapEnabled,
+    setbackDistanceM,
+    setbacksEnabled,
+    shapeMode,
+    walls,
+  ])
+
+  const handleAgentVisualHandoff = useCallback((action = {}) => {
+    setShowAIChat(false)
+    setActivePanel(null)
+    setShowOverflow(false)
+    setShowMobileViewControls(false)
+    setViewMode('orbit')
+    setTimeout(() => setFitToLandTrigger(t => t + 1), 50)
+    if (action.toast) {
+      setUndoRedoToast(action.toast)
+    }
+  }, [])
+
+  // AI Chat hook
+  const aiChat = useAIChat({
+    addWallFromPoints, addFurniture, deleteFurniture, clearAllWalls,
+    setFurnitureItems, walls, rooms, furnitureItems, roomLabels, setRoomLabels,
+    onFloorPlanGenerated: handleFloorPlanGenerated,
+    onSitePlanUploaded: handleAgentSitePlanUploaded,
+    activateComparison: activateAgentComparison,
+    onVisualHandoff: handleAgentVisualHandoff,
+    onSceneControl: handleAgentSceneControl,
+    onLandDimensionsUpdated: handleAgentLandDimensionsUpdated,
+    isPaidUser,
+    markUploadUsed,
+    hasLand: userHasLand,
+    dimensions,
+    landArea: area,
+    shapeMode,
+    confirmedPolygon,
+    placedBuildings,
+    generatedBuildings: buildings,
+    selectedGeneratedBuildingId: selectedBuildingId,
+    activeComparisons,
+    setbacksEnabled,
+    setbackDistanceM,
+  })
+
   // Place the pending floor plan as a building
   const placeFloorPlanBuilding = useCallback((position) => {
     if (!pendingFloorPlan) return
+    const sourcePlan = buildFloorPlanSourcePlanMetadata(pendingFloorPlan)
 
     const newBuilding = {
-      id: `building-${Date.now()}`,
+      id: crypto.randomUUID(),
       position: { x: position.x, z: position.z },
       rotation: buildingPreviewRotation,
       walls: pendingFloorPlan.walls,
       rooms: pendingFloorPlan.rooms || [],
+      stairs: pendingFloorPlan.stairs || [],
       stats: pendingFloorPlan.stats,
+      ...(sourcePlan ? { sourcePlan } : {}),
     }
 
     setBuildings(prev => [...prev, newBuilding])
     setPendingFloorPlan(null)
     setFloorPlanPlacementMode(false)
-    setUndoRedoToast(`Placed building with ${newBuilding.stats.wallCount} walls`)
-    setTimeout(() => setUndoRedoToast(null), 3000)
+    showToast(`Placed building with ${newBuilding.stats.wallCount} walls`, 3000)
   }, [pendingFloorPlan, buildingPreviewRotation])
 
   // Cancel floor plan placement
@@ -2056,12 +3300,12 @@ function App() {
   }, [])
 
   // Rotate building preview (or selected building)
-  const rotateBuildingPreview = useCallback((angle = Math.PI / 2) => {
-    if (floorPlanPlacementMode) {
+  const rotateBuildingPreview = useCallback((angle = Math.PI / 2, targetBuildingId = selectedBuildingId) => {
+    if (floorPlanPlacementMode && !targetBuildingId) {
       setBuildingPreviewRotation(prev => prev + angle)
-    } else if (selectedBuildingId) {
+    } else if (targetBuildingId) {
       setBuildings(prev => prev.map(b =>
-        b.id === selectedBuildingId
+        b.id === targetBuildingId
           ? { ...b, rotation: (b.rotation || 0) + angle }
           : b
       ))
@@ -2078,12 +3322,39 @@ function App() {
     ))
   }, [selectedBuildingId])
 
-  // Delete selected building
+  // Delete selected building (with confirmation)
   const deleteSelectedBuilding = useCallback(() => {
     if (!selectedBuildingId) return
+    if (!window.confirm('Delete this building? This cannot be undone.')) return
     setBuildings(prev => prev.filter(b => b.id !== selectedBuildingId))
     setSelectedBuildingId(null)
   }, [selectedBuildingId])
+
+  // Explode building into individual walls + furniture
+  const explodeSelectedBuilding = useCallback((targetBuildingId = selectedBuildingId) => {
+    if (!targetBuildingId) return
+    const building = buildings.find(b => b.id === targetBuildingId)
+    if (!building) return
+
+    const { newWalls, newFurniture } = buildExplodedGeneratedBuildingParts(building)
+    pushWallsState([...walls, ...newWalls])
+    if (newFurniture.length > 0) {
+      setFurnitureItems(prev => [...prev, ...newFurniture])
+    }
+
+    // Remove the building
+    setBuildings(prev => prev.filter(b => b.id !== targetBuildingId))
+    setSelectedBuildingId(prev => prev === targetBuildingId ? null : prev)
+    showToast(`Exploded building into ${newWalls.length} walls and ${newFurniture.length} furniture items`, 3000)
+  }, [selectedBuildingId, buildings, walls, pushWallsState, setFurnitureItems])
+
+  useEffect(() => {
+    selectedGeneratedBuildingActionsRef.current = {
+      rotate: (buildingId) => rotateBuildingPreview(Math.PI / 2, buildingId),
+      explode: (buildingId) => explodeSelectedBuilding(buildingId),
+      deselect: () => setSelectedBuildingId(null),
+    }
+  }, [rotateBuildingPreview, explodeSelectedBuilding])
 
   // Rotate selected comparison object
   const rotateSelectedComparison = useCallback((angle = 90) => {
@@ -2216,32 +3487,27 @@ function App() {
         floorLevel: w.floorLevel,
       }))
       setClipboard({ type: 'room', data: { walls: wallData } })
-      setUndoRedoToast('Room copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Room copied', 1500)
     } else if (selectedPoolId) {
       const pool = pools.find(p => p.id === selectedPoolId)
       if (!pool) return
       setClipboard({ type: 'pool', data: { ...pool, points: pool.points.map(p => ({ ...p })), center: { ...pool.center } } })
-      setUndoRedoToast('Pool copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Pool copied', 1500)
     } else if (selectedFoundationId) {
       const found = foundations.find(f => f.id === selectedFoundationId)
       if (!found) return
       setClipboard({ type: 'foundation', data: { ...found, points: found.points.map(p => ({ ...p })), center: { ...found.center } } })
-      setUndoRedoToast('Platform copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Platform copied', 1500)
     } else if (selectedStairsId) {
       const stair = stairs.find(s => s.id === selectedStairsId)
       if (!stair) return
       setClipboard({ type: 'stairs', data: { ...stair, start: { ...stair.start }, end: { ...stair.end }, mid: stair.mid ? { ...stair.mid } : undefined, mid2: stair.mid2 ? { ...stair.mid2 } : undefined } })
-      setUndoRedoToast('Stairs copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Stairs copied', 1500)
     } else if (selectedFurnitureId) {
       const fItem = furnitureItems.find(f => f.id === selectedFurnitureId)
       if (!fItem) return
       setClipboard({ type: 'furniture', data: { ...fItem, position: { ...fItem.position } } })
-      setUndoRedoToast('Furniture copied')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Furniture copied', 1500)
     }
   }, [selectedRoomId, selectedPoolId, selectedFoundationId, selectedStairsId, selectedFurnitureId, rooms, pools, foundations, stairs, furnitureItems, walls])
 
@@ -2251,47 +3517,43 @@ function App() {
     const OFFSET = 2
 
     if (clipboard.type === 'room') {
-      const ts = Date.now()
       const newWalls = clipboard.data.walls.map((w, i) => ({
         ...w,
-        id: `wall-${ts}-${i}`,
+        id: crypto.randomUUID(),
         start: { x: w.start.x + OFFSET, z: w.start.z + OFFSET },
         end: { x: w.end.x + OFFSET, z: w.end.z + OFFSET },
-        openings: (w.openings || []).map(o => ({ ...o, id: `opening-${ts}-${i}-${Math.random().toString(36).slice(2, 6)}` })),
+        openings: (w.openings || []).map(o => ({ ...o, id: crypto.randomUUID() })),
       }))
       pushWallsState([...walls, ...newWalls])
-      setUndoRedoToast('Room pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Room pasted', 1500)
     } else if (clipboard.type === 'pool') {
       const d = clipboard.data
       const newPool = {
         ...d,
-        id: `pool-${Date.now()}`,
+        id: crypto.randomUUID(),
         points: d.points.map(p => ({ x: p.x + OFFSET, z: p.z + OFFSET })),
         center: { x: d.center.x + OFFSET, z: d.center.z + OFFSET },
       }
       setPools(prev => [...prev, newPool])
       setSelectedPoolId(newPool.id)
-      setUndoRedoToast('Pool pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Pool pasted', 1500)
     } else if (clipboard.type === 'foundation') {
       const d = clipboard.data
       const newFoundation = {
         ...d,
-        id: `foundation-${Date.now()}`,
+        id: crypto.randomUUID(),
         points: d.points.map(p => ({ x: p.x + OFFSET, z: p.z + OFFSET })),
         center: { x: d.center.x + OFFSET, z: d.center.z + OFFSET },
       }
       setFoundations(prev => [...prev, newFoundation])
       setSelectedFoundationId(newFoundation.id)
-      setUndoRedoToast('Platform pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Platform pasted', 1500)
     } else if (clipboard.type === 'stairs') {
       const d = clipboard.data
       const offsetPt = (p) => p ? { x: p.x + OFFSET, z: p.z + OFFSET } : undefined
       const newStairs = {
         ...d,
-        id: `stairs-${Date.now()}`,
+        id: crypto.randomUUID(),
         start: offsetPt(d.start),
         end: offsetPt(d.end),
         mid: offsetPt(d.mid),
@@ -2299,19 +3561,17 @@ function App() {
       }
       setStairs(prev => [...prev, newStairs])
       setSelectedStairsId(newStairs.id)
-      setUndoRedoToast('Stairs pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Stairs pasted', 1500)
     } else if (clipboard.type === 'furniture') {
       const d = clipboard.data
       const newFurniture = {
         ...d,
-        id: `furniture-${Date.now()}`,
+        id: crypto.randomUUID(),
         position: { x: d.position.x + OFFSET, z: d.position.z + OFFSET },
       }
       setFurnitureItems(prev => [...prev, newFurniture])
       setSelectedFurnitureId(newFurniture.id)
-      setUndoRedoToast('Furniture pasted')
-      setTimeout(() => setUndoRedoToast(null), 1500)
+      showToast('Furniture pasted', 1500)
     }
   }, [clipboard, walls, pushWallsState])
 
@@ -2432,6 +3692,13 @@ function App() {
       // Ignore if typing in an input (except Escape which should blur first)
       if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.key !== 'Escape') return
 
+      // E to explode selected building
+      if ((e.key === 'e' || e.key === 'E') && selectedBuildingId) {
+        e.preventDefault()
+        explodeSelectedBuilding()
+        return
+      }
+
       // R to rotate (90 degrees)
       if (e.key === 'r' || e.key === 'R') {
         if (floorPlanPlacementMode || selectedBuildingId) {
@@ -2519,12 +3786,12 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, selectedFurnitureId, furnitureItems, updateFurniture, activeBuildTool, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom, activePanel])
+  }, [floorPlanPlacementMode, selectedBuildingId, selectedComparisonId, selectedRoomId, selectedFurnitureId, furnitureItems, updateFurniture, activeBuildTool, rotateBuildingPreview, rotateSelectedComparison, rotateSelectedRoom, cancelFloorPlanPlacement, deleteSelectedBuilding, explodeSelectedBuilding, deleteSelectedComparison, deleteSelectedRoom, activePanel])
 
   // Show toast when building, comparison, room, pool, foundation, stairs, or roof is selected
   useEffect(() => {
     if (selectedBuildingId) {
-      setUndoRedoToast('Building selected • Drag to move • R to rotate • ESC to deselect • Del to delete')
+      setUndoRedoToast('building_selected')
     } else if (selectedComparisonId) {
       setUndoRedoToast('Object selected • Drag to move • R to rotate • ESC to deselect • Del to remove')
     } else if (selectedRoomId) {
@@ -2580,7 +3847,7 @@ function App() {
     }
 
     const newBuilding = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       type: buildingType,
       position: snappedPos,
       rotationY: finalRotation
@@ -2655,6 +3922,9 @@ function App() {
 
   // Get selected building type for preview
   const selectedBuildingType = selectedBuilding ? BUILDING_TYPES.find(b => b.id === selectedBuilding) : null
+  const selectedGeneratedBuilding = useMemo(() => (
+    selectedBuildingId ? buildings.find(building => building.id === selectedBuildingId) || null : null
+  ), [buildings, selectedBuildingId])
 
   // Load saved state on mount
   useEffect(() => {
@@ -2670,6 +3940,7 @@ function App() {
         if (data.polygonPoints) setPolygonPoints(data.polygonPoints)
         if (data.confirmedPolygon) setConfirmedPolygon(data.confirmedPolygon)
         if (data.placedBuildings) setPlacedBuildings(data.placedBuildings)
+        if (data.generatedBuildings) setBuildings(data.generatedBuildings)
         if (data.activeComparisons) setActiveComparisons(data.activeComparisons)
         // Load walls with validation (backward compatible)
         if (data.walls && Array.isArray(data.walls)) {
@@ -2696,27 +3967,17 @@ function App() {
   }, [])
 
   const handleSave = () => {
-    // Always save to localStorage
-    const data = {
-      dimensions,
-      shapeMode,
-      polygonPoints,
-      confirmedPolygon,
-      placedBuildings,
-      activeComparisons,
-      walls
-    }
-    localStorage.setItem('landVisualizer', JSON.stringify(data))
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus(null), 2000)
-
-    // Also save to cloud if logged in
-    if (user) {
-      saveProjectToCloud()
-    } else {
-      // Prompt sign in for cloud save
+    if (!user) {
+      sessionStorage.setItem(PENDING_SAVE_AFTER_AUTH_KEY, 'true')
+      sessionStorage.setItem(PENDING_SAVE_PAYLOAD_KEY, JSON.stringify(buildCurrentPayload()))
+      setPendingSaveAfterAuth(true)
+      setSaveStatus(null)
+      setProjectSaveStatus('auth')
       setShowAuthModal(true)
+      return
     }
+
+    saveProjectToCloud()
   }
 
   const handleClearSaved = () => {
@@ -2728,6 +3989,7 @@ function App() {
     setPolygonPoints([])
     setConfirmedPolygon(null)
     setPlacedBuildings([])
+    setBuildings([])
     setActiveComparisons({})
     clearWallsHistory([])
   }
@@ -2805,7 +4067,7 @@ function App() {
         wallCount: walls.length,
         roomCount: rooms.length,
         landArea: area,
-        buildingArea: computeCoverage(placedBuildings, area).coverageAreaM2,
+        buildingArea: coverage.coverageAreaM2,
         landPoints: currentPolygon || [],
         walls,
         rooms,
@@ -2882,6 +4144,8 @@ function App() {
   const handleShare = async () => {
     // Analytics: track share clicked
     track('share_clicked', {})
+    setShareExpiryMessage(null)
+    setShareUrl(null)
 
     if (!isSupabaseConfigured()) {
       setShareStatus('error')
@@ -2909,14 +4173,18 @@ function App() {
       roomLabels,
       roomStyles,
       comparisonPositions,
-      comparisonRotations
+      comparisonRotations,
+      generatedBuildings: buildings
     })
 
     const result = await createSharedScene(payload)
 
     if (result.error) {
       setShareStatus('error')
-      setTimeout(() => setShareStatus(null), 3000)
+      setTimeout(() => {
+        setShareStatus(null)
+        setShareUrl(null)
+      }, 3000)
       return
     }
 
@@ -2925,15 +4193,29 @@ function App() {
 
     // Build share URL and copy to clipboard
     const shareUrl = `${window.location.origin}/s/${result.id}`
+    const expiryMessage = formatShareExpiration(result.expiresAt)
+    setShareUrl(shareUrl)
     try {
-      await navigator.clipboard.writeText(shareUrl)
+      const copied = await copyTextToClipboard(shareUrl)
+      if (!copied) throw new Error('Clipboard copy failed')
+      setShareExpiryMessage(expiryMessage)
       setShareStatus('copied')
-      setTimeout(() => setShareStatus(null), 3000)
+      showToast(`Share link copied • ${expiryMessage}`, 4000)
+      setTimeout(() => {
+        setShareStatus(null)
+        setShareExpiryMessage(null)
+        setShareUrl(null)
+      }, 5000)
     } catch (err) {
-      // Fallback for older browsers
-      console.error('Clipboard write failed:', err)
-      setShareStatus('error')
-      setTimeout(() => setShareStatus(null), 3000)
+      console.warn('Clipboard write failed:', err)
+      setShareExpiryMessage(expiryMessage)
+      setShareStatus('ready')
+      showToast(`Share link ready • ${expiryMessage} • ${shareUrl}`, 8000)
+      setTimeout(() => {
+        setShareStatus(null)
+        setShareExpiryMessage(null)
+        setShareUrl(null)
+      }, 10000)
     }
   }
 
@@ -2999,28 +4281,6 @@ function App() {
   }
 
   // Start land definition flow
-  // Landing hero handler — goes to reveal step
-  const handleLandingExplore = ({ sizeM2, unit }) => {
-    setRevealData({ sizeM2, unit: unit || 'sqm' })
-    setLandingStep('reveal')
-  }
-
-  // PlotReveal → 3D designer handoff
-  const handleRevealTo3D = () => {
-    const sizeM2 = revealData?.sizeM2 || 800
-    const side = Math.sqrt(sizeM2)
-    setDimensions({ length: side, width: side })
-    setShapeMode('rectangle')
-    setConfirmedPolygon(null)
-    setUserHasLand(true)
-    setLandingStep(null)
-    setViewMode('firstPerson')
-    setHasSeenIntro(true)
-    localStorage.setItem('landVisualizerIntroSeen', 'true')
-    localStorage.setItem('fsmCompleted', 'true')
-    setActiveComparisons({ 'basketball-court': true, 'tennis-court': true })
-  }
-
   const startDefiningLand = () => {
     // Analytics: track define land clicked
     const mode = isReadOnly ? 'shared' : (userHasLand ? 'user' : 'example')
@@ -3112,11 +4372,11 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
             </svg>
           </div>
-          <div className="text-[var(--color-text-primary)] font-display text-xl font-semibold mb-2">Scene not found</div>
+          <div className="text-[var(--color-text-primary)] font-display text-xl font-semibold mb-2">{shareErrorTitle || 'Shared link unavailable'}</div>
           <div className="text-[var(--color-text-secondary)] text-sm mb-6">{shareError}</div>
           <button
             onClick={() => { setShareError(null); window.location.href = '/' }}
-            className="btn-primary"
+            className="sitea-btn sitea-btn-primary"
           >
             Go to Home
           </button>
@@ -3133,11 +4393,14 @@ function App() {
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
             <span className="text-[var(--color-text-primary)] text-sm font-medium">Shared layout</span>
-            <span className="text-[var(--color-text-muted)] text-xs">view-only</span>
+            <span className="text-[var(--color-text-muted)] text-xs">
+              view-only{sharedSceneExpiryMessage ? ` • ${sharedSceneExpiryMessage}` : ''}
+            </span>
           </div>
           <button
             onClick={exitReadOnlyMode}
-            className="btn-primary text-sm py-1.5 px-4"
+            className="sitea-btn sitea-btn-primary"
+            style={{ minHeight: '40px', padding: '8px 16px' }}
           >
             Define Your Land
           </button>
@@ -3151,25 +4414,12 @@ function App() {
           onCancel={() => setIsDefiningLand(false)}
           onDetectedFloorPlan={(imageData) => {
             setIsDefiningLand(false)
-            setFloorPlanImageForGenerator(imageData)
+            setFloorPlanImageForGenerator({ image: imageData, scaleHint: null })
             setShowFloorPlanGenerator(true)
           }}
           lengthUnit={lengthUnit}
           setLengthUnit={setLengthUnit}
           isTouchDevice={isTouchDevice}
-        />
-      )}
-
-      {/* Landing flow: hero → reveal → 3D */}
-      {!userHasLand && !isReadOnly && guidedStep === 0 && landingStep === 'hero' && (
-        <LandingHero onExplore={handleLandingExplore} />
-      )}
-      {landingStep === 'reveal' && revealData && (
-        <PlotReveal
-          sizeM2={revealData.sizeM2}
-          unit={revealData.unit}
-          onDesign3D={handleRevealTo3D}
-          onBack={() => setLandingStep('hero')}
         />
       )}
 
@@ -3350,7 +4600,7 @@ function App() {
       </Suspense>
 
       {/* Minimap (hidden in 2D mode - redundant with top-down view) */}
-      {viewMode !== '2d' && !isGuidedMode && (
+      {viewMode !== '2d' && !isGuidedMode && !isMobileChatFocused && (
         <Minimap
           landWidth={dimensions.width}
           landLength={dimensions.length}
@@ -3377,10 +4627,10 @@ function App() {
       )}
 
       {/* Mobile joystick - positioned above ribbon */}
-      {isTouchDevice && <VirtualJoystick joystickInput={joystickInput} isRunning={isMobileRunning} setIsRunning={setIsMobileRunning} onJump={() => setMobileJumpTrigger(t => t + 1)} onTalk={() => window.dispatchEvent(new Event('mobileTalk'))} onUse={() => window.dispatchEvent(new Event('mobileUse'))} nearbyNPC={nearbyNPC} nearbyBuilding={nearbyBuilding} isLandscape={isLandscape} />}
+      {isTouchDevice && !isMobileChatFocused && <VirtualJoystick joystickInput={joystickInput} isRunning={isMobileRunning} setIsRunning={setIsMobileRunning} onJump={() => setMobileJumpTrigger(t => t + 1)} onTalk={() => window.dispatchEvent(new Event('mobileTalk'))} onUse={() => window.dispatchEvent(new Event('mobileUse'))} nearbyNPC={nearbyNPC} nearbyBuilding={nearbyBuilding} isLandscape={isLandscape} />}
 
       {/* Backdrop overlay when panel is open */}
-      {activePanel && (
+      {activePanel && !isMobileChatFocused && (
         <div
           className="fixed inset-0 z-40"
           onClick={() => setActivePanel(null)}
@@ -3389,7 +4639,7 @@ function App() {
 
       {/* Canva-style Compare sidebar - full height */}
       <div
-        className={`build-sidebar ${activePanel === 'compare' ? 'open' : 'closed'}`}
+        className={`build-sidebar ${!isMobileChatFocused && activePanel === 'compare' ? 'open' : 'closed'}`}
         style={{
           top: 0,
           bottom: isLandscape ? 0 : '56px',
@@ -3404,7 +4654,7 @@ function App() {
           lengthUnit={lengthUnit}
           onClosePanel={() => setActivePanel(null)}
           onExpandedChange={setPanelExpanded}
-          isActive={activePanel === 'compare'}
+          isActive={!isMobileChatFocused && activePanel === 'compare'}
           gridSnapEnabled={gridSnapEnabled}
           setGridSnapEnabled={setGridSnapEnabled}
           gridSize={gridSize}
@@ -3417,7 +4667,7 @@ function App() {
 
       {/* Land sidebar - separate from Build */}
       <div
-        className={`build-sidebar ${activePanel === 'land' ? 'open' : 'closed'}`}
+        className={`build-sidebar ${!isMobileChatFocused && activePanel === 'land' ? 'open' : 'closed'}`}
         style={{
           top: 0,
           bottom: isLandscape ? 0 : '56px',
@@ -3438,10 +4688,10 @@ function App() {
           lengthUnit={lengthUnit}
           setLengthUnit={handleLengthUnitChange}
           onExpandedChange={setPanelExpanded}
-          isActive={activePanel === 'land'}
+          isActive={!isMobileChatFocused && activePanel === 'land'}
           onDetectedFloorPlan={(imageData) => {
             // Floor plan analysis - upload gating handled in modal
-            setFloorPlanImageForGenerator(imageData)
+            setFloorPlanImageForGenerator({ image: imageData, scaleHint: null })
             setShowFloorPlanGenerator(true)
           }}
         />
@@ -3449,7 +4699,7 @@ function App() {
 
       {/* Build sidebar - separate from Land */}
       <div
-        className={`build-sidebar ${activePanel === 'build' ? 'open' : 'closed'}`}
+        className={`build-sidebar ${!isMobileChatFocused && activePanel === 'build' ? 'open' : 'closed'}`}
         style={{
           top: 0,
           bottom: isLandscape ? 0 : '56px',
@@ -3474,8 +4724,8 @@ function App() {
           setGridSize={setGridSize}
           labels={labels}
           setLabels={setLabels}
-          coveragePercent={computeCoverage(placedBuildings, area).coveragePercent}
-          coverageAreaM2={computeCoverage(placedBuildings, area).coverageAreaM2}
+          coveragePercent={coverage.coveragePercent}
+          coverageAreaM2={coverage.coverageAreaM2}
           landArea={area}
           overlappingCount={overlappingBuildingIds.size}
           formatArea={formatArea}
@@ -3486,7 +4736,7 @@ function App() {
           polygon={currentPolygon}
           onClosePanel={() => setActivePanel(null)}
           onExpandedChange={setPanelExpanded}
-          isActive={activePanel === 'build'}
+          isActive={!isMobileChatFocused && activePanel === 'build'}
           walls={walls}
           wallDrawingMode={wallDrawingMode}
           setWallDrawingMode={setWallDrawingMode}
@@ -3532,7 +4782,7 @@ function App() {
           }}
           onOpenFloorPlanGenerator={(imageData) => {
             // Floor plan analysis - upload gating handled in modal
-            setFloorPlanImageForGenerator(imageData)
+            setFloorPlanImageForGenerator({ image: imageData, scaleHint: null })
             setShowFloorPlanGenerator(true)
           }}
           // Sims 4-style features
@@ -3580,12 +4830,17 @@ function App() {
           switchFloor={switchFloor}
           floorCountToAdd={floorCountToAdd}
           setFloorCountToAdd={setFloorCountToAdd}
+          selectedBuildingId={selectedBuildingId}
+          selectedFloorPlanSource={selectedGeneratedBuilding?.sourcePlan || null}
+          onExplodeBuilding={explodeSelectedBuilding}
+          onRotateSelectedBuilding={() => rotateBuildingPreview(Math.PI / 2)}
+          onClearSelectedBuilding={() => setSelectedBuildingId(null)}
         />
       </div>
 
       {/* Export sidebar */}
       <div
-        className={`build-sidebar ${activePanel === 'export' ? 'open' : 'closed'}`}
+        className={`build-sidebar ${!isMobileChatFocused && activePanel === 'export' ? 'open' : 'closed'}`}
         style={{
           top: 0,
           bottom: isLandscape ? 0 : '56px',
@@ -3599,7 +4854,7 @@ function App() {
           roomCount={rooms.length}
           hasLand={!!currentPolygon && currentPolygon.length >= 3}
           onExpandedChange={setPanelExpanded}
-          isActive={activePanel === 'export'}
+          isActive={!isMobileChatFocused && activePanel === 'export'}
           onScreenshot={handleScreenshot}
           isCapturing={isCapturing}
           viewMode={viewMode}
@@ -3608,7 +4863,7 @@ function App() {
           onPdfExport={handlePdfExport}
           isExportingPdf={isExportingPdf}
           landArea={area}
-          buildingArea={computeCoverage(placedBuildings, area).coverageAreaM2}
+          buildingArea={coverage.coverageAreaM2}
           onAiVisualize={handleAiVisualize}
           isGeneratingAI={isGeneratingAI}
           aiRenderResult={aiRenderResult}
@@ -3621,7 +4876,7 @@ function App() {
         isLandscape
           ? "fixed left-0 top-0 bottom-0 w-12 z-50 ribbon-nav landscape-nav flex flex-col"
           : "fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up safe-area-bottom"
-      } style={isGuidedMode ? { display: 'none' } : undefined}>
+      } style={isGuidedMode || isMobileChatFocused ? { display: 'none' } : undefined}>
         <div className={
           isLandscape
             ? "flex flex-col items-center justify-center gap-1 flex-1 py-2"
@@ -3665,15 +4920,19 @@ function App() {
             <span className="label">Build</span>
           </button>
 
-          <button
-            onClick={() => canEdit && handleSave()}
-            className={`ribbon-btn ${(saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'text-[var(--color-accent)]' : projectSaveStatus === 'saving' ? 'text-yellow-400' : projectSaveStatus === 'error' ? 'text-red-400' : ''}`}
-            disabled={!canEdit}
-            title={!canEdit ? 'View-only mode' : currentProjectId ? `Saving to "${currentProjectName}"` : 'Save your design'}
-          >
+            <button
+              onClick={() => canEdit && handleSave()}
+              className={`ribbon-btn ${(saveStatus === 'saved' || projectSaveStatus === 'saved' || projectSaveStatus === 'auth') ? 'text-[var(--color-accent)]' : projectSaveStatus === 'saving' ? 'text-[var(--color-warning)]' : projectSaveStatus === 'error' ? 'text-[var(--color-danger)]' : ''}`}
+              disabled={!canEdit}
+              title={!canEdit ? 'View-only mode' : !user ? 'Sign in to save your design' : currentProjectId ? `Saving to "${currentProjectName}"` : 'Save your design'}
+            >
             <span className="icon">
               {projectSaveStatus === 'saving' ? (
                 <div className="w-5 h-5 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+              ) : projectSaveStatus === 'auth' ? (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 00-9 0v3.75m-.75 11.25h10.5A2.25 2.25 0 0019.5 19.5v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
               ) : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -3684,7 +4943,7 @@ function App() {
                 </svg>
               )}
             </span>
-            <span className="label">{projectSaveStatus === 'saving' ? 'Saving...' : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'Saved' : 'Save'}</span>
+            <span className="label">{projectSaveStatus === 'auth' ? 'Sign in' : projectSaveStatus === 'saving' ? 'Saving...' : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'Saved' : 'Save'}</span>
           </button>
 
           {/* Desktop: show Export, Share, Help inline */}
@@ -3704,11 +4963,15 @@ function App() {
 
               <button
                 onClick={handleShare}
-                className={`ribbon-btn ${shareStatus === 'copied' ? 'text-[var(--color-accent)]' : shareStatus === 'error' ? 'text-red-400' : ''}`}
-                title={shareStatus === 'error' ? 'Sharing unavailable' : 'Copy share link'}
+                className={`ribbon-btn ${shareStatus === 'copied' || shareStatus === 'ready' ? 'text-[var(--color-accent)]' : shareStatus === 'error' ? 'text-[var(--color-danger)]' : ''}`}
+                title={shareStatus === 'error'
+                  ? 'Sharing unavailable'
+                  : shareStatus === 'ready' && shareUrl
+                    ? `Link ready: ${shareUrl} (${shareExpiryMessage})`
+                    : shareExpiryMessage || 'Copy share link - expires in 30 days'}
               >
                 <span className="icon">
-                  {shareStatus === 'copied' ? (
+                  {shareStatus === 'copied' || shareStatus === 'ready' ? (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
@@ -3718,7 +4981,7 @@ function App() {
                     </svg>
                   )}
                 </span>
-                <span className="label">{shareStatus === 'copied' ? 'Copied' : shareStatus === 'error' ? 'Error' : 'Share'}</span>
+                <span className="label">{shareStatus === 'copied' ? 'Copied' : shareStatus === 'ready' ? 'Ready' : shareStatus === 'error' ? 'Error' : 'Share'}</span>
               </button>
 
               <button
@@ -3752,7 +5015,7 @@ function App() {
               {!isPaidUser && (
                 <button
                   onClick={() => setShowPricingModal(true)}
-                  className="flex flex-col items-center justify-center w-16 h-full text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/5 transition-all flex-none"
+                  className="ribbon-btn ribbon-btn-pro"
                   title="Upgrade to Pro"
                 >
                   <svg className="w-5 h-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="#facc15" strokeWidth={1.5}>
@@ -3766,11 +5029,11 @@ function App() {
               <div className="relative flex-none w-16 flex items-center justify-center">
                 {user ? (
                   <>
-                    <button
-                      onClick={() => setShowUserMenu(!showUserMenu)}
-                      className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold text-sm hover:scale-110 transition-transform"
-                      title={user.email}
-                    >
+                      <button
+                        onClick={() => setShowUserMenu(!showUserMenu)}
+                        className="w-11 h-11 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold text-sm hover:scale-105 transition-transform"
+                        title={user.email}
+                      >
                       {(user.email?.[0] || '?').toUpperCase()}
                     </button>
                     {showUserMenu && (
@@ -3789,21 +5052,21 @@ function App() {
                               </div>
                             </div>
                           </div>
-                          {/* Plans & Pricing */}
-                          <button
-                            onClick={() => { setShowPricingModal(true); setShowUserMenu(false) }}
-                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
-                          >
+                            {/* Plans & Pricing */}
+                            <button
+                              onClick={() => { setShowPricingModal(true); setShowUserMenu(false) }}
+                              className="sitea-menu-row"
+                            >
                             <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
                             </svg>
                             <span>Plans & Pricing</span>
                           </button>
-                          {/* My Projects */}
-                          <button
-                            onClick={() => { setShowProjectsModal(true); setShowUserMenu(false) }}
-                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
-                          >
+                            {/* My Projects */}
+                            <button
+                              onClick={() => { setShowProjectsModal(true); setShowUserMenu(false) }}
+                              className="sitea-menu-row"
+                            >
                             <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                             </svg>
@@ -3811,10 +5074,10 @@ function App() {
                           </button>
                           {/* Log Out */}
                           <div className="border-t border-[var(--color-border)] my-1" />
-                          <button
-                            onClick={() => { signOut(); setShowUserMenu(false) }}
-                            className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-red-400"
-                          >
+                            <button
+                              onClick={() => { signOut(); setShowUserMenu(false) }}
+                              className="sitea-menu-row text-[var(--color-danger)]"
+                            >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                             </svg>
@@ -3825,11 +5088,11 @@ function App() {
                     )}
                   </>
                 ) : (
-                  <button
-                    onClick={() => setShowAuthModal(true)}
-                    className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-gray-400 hover:bg-white/20 hover:text-white transition-all"
-                    title="Sign In"
-                  >
+                    <button
+                      onClick={() => setShowAuthModal(true)}
+                      className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center text-gray-400 hover:bg-white/20 hover:text-white transition-all"
+                      title="Sign In"
+                    >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
@@ -3856,16 +5119,16 @@ function App() {
         </div>
       </div>
 
-      {/* Mobile overflow menu popup */}
-      {isMobile && showOverflow && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
-          <div className={`fixed bg-[var(--color-panel)] backdrop-blur-xl rounded-xl shadow-2xl border border-[var(--color-border)] py-2 min-w-[180px] z-50 animate-slide-in-bottom-2 ${
-            isLandscape ? 'left-14 bottom-4' : 'bottom-[72px] right-4'
-          }`}>
+        {/* Mobile overflow menu popup */}
+        {isMobile && showOverflow && !isMobileChatFocused && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
+            <div className={`fixed sitea-control-panel rounded-xl py-2 min-w-[180px] z-50 animate-slide-in-bottom-2 ${
+              isLandscape ? 'left-14 bottom-4' : 'bottom-[72px] right-4'
+            }`}>
             <button
               onClick={() => { togglePanel('export'); setShowOverflow(false) }}
-              className={`flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors ${activePanel === 'export' ? 'text-[var(--color-accent)]' : 'text-white'}`}
+              className={`sitea-menu-row ${activePanel === 'export' ? 'text-[var(--color-accent)]' : 'text-white'}`}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -3874,16 +5137,19 @@ function App() {
             </button>
             <button
               onClick={() => { handleShare(); setShowOverflow(false) }}
-              className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+              className="sitea-menu-row"
+              title={shareStatus === 'ready' && shareUrl
+                ? `Link ready: ${shareUrl} (${shareExpiryMessage})`
+                : shareExpiryMessage || 'Copy share link - expires in 30 days'}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
               </svg>
-              <span>Share</span>
+              <span>{shareStatus === 'copied' ? 'Copied' : shareStatus === 'ready' ? 'Ready' : 'Share'}</span>
             </button>
             <button
               onClick={() => { setShowHelp(true); setShowOverflow(false) }}
-              className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+              className="sitea-menu-row"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
@@ -3909,7 +5175,7 @@ function App() {
                 {/* Plans & Pricing */}
                 <button
                   onClick={() => { setShowPricingModal(true); setShowOverflow(false) }}
-                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+	                  className="sitea-menu-row"
                 >
                   <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
@@ -3919,7 +5185,7 @@ function App() {
                 {/* My Projects */}
                 <button
                   onClick={() => { setShowProjectsModal(true); setShowOverflow(false) }}
-                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+	                  className="sitea-menu-row"
                 >
                   <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
@@ -3930,7 +5196,7 @@ function App() {
                 {/* Log Out */}
                 <button
                   onClick={() => { signOut(); setShowOverflow(false) }}
-                  className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-red-400"
+                  className="sitea-menu-row text-[var(--color-danger)]"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -3941,7 +5207,7 @@ function App() {
             ) : (
               <button
                 onClick={() => { setShowAuthModal(true); setShowOverflow(false) }}
-                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 transition-colors text-white"
+                className="sitea-menu-row"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -3954,13 +5220,14 @@ function App() {
       )}
 
       {/* Primary CTA Card - top left, shifts right when sidebar open */}
-      {!isReadOnly && !isDefiningLand && !isGuidedMode && (
+      {!isReadOnly && !isDefiningLand && !isGuidedMode && !isMobileChatFocused && (
         isMobile ? (
           /* Mobile: compact collapsible version, hidden when side panel is open */
           !activePanel && <div className={`absolute top-12 z-50 ${isLandscape ? 'left-16' : 'left-4'}`}>
             <button
               onClick={() => setMobileCtaExpanded(!mobileCtaExpanded)}
-              className="panel-premium p-4 text-white animate-fade-in"
+              className="panel-premium text-white animate-fade-in"
+              style={{ minHeight: '52px', padding: '10px 16px' }}
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/20 flex items-center justify-center">
@@ -3970,7 +5237,7 @@ function App() {
                 </div>
                 <div className="text-left">
                   <p className="font-display font-bold text-lg leading-tight">{formatArea(area, areaUnit)}</p>
-                  <p className="text-[var(--color-text-secondary)] text-xs">Ready to plan</p>
+                  <p className="text-[var(--color-text-secondary)] text-xs">Tap Build to start designing</p>
                 </div>
                 <svg className={`w-4 h-4 text-[var(--color-text-secondary)] ml-2 transition-transform ${mobileCtaExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
@@ -3981,7 +5248,7 @@ function App() {
               <div className="mt-2 panel-premium p-4 animate-slide-in-bottom-2">
                 <button
                   onClick={startDefiningLand}
-                  className="btn-primary w-full flex items-center justify-center gap-2"
+                  className="sitea-btn sitea-btn-primary w-full"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
@@ -4009,7 +5276,7 @@ function App() {
               </div>
               <div>
                 <h2 className="font-display font-semibold text-[15px] text-white leading-tight">Define Your Land</h2>
-                <p className="text-[var(--color-text-secondary)] text-xs mt-0.5">Ready to plan</p>
+                <p className="text-[var(--color-text-secondary)] text-xs mt-0.5">Tap Build to start designing</p>
               </div>
             </div>
             <div className="mb-4 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)]" style={{ padding: '10px 18px' }}>
@@ -4018,7 +5285,7 @@ function App() {
             </div>
             <button
               onClick={startDefiningLand}
-              className="btn-primary w-full flex items-center justify-center gap-2"
+              className="sitea-btn sitea-btn-primary w-full"
             >
               <span>Edit Land</span>
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -4030,7 +5297,7 @@ function App() {
       )}
 
       {/* Non-blocking walkthrough hint (first visit only) */}
-      {!hasSeenIntro && isExampleMode && !isDefiningLand && !isGuidedMode && walkthroughStep === 0 && (
+      {!isMobileChatFocused && !hasSeenIntro && isExampleMode && !isDefiningLand && !isGuidedMode && walkthroughStep === 0 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 panel-premium py-3 z-40 animate-gentle-pulse" style={{ padding: '12px 32px' }}>
           <p className="text-[var(--color-text-primary)] text-sm font-medium">
             {isTouchDevice ? 'Use joystick to explore' : 'Use WASD to explore'}
@@ -4040,7 +5307,7 @@ function App() {
       )}
 
       {/* Help text - top-center pill with auto-fade */}
-      {!isDefiningLand && !isReadOnly && !isGuidedMode && helpTextVisible && (
+      {!isMobileChatFocused && !isDefiningLand && !isReadOnly && !isGuidedMode && helpTextVisible && (
         <div
           className="absolute top-4 left-1/2 -translate-x-1/2 z-30 rounded-full pointer-events-none animate-fade-in"
           style={{
@@ -4199,19 +5466,19 @@ function App() {
 
       {/* Grouped View Controls - top right */}
       {/* Mobile: settings icon + slide-up sheet */}
-      {isMobile && !isGuidedMode && (
-        <div className={`absolute right-3 z-30 flex flex-col items-end gap-2 animate-fade-in ${isReadOnly ? 'top-20' : 'top-12'}`}>
+      {isMobile && !isGuidedMode && !isMobileChatFocused && (
+        <div className={`sitea-mobile-view-controls absolute right-3 z-30 flex flex-col items-end gap-2 animate-fade-in ${isReadOnly ? 'top-20' : 'top-12'}`}>
           <div className="flex items-center gap-2">
-            <div className="panel-premium flex items-center rounded-xl p-1.5 gap-1">
+            <div className="sitea-control-panel sitea-segment">
               {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
                 <button key={mode} onClick={() => setViewMode(mode)}
-                  className={`px-6 py-2.5 text-base font-bold rounded-lg transition-all ${viewMode === mode ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md' : 'text-[var(--color-text-secondary)]'}`}
+                  className={`sitea-segment-btn ${viewMode === mode ? 'active' : ''}`}
                 >{label}</button>
               ))}
             </div>
             <button
               onClick={() => setShowMobileViewControls(true)}
-              className="panel-premium p-3 rounded-xl"
+              className="sitea-icon-btn sitea-control-panel"
             >
               <svg className="w-6 h-6 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
@@ -4222,14 +5489,10 @@ function App() {
           {/* 1P sub-controls: 1st/3rd person toggle + distance */}
           {viewMode === 'firstPerson' && (
             <div className="self-stretch flex flex-col gap-1.5 overflow-hidden min-w-0">
-              <div className="panel-premium rounded-xl p-1.5 flex items-center gap-1">
+              <div className="sitea-control-panel sitea-segment">
                 <button
                   onClick={() => { setCameraMode(CAMERA_MODE.FIRST_PERSON); setFollowDistance(0) }}
-                  className={`flex-1 px-4 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    cameraMode === CAMERA_MODE.FIRST_PERSON
-                      ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                      : 'text-[var(--color-text-secondary)]'
-                  }`}
+                  className={`sitea-segment-btn flex-1 flex items-center justify-center gap-1.5 ${cameraMode === CAMERA_MODE.FIRST_PERSON ? 'active' : ''}`}
                 >
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
@@ -4239,11 +5502,7 @@ function App() {
                 </button>
                 <button
                   onClick={() => { setCameraMode(CAMERA_MODE.THIRD_PERSON); setFollowDistance(DEFAULT_TP_DISTANCE) }}
-                  className={`flex-1 px-4 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    cameraMode === CAMERA_MODE.THIRD_PERSON
-                      ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                      : 'text-[var(--color-text-secondary)]'
-                  }`}
+                  className={`sitea-segment-btn flex-1 flex items-center justify-center gap-1.5 ${cameraMode === CAMERA_MODE.THIRD_PERSON ? 'active' : ''}`}
                 >
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
@@ -4252,7 +5511,7 @@ function App() {
                 </button>
               </div>
               {cameraMode === CAMERA_MODE.THIRD_PERSON && (
-                <div className="panel-premium rounded-xl p-1.5 flex items-center min-w-0">
+                <div className="sitea-control-panel rounded-xl flex items-center min-w-0" style={{ padding: '10px 12px' }}>
                   <input
                     type="range"
                     min={2}
@@ -4270,31 +5529,31 @@ function App() {
       )}
 
       {/* Mobile view controls slide-up sheet */}
-      {isMobile && showMobileViewControls && (
+      {isMobile && showMobileViewControls && !isMobileChatFocused && (
         <>
           <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileViewControls(false)} />
           <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pb-20 animate-slide-in-bottom">
-            <div className="panel-premium p-5 text-white">
+            <div className="sitea-control-panel rounded-2xl text-white" style={{ padding: '20px' }}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-display font-semibold text-white">View Settings</h3>
-                <button onClick={() => setShowMobileViewControls(false)} className="p-1 hover:bg-white/10 rounded-lg">
+                <button onClick={() => setShowMobileViewControls(false)} className="sitea-icon-btn" style={{ width: 40, height: 40 }}>
                   <svg className="w-5 h-5 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Dimensions</span>
+                <div className="sitea-control-row">
+                  <span>Dimensions</span>
                   <button onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))} className={`toggle-switch ${labels.land ? 'active' : ''}`}><span className="toggle-knob" /></button>
                 </div>
-                <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Grid</span>
+                <div className="sitea-control-row">
+                  <span>Grid</span>
                   <button onClick={() => setGridSnapEnabled(!gridSnapEnabled)} className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}><span className="toggle-knob" /></button>
                 </div>
-                <div className="flex items-center justify-between gap-6">
-                  <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Quality</span>
-                  <select value={graphicsQuality} onChange={(e) => setGraphicsQuality(e.target.value)} className="select-premium" style={{ fontSize: '11px', padding: '4px 22px 4px 8px', borderRadius: '6px' }}>
+                <div className="sitea-control-row">
+                  <span>Quality</span>
+                  <select value={graphicsQuality} onChange={(e) => setGraphicsQuality(e.target.value)} className="select-premium">
                     <option value={QUALITY.FAST}>Fast</option>
                     <option value={QUALITY.BEST}>Best</option>
                   </select>
@@ -4305,112 +5564,100 @@ function App() {
         </>
       )}
 
-      {/* Desktop: always-visible view controls */}
-      {!isMobile && !isGuidedMode && (
-      <div className={`absolute right-4 panel-premium text-white overflow-hidden animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}>
-        <div className="px-4 py-3 space-y-3">
-          <div className="space-y-2">
-            <span className="text-[var(--color-text-secondary)] text-sm text-center block">View</span>
-            <div className="flex bg-[var(--color-bg-secondary)] rounded-lg p-1 gap-1">
-              <button
-                onClick={() => setViewMode('firstPerson')}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  viewMode === 'firstPerson'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                    : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-white/10'
-                }`}
-                title="First Person View (Press 1)"
-              >
-                1P
-              </button>
-              <button
-                onClick={() => setViewMode('orbit')}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  viewMode === 'orbit'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                    : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-white/10'
-                }`}
-                title="3D Orbit View (Press 2)"
-              >
-                3D
-              </button>
-              <button
-                onClick={() => setViewMode('2d')}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  viewMode === '2d'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-bg-primary)] shadow-md'
-                    : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-white/10'
-                }`}
-                title="2D Top-Down View (Press 3)"
-              >
-                2D
-              </button>
+        {/* Desktop: always-visible view controls */}
+        {!isMobile && !isGuidedMode && (
+          <div className={`absolute right-4 sitea-control-panel rounded-2xl text-white overflow-hidden animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}>
+            <div className="px-4 py-3 space-y-3">
+              <div className="space-y-2">
+                <span className="text-[var(--color-text-secondary)] text-sm text-center block">View</span>
+                <div className="sitea-segment">
+                  <button
+                    onClick={() => setViewMode('firstPerson')}
+                    className={`sitea-segment-btn ${viewMode === 'firstPerson' ? 'active' : ''}`}
+                    title="First Person View (Press 1)"
+                  >
+                    1P
+                  </button>
+                  <button
+                    onClick={() => setViewMode('orbit')}
+                    className={`sitea-segment-btn ${viewMode === 'orbit' ? 'active' : ''}`}
+                    title="3D Orbit View (Press 2)"
+                  >
+                    3D
+                  </button>
+                  <button
+                    onClick={() => setViewMode('2d')}
+                    className={`sitea-segment-btn ${viewMode === '2d' ? 'active' : ''}`}
+                    title="2D Top-Down View (Press 3)"
+                  >
+                    2D
+                  </button>
+                </div>
+              </div>
+
+              {(viewMode === 'orbit' || viewMode === '2d') && (
+                <button
+                  onClick={() => setFitToLandTrigger(t => t + 1)}
+                  className="sitea-btn sitea-btn-secondary w-full"
+                  style={{ minHeight: 38, padding: '8px 12px' }}
+                >
+                  Fit to Land
+                </button>
+              )}
+
+              <div className="sitea-control-row">
+                <span>Dimensions</span>
+                <button
+                  onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))}
+                  className={`toggle-switch ${labels.land ? 'active' : ''}`}
+                  aria-pressed={labels.land}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+
+              <div className="sitea-control-row">
+                <span>Grid</span>
+                <button
+                  onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
+                  className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}
+                  aria-pressed={gridSnapEnabled}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+
+              <div className="sitea-control-row">
+                <span>Quality</span>
+                <select
+                  value={graphicsQuality}
+                  onChange={(e) => setGraphicsQuality(e.target.value)}
+                  className="select-premium"
+                >
+                  <option value={QUALITY.FAST}>Fast</option>
+                  <option value={QUALITY.BEST}>Best</option>
+                </select>
+              </div>
             </div>
           </div>
-
-          {(viewMode === 'orbit' || viewMode === '2d') && (
-            <button
-              onClick={() => setFitToLandTrigger(t => t + 1)}
-              className="w-full py-1.5 px-3 text-sm font-medium rounded-lg bg-[var(--color-bg-secondary)] hover:bg-[var(--color-accent)] hover:text-[var(--color-bg-primary)] text-[var(--color-text-secondary)] transition-colors border border-[var(--color-border)]"
-            >
-              Fit to Land
-            </button>
-          )}
-
-          <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Dimensions</span>
-            <button
-              onClick={() => setLabels(prev => ({ ...prev, land: !prev.land }))}
-              className={`toggle-switch ${labels.land ? 'active' : ''}`}
-              aria-pressed={labels.land}
-            >
-              <span className="toggle-knob" />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Grid</span>
-            <button
-              onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
-              className={`toggle-switch ${gridSnapEnabled ? 'active' : ''}`}
-              aria-pressed={gridSnapEnabled}
-            >
-              <span className="toggle-knob" />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between gap-6">
-            <span className="text-[var(--color-text-secondary)] text-sm" style={{ marginLeft: 4 }}>Quality</span>
-            <select
-              value={graphicsQuality}
-              onChange={(e) => setGraphicsQuality(e.target.value)}
-              className="select-premium"
-              style={{ fontSize: '11px', padding: '4px 22px 4px 8px', borderRadius: '6px' }}
-            >
-              <option value={QUALITY.FAST}>Fast</option>
-              <option value={QUALITY.BEST}>Best</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      )}
+        )}
 
 
       {/* Undo/Redo toast notification */}
-      {undoRedoToast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm font-medium shadow-lg border border-[var(--color-border)] animate-fade-in" style={{ padding: '8px 32px' }}>
-          {undoRedoToast}
+      {!isMobileChatFocused && undoRedoToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-xl sitea-status-toast text-[var(--color-text-primary)] text-sm font-medium animate-fade-in flex items-center gap-3 max-w-[min(92vw,560px)] text-center break-words" style={{ padding: '10px 22px' }}>
+          {undoRedoToast === 'building_selected'
+            ? 'Building selected • Drag to move • R rotate • E make editable • ESC deselect'
+            : undoRedoToast}
         </div>
       )}
 
       {/* Soft Pro upgrade banner */}
-      {showProBanner && !isPaidUser && (
-        <div className={`fixed left-1/2 -translate-x-1/2 z-40 animate-slide-in-bottom ${
-          isTouchDevice ? 'bottom-20' : 'bottom-6'
-        }`}>
-          <div className="flex items-center gap-3 bg-[var(--color-bg-secondary)]/95 backdrop-blur-md
-            rounded-xl border border-[var(--color-border)] shadow-lg shadow-black/20
-            pl-4 pr-2 py-2.5 max-w-md">
+        {showProBanner && !isPaidUser && !isMobileChatFocused && (
+          <div className={`fixed left-1/2 -translate-x-1/2 z-40 animate-slide-in-bottom ${
+            isTouchDevice ? 'bottom-20' : 'bottom-6'
+          }`}>
+            <div className="flex items-center gap-3 sitea-status-toast rounded-xl pl-4 pr-2 py-2.5 max-w-md">
 
             {/* Banner content — clickable */}
             <button
@@ -4457,9 +5704,9 @@ function App() {
               setUploadedImage(imageData)
               setActivePanel('land') // Switch to land panel
             }}
-            onUploadForFloorPlan={(imageData) => {
+            onUploadForFloorPlan={(imageData, scaleHint) => {
               // Floor plan analysis - upload gating handled in modal
-              setFloorPlanImageForGenerator(imageData)
+              setFloorPlanImageForGenerator({ image: imageData, scaleHint })
               setShowFloorPlanGenerator(true)
             }}
           />
@@ -4470,13 +5717,25 @@ function App() {
       {showFloorPlanGenerator && floorPlanImageForGenerator && (
         <Suspense fallback={<LoadingFallback />}>
           <FloorPlanGeneratorModal
-            image={floorPlanImageForGenerator}
+            image={floorPlanImageForGenerator?.image ?? floorPlanImageForGenerator}
+            scaleHint={floorPlanImageForGenerator?.scaleHint ?? null}
             onGenerate={handleFloorPlanGenerated}
             onCancel={() => {
               setShowFloorPlanGenerator(false)
               setFloorPlanImageForGenerator(null)
             }}
-            isPaidUser={true}
+            onUpgrade={() => setShowPricingModal(true)}
+            isPaidUser={isPaidUser}
+          />
+        </Suspense>
+      )}
+
+      {floorPlanReview && (
+        <Suspense fallback={<LoadingFallback />}>
+          <FloorPlanReviewModal
+            review={floorPlanReview}
+            onClose={() => setFloorPlanReview(null)}
+            onPlace={handlePlaceReviewedFloorPlan}
           />
         </Suspense>
       )}
@@ -4624,6 +5883,25 @@ function App() {
         </div>
       )}
 
+      {/* AI Chat */}
+      <AIChatButton
+        onClick={() => setShowAIChat(true)}
+        visible={!showPricingModal && !showAuthModal && !isReadOnly && !showAIChat && !isGuidedMode && !isDefiningLand}
+        locked={false}
+      />
+      {isAIChatVisible && (
+        <AIChatPanel
+          messages={aiChat.messages}
+          isLoading={aiChat.isLoading}
+          activeProcess={aiChat.activeProcess}
+          error={aiChat.error}
+          onSend={aiChat.sendMessage}
+          onAction={aiChat.handleAction}
+          onClear={aiChat.clearChat}
+          onClose={() => setShowAIChat(false)}
+        />
+      )}
+
       {showPricingModal && (
         <Suspense fallback={<LoadingFallback />}>
           <PricingModal
@@ -4637,8 +5915,9 @@ function App() {
       {showAuthModal && (
         <Suspense fallback={<LoadingFallback />}>
           <AuthModal
-            onClose={() => setShowAuthModal(false)}
-            onSuccess={() => setShowAuthModal(false)}
+            intent={pendingSaveAfterAuth ? 'save' : 'default'}
+            onClose={handleAuthModalClose}
+            onSuccess={handleAuthSuccess}
           />
         </Suspense>
       )}
@@ -4719,26 +5998,26 @@ function App() {
 
                   {helpGuideSection === 'start' && (
                     <p className="text-gray-300 leading-relaxed">
-                      Sitea is a 3D land visualizer that lets you design buildings on your land plot. Walk around in first-person, draw walls, place rooms, and see your design come to life.
+                      Sitea is an AI planning agent for land and home ideas. Tell Sitea what you want to see, upload a plan when you have one, and Sitea will prepare the visual workspace for you to review.
                     </p>
                   )}
 
                   {helpGuideSection === 'land' && (
                     <p className="text-gray-300 leading-relaxed">
-                      Open the <span className="text-white font-medium">Land</span> panel to trace your land boundary. Click points to outline your plot shape, or upload a site plan image to trace over.
+                      Ask Sitea to prepare your land from dimensions or a site plan. The Land panel is still available when you need to correct the boundary, units, or shape manually.
                     </p>
                   )}
 
                   {helpGuideSection === 'build' && (
                     <div className="space-y-4 text-gray-300 leading-relaxed">
-                      <p>Open the <span className="text-white font-medium">Build</span> panel to access tools. Draw rooms, walls, and fences. Add doors, windows, pools, platforms, and stairs. Use the Structures tab to place pre-made buildings.</p>
-                      <p>In the Floors section, select a number of floors and click a room to stack floors on top. Use the floor selector to switch between levels.</p>
+                      <p>Upload a floor plan or describe what you want built. Sitea can detect rooms, walls, doors, and windows, then prepare a 3D preview for placement.</p>
+                      <p>Advanced build tools remain available for corrections, custom rooms, floors, pools, platforms, stairs, and manual edits after the agent prepares the first pass.</p>
                     </div>
                   )}
 
                   {helpGuideSection === 'explore' && (
                     <div className="space-y-4 text-gray-300 leading-relaxed">
-                      <p>Open the <span className="text-white font-medium">Compare</span> panel to drop reference objects (tennis court, basketball court, etc.) onto your land to understand the scale.</p>
+                      <p>Ask Sitea what fits, then use the suggested action to add a comparison object such as a tennis court or basketball court directly to the land.</p>
                       <p>Walk around in first-person (1P) to feel the scale. Switch to 3D orbit view for an overview. Use 2D view for precise placement. Save your design, export it, or share a link with others.</p>
                     </div>
                   )}

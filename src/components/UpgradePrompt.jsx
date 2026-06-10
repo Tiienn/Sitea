@@ -32,12 +32,11 @@ const COPY = {
   default: {
     headline: 'Walk through your real home',
     subtext: 'Turn any floor plan into a 3D walkthrough',
-    button: 'Try Pro — $29',
+    button: 'Try Pro — $20',
   },
 }
 
 export default function UpgradePrompt({
-  feature = 'this feature',
   context = 'default',
   variant = 'inline',
   className = ''

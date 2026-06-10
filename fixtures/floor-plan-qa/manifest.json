@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "thresholds": {
+    "walls": 0.95,
+    "doors": 0.9,
+    "windows": 0.9,
+    "rooms": 0.8,
+    "stairs": 1
+  },
+  "fixtures": [
+    {
+      "id": "single-storey-clear-scan",
+      "title": "Single-storey clear scanned plan",
+      "sourceFile": "samples/single-storey-clear-scan.pdf",
+      "pageNumber": 1,
+      "expected": {
+        "walls": 18,
+        "doors": 6,
+        "windows": 7,
+        "rooms": 5,
+        "stairs": 0
+      },
+      "criticalChecks": [
+        "Exterior perimeter is closed",
+        "All bedroom and bathroom doors are detected",
+        "Main living/kitchen open-plan area is not split by invented walls"
+      ]
+    },
+    {
+      "id": "low-contrast-phone-scan",
+      "title": "Low-contrast phone scan",
+      "sourceFile": "samples/low-contrast-phone-scan.pdf",
+      "pageNumber": 1,
+      "expected": {
+        "walls": 22,
+        "doors": 7,
+        "windows": 8,
+        "rooms": 6,
+        "stairs": 0
+      },
+      "criticalChecks": [
+        "Faint interior partition walls are detected",
+        "Furniture and room labels are ignored as walls",
+        "Door arcs remain doors, not wall fragments"
+      ]
+    },
+    {
+      "id": "dimensioned-plan-with-stairs",
+      "title": "Dimensioned scanned plan with stairs",
+      "sourceFile": "samples/dimensioned-plan-with-stairs.pdf",
+      "pageNumber": 1,
+      "expected": {
+        "walls": 28,
+        "doors": 9,
+        "windows": 10,
+        "rooms": 8,
+        "stairs": 1
+      },
+      "criticalChecks": [
+        "Stairs are detected as stairs, not a room",
+        "Printed dimension lines are ignored as walls",
+        "Scale uses printed dimensions when available"
+      ]
+    },
+    {
+      "id": "real-wide-40x30",
+      "title": "Real wide residential floor plan, 40 by 30 feet",
+      "sourceFile": "samples/real/real-wide-40x30.webp",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Outer 40 by 30 foot perimeter is recognized as the main building shell",
+        "Bedroom, bathroom, closet, washroom, kitchen, dining, and family areas are detected as usable spaces",
+        "Windows and door swings are detected without turning beds, cabinets, or labels into walls"
+      ]
+    },
+    {
+      "id": "real-site-ground-floor",
+      "title": "Real dimensioned site plan ground floor",
+      "sourceFile": "samples/real/real-site-ground-floor.png",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Red property boundary and green setback lines are ignored as building walls",
+        "Ground floor walls, terrace openings, stair, bath/toilet, and kitchen/living spaces are detected",
+        "Printed metric dimensions are used as scale hints rather than structural elements"
+      ]
+    },
+    {
+      "id": "real-site-upper-floor",
+      "title": "Real dimensioned site plan upper floor",
+      "sourceFile": "samples/real/real-site-upper-floor.png",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Red property boundary and green setback lines are ignored as building walls",
+        "Upper floor bedroom walls, WC, closet, stair, terrace, doors, and windows are detected",
+        "Dimension strings and arrows are used as measurements rather than walls"
+      ]
+    },
+    {
+      "id": "real-lot-127sqm",
+      "title": "Real CAD plan with lot boundary and setbacks (127 sqm building)",
+      "sourceFile": "samples/real/real-lot-127sqm.png",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Lot dimensions (15.00m / 19.45m / 19.97m / 14.99m) are NOT used as building scale or coverage targets",
+        "The 32-wall direct CV trace is kept; no fallback to model-drawn geometry",
+        "Scale comes from interior mm dimension chains (~43-45 px/m); building bounds ~12.5m x ~10.4m, not lot-sized",
+        "Bedroom, bath, stairs, living/dining walls and the covered-terrace edge are present and connected"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "fixtureId": "low-contrast-phone-scan",
+  "capturedAt": "2026-06-10T14:16:30.696Z",
+  "sourceFile": "samples/low-contrast-phone-scan.pdf",
+  "imageFile": "samples/low-contrast-phone-scan.png",
+  "analyzer": "api/analyze-floor-plan.js",
+  "rawResultFile": "results/raw/low-contrast-phone-scan.json",
+  "detected": {
+    "walls": 59,
+    "doors": 12,
+    "windows": 9,
+    "rooms": 11,
+    "stairs": 0
+  },
+  "criticalMisses": [],
+  "notes": [
+    "local analyzer fixture run"
+  ],
+  "artifacts": {},
+  "placementOk": true,
+  "scale": {
+    "pixelsPerMeter": 72.00822998230956,
+    "confidence": 0.6,
+    "source": "total_area_label"
+  }
+}

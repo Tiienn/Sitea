@@ -91,3 +91,12 @@ Every modal and panel needs inner padding so content doesn't touch the edges.
 4. **Mobile-first.** Touch targets must be at least 44px tall (`py-2.5` + text).
 5. **No layout shifts.** Toggling state must not change a component's width or height.
 6. **Transitions on everything interactive.** Add `transition-all` to buttons, toggles, panels.
+7. **Breathing room everywhere.** Every new component must have visible padding on all four sides (top, right, bottom, left). Content must never touch container edges. Use inline `style={{ padding: '...' }}` when Tailwind classes aren't rendering reliably (e.g. panels with dynamic classes). Specific minimums:
+   - Outer panel/modal container: 20px on all sides
+   - Header rows: 16px top/bottom, 20px left/right
+   - Scrollable content areas: 20px on all sides
+   - Input bars: 16px left, 12px top/bottom/right
+   - Buttons with text inside containers: 10px vertical, 16px horizontal
+   - Send/action icons inside input bars: `p-3` (12px) so icons don't touch the button edge
+   - Chat message bubbles: 18px horizontal, 10px vertical (`style={{ padding: '10px 18px' }}`) — text must never touch bubble edges
+   - Last element before a section border: at least 12px gap below it

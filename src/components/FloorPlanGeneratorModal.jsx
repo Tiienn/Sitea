@@ -1022,14 +1022,22 @@ function DetectionOverlay({
 
 export default function FloorPlanGeneratorModal({
   image,
+  scaleHint = null,
   onGenerate,
   onCancel,
+  onUpgrade,
   isPaidUser = true,
 }) {
-  const [status, setStatus] = useState('analyzing'); // 'analyzing' | 'calibrating' | 'preview' | 'error' | 'upgrade'
+  const [status, setStatus] = useState('marking'); // 'marking' | 'analyzing' | 'calibrating' | 'preview' | 'error' | 'upgrade'
   const [aiData, setAiData] = useState(null);
+  const originalAiDataRef = useRef(null); // Snapshot of AI output before user edits
   const [error, setError] = useState(null);
   const [warning, setWarning] = useState(null);
+
+  // Room marking state
+  const [roomMarkers, setRoomMarkers] = useState([]); // [{ name, x, y }] in image-relative coords (0-1)
+  const [showRoomPicker, setShowRoomPicker] = useState(null); // { x, y } pending marker position
+  const roomMarkingRef = useRef(null);
   const [settings, setSettings] = useState({
     scale: 0.05,
     originX: 0,
@@ -1520,13 +1528,11 @@ export default function FloorPlanGeneratorModal({
     setCalibrationDistance('');
   };
 
-  // Analyze on mount
+  // Check paid status on mount
   useEffect(() => {
     if (!isPaidUser) {
       setStatus('upgrade');
-      return;
     }
-    analyzeFloorPlan();
   }, [isPaidUser]);
 
   const analyzeFloorPlan = async () => {
@@ -1591,15 +1597,24 @@ export default function FloorPlanGeneratorModal({
             'Content-Type': 'application/json',
             ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` }),
           },
-          body: JSON.stringify({ image: base64 }),
+          body: JSON.stringify({
+            image: base64,
+            ...(scaleHint?.knownWidthMeters && { knownWidthMeters: scaleHint.knownWidthMeters }),
+            ...(roomMarkers.length > 0 && { roomHints: roomMarkers }),
+          }),
         });
 
-        data = await response.json();
+        const responseText = await response.text();
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error(`Analysis failed (${response.status}). Please try again.`);
+        }
 
         // If API returned an error, show details
         if (!response.ok || (!data.success && data.error)) {
-          const errorMsg = data.details
-            ? `${data.error}: ${data.details}`
+          const errorMsg = data._debug || data.details
+            ? `${data.error}: ${data._debug || data.details}`
             : (data.error || `Analysis failed: ${response.status}`);
           throw new Error(errorMsg);
         }
@@ -1631,20 +1646,16 @@ export default function FloorPlanGeneratorModal({
       }
 
       setAiData(data);
+      originalAiDataRef.current = JSON.parse(JSON.stringify(data)); // Deep snapshot before edits
 
       // Use AI's scale if available (handle both new and old schema)
       if (data.scale?.pixelsPerMeter && data.scale.pixelsPerMeter > 0) {
-        // New schema: pixelsPerMeter
-        setSettings(s => ({
-          ...s,
-          scale: 1 / data.scale.pixelsPerMeter
-        }));
+        setSettings(s => ({ ...s, scale: 1 / data.scale.pixelsPerMeter }));
+        if (data.scale.source === 'user_provided') {
+          setWarning(null); // Clear any warnings — scale is exact
+        }
       } else if (data.scale?.estimatedMetersPerPixel) {
-        // Old schema: estimatedMetersPerPixel
-        setSettings(s => ({
-          ...s,
-          scale: data.scale.estimatedMetersPerPixel
-        }));
+        setSettings(s => ({ ...s, scale: data.scale.estimatedMetersPerPixel }));
       }
 
       setStatus('calibrating');
@@ -1673,10 +1684,63 @@ export default function FloorPlanGeneratorModal({
     setStatus('preview');
   };
 
-  // Handle generation
+  // Handle generation — also saves correction data for feedback loop
   const handleGenerate = () => {
     const data = convertFloorPlanToWorld(aiData, settings);
+
+    // Save correction diff if user made edits (fire-and-forget, don't block confirm)
+    if (originalAiDataRef.current && aiData) {
+      const orig = originalAiDataRef.current;
+      const hasChanges =
+        orig.walls?.length !== aiData.walls?.length ||
+        orig.doors?.length !== aiData.doors?.length ||
+        JSON.stringify(orig.walls) !== JSON.stringify(aiData.walls) ||
+        JSON.stringify(orig.doors) !== JSON.stringify(aiData.doors);
+
+      if (hasChanges) {
+        saveFloorPlanCorrection(orig, aiData).catch(err =>
+          console.warn('[Feedback] Failed to save correction:', err.message)
+        );
+      }
+    }
+
     onGenerate(data);
+  };
+
+  // Save correction diff to Supabase for feedback loop
+  const saveFloorPlanCorrection = async (original, corrected) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Simple hash of image for deduplication
+      const imageHash = image ? String(image.length) + '-' + image.slice(0, 32) : 'unknown';
+
+      await supabase.from('floor_plan_corrections').insert({
+        user_id: session.user.id,
+        image_hash: imageHash,
+        original_walls: original.walls?.length || 0,
+        corrected_walls: corrected.walls?.length || 0,
+        original_doors: original.doors?.length || 0,
+        corrected_doors: corrected.doors?.length || 0,
+        original_ai_output: {
+          walls: original.walls,
+          doors: original.doors,
+          rooms: original.rooms,
+          scale: original.scale,
+        },
+        user_corrections: {
+          walls: corrected.walls,
+          doors: corrected.doors,
+          rooms: corrected.rooms,
+          scale: corrected.scale,
+        },
+      });
+
+      console.log('[Feedback] Correction saved — walls:', original.walls?.length, '→', corrected.walls?.length);
+    } catch (err) {
+      console.warn('[Feedback] Save failed:', err.message);
+    }
   };
 
   // Update setting helper
@@ -1699,6 +1763,7 @@ export default function FloorPlanGeneratorModal({
             <div>
               <h2 className="text-lg font-semibold text-white">Generate 3D Floor Plan</h2>
               <p className="text-sm text-[var(--color-text-muted)]">
+                {status === 'marking' && 'Mark rooms for better detection'}
                 {status === 'analyzing' && 'Analyzing your floor plan...'}
                 {status === 'calibrating' && 'Set the scale for accurate dimensions'}
                 {status === 'preview' && 'Preview and adjust your 3D model'}
@@ -1719,6 +1784,120 @@ export default function FloorPlanGeneratorModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+
+          {/* Room Marking State */}
+          {status === 'marking' && (
+            <div>
+              <p className="text-[var(--color-text-secondary)] text-sm mb-4">
+                Tap on your floor plan to label each room. This helps the AI detect walls more accurately.
+              </p>
+
+              {/* Floor plan image with markers */}
+              <div
+                ref={roomMarkingRef}
+                className="relative rounded-xl overflow-hidden border border-[var(--color-border)] cursor-crosshair mb-4"
+                onClick={(e) => {
+                  if (showRoomPicker) return;
+                  const rect = roomMarkingRef.current.getBoundingClientRect();
+                  const x = (e.clientX - rect.left) / rect.width;
+                  const y = (e.clientY - rect.top) / rect.height;
+                  setShowRoomPicker({ x, y });
+                }}
+              >
+                <img src={image} alt="Floor plan" className="w-full" draggable={false} />
+
+                {/* Placed room markers */}
+                {roomMarkers.map((marker, i) => (
+                  <div
+                    key={i}
+                    className="absolute flex items-center gap-1 -translate-x-1/2 -translate-y-1/2 pointer-events-auto"
+                    style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
+                  >
+                    <span
+                      className="bg-[var(--color-accent)] text-[var(--color-bg-primary)] text-[11px] font-bold rounded-full whitespace-nowrap shadow-lg"
+                      style={{ padding: '4px 10px' }}
+                    >
+                      {marker.name}
+                    </span>
+                    <button
+                      className="w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center text-xs transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRoomMarkers(prev => prev.filter((_, idx) => idx !== i));
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+
+                {/* Tap indicator dot */}
+                {showRoomPicker && (
+                  <div
+                    className="absolute w-3 h-3 rounded-full bg-[var(--color-accent)] border-2 border-white -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ left: `${showRoomPicker.x * 100}%`, top: `${showRoomPicker.y * 100}%` }}
+                  />
+                )}
+              </div>
+
+              {/* Room type picker — rendered below image */}
+              {showRoomPicker && (
+                <div className="bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-xl mb-4" style={{ padding: '8px' }}>
+                  <p className="text-[var(--color-text-muted)] text-xs mb-2" style={{ padding: '4px 12px' }}>Select room type:</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {['Living Room', 'Bedroom', 'Kitchen', 'Bathroom', 'Hallway', 'Dining', 'Garage', 'Laundry', 'Office', 'Storage', 'Terrace', 'Balcony', 'Stairs'].map((name) => (
+                      <button
+                        key={name}
+                        className="text-left text-sm text-white hover:bg-[var(--color-accent)]/20 rounded-lg transition-colors"
+                        style={{ padding: '8px 12px' }}
+                        onClick={() => {
+                          setRoomMarkers(prev => [...prev, { name, x: showRoomPicker.x, y: showRoomPicker.y }]);
+                          setShowRoomPicker(null);
+                        }}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    className="w-full text-center text-sm text-[var(--color-text-muted)] hover:text-white transition-colors mt-1"
+                    style={{ padding: '8px 12px' }}
+                    onClick={() => setShowRoomPicker(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {/* Marker count */}
+              {roomMarkers.length > 0 && !showRoomPicker && (
+                <p className="text-[var(--color-text-muted)] text-xs mb-4">
+                  {roomMarkers.length} room{roomMarkers.length !== 1 ? 's' : ''} marked
+                </p>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setRoomMarkers([]);
+                    analyzeFloorPlan();
+                  }}
+                  className="flex-1 text-[var(--color-text-secondary)] hover:text-white rounded-xl font-medium transition-colors"
+                  style={{ padding: '12px 24px' }}
+                >
+                  Skip
+                </button>
+                <button
+                  onClick={() => analyzeFloorPlan()}
+                  className="flex-1 bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-[var(--color-bg-primary)] rounded-xl font-semibold transition-colors"
+                  style={{ padding: '12px 24px' }}
+                >
+                  {roomMarkers.length > 0 ? `Analyze with ${roomMarkers.length} room${roomMarkers.length !== 1 ? 's' : ''}` : 'Analyze'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Analyzing State */}
           {status === 'analyzing' && (
@@ -2593,13 +2772,15 @@ export default function FloorPlanGeneratorModal({
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={onCancel}
-                  className="px-6 py-2 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]"
+                  className="bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)] font-medium transition-colors"
+                  style={{ padding: '12px 24px' }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={analyzeFloorPlan}
-                  className="px-6 py-2 bg-[var(--color-accent)] hover:opacity-90 rounded-lg text-[var(--color-bg-primary)]"
+                  className="bg-[var(--color-accent)] hover:opacity-90 rounded-lg text-[var(--color-bg-primary)] font-medium transition-colors"
+                  style={{ padding: '12px 24px' }}
                 >
                   Try Again
                 </button>
@@ -2632,13 +2813,15 @@ export default function FloorPlanGeneratorModal({
               <div className="flex gap-4">
                 <button
                   onClick={onCancel}
-                  className="px-8 py-3 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] font-medium transition-colors"
+                  className="bg-[var(--color-bg-elevated)] hover:bg-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] font-medium transition-colors"
+                  style={{ padding: '12px 32px' }}
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => window.location.href = '/pricing'}
-                  className="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-xl text-white font-medium transition-all shadow-lg shadow-amber-500/20"
+                  onClick={() => { onCancel?.(); onUpgrade?.(); }}
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-xl text-white font-medium transition-all shadow-lg shadow-amber-500/20"
+                  style={{ padding: '12px 32px' }}
                 >
                   Upgrade to Pro
                 </button>

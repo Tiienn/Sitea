@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useUser } from '../hooks/useUser.jsx'
 import { detectSitePlanBoundary } from '../services/imageAnalysis'
+import { fileToImageData } from '../utils/pdfToImage'
 
 export default function ImageTracer({
   uploadedImage,
@@ -22,6 +23,7 @@ export default function ImageTracer({
   const [draggingScaleIndex, setDraggingScaleIndex] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
+  const [boundaryClosed, setBoundaryClosed] = useState(false)
   const [autoDetecting, setAutoDetecting] = useState(false)
   const [autoDetectError, setAutoDetectError] = useState(null)
 
@@ -45,12 +47,15 @@ export default function ImageTracer({
   const canvasSize = 300
   const image = uploadedImage // Alias for compatibility
 
-  // Upload tracking (for analytics, parent handles gating)
-  const { markUploadUsed } = useUser()
+  const { canUseUpload, markUploadUsed } = useUser()
 
   // Handle file selection
-  const handleFileSelect = useCallback((file) => {
+  const handleFileSelect = useCallback(async (file) => {
     if (!file) return
+
+    if (!canUseUpload()) {
+      return
+    }
 
     // Check file type
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf']
@@ -59,18 +64,12 @@ export default function ImageTracer({
       return
     }
 
-    // For PDF, we'd need a PDF renderer - for now just handle images
-    if (file.type === 'application/pdf') {
-      alert('PDF support coming soon. Please use PNG or JPG for now.')
-      return
-    }
+    try {
+      const { imageData } = await fileToImageData(file)
+      const quota = await markUploadUsed()
+      if (!quota?.ok) return
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      // Mark upload as used (consumes free trial)
-      markUploadUsed()
-
-      setUploadedImage(e.target.result)
+      setUploadedImage(imageData)
       // Reset state for new image
       setPoints([])
       setScale(null)
@@ -79,9 +78,11 @@ export default function ImageTracer({
       setZoom(1)
       setPan({ x: 0, y: 0 })
       setPointsHistory([])
+    } catch (err) {
+      console.error('File render failed:', err)
+      alert('Could not read this file. Please try a clearer PDF, PNG, or JPG.')
     }
-    reader.readAsDataURL(file)
-  }, [setUploadedImage, markUploadUsed])
+  }, [canUseUpload, setUploadedImage, markUploadUsed])
 
   // Handle file input change
   const handleFileInputChange = (e) => {
@@ -495,11 +496,10 @@ export default function ImageTracer({
         return prev
       })
     } else if (scale) {
-      // Check if clicking near an edge to insert a point there
-      if (points.length >= 3) {
+      // After user clicks "Done", only allow inserting on edges
+      if (boundaryClosed) {
         const edgeIdx = findNearEdge(canvasX, canvasY)
         if (edgeIdx >= 0) {
-          // Delay insertion so double-click can cancel it
           clickTimeoutRef.current = setTimeout(() => {
             clickTimeoutRef.current = null
             pushPointsHistory()
@@ -510,7 +510,7 @@ export default function ImageTracer({
             })
           }, 250)
         }
-        return // Boundary complete — only insert on edges, don't append
+        return
       }
       // Append point (boundary not yet complete)
       pushPointsHistory()
@@ -840,7 +840,7 @@ export default function ImageTracer({
 
   const handleComplete = () => {
     if (points.length < 3 || !scale) return
-    // Show summary instead of completing immediately
+    setBoundaryClosed(true)
     setShowSummary(true)
   }
 
@@ -853,6 +853,7 @@ export default function ImageTracer({
 
   // Go back to editing from summary
   const handleBackToEdit = () => {
+    setBoundaryClosed(false)
     setShowSummary(false)
   }
 
@@ -864,6 +865,7 @@ export default function ImageTracer({
     setZoom(1)
     setPan({ x: 0, y: 0 })
     setPointsHistory([])
+    setBoundaryClosed(false)
     onClear?.()
   }
 
@@ -936,7 +938,7 @@ export default function ImageTracer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/jpg,.pdf"
+          accept="image/png,image/jpeg,image/jpg,application/pdf,.pdf"
           onChange={handleFileInputChange}
           className="hidden"
         />
@@ -969,7 +971,7 @@ export default function ImageTracer({
             or click to browse
           </div>
           <div className="text-[10px] text-white/30">
-            Supports PNG, JPG
+            Supports PDF, PNG, JPG
           </div>
         </div>
 
@@ -992,7 +994,7 @@ export default function ImageTracer({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/jpg,.pdf"
+        accept="image/png,image/jpeg,image/jpg,application/pdf,.pdf"
         onChange={handleFileInputChange}
         className="hidden"
       />
