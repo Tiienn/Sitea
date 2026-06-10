@@ -2416,3 +2416,14 @@ Changes:
 - [x] Connectivity audit: 4/7 fixtures fully connected (0 free endpoints);
       remaining free ends are genuine (freestanding terrace wall etc).
 - [x] PR to main already open: https://github.com/Tiienn/Sitea/pull/4
+
+---
+
+# v48: Retry floor-plan analysis once on platform 5xx
+
+User hit "Floor-plan analysis failed (500)" on a high-res (2732x1908) JPG.
+Production logs show the FULL pipeline succeeded (44 walls, summary
+printed); the 500 body was non-JSON — a Vercel platform transient at
+response delivery, not an analyzer bug. Local repro at identical size:
+200 OK. Client now retries the analysis once (2s delay) when the response
+status is 5xx before surfacing an error.

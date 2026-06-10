@@ -2741,14 +2741,22 @@ export function useAIChat({
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) throw new Error('Please sign in to use the AI assistant')
 
-      const response = await fetch('/api/analyze-floor-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ image: fileBase64 }),
-      })
+      // Platform-level 5xx transients (function runtime hiccups) drop an
+      // otherwise-successful analysis — retry once before surfacing an error.
+      let response = null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        response = await fetch('/api/analyze-floor-plan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ image: fileBase64 }),
+        })
+        if (response.status < 500 || attempt === 1) break
+        console.warn(`[FloorPlan] Analysis returned ${response.status}; retrying once`)
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
 
       const data = await readFloorPlanAnalysisResponse(response)
       if (!data.walls || data.walls.length === 0) {
