@@ -1,5 +1,18 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: Open-World Redesign — Genshin-Style Stylized Environment
+
+Goal: make the open world look like a Genshin Impact–style open world (stylized anime-realism, hand-painted, lush) across terrain, vegetation, sky/lighting, and distant scenery. Branch: `feature/open-world-genshin` off main. All changes stay inside the scene environment layer (`SceneEnvironment.jsx`, `useGrassTextures.js`, lighting stops in `LandScene.jsx`); `ComparisonObjects.jsx`, floor-plan logic, camera modes, and the `timeOfDay` system are untouched except minimal integration points.
+
+Approach: procedural-first (no downloaded assets) — painted canvas textures, layered foliage geometry, and shader work give the stylized look without adding bundle weight. FAST mode keeps today's cost; all heavy additions (3D grass, higher-res maps, extra instances) are BEST-only or instanced and cheap.
+
+- [ ] Area 1 — Terrain & grass: repaint `useGrassTextures`/`useSimpleGrassTexture` with a hand-painted look (saturated lush greens, soft blotches, painterly strokes); actually apply the (currently unused) macro variation to break tiling; add a BEST-only instanced 3D grass-blade field around the plot with vertex-color gradient and gentle wind sway (plot interior excluded so blades never poke through floors)
+- [ ] Area 2 — Trees & vegetation: replace icosahedron canopies with stylized layered-foliage trees (2–3 variants, merged sphere clusters with vertex-color gradients, instanced per variant) plus subtle canopy wind sway; scatter instanced bushes, flowers, and rocks with the existing seeded-placement pattern (reduced counts in FAST)
+- [ ] Area 3 — Sky & lighting: upgrade the sky shader (domain-warped two-tone cumulus clouds with slow drift, sun glow, horizon haze); add a hemisphere light and retune `LIGHT_STOPS`/`SKY_STOPS` for warmer days and dramatic dawn/dusk; keep the `timeOfDay` 0–1 system working end-to-end
+- [ ] Area 4 — Distant scenery: replace billboard mountain cylinders with real displaced-ridge geometry (vertex-colored, progressively bluer with distance for aerial perspective); wire in a believable circular distant treeline (the existing `DistantTreeline` component is dead code today)
+- [ ] Verify visually after each area: dev server + screenshots from multiple angles and dawn/noon/dusk/night, iterate until it reads Genshin-style; save before/after to `tasks/screenshots/open-world/`
+- [ ] Run `npm run build`, fix errors, commit per area, open PR to main (no merge) with screenshots and FAST/BEST performance notes
+
 ## Active Plan: v40 Floor-Plan Analyzer Fidelity — Trace, Don't Redraw
 
 Problem: the uploaded floor plan and the final 3D building don't match. Root causes identified in `api/analyze-floor-plan.js`:
