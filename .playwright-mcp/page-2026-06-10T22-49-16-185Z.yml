@@ -1,0 +1,457 @@
+- generic [ref=e3]:
+  - generic [ref=e7]: Loading...
+  - button "Dims" [ref=e11]
+  - generic:
+    - generic:
+      - generic:
+        - button "Sports":
+          - img
+          - generic: Sports
+        - button "Buildings":
+          - img
+          - generic: Buildings
+        - button "Vehicles":
+          - img
+          - generic: Vehicles
+        - button "Commercial":
+          - img
+          - generic: Commercial
+        - button "Landmarks":
+          - img
+          - generic: Landmarks
+        - button "Gaming":
+          - img
+          - generic: Gaming
+        - button "Other":
+          - img
+          - generic: Other
+      - generic:
+        - generic:
+          - generic:
+            - heading "Sports" [level=2]
+          - generic:
+            - generic:
+              - generic:
+                - button "Soccer Field 68m × 105m = 39%":
+                  - generic:
+                    - generic:
+                      - img
+                    - generic:
+                      - generic: Soccer Field
+                      - generic: 68m × 105m
+                  - generic:
+                    - generic:
+                      - generic: = 39%
+              - generic:
+                - button "Basketball Court 15m × 28m ×6 fit":
+                  - generic:
+                    - generic:
+                      - img
+                    - generic:
+                      - generic: Basketball Court
+                      - generic: 15m × 28m
+                  - generic:
+                    - generic:
+                      - generic: ×6 fit
+              - generic:
+                - button "Tennis Court 10.97m × 23.77m ×10 fit":
+                  - generic:
+                    - generic:
+                      - img
+                    - generic:
+                      - generic: Tennis Court
+                      - generic: 10.97m × 23.77m
+                  - generic:
+                    - generic:
+                      - generic: ×10 fit
+              - generic:
+                - button "Olympic Pool 25m × 50m ×2 fit":
+                  - generic:
+                    - generic:
+                      - img
+                    - generic:
+                      - generic: Olympic Pool
+                      - generic: 25m × 50m
+                  - generic:
+                    - generic:
+                      - generic: ×2 fit
+              - generic:
+                - button "Boxing Ring 6.1m × 6.1m ×73 fit":
+                  - generic:
+                    - generic:
+                      - img
+                    - generic:
+                      - generic: Boxing Ring
+                      - generic: 6.1m × 6.1m
+                  - generic:
+                    - generic:
+                      - generic: ×73 fit
+              - generic:
+                - button "Volleyball Court 9m × 18m ×16 fit":
+                  - generic:
+                    - generic:
+                      - img
+                    - generic:
+                      - generic: Volleyball Court
+                      - generic: 9m × 18m
+                  - generic:
+                    - generic:
+                      - generic: ×16 fit
+              - generic:
+                - button "Football Field (NFL) 48.76m × 109.73m = 51%":
+                  - generic:
+                    - generic:
+                      - img:
+                        - generic: "20"
+                        - generic: "50"
+                        - generic: "20"
+                    - generic:
+                      - generic: Football Field (NFL)
+                      - generic: 48.76m × 109.73m
+                  - generic:
+                    - generic:
+                      - generic: = 51%
+              - generic:
+                - button "Padel Court 10m × 20m ×13 fit":
+                  - generic:
+                    - generic:
+                      - img
+                    - generic:
+                      - generic: Padel Court
+                      - generic: 10m × 20m
+                  - generic:
+                    - generic:
+                      - generic: ×13 fit
+          - generic: 0 comparisons active
+      - button:
+        - img
+  - generic:
+    - generic:
+      - generic:
+        - button "Rectangle":
+          - img
+          - generic: Rectangle
+        - button "Templates":
+          - img
+          - generic: Templates
+        - button "Draw":
+          - img
+          - generic: Draw
+        - button "Upload":
+          - img
+          - generic: Upload
+        - button "Edit":
+          - img
+          - generic: Edit
+      - generic:
+        - generic:
+          - generic:
+            - heading "Rectangle" [level=2]
+          - generic:
+            - generic:
+              - generic:
+                - generic: Units
+                - combobox:
+                  - option "Meters (m)" [selected]
+                  - option "Feet (ft)"
+                  - option "Millimeters (mm)"
+              - generic:
+                - generic:
+                  - generic: Length
+                  - generic:
+                    - spinbutton: "20.0"
+                    - generic: m
+                - generic:
+                  - generic: Width
+                  - generic:
+                    - spinbutton: "15.0"
+                    - generic: m
+              - generic:
+                - generic: Area
+                - generic: 300 m²
+              - button "Apply"
+      - button:
+        - img
+  - generic:
+    - generic:
+      - generic:
+        - button "Tools":
+          - img
+          - generic: Tools
+        - button "Furniture":
+          - img
+          - generic: Furniture
+        - button "House Templates":
+          - img
+          - generic: House Templates
+        - button "Coverage":
+          - img
+          - generic: Coverage
+        - button "Setbacks":
+          - img
+          - generic: Setbacks
+        - button "Upload":
+          - img
+          - generic: Upload
+        - button "Labels":
+          - img
+          - generic: Labels
+      - generic:
+        - generic:
+          - generic:
+            - heading "Tools" [level=2]
+          - generic:
+            - generic:
+              - generic:
+                - button "Room Q":
+                  - generic:
+                    - img
+                  - generic: Room Q
+                - button "Wall J":
+                  - generic:
+                    - img
+                  - generic: Wall J
+                - button "Fence G":
+                  - generic:
+                    - img
+                  - generic: Fence G
+                - button "Door C":
+                  - generic:
+                    - img
+                  - generic: Door C
+                - button "Window V":
+                  - generic:
+                    - img
+                  - generic: Window V
+                - button "Pool B":
+                  - generic:
+                    - img
+                  - generic: Pool B
+                - button "Platform N":
+                  - generic:
+                    - img
+                  - generic: Platform N
+                - button "Stairs H":
+                  - generic:
+                    - img
+                  - generic: Stairs H
+                - button "Rotate R":
+                  - generic:
+                    - img
+                  - generic: Rotate R
+                - button "Copy" [disabled]:
+                  - generic:
+                    - img
+                  - generic: Copy
+                - button "Explode E" [disabled]:
+                  - generic:
+                    - img
+                  - generic: Explode E
+                - button "Delete X":
+                  - generic:
+                    - img
+                  - generic: Delete X
+              - generic:
+                - button "Undo" [disabled]:
+                  - img
+                  - generic: Undo
+                - button "Redo" [disabled]:
+                  - img
+                  - generic: Redo
+              - generic: Select a tool to start building
+              - generic:
+                - generic:
+                  - generic: Walls
+                  - generic: "0"
+                - generic:
+                  - generic: Doors
+                  - generic: "0"
+                - generic:
+                  - generic: Windows
+                  - generic: "0"
+                - generic:
+                  - generic: Rooms
+                  - generic: "0"
+      - button:
+        - img
+  - generic:
+    - generic:
+      - generic:
+        - button "Floor Plan":
+          - img
+          - generic: Floor Plan
+        - button "PDF Report":
+          - img
+          - generic: PDF Report
+        - button "3D View":
+          - img
+          - generic: 3D View
+        - button "3D Model":
+          - img
+          - generic: 3D Model
+        - button "AI Render":
+          - img
+          - generic: AI Render
+      - generic:
+        - generic:
+          - generic:
+            - heading "Floor Plan" [level=2]
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img:
+                          - generic: 5m
+                      - generic:
+                        - generic:
+                          - generic: Land
+                        - generic:
+                          - generic: Walls
+                    - generic: PNG
+                - generic:
+                  - generic:
+                    - generic: "0"
+                    - generic: Walls
+                  - generic:
+                    - generic: "0"
+                    - generic: Rooms
+                  - generic:
+                    - generic: ✓
+                    - generic: Land
+              - generic:
+                - generic:
+                  - img
+                  - generic: Options
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                      - generic: Dimensions
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                      - generic: Room Areas
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                      - generic: Legend
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                      - generic: Grid
+              - button "Download PNG PRO":
+                - img
+                - generic: Download PNG
+                - generic: PRO
+  - generic [ref=e13]:
+    - button "Land" [ref=e14]:
+      - img [ref=e16]
+      - generic [ref=e18]: Land
+    - button "Compare" [ref=e19]:
+      - img [ref=e21]
+      - generic [ref=e23]: Compare
+    - button "Build" [ref=e24]:
+      - img [ref=e26]
+      - generic [ref=e28]: Build
+    - button "Save" [ref=e29]:
+      - img [ref=e31]
+      - generic [ref=e33]: Save
+    - button "Export" [ref=e34]:
+      - img [ref=e36]
+      - generic [ref=e38]: Export
+    - button "Share" [ref=e39]:
+      - img [ref=e41]
+      - generic [ref=e43]: Share
+    - button "Reset" [ref=e44]:
+      - img [ref=e46]
+      - generic [ref=e48]: Reset
+    - button "Help" [ref=e49]:
+      - img [ref=e51]
+      - generic [ref=e53]: Help
+    - button "Pro" [ref=e54]:
+      - img [ref=e55]
+      - generic [ref=e57]: Pro
+    - button "Sign In" [ref=e59]:
+      - img [ref=e60]
+  - generic [ref=e62]:
+    - generic [ref=e63]:
+      - img [ref=e65]
+      - generic [ref=e67]:
+        - heading "Define Your Land" [level=2] [ref=e68]
+        - paragraph [ref=e69]: Tap Build to start designing
+    - generic [ref=e70]:
+      - generic [ref=e71]: Total Area
+      - generic [ref=e72]: 2750 m²
+    - button "Edit Land" [ref=e73] [cursor=pointer]:
+      - generic [ref=e74]: Edit Land
+      - img [ref=e75]
+  - generic [ref=e77]:
+    - paragraph [ref=e78]: Use WASD to explore
+    - paragraph [ref=e79]: Walk around to feel the scale
+  - generic: WASD to move · Scroll to zoom · Right-click for cursor
+  - generic [ref=e81]:
+    - generic [ref=e82]:
+      - generic [ref=e83]: View
+      - generic [ref=e84]:
+        - button "1P" [ref=e85]
+        - button "3D" [ref=e86]
+        - button "2D" [ref=e87]
+    - generic [ref=e88]:
+      - generic [ref=e89]: Dimensions
+      - button [pressed] [ref=e90] [cursor=pointer]
+    - generic [ref=e92]:
+      - generic [ref=e93]: Grid
+      - button [ref=e94] [cursor=pointer]
+    - generic [ref=e96]:
+      - generic [ref=e97]: Quality
+      - combobox [ref=e98] [cursor=pointer]:
+        - option "Fast"
+        - option "Best" [selected]
+  - button "Open Sitea Agent":
+    - img
+    - generic: Sitea Agent
+  - generic [ref=e99]:
+    - generic [ref=e100]:
+      - generic [ref=e101]:
+        - img [ref=e103]
+        - generic [ref=e105]:
+          - generic [ref=e106]: Sitea Agent
+          - generic [ref=e107]: Land, plans, rooms, exports
+      - generic [ref=e108]:
+        - button "Clear chat" [ref=e109]:
+          - img [ref=e110]
+        - button "Close" [ref=e112]:
+          - img [ref=e113]
+    - generic [ref=e116]:
+      - generic [ref=e117]:
+        - generic [ref=e118]: How can we help you?
+        - paragraph [ref=e119]: Upload a plan or ask what fits. Sitea will turn it into clear next steps on the land.
+      - generic [ref=e120]:
+        - button "Upload a plan Site plan, floor plan, PDF, PNG, or JPG" [ref=e121]:
+          - img [ref=e122]
+          - generic [ref=e124]:
+            - generic [ref=e125]: Upload a plan
+            - generic [ref=e126]: Site plan, floor plan, PDF, PNG, or JPG
+        - button "See what fits Compare courts, homes, and setbacks" [ref=e127]:
+          - img [ref=e128]
+          - generic [ref=e130]:
+            - generic [ref=e131]: See what fits
+            - generic [ref=e132]: Compare courts, homes, and setbacks
+        - button "Start with land size Enter dimensions or choose a plot size" [ref=e133]:
+          - img [ref=e134]
+          - generic [ref=e136]:
+            - generic [ref=e137]: Start with land size
+            - generic [ref=e138]: Enter dimensions or choose a plot size
+    - generic [ref=e140]:
+      - button "Upload site plan, floor plan PDF, or image" [ref=e141]:
+        - img [ref=e142]
+      - textbox "Ask Sitea or upload a plan..." [ref=e144]
+      - button [disabled] [ref=e145]:
+        - img [ref=e146]
