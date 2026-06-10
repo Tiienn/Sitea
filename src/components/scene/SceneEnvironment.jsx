@@ -5,15 +5,16 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { QUALITY, QUALITY_SETTINGS } from '../../constants/landSceneConstants'
 import { useGrassTextures, useSimpleGrassTexture } from '../../hooks/useGrassTextures'
 
-// Time-of-day color stops for sky interpolation
+// Time-of-day color stops for sky interpolation — saturated, painterly
+// (sun = glow/disc color near the sun direction)
 const SKY_STOPS = [
-  { t: 0.0,  top: [0.039, 0.086, 0.157], horizon: [0.102, 0.165, 0.267], bottom: [0.051, 0.082, 0.125], cloud: [0.1, 0.1, 0.2] },
-  { t: 0.2,  top: [0.165, 0.251, 0.376], horizon: [0.831, 0.522, 0.416], bottom: [0.941, 0.659, 0.439], cloud: [1.0, 0.7, 0.5] },
-  { t: 0.35, top: [0.357, 0.557, 0.788], horizon: [0.722, 0.812, 0.878], bottom: [0.847, 0.894, 0.941], cloud: [1.0, 0.98, 0.95] },
-  { t: 0.5,  top: [0.227, 0.522, 0.839], horizon: [0.529, 0.722, 0.878], bottom: [0.753, 0.855, 0.941], cloud: [1.0, 1.0, 1.0] },
-  { t: 0.7,  top: [0.290, 0.376, 0.565], horizon: [0.910, 0.580, 0.416], bottom: [1.0, 0.784, 0.502],   cloud: [1.0, 0.75, 0.5] },
-  { t: 0.85, top: [0.102, 0.165, 0.314], horizon: [0.416, 0.251, 0.439], bottom: [0.816, 0.408, 0.282], cloud: [0.4, 0.2, 0.3] },
-  { t: 1.0,  top: [0.039, 0.086, 0.157], horizon: [0.102, 0.165, 0.267], bottom: [0.051, 0.082, 0.125], cloud: [0.1, 0.1, 0.2] },
+  { t: 0.0, sunY: 40,  top: [0.024, 0.055, 0.125], horizon: [0.078, 0.137, 0.243], bottom: [0.039, 0.067, 0.110], cloud: [0.16, 0.18, 0.30], sun: [0.5, 0.6, 0.8] },
+  { t: 0.2, sunY: 20,  top: [0.231, 0.282, 0.486], horizon: [0.957, 0.580, 0.392], bottom: [1.0, 0.741, 0.478],   cloud: [1.0, 0.78, 0.60],  sun: [1.0, 0.62, 0.30] },
+  { t: 0.35, sunY: 120, top: [0.255, 0.494, 0.835], horizon: [0.671, 0.820, 0.914], bottom: [0.878, 0.929, 0.961], cloud: [1.0, 0.99, 0.96],  sun: [1.0, 0.95, 0.82] },
+  { t: 0.5, sunY: 150,  top: [0.165, 0.443, 0.851], horizon: [0.561, 0.769, 0.918], bottom: [0.812, 0.898, 0.953], cloud: [1.0, 1.0, 1.0],    sun: [1.0, 0.98, 0.90] },
+  { t: 0.7, sunY: 30,  top: [0.282, 0.314, 0.580], horizon: [0.984, 0.557, 0.282], bottom: [1.0, 0.776, 0.420],   cloud: [1.0, 0.72, 0.46],  sun: [1.0, 0.52, 0.18] },
+  { t: 0.85, sunY: -10, top: [0.075, 0.110, 0.278], horizon: [0.439, 0.227, 0.420], bottom: [0.804, 0.380, 0.263], cloud: [0.42, 0.24, 0.34], sun: [0.9, 0.4, 0.3] },
+  { t: 1.0, sunY: 40,  top: [0.024, 0.055, 0.125], horizon: [0.078, 0.137, 0.243], bottom: [0.039, 0.067, 0.110], cloud: [0.16, 0.18, 0.30], sun: [0.5, 0.6, 0.8] },
 ]
 
 function lerpStops(stops, time, key) {
@@ -21,13 +22,15 @@ function lerpStops(stops, time, key) {
     if (time >= stops[i].t && time <= stops[i + 1].t) {
       const f = (time - stops[i].t) / (stops[i + 1].t - stops[i].t)
       const a = stops[i][key], b = stops[i + 1][key]
-      return a.map((v, j) => v + (b[j] - v) * f)
+      if (Array.isArray(a)) return a.map((v, j) => v + (b[j] - v) * f)
+      return a + (b - a) * f
     }
   }
   return stops[0][key]
 }
 
-// Original gradient sky with procedural clouds - now animated by timeOfDay
+// Stylized painterly sky: gradient + domain-warped two-tone cumulus clouds
+// with slow drift, sun disc + glow, and horizon haze — animated by timeOfDay
 export function RealisticSky({ timeOfDay = 0.35 }) {
   const matRef = useRef()
 
@@ -36,20 +39,31 @@ export function RealisticSky({ timeOfDay = 0.35 }) {
     horizonColor: { value: new THREE.Color('#f0c89a') },
     bottomColor: { value: new THREE.Color('#ffe8d0') },
     cloudTint: { value: new THREE.Vector3(1.0, 0.95, 0.88) },
+    sunColor: { value: new THREE.Vector3(1.0, 0.95, 0.82) },
+    sunDir: { value: new THREE.Vector3(0.5, 0.8, 0.3) },
+    uTime: { value: 0 },
   }), [])
 
   // Update sky colors each frame based on timeOfDay (no re-renders)
-  useFrame(() => {
+  useFrame((state) => {
     if (!matRef.current) return
     const u = matRef.current.uniforms
     const top = lerpStops(SKY_STOPS, timeOfDay, 'top')
     const hor = lerpStops(SKY_STOPS, timeOfDay, 'horizon')
     const bot = lerpStops(SKY_STOPS, timeOfDay, 'bottom')
     const cld = lerpStops(SKY_STOPS, timeOfDay, 'cloud')
+    const sun = lerpStops(SKY_STOPS, timeOfDay, 'sun')
     u.topColor.value.setRGB(top[0], top[1], top[2])
     u.horizonColor.value.setRGB(hor[0], hor[1], hor[2])
     u.bottomColor.value.setRGB(bot[0], bot[1], bot[2])
     u.cloudTint.value.set(cld[0], cld[1], cld[2])
+    u.sunColor.value.set(sun[0], sun[1], sun[2])
+    // Same sun orbit as DayNightController so the glow tracks the light
+    const sx = Math.cos(timeOfDay * Math.PI * 2) * 80
+    const sy = lerpStops(SKY_STOPS, timeOfDay, 'sunY')
+    const sz = Math.sin(timeOfDay * Math.PI * 2) * 40
+    u.sunDir.value.set(sx, sy, sz).normalize()
+    u.uTime.value = state.clock.elapsedTime
   })
 
   const vertexShader = `
@@ -66,6 +80,9 @@ export function RealisticSky({ timeOfDay = 0.35 }) {
     uniform vec3 horizonColor;
     uniform vec3 bottomColor;
     uniform vec3 cloudTint;
+    uniform vec3 sunColor;
+    uniform vec3 sunDir;
+    uniform float uTime;
     varying vec3 vWorldPosition;
 
     float hash(vec2 p) {
@@ -88,6 +105,7 @@ export function RealisticSky({ timeOfDay = 0.35 }) {
       v += noise(p) * 0.5;
       v += noise(p * 2.0) * 0.25;
       v += noise(p * 4.0) * 0.125;
+      v += noise(p * 8.0) * 0.0625;
       return v;
     }
 
@@ -97,19 +115,37 @@ export function RealisticSky({ timeOfDay = 0.35 }) {
 
       vec3 skyColor;
       if (h > 0.0) {
-        float t = pow(h, 0.7);
+        float t = pow(h, 0.65);
         skyColor = mix(horizonColor, topColor, t);
       } else {
         skyColor = bottomColor;
       }
 
-      if (h > 0.05) {
-        vec2 cloudUV = dir.xz / (h + 0.1) * 2.0;
-        float cloudNoise = fbm(cloudUV);
-        float clouds = smoothstep(0.35, 0.65, cloudNoise);
-        clouds *= smoothstep(0.0, 0.3, h) * 0.6;
-        skyColor = mix(skyColor, cloudTint, clouds);
+      // Sun glow + soft disc
+      float cosAngle = max(dot(dir, sunDir), 0.0);
+      float glow = pow(cosAngle, 6.0) * 0.30 + pow(cosAngle, 60.0) * 0.35;
+      float disc = smoothstep(0.9993, 0.9997, cosAngle);
+      skyColor += sunColor * (glow + disc * 1.4);
+
+      // Stylized cumulus: domain-warped fbm, two-tone (lit top / shaded base)
+      if (h > 0.03) {
+        vec2 cloudUV = dir.xz / (h + 0.18) * 1.4;
+        cloudUV += vec2(uTime * 0.006, uTime * 0.002);
+        vec2 warp = vec2(fbm(cloudUV * 1.6 + 3.7), fbm(cloudUV * 1.6 - 1.3));
+        float n = fbm(cloudUV + (warp - 0.5) * 0.9);
+        float cloud = smoothstep(0.46, 0.62, n);
+        float fade = smoothstep(0.0, 0.22, h) * 0.85;
+        // shading: re-sample slightly offset toward the sun for lit edges
+        float lit = fbm(cloudUV + (warp - 0.5) * 0.9 + sunDir.xz * 0.18);
+        vec3 shadeTint = cloudTint * vec3(0.58, 0.62, 0.76);
+        vec3 cloudCol = mix(shadeTint, cloudTint, smoothstep(0.38, 0.62, lit));
+        // silver lining near the sun
+        cloudCol += sunColor * pow(cosAngle, 5.0) * 0.18;
+        skyColor = mix(skyColor, cloudCol, cloud * fade);
       }
+
+      // Horizon haze band
+      skyColor = mix(skyColor, horizonColor, exp(-abs(h) * 7.0) * 0.45);
 
       gl_FragColor = vec4(skyColor, 1.0);
     }

@@ -365,15 +365,16 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
 
 // RoomFloor component is now imported from RoomFloor.jsx
 
-// Lighting interpolation table for day/night cycle
+// Lighting interpolation table for day/night cycle — warm days, golden
+// dawn/dusk, cool blue nights; fog tracks the sky's horizon colors
 const LIGHT_STOPS = [
-  { t: 0.0,  sunY: 40,  sunInt: 0.4, sunCol: [0.450,0.550,0.750], ambInt: 0.9, ambCol: [0.250,0.300,0.450], fogCol: [0.085,0.130,0.200] },
-  { t: 0.2,  sunY: 20,  sunInt: 0.4, sunCol: [1.0,0.6,0.4],     ambInt: 0.25, ambCol: [0.533,0.467,0.400], fogCol: [0.753,0.502,0.376] },
-  { t: 0.35, sunY: 120, sunInt: 1.4, sunCol: [1.0,0.976,0.940], ambInt: 0.45, ambCol: [0.941,0.961,1.0],   fogCol: [0.753,0.831,0.878] },
-  { t: 0.5,  sunY: 150, sunInt: 1.5, sunCol: [1.0,1.0,1.0],     ambInt: 0.5,  ambCol: [0.941,0.961,1.0],   fogCol: [0.722,0.831,0.910] },
-  { t: 0.7,  sunY: 30,  sunInt: 0.8, sunCol: [1.0,0.533,0.267], ambInt: 0.3,  ambCol: [0.667,0.533,0.400], fogCol: [0.784,0.565,0.408] },
-  { t: 0.85, sunY: -10, sunInt: 0.2, sunCol: [0.350,0.300,0.400],ambInt: 0.45, ambCol: [0.230,0.270,0.400], fogCol: [0.102,0.145,0.251] },
-  { t: 1.0,  sunY: 40,  sunInt: 0.4, sunCol: [0.450,0.550,0.750], ambInt: 0.9, ambCol: [0.250,0.300,0.450], fogCol: [0.085,0.130,0.200] },
+  { t: 0.0,  sunY: 40,  sunInt: 0.35, sunCol: [0.450,0.550,0.780], ambInt: 0.55, ambCol: [0.220,0.280,0.450], fogCol: [0.078,0.137,0.243] },
+  { t: 0.2,  sunY: 20,  sunInt: 1.0,  sunCol: [1.0,0.58,0.32],     ambInt: 0.35, ambCol: [0.600,0.480,0.520], fogCol: [0.880,0.560,0.420] },
+  { t: 0.35, sunY: 120, sunInt: 1.5,  sunCol: [1.0,0.960,0.860],   ambInt: 0.42, ambCol: [0.900,0.940,1.0],   fogCol: [0.671,0.820,0.914] },
+  { t: 0.5,  sunY: 150, sunInt: 1.6,  sunCol: [1.0,0.980,0.920],   ambInt: 0.45, ambCol: [0.920,0.950,1.0],   fogCol: [0.561,0.769,0.918] },
+  { t: 0.7,  sunY: 30,  sunInt: 1.1,  sunCol: [1.0,0.480,0.220],   ambInt: 0.33, ambCol: [0.620,0.450,0.420], fogCol: [0.920,0.550,0.320] },
+  { t: 0.85, sunY: -10, sunInt: 0.25, sunCol: [0.450,0.350,0.550], ambInt: 0.40, ambCol: [0.250,0.250,0.420], fogCol: [0.300,0.180,0.320] },
+  { t: 1.0,  sunY: 40,  sunInt: 0.35, sunCol: [0.450,0.550,0.780], ambInt: 0.55, ambCol: [0.220,0.280,0.450], fogCol: [0.078,0.137,0.243] },
 ]
 
 function lerpLightValue(time, key) {
@@ -390,7 +391,7 @@ function lerpLightValue(time, key) {
 }
 
 // Updates lights, fog imperatively each frame — no React re-renders
-function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sunRef, ambientRef, fillRef, fogRef }) {
+function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sunRef, ambientRef, fillRef, fogRef, hemiRef }) {
   const isPaused = useRef(false)
 
   useFrame((_, delta) => {
@@ -419,9 +420,16 @@ function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sun
     }
 
     if (ambientRef.current) {
-      ambientRef.current.intensity = lerpLightValue(t, 'ambInt')
+      // Hemisphere light carries part of the ambient share for sky/ground tinting
+      ambientRef.current.intensity = lerpLightValue(t, 'ambInt') * 0.55
       const ac = lerpLightValue(t, 'ambCol')
       ambientRef.current.color.setRGB(ac[0], ac[1], ac[2])
+    }
+
+    if (hemiRef.current) {
+      hemiRef.current.intensity = lerpLightValue(t, 'ambInt') * 0.8
+      const fc = lerpLightValue(t, 'fogCol')
+      hemiRef.current.color.setRGB(Math.min(fc[0] * 1.15, 1), Math.min(fc[1] * 1.15, 1), Math.min(fc[2] * 1.15, 1))
     }
 
     if (fillRef.current) {
@@ -449,6 +457,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
   const ambientRef = useRef()
   const fillRef = useRef()
   const fogRef = useRef()
+  const hemiRef = useRef()
 
   // Track if camera has been initialized to prevent re-positioning on subsequent renders
   const cameraInitialized = useRef(false)
@@ -2665,6 +2674,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         ambientRef={ambientRef}
         fillRef={fillRef}
         fogRef={fogRef}
+        hemiRef={hemiRef}
       />
 
       {/* Linear fog for depth (hidden in 2D mode) */}
@@ -2694,7 +2704,10 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       />
 
       {/* Ambient light */}
-      <ambientLight ref={ambientRef} intensity={0.45} color="#ffeedd" />
+      <ambientLight ref={ambientRef} intensity={0.25} color="#ffeedd" />
+
+      {/* Hemisphere light: sky tint from above, warm meadow bounce from below */}
+      <hemisphereLight ref={hemiRef} intensity={0.35} color="#bcd8ee" groundColor="#4d7c34" />
 
       {/* Fill light from opposite side */}
       <directionalLight ref={fillRef} position={[-30, 40, -20]} intensity={0.3} color="#ffe0b0" />
