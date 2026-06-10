@@ -247,7 +247,61 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
   const baseDimension = Math.min(imgSize.width, imgSize.height);
   const threshold = Math.max(3, Math.min(15, baseDimension * 0.005));
 
-  const snappedWalls = snapWallEndpoints([...(aiData.walls || [])], aiData.imageSize);
+  // Trim walls against detected stair footprints (pixel space). Aligned stair
+  // tread ends trace as a phantom wall band; it often fuses with a real wall
+  // above the stairs, so wall portions crossing the shrunk stair core are
+  // clipped out rather than whole walls rejected. Real walls BORDERING the
+  // stair sit on the box edge, outside the shrunk core, and are untouched.
+  const stairTrimmedWalls = [...(aiData.walls || [])].map(w => ({ ...w, start: { ...w.start }, end: { ...w.end } }));
+  const stairCores = (aiData.stairs || [])
+    .map(s => s.bbox)
+    .filter(b => b && b.w > 20 && b.h > 20)
+    .map(b => ({
+      x1: b.x + b.w * 0.15, x2: b.x + b.w * 0.85,
+      y1: b.y + b.h * 0.15, y2: b.y + b.h * 0.85,
+    }));
+  if (stairCores.length > 0) {
+    const MIN_PIECE_PX = 25;
+    const kept = [];
+    let trimmed = 0;
+    for (const w of stairTrimmedWalls) {
+      let pieces = [w];
+      for (const c of stairCores) {
+        const next = [];
+        for (const piece of pieces) {
+          const horiz = Math.abs(piece.end.x - piece.start.x) >= Math.abs(piece.end.y - piece.start.y);
+          const cross = horiz ? (piece.start.y + piece.end.y) / 2 : (piece.start.x + piece.end.x) / 2;
+          const crossIn = horiz ? (cross >= c.y1 && cross <= c.y2) : (cross >= c.x1 && cross <= c.x2);
+          const [lo, hi] = horiz
+            ? [Math.min(piece.start.x, piece.end.x), Math.max(piece.start.x, piece.end.x)]
+            : [Math.min(piece.start.y, piece.end.y), Math.max(piece.start.y, piece.end.y)];
+          const [cLo, cHi] = horiz ? [c.x1, c.x2] : [c.y1, c.y2];
+          if (!crossIn || Math.min(hi, cHi) - Math.max(lo, cLo) <= 0) {
+            next.push(piece);
+            continue;
+          }
+          trimmed++;
+          const mkPiece = (a, b) => {
+            const p = { ...piece, start: { ...piece.start }, end: { ...piece.end } };
+            if (horiz) { p.start.x = a; p.end.x = b; }
+            else { p.start.y = a; p.end.y = b; }
+            return p;
+          };
+          if (cLo - lo >= MIN_PIECE_PX) next.push(mkPiece(lo, cLo));
+          if (hi - cHi >= MIN_PIECE_PX) next.push(mkPiece(cHi, hi));
+        }
+        pieces = next;
+      }
+      kept.push(...pieces);
+    }
+    if (trimmed > 0) {
+      console.log(`[FloorPlan] Stair trim: clipped ${trimmed} wall(s) against ${stairCores.length} stair footprint(s) (${stairTrimmedWalls.length} → ${kept.length} walls)`);
+    }
+    stairTrimmedWalls.length = 0;
+    stairTrimmedWalls.push(...kept);
+  }
+
+  const snappedWalls = snapWallEndpoints(stairTrimmedWalls, aiData.imageSize);
   const cleanWalls = deduplicateWalls(snappedWalls, threshold);
 
   // Convert walls
@@ -301,14 +355,18 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
   };
   let weldedCount = 0;
   for (const w of rawWalls) {
-    const len = wallLength(w);
-    if (len < 0.05) continue;
+    if (wallLength(w) < 0.05) continue;
     for (const endKey of ['start', 'end']) {
       const p = w[endKey];
       const inner = endKey === 'start' ? w.end : w.start;
-      // Outward unit direction at this endpoint
-      const ux = (p.x - inner.x) / len;
-      const uz = (p.z - inner.z) / len;
+      // Outward unit direction at this endpoint — recomputed per endpoint:
+      // the first endpoint may have just been welded, so direction and
+      // length must come from the CURRENT geometry or the vector is not
+      // unit-length and the reach limit silently breaks.
+      const segLen = Math.hypot(p.x - inner.x, p.z - inner.z);
+      if (segLen < 0.05) continue;
+      const ux = (p.x - inner.x) / segLen;
+      const uz = (p.z - inner.z) / segLen;
 
       let moved = false;
       // 1. Directional extension: march forward and find the nearest wall
@@ -382,7 +440,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
   // continues there (window hatching breaks the CV trace).
   const COLLINEAR_OFFSET_M = 0.2;
   const MAX_MERGE_GAP_M = 1.2;
-  const MAX_OPENING_GAP_M = 2.8;
+  const MAX_OPENING_GAP_M = 3.4;
   const HULL_TOL_M = 0.35;
   const openingPoints = [...(aiData.doors || []), ...(aiData.windows || [])]
     .filter(o => o.center)
@@ -448,6 +506,37 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
   }
   if (mergedCount > 0) {
     console.log(`[FloorPlan] Walls: merged ${mergedCount} collinear fragments across opening gaps (<= ${MAX_MERGE_GAP_M}m)`);
+  }
+
+  // Close perimeter corners: when two perpendicular hull walls BOTH fall a
+  // little short of their shared corner, neither extension ray can hit the
+  // other (each target stops before the crossing point). Extend both to the
+  // intersection. Extensions only — never shrinks a wall.
+  const CORNER_TOL_M = 1.3;
+  let cornersClosed = 0;
+  const horizHull = rawWalls.filter(w => wallOnHull(w) && Math.abs(w.end.x - w.start.x) >= Math.abs(w.end.z - w.start.z));
+  const vertHull = rawWalls.filter(w => wallOnHull(w) && Math.abs(w.end.x - w.start.x) < Math.abs(w.end.z - w.start.z));
+  for (const hw of horizHull) {
+    for (const vw of vertHull) {
+      const ix = (vw.start.x + vw.end.x) / 2;
+      const iz = (hw.start.z + hw.end.z) / 2;
+      const hLo = Math.min(hw.start.x, hw.end.x), hHi = Math.max(hw.start.x, hw.end.x);
+      const vLo = Math.min(vw.start.z, vw.end.z), vHi = Math.max(vw.start.z, vw.end.z);
+      // Horizontal wall must fall short of ix, vertical short of iz — both
+      // by at most CORNER_TOL_M (a gap of 0 means already meeting).
+      const hGap = ix < hLo ? hLo - ix : (ix > hHi ? ix - hHi : -1);
+      const vGap = iz < vLo ? vLo - iz : (iz > vHi ? iz - vHi : -1);
+      if (hGap <= 0 || vGap <= 0 || hGap > CORNER_TOL_M || vGap > CORNER_TOL_M) continue;
+      // Extend the near endpoint of each wall to the intersection
+      const hEnd = Math.abs(hw.start.x - ix) < Math.abs(hw.end.x - ix) ? 'start' : 'end';
+      const vEnd = Math.abs(vw.start.z - iz) < Math.abs(vw.end.z - iz) ? 'start' : 'end';
+      hw[hEnd] = { x: ix, z: hw[hEnd].z };
+      vw[vEnd] = { x: vw[vEnd].x, z: iz };
+      cornersClosed++;
+    }
+  }
+  if (cornersClosed > 0) {
+    console.log(`[FloorPlan] Walls: closed ${cornersClosed} perimeter corner(s) (<= ${CORNER_TOL_M}m gaps)`);
   }
 
   // Filter out segments too short to be real structural walls.

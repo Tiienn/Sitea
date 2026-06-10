@@ -2391,3 +2391,28 @@ review overlay.
       (fixture 11 → 12 walls), so the bath door lands on its real wall.
 - [x] Opening accuracy still <= 0.07m on all fixture doors/windows; all
       QA suites, lint, build pass.
+
+---
+
+# v47: Defect audit findings — weld vector bug was the phantom wall
+
+Audited all 7 fixtures (source vs converted render, free). Findings:
+- Synthetic fixtures + real-wide: near wall-for-wall faithful.
+- THE phantom "stairs wall": NOT a stair-tread trace artifact. The weld
+  pass computed the second endpoint's direction from the updated inner
+  point but the stale wall length — a non-unit vector (2.26x here), so the
+  reach check passed while the real move was 3.7m. The lift wall's bottom
+  endpoint was flung through the staircase to the bottom wall.
+
+Changes:
+- [x] Weld: recompute direction/length per endpoint from current geometry.
+      Lift wall stays 472→535; staircase area clean.
+- [x] Stair trim (converter, pixel space): wall portions crossing the
+      shrunk stair-footprint core are clipped (defense in depth; handles
+      genuine tread-edge artifacts and fused walls).
+- [x] Corner-close pass: two perpendicular hull walls that both fall short
+      of their shared corner (each <= 1.3m) extend to the intersection.
+- [x] MAX_OPENING_GAP_M 2.8 → 3.4 (bottom-wall window gap was 2.83m).
+- [x] Connectivity audit: 4/7 fixtures fully connected (0 free endpoints);
+      remaining free ends are genuine (freestanding terrace wall etc).
+- [x] PR to main already open: https://github.com/Tiienn/Sitea/pull/4
