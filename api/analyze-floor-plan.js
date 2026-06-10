@@ -590,6 +590,14 @@ function calibrateScaleFromDimensionChains(walls, dimensionLabels, labelScaleX, 
   const vertical = walls.filter(w => Math.abs(w.end.x - w.start.x) < Math.abs(w.end.y - w.start.y));
   const horizontal = walls.filter(w => Math.abs(w.end.x - w.start.x) >= Math.abs(w.end.y - w.start.y));
 
+  // Printed dimensions reference wall faces; traced spans run between band
+  // centerlines — one wall thickness longer. Without correcting, every vote
+  // lands a few percent high and the whole building shrinks in 3D.
+  const thicknesses = walls.map(w => w.thickness).filter(t => Number.isFinite(t) && t > 0);
+  const avgThickness = thicknesses.length
+    ? thicknesses.reduce((s, t) => s + t, 0) / thicknesses.length
+    : 0;
+
   const votes = [];
   for (const label of labels) {
     // Horizontal measurement: x-positions of vertical walls reachable from the label
@@ -615,9 +623,10 @@ function calibrateScaleFromDimensionChains(walls, dimensionLabels, labelScaleX, 
           const margin = Math.max(20, span * 0.05);
           if (center < coords[i] - margin || center > coords[j] + margin) continue;
           const offset = Math.abs((coords[i] + coords[j]) / 2 - center);
-          const ppm = span / label.meters;
+          const effSpan = Math.max(span - avgThickness, span * 0.85);
+          const ppm = effSpan / label.meters;
           if (ppm >= 5 && ppm <= 500) {
-            votes.push({ ppm, span, offset, key: `${label.meters.toFixed(2)}:${axis}`, meters: label.meters });
+            votes.push({ ppm, span: effSpan, offset, key: `${label.meters.toFixed(2)}:${axis}`, meters: label.meters });
           }
         }
       }

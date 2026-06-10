@@ -22,21 +22,21 @@
           "id": "wall-qa-real-wide-40x30-0",
           "start": {
             "x": -5.888028439541314,
-            "z": -4.988356972653692
+            "z": -5.003209256309134
           },
           "end": {
-            "x": -2.9239322673847727,
-            "z": -5.036553658379814
+            "x": 6.18864723397705,
+            "z": -5.003209256309134
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
           "openings": [
             {
-              "id": "window-qa-real-wide-40x30-3",
+              "id": "window-qa-real-wide-40x30-1",
               "type": "window",
-              "position": 1.5233963756475515,
-              "width": 2.882183227171345,
+              "position": 1.4042370510499276,
+              "width": 1.4484067994414371,
               "height": 1.2,
               "sillHeight": 0.9
             },
@@ -47,72 +47,11 @@
               "width": 1.7556446053835602,
               "height": 1.2,
               "sillHeight": 0.9
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-1",
-          "start": {
-            "x": -2.9239322673847727,
-            "z": -5.036553658379814
-          },
-          "end": {
-            "x": -2.104588610040688,
-            "z": -5.036553658379814
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-4",
-          "start": {
-            "x": 0.7149175049374856,
-            "z": -5.036553658379814
-          },
-          "end": {
-            "x": 2.281309791036471,
-            "z": -5.036553658379814
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-5",
-          "start": {
-            "x": 2.281309791036471,
-            "z": -5.036553658379814
-          },
-          "end": {
-            "x": 3.321094378517234,
-            "z": -4.986977296535577
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-6",
-          "start": {
-            "x": 5.223042701016091,
-            "z": -4.986977296535577
-          },
-          "end": {
-            "x": 6.18864723397705,
-            "z": -4.986977296535577
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": [
+            },
             {
               "id": "window-qa-real-wide-40x30-2",
               "type": "window",
-              "position": 0.9509741612494284,
+              "position": 1.989335822320731,
               "width": 1.9019483224988567,
               "height": 1.2,
               "sillHeight": 0.9
@@ -138,78 +77,15 @@
           "id": "wall-qa-real-wide-40x30-8",
           "start": {
             "x": -5.888028439541314,
-            "z": -1.124589333609528
+            "z": -1.132778346234311
           },
           "end": {
-            "x": -3.8916788752668925,
-            "z": -1.1260916476048073
+            "x": 6.233438020578526,
+            "z": -1.132778346234311
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
-          "openings": [
-            {
-              "id": "door-qa-real-wide-40x30-0",
-              "type": "door",
-              "doorType": "single",
-              "position": 1.5135478630624357,
-              "width": 0.9656045329609582,
-              "height": 2.1
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-9",
-          "start": {
-            "x": -2.9239322673847727,
-            "z": -1.1004909907464666
-          },
-          "end": {
-            "x": -2.104588610040688,
-            "z": -1.1004909907464666
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-10",
-          "start": {
-            "x": -2.104588610040688,
-            "z": -1.1004909907464666
-          },
-          "end": {
-            "x": -0.3657592927882415,
-            "z": -1.1260916476048073
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": [
-            {
-              "id": "door-qa-real-wide-40x30-1",
-              "type": "door",
-              "doorType": "single",
-              "position": 1.3586281008402459,
-              "width": 0.7607793289995428,
-              "height": 2.1
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-13",
-          "start": {
-            "x": 3.291833635094175,
-            "z": -1.1260916476048073
-          },
-          "end": {
-            "x": 4.273439467716206,
-            "z": -1.1647532383812969
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
           "openings": [
             {
               "id": "door-qa-real-wide-40x30-3",
@@ -217,6 +93,30 @@
               "doorType": "single",
               "position": 0.5120630099035384,
               "width": 1.0241260198070767,
+              "height": 2.1
+            },
+            {
+              "id": "door-qa-real-wide-40x30-2",
+              "type": "door",
+              "doorType": "single",
+              "position": 1.477374397458778,
+              "width": 1.1704297369223733,
+              "height": 2.1
+            },
+            {
+              "id": "door-qa-real-wide-40x30-1",
+              "type": "door",
+              "doorType": "single",
+              "position": 2.1209830458566614,
+              "width": 0.7607793289995428,
+              "height": 2.1
+            },
+            {
+              "id": "door-qa-real-wide-40x30-0",
+              "type": "door",
+              "doorType": "single",
+              "position": 2.530552185746224,
+              "width": 0.9656045329609582,
               "height": 2.1
             }
           ]
@@ -246,14 +146,14 @@
           ]
         },
         {
-          "id": "wall-qa-real-wide-40x30-19",
+          "id": "wall-qa-real-wide-40x30-17",
           "start": {
-            "x": -5.837518312900338,
-            "z": 3.948633050042833
+            "x": 4.233275562944438,
+            "z": 3.203929870688726
           },
           "end": {
-            "x": -4.2135470529205445,
-            "z": 3.948633050042833
+            "x": 6.233438020578526,
+            "z": 3.203929870688726
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -261,46 +161,14 @@
           "openings": []
         },
         {
-          "id": "wall-qa-real-wide-40x30-20",
+          "id": "wall-qa-real-wide-40x30-19",
           "start": {
-            "x": -3.11626917455582,
-            "z": 3.948633050042833
+            "x": -5.837518312900338,
+            "z": 3.9622228598062574
           },
           "end": {
-            "x": -1.9458394376334471,
-            "z": 3.948633050042833
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": [
-            {
-              "id": "window-qa-real-wide-40x30-6",
-              "type": "window",
-              "position": 0.6217907977400103,
-              "width": 1.097277878364725,
-              "height": 1.2,
-              "sillHeight": 0.9
-            },
-            {
-              "id": "door-qa-real-wide-40x30-6",
-              "type": "door",
-              "doorType": "single",
-              "position": 0.7168882138649532,
-              "width": 0.9070830461148394,
-              "height": 2.1
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-22",
-          "start": {
-            "x": 0.35112892107671195,
-            "z": 3.934008483190822
-          },
-          "end": {
-            "x": 2.531054306094631,
-            "z": 3.934008483190822
+            "x": 6.233438020578526,
+            "z": 3.9622228598062574
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -313,27 +181,27 @@
               "width": 0.746148957288013,
               "height": 1.2,
               "sillHeight": 0.9
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-23",
-          "start": {
-            "x": 3.394246237074882,
-            "z": 3.948633050042833
-          },
-          "end": {
-            "x": 4.273439467716206,
-            "z": 3.9922921343138245
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": [
+            },
+            {
+              "id": "door-qa-real-wide-40x30-6",
+              "type": "door",
+              "doorType": "single",
+              "position": 1.6236490902764789,
+              "width": 0.9070830461148394,
+              "height": 2.1
+            },
+            {
+              "id": "window-qa-real-wide-40x30-6",
+              "type": "window",
+              "position": 2.179492922983742,
+              "width": 1.097277878364725,
+              "height": 1.2,
+              "sillHeight": 0.9
+            },
             {
               "id": "window-qa-real-wide-40x30-8",
               "type": "window",
-              "position": 0.4486806117541578,
+              "position": 2.618317001436844,
               "width": 0.8631919309802504,
               "height": 1.2,
               "sillHeight": 0.9
@@ -341,39 +209,24 @@
           ]
         },
         {
-          "id": "wall-qa-real-wide-40x30-24",
+          "id": "wall-qa-real-wide-40x30-26",
           "start": {
-            "x": 4.273439467716206,
-            "z": 3.9922921343138245
+            "z": -1.6672006211291956,
+            "x": -5.862773376220826
           },
           "end": {
-            "x": 6.233438020578526,
-            "z": 3.9521282295420552
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-27",
-          "start": {
-            "x": -5.888028439541314,
-            "z": -1.124589333609528
-          },
-          "end": {
-            "x": -5.837518312900338,
-            "z": 0.014624566852010993
+            "z": 0.014624566852010993,
+            "x": -5.862773376220826
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
           "openings": [
             {
-              "id": "window-qa-real-wide-40x30-4",
+              "id": "window-qa-real-wide-40x30-3",
               "type": "window",
-              "position": 1.4484067994414371,
-              "width": 2.8968135988828743,
+              "position": 1.4410916135856724,
+              "width": 2.882183227171345,
               "height": 1.2,
               "sillHeight": 0.9
             }
@@ -392,7 +245,16 @@
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
-          "openings": []
+          "openings": [
+            {
+              "id": "window-qa-real-wide-40x30-4",
+              "type": "window",
+              "position": 1.4484067994414371,
+              "width": 2.8968135988828743,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
         },
         {
           "id": "wall-qa-real-wide-40x30-31",
@@ -401,8 +263,8 @@
             "z": -3.1006534483805557
           },
           "end": {
-            "x": -2.9239322673847727,
-            "z": -1.1004909907464666
+            "x": -2.9236901073158057,
+            "z": -1.088431419311918
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -412,26 +274,17 @@
         {
           "id": "wall-qa-real-wide-40x30-32",
           "start": {
-            "x": -2.104588610040688,
-            "z": -5.036553658379814
+            "z": -5.049873623398528,
+            "x": -2.0994040940689143
           },
           "end": {
-            "x": -2.080490267177627,
-            "z": -3.1006534483805557
+            "z": -1.1004909907464666,
+            "x": -2.0994040940689143
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
-          "openings": [
-            {
-              "id": "window-qa-real-wide-40x30-1",
-              "type": "window",
-              "position": 1.2118467941544089,
-              "width": 1.4484067994414371,
-              "height": 1.2,
-              "sillHeight": 0.9
-            }
-          ]
+          "openings": []
         },
         {
           "id": "wall-qa-real-wide-40x30-35",
@@ -455,36 +308,27 @@
             "z": -5.036553658379814
           },
           "end": {
-            "x": 2.2823379869986278,
-            "z": -1.067593380196766
+            "x": 2.2793802314195974,
+            "z": -1.1540269091790623
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
-          "openings": [
-            {
-              "id": "door-qa-real-wide-40x30-2",
-              "type": "door",
-              "doorType": "single",
-              "position": 1.477374397458778,
-              "width": 1.1704297369223733,
-              "height": 2.1
-            }
-          ]
+          "openings": []
         },
         {
           "id": "wall-qa-real-wide-40x30-37",
           "start": {
-            "x": 4.273439467716206,
-            "z": -1.1647532383812969
+            "z": -1.1647532383812969,
+            "x": 4.253186149336629
           },
           "end": {
-            "x": 4.233275562944438,
-            "z": 1.052294305020344
+            "z": 3.9922921343138245,
+            "x": 4.253186149336629
           },
           "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
+          "thickness": 0.22499999999999998,
+          "isExterior": true,
           "openings": [
             {
               "id": "door-qa-real-wide-40x30-4",
@@ -497,83 +341,14 @@
           ]
         },
         {
-          "id": "wall-qa-real-wide-40x30-38",
+          "id": "wall-qa-real-wide-40x30-40",
           "start": {
-            "x": 4.233275562944438,
-            "z": 1.052294305020344
+            "z": -4.986977296535577,
+            "x": 6.257280981674325
           },
           "end": {
-            "x": 4.272068539766663,
-            "z": 2.1936850278015743
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-39",
-          "start": {
-            "x": 4.233275562944438,
-            "z": 3.2050796007871547
-          },
-          "end": {
-            "x": 4.273439467716206,
-            "z": 3.9922921343138245
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-41",
-          "start": {
-            "x": 6.18864723397705,
-            "z": -2.4130535305817307
-          },
-          "end": {
-            "x": 6.233438020578526,
-            "z": -1.124589333609528
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": [
-            {
-              "id": "window-qa-real-wide-40x30-5",
-              "type": "window",
-              "position": 1.0826475066531953,
-              "width": 2.1652950133063906,
-              "height": 1.2,
-              "sillHeight": 0.9
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-42",
-          "start": {
-            "x": 6.233438020578526,
-            "z": -1.124589333609528
-          },
-          "end": {
-            "x": 6.233438020578526,
-            "z": 1.052294305020344
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-43",
-          "start": {
-            "x": 6.233438020578526,
-            "z": 1.052294305020344
-          },
-          "end": {
-            "x": 6.18864723397705,
-            "z": 2.0328147924294586
+            "z": 3.949918752519929,
+            "x": 6.257280981674325
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -583,26 +358,19 @@
               "id": "door-qa-real-wide-40x30-7",
               "type": "door",
               "doorType": "single",
-              "position": 0.5499470242935045,
+              "position": 1.4042370510499276,
               "width": 0.8631919309802504,
               "height": 2.1
+            },
+            {
+              "id": "window-qa-real-wide-40x30-5",
+              "type": "window",
+              "position": 1.4920018667405481,
+              "width": 2.1652950133063906,
+              "height": 1.2,
+              "sillHeight": 0.9
             }
           ]
-        },
-        {
-          "id": "wall-qa-real-wide-40x30-45",
-          "start": {
-            "x": 6.233438020578526,
-            "z": 3.2050796007871547
-          },
-          "end": {
-            "x": 6.233438020578526,
-            "z": 3.9521282295420552
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
         }
       ],
       "rooms": [
@@ -690,7 +458,7 @@
       ],
       "stairs": [],
       "stats": {
-        "wallCount": 29,
+        "wallCount": 14,
         "doorCount": 8,
         "windowCount": 9,
         "roomCount": 9,
@@ -706,7 +474,7 @@
           "action": "Check the overlay, then place in 3D."
         },
         "counts": {
-          "wallCount": 29,
+          "wallCount": 14,
           "doorCount": 8,
           "windowCount": 9,
           "roomCount": 9,
@@ -733,47 +501,26 @@
         {
           "id": "wall-qa-real-site-ground-floor-0",
           "start": {
-            "x": -7.040229885057472,
-            "z": -6.293103448275863
+            "z": -6.580459770114944,
+            "x": -7.040229885057472
           },
           "end": {
-            "x": -7.040229885057472,
-            "z": -3.1321839080459775
+            "z": 5.2011494252873565,
+            "x": -7.040229885057472
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
           "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-1",
-          "start": {
-            "x": -7.040229885057472,
-            "z": -3.1321839080459775
-          },
-          "end": {
-            "x": -7.040229885057472,
-            "z": -0.5459770114942529
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-2",
-          "start": {
-            "x": -7.040229885057472,
-            "z": -0.5459770114942529
-          },
-          "end": {
-            "x": -7.040229885057472,
-            "z": 5.2011494252873565
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
+          "openings": [
+            {
+              "id": "window-qa-real-site-ground-floor-0",
+              "type": "window",
+              "position": 0.7471264367816093,
+              "width": 1.4942528735632186,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ]
         },
         {
           "id": "wall-qa-real-site-ground-floor-3",
@@ -789,14 +536,6 @@
           "thickness": 0.22499999999999998,
           "isExterior": true,
           "openings": [
-            {
-              "id": "window-qa-real-site-ground-floor-0",
-              "type": "window",
-              "position": 0.7471264367816093,
-              "width": 1.4942528735632186,
-              "height": 1.2,
-              "sillHeight": 0.9
-            },
             {
               "id": "window-qa-real-site-ground-floor-1",
               "type": "window",
@@ -814,7 +553,7 @@
             "z": 5.2011494252873565
           },
           "end": {
-            "x": -4.454022988505748,
+            "x": 8.477011494252874,
             "z": 5.2011494252873565
           },
           "height": 2.7,
@@ -832,31 +571,15 @@
             {
               "id": "window-qa-real-site-ground-floor-2",
               "type": "window",
-              "position": 1.7241379310344827,
+              "position": 3.0172413793103448,
               "width": 1.7241379310344829,
               "height": 1.2,
               "sillHeight": 0.9
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-5",
-          "start": {
-            "x": -3.304597701149426,
-            "z": 5.2011494252873565
-          },
-          "end": {
-            "x": 3.017241379310345,
-            "z": 5.2011494252873565
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": [
+            },
             {
               "id": "window-qa-real-site-ground-floor-3",
               "type": "window",
-              "position": 2.2701149425287364,
+              "position": 6.005747126436782,
               "width": 1.7241379310344829,
               "height": 1.2,
               "sillHeight": 0.9
@@ -864,32 +587,16 @@
             {
               "id": "window-qa-real-site-ground-floor-4",
               "type": "window",
-              "position": 5.143678160919541,
+              "position": 8.879310344827587,
               "width": 1.7241379310344829,
               "height": 1.2,
               "sillHeight": 0.9
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-6",
-          "start": {
-            "x": 4.166666666666667,
-            "z": 5.2011494252873565
-          },
-          "end": {
-            "x": 8.477011494252874,
-            "z": 5.2011494252873565
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": [
+            },
             {
               "id": "door-qa-real-site-ground-floor-4",
               "type": "door",
               "doorType": "sliding",
-              "position": 2.586206896551724,
+              "position": 13.793103448275863,
               "width": 1.8,
               "height": 2.1
             }
@@ -937,12 +644,12 @@
         {
           "id": "wall-qa-real-site-ground-floor-9",
           "start": {
-            "x": 7.902298850574714,
-            "z": -2.327586206896552
+            "x": 5.603448275862069,
+            "z": -2.34375
           },
           "end": {
             "x": 8.477011494252874,
-            "z": -2.327586206896552
+            "z": -2.34375
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -953,21 +660,6 @@
           "id": "wall-qa-real-site-ground-floor-10",
           "start": {
             "x": -7.040229885057472,
-            "z": -3.1321839080459775
-          },
-          "end": {
-            "x": -4.454022988505748,
-            "z": -3.1321839080459775
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-11",
-          "start": {
-            "x": -4.454022988505748,
             "z": -3.1321839080459775
           },
           "end": {
@@ -982,27 +674,12 @@
         {
           "id": "wall-qa-real-site-ground-floor-12",
           "start": {
-            "x": -3.304597701149426,
-            "z": -6.580459770114944
+            "z": -6.580459770114944,
+            "x": -3.304597701149426
           },
           "end": {
-            "x": -3.304597701149426,
-            "z": -5.431034482758621
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-13",
-          "start": {
-            "x": -3.304597701149426,
-            "z": -4.281609195402299
-          },
-          "end": {
-            "x": -3.304597701149426,
-            "z": -3.1321839080459775
+            "z": 5.2011494252873565,
+            "x": -3.304597701149426
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -1012,71 +689,11 @@
               "id": "door-qa-real-site-ground-floor-0",
               "type": "door",
               "doorType": "single",
-              "position": 0.4597701149425288,
+              "position": 2.298850574712645,
               "width": 0.9195402298850576,
               "height": 2.1
             }
           ]
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-14",
-          "start": {
-            "x": -3.304597701149426,
-            "z": -3.1321839080459775
-          },
-          "end": {
-            "x": -3.304597701149426,
-            "z": -2.4137931034482762
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-15",
-          "start": {
-            "x": -3.304597701149426,
-            "z": -2.4137931034482762
-          },
-          "end": {
-            "x": -3.304597701149426,
-            "z": -1.4080459770114944
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-16",
-          "start": {
-            "x": -3.304597701149426,
-            "z": -0.25862068965517243
-          },
-          "end": {
-            "x": -3.304597701149426,
-            "z": 2.327586206896552
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-17",
-          "start": {
-            "x": -3.304597701149426,
-            "z": 2.327586206896552
-          },
-          "end": {
-            "x": -3.304597701149426,
-            "z": 5.2011494252873565
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
         },
         {
           "id": "wall-qa-real-site-ground-floor-18",
@@ -1118,44 +735,14 @@
           ]
         },
         {
-          "id": "wall-qa-real-site-ground-floor-20",
-          "start": {
-            "x": 5.603448275862069,
-            "z": -2.4137931034482762
-          },
-          "end": {
-            "x": 7.902298850574714,
-            "z": -2.327586206896552
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
           "id": "wall-qa-real-site-ground-floor-21",
           "start": {
-            "x": -4.454022988505748,
-            "z": -3.1321839080459775
+            "z": -3.1321839080459775,
+            "x": -4.454022988505748
           },
           "end": {
-            "x": -4.454022988505748,
-            "z": -1.6954022988505748
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-22",
-          "start": {
-            "x": -4.454022988505748,
-            "z": -1.6954022988505748
-          },
-          "end": {
-            "x": -4.454022988505748,
-            "z": -0.5459770114942529
+            "z": -0.5459770114942529,
+            "x": -4.454022988505748
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -1169,7 +756,7 @@
             "z": -0.5459770114942529
           },
           "end": {
-            "x": -5.89080459770115,
+            "x": -3.304597701149426,
             "z": -0.5459770114942529
           },
           "height": 2.7,
@@ -1180,41 +767,11 @@
               "id": "door-qa-real-site-ground-floor-1",
               "type": "door",
               "doorType": "single",
-              "position": 0.718390804597701,
+              "position": 1.0057471264367817,
               "width": 0.8620689655172414,
               "height": 2.1
             }
           ]
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-24",
-          "start": {
-            "x": -5.89080459770115,
-            "z": -0.5459770114942529
-          },
-          "end": {
-            "x": -5.028735632183909,
-            "z": -0.5459770114942529
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-25",
-          "start": {
-            "x": -5.028735632183909,
-            "z": -0.5459770114942529
-          },
-          "end": {
-            "x": -4.454022988505748,
-            "z": -0.5459770114942529
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
         },
         {
           "id": "wall-qa-real-site-ground-floor-26",
@@ -1249,27 +806,12 @@
         {
           "id": "wall-qa-real-site-ground-floor-28",
           "start": {
-            "x": -5.028735632183909,
-            "z": -0.5459770114942529
+            "z": -0.5459770114942529,
+            "x": -5.028735632183909
           },
           "end": {
-            "x": -5.028735632183909,
-            "z": 1.17816091954023
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-ground-floor-29",
-          "start": {
-            "x": -5.028735632183909,
-            "z": 1.17816091954023
-          },
-          "end": {
-            "x": -5.028735632183909,
-            "z": 2.327586206896552
+            "z": 2.327586206896552,
+            "x": -5.028735632183909
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -1294,11 +836,11 @@
         {
           "id": "wall-qa-real-site-ground-floor-31",
           "start": {
-            "x": -6.178160919540231,
+            "x": -7.040229885057472,
             "z": 1.17816091954023
           },
           "end": {
-            "x": -5.028735632183909,
+            "x": -3.304597701149426,
             "z": 1.17816091954023
           },
           "height": 2.7,
@@ -1389,7 +931,7 @@
         }
       ],
       "stats": {
-        "wallCount": 33,
+        "wallCount": 18,
         "doorCount": 5,
         "windowCount": 6,
         "roomCount": 6,
@@ -1405,7 +947,7 @@
           "action": "Check the overlay, then place in 3D."
         },
         "counts": {
-          "wallCount": 33,
+          "wallCount": 18,
           "doorCount": 5,
           "windowCount": 6,
           "roomCount": 6,
@@ -1432,57 +974,12 @@
         {
           "id": "wall-qa-real-site-upper-floor-0",
           "start": {
-            "x": -6.278801843317972,
-            "z": -5.207373271889401
+            "z": -5.207373271889401,
+            "x": -6.278801843317972
           },
           "end": {
-            "x": -6.278801843317972,
-            "z": -3.364055299539171
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-1",
-          "start": {
-            "x": -6.278801843317972,
-            "z": -3.364055299539171
-          },
-          "end": {
-            "x": -6.278801843317972,
-            "z": -1.2903225806451613
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-2",
-          "start": {
-            "x": -6.278801843317972,
-            "z": -1.2903225806451613
-          },
-          "end": {
-            "x": -6.278801843317972,
-            "z": 0.3225806451612903
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-3",
-          "start": {
-            "x": -6.278801843317972,
-            "z": 0.3225806451612903
-          },
-          "end": {
-            "x": -6.278801843317972,
-            "z": 3.087557603686636
+            "z": 3.087557603686636,
+            "x": -6.278801843317972
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -1491,7 +988,7 @@
             {
               "id": "window-qa-real-site-upper-floor-4",
               "type": "window",
-              "position": 2.4193548387096775,
+              "position": 7.949308755760369,
               "width": 0.6912442396313364,
               "height": 1.2,
               "sillHeight": 0.9
@@ -1533,12 +1030,12 @@
         {
           "id": "wall-qa-real-site-upper-floor-5",
           "start": {
-            "x": -3.283410138248848,
-            "z": -5.207373271889401
+            "z": -5.207373271889401,
+            "x": -3.283410138248848
           },
           "end": {
-            "x": -3.283410138248848,
-            "z": -4.055299539170507
+            "z": 3.087557603686636,
+            "x": -3.283410138248848
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -1549,21 +1046,6 @@
           "id": "wall-qa-real-site-upper-floor-6",
           "start": {
             "x": -3.283410138248848,
-            "z": -4.055299539170507
-          },
-          "end": {
-            "x": -2.5921658986175116,
-            "z": -4.055299539170507
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-7",
-          "start": {
-            "x": -2.5921658986175116,
             "z": -4.055299539170507
           },
           "end": {
@@ -1578,27 +1060,12 @@
         {
           "id": "wall-qa-real-site-upper-floor-8",
           "start": {
-            "x": 7.085253456221198,
-            "z": -4.055299539170507
+            "z": -4.055299539170507,
+            "x": 7.085253456221198
           },
           "end": {
-            "x": 7.085253456221198,
-            "z": -2.903225806451613
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-9",
-          "start": {
-            "x": 7.085253456221198,
-            "z": -2.903225806451613
-          },
-          "end": {
-            "x": 7.085253456221198,
-            "z": 0.783410138248848
+            "z": 3.087557603686636,
+            "x": 7.085253456221198
           },
           "height": 2.7,
           "thickness": 0.22499999999999998,
@@ -1607,42 +1074,12 @@
             {
               "id": "window-qa-real-site-upper-floor-2",
               "type": "window",
-              "position": 1.382488479262673,
+              "position": 2.534562211981567,
               "width": 0.9216589861751152,
               "height": 1.2,
               "sillHeight": 0.9
             }
           ]
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-10",
-          "start": {
-            "x": 7.085253456221198,
-            "z": 0.783410138248848
-          },
-          "end": {
-            "x": 7.085253456221198,
-            "z": 1.935483870967742
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-11",
-          "start": {
-            "x": 7.085253456221198,
-            "z": 1.935483870967742
-          },
-          "end": {
-            "x": 7.085253456221198,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
         },
         {
           "id": "wall-qa-real-site-upper-floor-12",
@@ -1651,97 +1088,7 @@
             "z": 3.087557603686636
           },
           "end": {
-            "x": -5.587557603686636,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-13",
-          "start": {
-            "x": -5.587557603686636,
-            "z": 3.087557603686636
-          },
-          "end": {
-            "x": -3.283410138248848,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-14",
-          "start": {
-            "x": -3.283410138248848,
-            "z": 3.087557603686636
-          },
-          "end": {
-            "x": -1.9009216589861753,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-15",
-          "start": {
-            "x": -1.9009216589861753,
-            "z": 3.087557603686636
-          },
-          "end": {
-            "x": -1.2096774193548387,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-16",
-          "start": {
-            "x": -1.2096774193548387,
-            "z": 3.087557603686636
-          },
-          "end": {
-            "x": 1.3248847926267282,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-17",
-          "start": {
-            "x": 1.3248847926267282,
-            "z": 3.087557603686636
-          },
-          "end": {
-            "x": 2.0161290322580645,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-18",
-          "start": {
-            "x": 2.0161290322580645,
-            "z": 3.087557603686636
-          },
-          "end": {
-            "x": 4.78110599078341,
+            "x": 7.085253456221198,
             "z": 3.087557603686636
           },
           "height": 2.7,
@@ -1752,50 +1099,19 @@
               "id": "door-qa-real-site-upper-floor-2",
               "type": "door",
               "doorType": "single",
-              "position": 0.44930875576036866,
+              "position": 8.571428571428571,
               "width": 0.8986175115207373,
               "height": 2.1
-            }
-          ]
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-19",
-          "start": {
-            "x": 4.78110599078341,
-            "z": 3.087557603686636
-          },
-          "end": {
-            "x": 5.933179723502304,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": [
+            },
             {
               "id": "window-qa-real-site-upper-floor-3",
               "type": "window",
-              "position": 0.5760368663594471,
+              "position": 11.405529953917052,
               "width": 1.1520737327188941,
               "height": 1.2,
               "sillHeight": 0.9
             }
           ]
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-20",
-          "start": {
-            "x": 5.933179723502304,
-            "z": 3.087557603686636
-          },
-          "end": {
-            "x": 7.085253456221198,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.22499999999999998,
-          "isExterior": true,
-          "openings": []
         },
         {
           "id": "wall-qa-real-site-upper-floor-21",
@@ -1804,7 +1120,7 @@
             "z": -3.364055299539171
           },
           "end": {
-            "x": -4.8963133640553,
+            "x": -3.283410138248848,
             "z": -3.364055299539171
           },
           "height": 2.7,
@@ -1828,13 +1144,13 @@
           "openings": []
         },
         {
-          "id": "wall-qa-real-site-upper-floor-26",
+          "id": "wall-qa-real-site-upper-floor-25",
           "start": {
-            "x": -4.8963133640553,
+            "x": -6.278801843317972,
             "z": -1.2903225806451613
           },
           "end": {
-            "x": -3.283410138248848,
+            "x": -1.900921658986175,
             "z": -1.2903225806451613
           },
           "height": 2.7,
@@ -1845,27 +1161,12 @@
         {
           "id": "wall-qa-real-site-upper-floor-27",
           "start": {
-            "x": -5.587557603686636,
-            "z": -1.2903225806451613
+            "z": -1.2903225806451613,
+            "x": -5.587557603686636
           },
           "end": {
-            "x": -5.587557603686636,
-            "z": 0.3225806451612903
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-28",
-          "start": {
-            "x": -5.587557603686636,
-            "z": 0.3225806451612903
-          },
-          "end": {
-            "x": -5.587557603686636,
-            "z": 3.087557603686636
+            "z": 3.087557603686636,
+            "x": -5.587557603686636
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -1876,21 +1177,6 @@
           "id": "wall-qa-real-site-upper-floor-29",
           "start": {
             "x": -6.278801843317972,
-            "z": 0.3225806451612903
-          },
-          "end": {
-            "x": -5.587557603686636,
-            "z": 0.3225806451612903
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-30",
-          "start": {
-            "x": -4.8963133640553,
             "z": 0.3225806451612903
           },
           "end": {
@@ -1905,95 +1191,20 @@
               "id": "door-qa-real-site-upper-floor-3",
               "type": "door",
               "doorType": "single",
-              "position": 0.645161290322581,
+              "position": 2.0276497695852536,
               "width": 0.8986175115207373,
               "height": 2.1
             }
           ]
         },
         {
-          "id": "wall-qa-real-site-upper-floor-31",
+          "id": "wall-qa-real-site-upper-floor-36",
           "start": {
             "x": -3.283410138248848,
-            "z": -4.055299539170507
-          },
-          "end": {
-            "x": -3.283410138248848,
-            "z": -3.364055299539171
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-32",
-          "start": {
-            "x": -3.283410138248848,
-            "z": -3.364055299539171
-          },
-          "end": {
-            "x": -3.283410138248848,
-            "z": -1.2903225806451613
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-33",
-          "start": {
-            "x": -3.283410138248848,
-            "z": -1.2903225806451613
-          },
-          "end": {
-            "x": -3.283410138248848,
-            "z": -0.8294930875576038
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-34",
-          "start": {
-            "x": -3.283410138248848,
-            "z": 0.3225806451612903
-          },
-          "end": {
-            "x": -3.283410138248848,
-            "z": 0.783410138248848
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-35",
-          "start": {
-            "x": -3.283410138248848,
-            "z": 0.783410138248848
-          },
-          "end": {
-            "x": -3.283410138248848,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-37",
-          "start": {
-            "x": -1.9009216589861753,
             "z": -2.903225806451613
           },
           "end": {
-            "x": 1.3248847926267282,
+            "x": 7.085253456221198,
             "z": -2.903225806451613
           },
           "height": 2.7,
@@ -2004,51 +1215,21 @@
               "id": "door-qa-real-site-upper-floor-4",
               "type": "door",
               "doorType": "single",
-              "position": 0.44930875576036866,
+              "position": 1.0138248847926268,
               "width": 0.8986175115207373,
               "height": 2.1
             }
           ]
         },
         {
-          "id": "wall-qa-real-site-upper-floor-38",
-          "start": {
-            "x": 1.3248847926267282,
-            "z": -2.903225806451613
-          },
-          "end": {
-            "x": 7.085253456221198,
-            "z": -2.903225806451613
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
           "id": "wall-qa-real-site-upper-floor-39",
           "start": {
-            "x": -1.9009216589861753,
-            "z": -2.903225806451613
+            "z": -2.903225806451613,
+            "x": -1.9009216589861753
           },
           "end": {
-            "x": -1.9009216589861753,
-            "z": -0.8294930875576038
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-41",
-          "start": {
-            "x": -1.9009216589861753,
-            "z": 0.783410138248848
-          },
-          "end": {
-            "x": -1.9009216589861753,
-            "z": 3.087557603686636
+            "z": 3.087557603686636,
+            "x": -1.9009216589861753
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -2058,42 +1239,12 @@
         {
           "id": "wall-qa-real-site-upper-floor-42",
           "start": {
-            "x": 1.3248847926267282,
-            "z": -2.903225806451613
+            "z": -2.903225806451613,
+            "x": 1.3248847926267282
           },
           "end": {
-            "x": 1.3248847926267282,
-            "z": -0.8294930875576038
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-43",
-          "start": {
-            "x": 1.3248847926267282,
-            "z": -0.8294930875576038
-          },
-          "end": {
-            "x": 1.3248847926267282,
-            "z": 0.3225806451612903
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-44",
-          "start": {
-            "x": 1.3248847926267282,
-            "z": 1.2442396313364055
-          },
-          "end": {
-            "x": 1.3248847926267282,
-            "z": 3.087557603686636
+            "z": 3.087557603686636,
+            "x": 1.3248847926267282
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -2103,7 +1254,7 @@
               "id": "door-qa-real-site-upper-floor-1",
               "type": "door",
               "doorType": "single",
-              "position": 0.6912442396313365,
+              "position": 4.838709677419356,
               "width": 0.8986175115207373,
               "height": 2.1
             }
@@ -2113,36 +1264,6 @@
           "id": "wall-qa-real-site-upper-floor-45",
           "start": {
             "x": -3.283410138248848,
-            "z": -0.8294930875576038
-          },
-          "end": {
-            "x": -1.9009216589861753,
-            "z": -0.8294930875576038
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-46",
-          "start": {
-            "x": -1.9009216589861753,
-            "z": -0.8294930875576038
-          },
-          "end": {
-            "x": -0.9792626728110599,
-            "z": -0.8294930875576038
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-47",
-          "start": {
-            "x": -0.0576036866359447,
             "z": -0.8294930875576038
           },
           "end": {
@@ -2158,51 +1279,6 @@
           "id": "wall-qa-real-site-upper-floor-48",
           "start": {
             "x": -3.283410138248848,
-            "z": 0.783410138248848
-          },
-          "end": {
-            "x": -1.9009216589861753,
-            "z": 0.783410138248848
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-49",
-          "start": {
-            "x": -1.2096774193548387,
-            "z": 0.783410138248848
-          },
-          "end": {
-            "x": 1.3248847926267282,
-            "z": 0.783410138248848
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-50",
-          "start": {
-            "x": 2.0161290322580645,
-            "z": 0.783410138248848
-          },
-          "end": {
-            "x": 4.78110599078341,
-            "z": 0.783410138248848
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-51",
-          "start": {
-            "x": 5.472350230414746,
             "z": 0.783410138248848
           },
           "end": {
@@ -2256,12 +1332,12 @@
         {
           "id": "wall-qa-real-site-upper-floor-54",
           "start": {
-            "x": 4.78110599078341,
-            "z": 0.783410138248848
+            "z": 0.783410138248848,
+            "x": 4.78110599078341
           },
           "end": {
-            "x": 4.78110599078341,
-            "z": 1.935483870967742
+            "z": 3.087557603686636,
+            "x": 4.78110599078341
           },
           "height": 2.7,
           "thickness": 0.15,
@@ -2269,24 +1345,9 @@
           "openings": []
         },
         {
-          "id": "wall-qa-real-site-upper-floor-55",
+          "id": "wall-qa-real-site-upper-floor-56",
           "start": {
             "x": 4.78110599078341,
-            "z": 1.935483870967742
-          },
-          "end": {
-            "x": 4.78110599078341,
-            "z": 3.087557603686636
-          },
-          "height": 2.7,
-          "thickness": 0.15,
-          "isExterior": false,
-          "openings": []
-        },
-        {
-          "id": "wall-qa-real-site-upper-floor-57",
-          "start": {
-            "x": 5.933179723502304,
             "z": 1.935483870967742
           },
           "end": {
@@ -2417,7 +1478,7 @@
         }
       ],
       "stats": {
-        "wallCount": 53,
+        "wallCount": 21,
         "doorCount": 5,
         "windowCount": 5,
         "roomCount": 10,
@@ -2433,7 +1494,7 @@
           "action": "Review the highlighted checks, then place in 3D."
         },
         "counts": {
-          "wallCount": 53,
+          "wallCount": 21,
           "doorCount": 5,
           "windowCount": 5,
           "roomCount": 10,

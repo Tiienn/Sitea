@@ -2294,3 +2294,41 @@ auto-sizing from lot boundary. Building structure only.
   tracer (converter snapping bridges part of it); scale within ~5% (band
   centers vs face-to-face dimension references); diagonal walls still
   unsupported.
+
+---
+
+# v43: Wall connectivity + scale precision (after first live v42 test)
+
+## User feedback on v42 live test
+Layout much better; staircase correctly ignored; but bedroom walls missing
+and walls not connected in 3D.
+
+## Root causes found
+1. Analyzer traced 33 walls but the review screen showed 21 — the converter
+   was dropping real walls: its short-wall filter only recognized
+   endpoint-to-endpoint connections (0.1m), while traced walls meet
+   perpendicular walls at their BODY, half a wall thickness away.
+2. Walls with door/window openings trace as several sub-0.8m collinear
+   fragments, each individually "too short, unconnected" → deleted.
+3. Chain-vote scale had a systematic high bias (~+6%): printed dims measure
+   wall faces, the tracer measures band centerlines — every span one wall
+   thickness too long. At 49.1 px/m (vs true ~43.5) even more walls fell
+   under the 0.8m filter.
+
+## Changes
+- [x] Analyzer: thickness-correct chain votes (span minus average traced
+      wall thickness). Captured-OCR replay: 43.7 px/m, 7 labels agreeing,
+      bounds 12.42m x 10.34m (truth ~12.5 x 10.4, within 1%).
+- [x] Converter: weld pass — extend endpoints along their own wall axis to
+      a crossing wall body (<= 1.0m, can't grab parallel walls), else pull
+      laterally onto a body (<= 0.35m). Closes T/L corner gaps.
+- [x] Converter: merge collinear fragments across opening-sized gaps
+      (<= 1.2m); wider gaps (<= 2.8m) bridge only when a detected
+      door/window sits inside the gap or both fragments lie on the
+      building's outer hull (exterior perimeter must close).
+- [x] Converter: connection test for the short-wall filter is now
+      point-to-segment (T-junctions count), 0.15m.
+- [x] Verified real-lot-127sqm conversion renders a closed, faithful
+      layout (perimeter + bedroom + mid band + bath/stairs partitions).
+- [x] Review QA + placement QA + lint + build pass; demo fixture geometry
+      visually verified intact (consolidated 28 → 12 wall objects).

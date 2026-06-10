@@ -266,24 +266,176 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     };
   });
 
-  // Filter out segments too short to be real structural walls.
-  // Rule: keep a wall if length >= 0.8m OR both endpoints connect to at least one
-  // other wall (within 0.1m tolerance). This preserves short walls at T/L junctions
-  // while discarding isolated noise like dimension ticks and closet-door stubs.
-  const MIN_WALL_LENGTH_M = 0.8;
-  const CONNECT_TOL_M = 0.1;
-
-  const pointsClose = (a, b) => {
-    const dx = a.x - b.x;
-    const dz = a.z - b.z;
-    return dx * dx + dz * dz <= CONNECT_TOL_M * CONNECT_TOL_M;
-  };
-
   const wallLength = (w) => {
     const dx = w.end.x - w.start.x;
     const dz = w.end.z - w.start.z;
     return Math.sqrt(dx * dx + dz * dz);
   };
+
+  // Weld endpoints onto nearby wall bodies. Traced walls stop at the FACE of
+  // the perpendicular wall band (half a wall thickness from its centerline),
+  // which reads as a visible gap in 3D and breaks connectivity checks.
+  // Two moves, tried in order:
+  //  1. Extend the endpoint ALONG its own wall axis to a wall body ahead —
+  //     directional, so it can reach further without grabbing parallel walls.
+  //  2. Pull the endpoint laterally onto a very close wall body.
+  const EXTEND_TOL_M = 1.0;
+  const WELD_TOL_M = 0.35;
+  let weldedCount = 0;
+  for (const w of rawWalls) {
+    const len = wallLength(w);
+    if (len < 0.05) continue;
+    for (const endKey of ['start', 'end']) {
+      const p = w[endKey];
+      const inner = endKey === 'start' ? w.end : w.start;
+      // Outward unit direction at this endpoint
+      const ux = (p.x - inner.x) / len;
+      const uz = (p.z - inner.z) / len;
+
+      let moved = false;
+      // 1. Directional extension: march forward and find the nearest wall
+      //    body crossing the ray within EXTEND_TOL_M.
+      let bestT = EXTEND_TOL_M;
+      let bestHit = null;
+      for (const other of rawWalls) {
+        if (other === w) continue;
+        const dx = other.end.x - other.start.x;
+        const dz = other.end.z - other.start.z;
+        const denom = ux * dz - uz * dx;
+        if (Math.abs(denom) < 1e-9) continue; // parallel
+        // Solve p + t*u = other.start + s*(d)
+        const rx = other.start.x - p.x;
+        const rz = other.start.z - p.z;
+        const t = (rx * dz - rz * dx) / denom;
+        const s = (rx * uz - rz * ux) / denom;
+        const otherLen = Math.sqrt(dx * dx + dz * dz);
+        const sTol = otherLen > 0 ? 0.35 / otherLen : 0;
+        if (t > 1e-6 && t < bestT && s >= -sTol && s <= 1 + sTol) {
+          bestT = t;
+          bestHit = { x: p.x + ux * t, z: p.z + uz * t };
+        }
+      }
+      if (bestHit) {
+        w[endKey] = bestHit;
+        weldedCount++;
+        moved = true;
+      }
+
+      // 2. Lateral pull onto a very close wall body
+      if (!moved) {
+        let bestProj = null;
+        let bestDist = WELD_TOL_M;
+        for (const other of rawWalls) {
+          if (other === w) continue;
+          const dx = other.end.x - other.start.x;
+          const dz = other.end.z - other.start.z;
+          const lengthSq = dx * dx + dz * dz;
+          if (lengthSq === 0) continue;
+          const t = Math.max(0, Math.min(1, ((p.x - other.start.x) * dx + (p.z - other.start.z) * dz) / lengthSq));
+          const projX = other.start.x + t * dx;
+          const projZ = other.start.z + t * dz;
+          const dist = Math.sqrt((p.x - projX) ** 2 + (p.z - projZ) ** 2);
+          if (dist > 1e-6 && dist < bestDist) {
+            bestDist = dist;
+            bestProj = { x: projX, z: projZ };
+          }
+        }
+        if (bestProj) {
+          w[endKey] = bestProj;
+          weldedCount++;
+        }
+      }
+    }
+  }
+  if (weldedCount > 0) {
+    console.log(`[FloorPlan] Walls: welded ${weldedCount} endpoints onto nearby wall bodies`);
+  }
+
+  // Merge collinear fragments separated by opening-sized gaps. A wall with
+  // doors/windows along it traces as several short pieces; doors and windows
+  // are attached as openings on walls afterwards, so they need the continuous
+  // wall to exist. Gaps wider than a double door stay genuine passages —
+  // unless a detected door/window sits inside the gap, which proves the wall
+  // continues there (window hatching breaks the CV trace).
+  const COLLINEAR_OFFSET_M = 0.2;
+  const MAX_MERGE_GAP_M = 1.2;
+  const MAX_OPENING_GAP_M = 2.8;
+  const HULL_TOL_M = 0.35;
+  const openingPoints = [...(aiData.doors || []), ...(aiData.windows || [])]
+    .filter(o => o.center)
+    .map(o => toWorld(o.center.x, o.center.y));
+  // The exterior perimeter must be closed — fragments sitting on the
+  // building's bounding hull may bridge wider gaps (closet symbols, hatching,
+  // and faint sections break the trace along exterior walls).
+  const hullXs = rawWalls.flatMap(w => [w.start.x, w.end.x]);
+  const hullZs = rawWalls.flatMap(w => [w.start.z, w.end.z]);
+  const hull = {
+    minX: Math.min(...hullXs), maxX: Math.max(...hullXs),
+    minZ: Math.min(...hullZs), maxZ: Math.max(...hullZs),
+  };
+  let mergedCount = 0;
+  let mergeChanged = true;
+  while (mergeChanged) {
+    mergeChanged = false;
+    outer:
+    for (let i = 0; i < rawWalls.length; i++) {
+      const a = rawWalls[i];
+      const aHoriz = Math.abs(a.end.x - a.start.x) >= Math.abs(a.end.z - a.start.z);
+      for (let j = i + 1; j < rawWalls.length; j++) {
+        const b = rawWalls[j];
+        const bHoriz = Math.abs(b.end.x - b.start.x) >= Math.abs(b.end.z - b.start.z);
+        if (aHoriz !== bHoriz) continue;
+        const [main, cross] = aHoriz ? ['x', 'z'] : ['z', 'x'];
+        const aCross = (a.start[cross] + a.end[cross]) / 2;
+        const bCross = (b.start[cross] + b.end[cross]) / 2;
+        if (Math.abs(aCross - bCross) > COLLINEAR_OFFSET_M) continue;
+        const aMin = Math.min(a.start[main], a.end[main]);
+        const aMax = Math.max(a.start[main], a.end[main]);
+        const bMin = Math.min(b.start[main], b.end[main]);
+        const bMax = Math.max(b.start[main], b.end[main]);
+        const gap = Math.max(aMin, bMin) - Math.min(aMax, bMax);
+        if (gap > MAX_OPENING_GAP_M) continue;
+        if (gap > MAX_MERGE_GAP_M) {
+          // Bridge a wide gap only when a detected opening sits inside it,
+          // or when both fragments lie on the building's outer hull
+          const gapLo = Math.min(aMax, bMax);
+          const gapHi = Math.max(aMin, bMin);
+          const lineCross = (aCross + bCross) / 2;
+          const hasOpening = openingPoints.some(p =>
+            p[main] > gapLo && p[main] < gapHi && Math.abs(p[cross] - lineCross) <= 0.4);
+          const onHull = aHoriz
+            ? (Math.abs(lineCross - hull.minZ) <= HULL_TOL_M || Math.abs(lineCross - hull.maxZ) <= HULL_TOL_M)
+            : (Math.abs(lineCross - hull.minX) <= HULL_TOL_M || Math.abs(lineCross - hull.maxX) <= HULL_TOL_M);
+          if (!hasOpening && !onHull) continue;
+        }
+        // Merge b into a: union extent on the shared line
+        const lo = Math.min(aMin, bMin);
+        const hi = Math.max(aMax, bMax);
+        const crossAvg = (aCross + bCross) / 2;
+        a.start = { [main]: lo, [cross]: crossAvg };
+        a.end = { [main]: hi, [cross]: crossAvg };
+        a.isExterior = a.isExterior || b.isExterior;
+        a.thickness = Math.max(a.thickness, b.thickness);
+        rawWalls.splice(j, 1);
+        mergedCount++;
+        mergeChanged = true;
+        break outer;
+      }
+    }
+  }
+  if (mergedCount > 0) {
+    console.log(`[FloorPlan] Walls: merged ${mergedCount} collinear fragments across opening gaps (<= ${MAX_MERGE_GAP_M}m)`);
+  }
+
+  // Filter out segments too short to be real structural walls.
+  // Rule: keep a wall if length >= 0.8m OR both endpoints touch another wall —
+  // endpoint OR body (T-junction) — within tolerance. This preserves short
+  // walls at junctions while discarding isolated noise like dimension ticks.
+  const MIN_WALL_LENGTH_M = 0.8;
+  const CONNECT_TOL_M = 0.15;
+
+  const touchesWall = (p, other) =>
+    pointToLineDistance(p, other.start, other.end) <= CONNECT_TOL_M;
 
   const walls = rawWalls.filter((w, i) => {
     if (wallLength(w) < 0.05) return false;
@@ -295,12 +447,8 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     for (let j = 0; j < rawWalls.length; j++) {
       if (j === i) continue;
       const other = rawWalls[j];
-      if (!startConnected && (pointsClose(w.start, other.start) || pointsClose(w.start, other.end))) {
-        startConnected = true;
-      }
-      if (!endConnected && (pointsClose(w.end, other.start) || pointsClose(w.end, other.end))) {
-        endConnected = true;
-      }
+      if (!startConnected && touchesWall(w.start, other)) startConnected = true;
+      if (!endConnected && touchesWall(w.end, other)) endConnected = true;
       if (startConnected && endConnected) return true;
     }
     return false;
