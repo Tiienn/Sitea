@@ -513,17 +513,18 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     return Math.max(0, Math.min(wallLength, t * wallLength));
   };
 
-  // Attach doors — prefer Gemini's positionAlongWall (pixels) when provided,
-  // fall back to snap-to-nearest-wall by center coordinate
+  // Attach doors — project the door CENTER onto the nearest wall. The
+  // analyzer's positionAlongWall is measured from its own trace fragment's
+  // start; converter welding/merging moves wall starts, so that offset lands
+  // openings on the wrong spot. The center is absolute and survives merges.
   (aiData.doors || []).forEach((door, index) => {
+    if (!door.center) return;
     const doorCenter = toWorld(door.center.x, door.center.y);
     const { wall } = findNearestWall(doorCenter);
 
     if (wall) {
       const wallLen = getWallLength(wall);
-      const position = typeof door.positionAlongWall === 'number'
-        ? door.positionAlongWall * scale
-        : getPositionAlongWall(wall, doorCenter);
+      const position = getPositionAlongWall(wall, doorCenter);
       const width = (door.width || 90) * scale;
 
       wall.openings.push({
@@ -537,16 +538,15 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     }
   });
 
-  // Attach windows
+  // Attach windows — same center projection as doors
   (aiData.windows || []).forEach((window, index) => {
+    if (!window.center) return;
     const windowCenter = toWorld(window.center.x, window.center.y);
     const { wall } = findNearestWall(windowCenter);
 
     if (wall) {
       const wallLen = getWallLength(wall);
-      const position = typeof window.positionAlongWall === 'number'
-        ? window.positionAlongWall * scale
-        : getPositionAlongWall(wall, windowCenter);
+      const position = getPositionAlongWall(wall, windowCenter);
       const width = (window.width || 100) * scale;
 
       wall.openings.push({

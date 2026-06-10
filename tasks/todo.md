@@ -2350,3 +2350,22 @@ band/right-wall corner and bottom-right corner, varying run to run.
       at exterior walls, so extensions toward hull walls may bridge up to
       2.0m (3.0m hull-to-hull); interior-to-interior stays 1.0m.
 - [x] All fixtures convert cleanly; review + placement QA, lint, build pass.
+
+---
+
+# v45: Openings land on their true positions after wall merging
+
+Live v44 test: tracing accurate in review, but placed 3D showed a "wall"
+at the stairs, missing bedroom door, bath/toilet not matching the overlay.
+
+Root cause: door/window placement preferred the analyzer's
+positionAlongWall — a pixel offset from the ORIGINAL trace fragment's
+start. v43's welding/merging moves wall starts, so openings landed at
+stale offsets: 4 of 5 doors wrong, the stairs-entry door 6m off at bath
+level (stairs looked sealed), band door 3m off.
+
+Fix: project each opening's CENTER (absolute pixel truth) onto the
+nearest merged wall. All 5 doors + 7 windows on the fixture now place
+within 0.07m of plan truth. positionAlongWall no longer used.
+
+QA review + placement, lint, build pass.
