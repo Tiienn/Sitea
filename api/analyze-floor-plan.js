@@ -1,5 +1,5 @@
 // api/analyze-floor-plan.js (Vercel serverless function)
-// v5: OpenAI-first floor-plan analysis with Gemini fallback
+// v6: Direct CV trace of the uploaded plan; image-gen redraw is fallback only
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
@@ -81,9 +81,12 @@ function morphDilate(pixels, W, H, kernelSize = 3) {
 
 // Standard resolution for model input — we control this so we know exact scale factor
 const GEMINI_INPUT_MAX = 1500;
-const MIN_CV_WALLS_FOR_STRUCTURAL_RESULT = 15;
+// Direct traces yield fewer, longer segments than the old junction-fragmented
+// diagrams (segments multiply in splitWallsAtJunctions after this gate)
+const MIN_CV_WALLS_FOR_STRUCTURAL_RESULT = 10;
+// Above this, a trace is treated as annotation/furniture noise rather than structure
+const MAX_CV_WALLS_FOR_STRUCTURAL_RESULT = 100;
 const OPENAI_FLOOR_PLAN_MODEL = process.env.OPENAI_FLOOR_PLAN_MODEL || 'gpt-5.2';
-const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1.5';
 
 async function preprocessImage(base64Image) {
   try {
@@ -379,6 +382,9 @@ function splitWallsAtJunctions(walls, threshold = 2) {
     const lenSq = dx * dx + dy * dy;
     if (lenSq === 0) continue;
 
+    // Traced wall endpoints stop at the band edge of the wall they meet, half a
+    // thickness away from its centerline — junction detection must reach that far.
+    const junctionReach = Math.max(threshold, (wall.thickness || 0) / 2 + 3);
     const splits = [0, 1];
 
     for (let j = 0; j < walls.length; j++) {
@@ -392,7 +398,7 @@ function splitWallsAtJunctions(walls, threshold = 2) {
           y: wall.start.y + t * dy,
         };
         const distance = Math.hypot(point.x - proj.x, point.y - proj.y);
-        if (distance <= threshold && !splits.some(existing => Math.abs(existing - t) < 0.02)) {
+        if (distance <= junctionReach && !splits.some(existing => Math.abs(existing - t) < 0.02)) {
           splits.push(t);
         }
       }
@@ -460,6 +466,21 @@ function cvWallCoverageLooksIncomplete(walls, scale, dimensionLabels) {
   const bestCoverage = Math.max(coverageA, coverageB);
 
   if (bestCoverage >= 0.72) return false;
+
+  // Low coverage with MATCHING aspect ratio means the walls are all there and
+  // only pixelsPerMeter is miscalibrated — adjustScaleFromWallBounds repairs
+  // that afterwards, so discarding the trace would waste a full model pass.
+  const wallAspect = bounds.width / bounds.depth;
+  const aspectError = Math.min(
+    Math.abs(Math.log(wallAspect / (largest / secondLargest))),
+    Math.abs(Math.log(wallAspect / (secondLargest / largest)))
+  );
+  if (aspectError <= 0.15) {
+    console.log(
+      `[FloorPlan] CV wall bounds ${bounds.width.toFixed(2)}m x ${bounds.depth.toFixed(2)}m undersized vs printed ${largest.toFixed(2)}m x ${secondLargest.toFixed(2)}m but aspect matches — treating as scale miscalibration, keeping trace`
+    );
+    return false;
+  }
 
   console.warn(
     `[FloorPlan] CV wall bounds ${bounds.width.toFixed(2)}m x ${bounds.depth.toFixed(2)}m cover only ${Math.round(bestCoverage * 100)}% of printed dimensions ${largest.toFixed(2)}m x ${secondLargest.toFixed(2)}m`
@@ -603,10 +624,10 @@ If no dimension labels found, return an empty array: []`,
     const normalized = normalizeDimensionLabels(dimensions);
 
     console.log(`[FloorPlan] OCR found ${normalized.length} dimension labels:`, normalized.map(d => `${d.value}${d.unit}=${d.meters.toFixed(2)}m`));
-    return normalized;
+    return { dimensions: normalized, textBoxes: [] };
   } catch (err) {
     console.warn('[FloorPlan] OCR dimension extraction failed:', err.message);
-    return [];
+    return { dimensions: [], textBoxes: [] };
   }
 }
 
@@ -630,7 +651,9 @@ Each dimension must include:
 - value: numeric value shown
 - unit: "mm", "m", "cm", "ft", "in", or "unknown"
 - pixelLength: approximate pixel length of the dimension line if visible, otherwise null
-- bbox: text/line bounding box in pixels if visible, otherwise null`,
+- bbox: text/line bounding box in pixels if visible, otherwise null
+
+Also list every OTHER piece of printed text in "texts" (room names like "Kitchen", area labels, titles, notes, north arrows with labels). Each entry needs its pixel bounding box. Do not repeat dimension labels in "texts".`,
           },
           { type: 'input_image', image_url: imageDataUrl(base64Image, mediaType), detail: 'high' },
         ],
@@ -662,18 +685,41 @@ Each dimension must include:
                 },
               },
             },
+            texts: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  text: { type: 'string' },
+                  bbox: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                      x: { type: 'number' },
+                      y: { type: 'number' },
+                      w: { type: 'number' },
+                      h: { type: 'number' },
+                    },
+                  },
+                },
+              },
+            },
           },
-        }, 'Dimension labels detected in a scanned architectural floor plan.'),
+        }, 'Dimension labels and other printed text detected in a scanned architectural floor plan.'),
       },
     });
 
-    const parsed = parseOpenAIJson(response, { dimensions: [] });
+    const parsed = parseOpenAIJson(response, { dimensions: [], texts: [] });
     const normalized = normalizeDimensionLabels(parsed.dimensions);
-    console.log(`[FloorPlan] OpenAI OCR found ${normalized.length} dimension labels:`, normalized.map(d => `${d.value}${d.unit}=${d.meters.toFixed(2)}m`));
-    return normalized;
+    const textBoxes = (Array.isArray(parsed.texts) ? parsed.texts : [])
+      .map(t => t?.bbox)
+      .filter(b => b && b.w > 0 && b.h > 0);
+    console.log(`[FloorPlan] OpenAI OCR found ${normalized.length} dimension labels, ${textBoxes.length} other text boxes:`, normalized.map(d => `${d.value}${d.unit}=${d.meters.toFixed(2)}m`));
+    return { dimensions: normalized, textBoxes };
   } catch (err) {
     console.warn('[FloorPlan] OpenAI dimension extraction failed:', err.message);
-    return [];
+    return { dimensions: [], textBoxes: [] };
   }
 }
 
@@ -772,134 +818,8 @@ Use these as STRONG hints:
 }
 
 // ============================================================
-// NEW PIPELINE: OpenAI/Gemini Image Gen → CV Extraction → Semantic Info
+// PIPELINE v6: Direct CV trace -> LLM semantics + wall audit
 // ============================================================
-
-function openAIImageSizeFor(width, height) {
-  const ratio = width / Math.max(height, 1);
-  if (ratio > 1.15) return '1536x1024';
-  if (ratio < 0.87) return '1024x1536';
-  return '1024x1024';
-}
-
-async function generateCleanDiagramWithOpenAI(base64Image, mediaType, openai, width, height) {
-  console.log(`[FloorPlan] Step 1: Generating clean walls-only diagram via OpenAI ${OPENAI_IMAGE_MODEL}...`);
-
-  try {
-    const imageBuffer = Buffer.from(base64Image, 'base64');
-    const response = await openai.images.edit({
-      model: OPENAI_IMAGE_MODEL,
-      image: new File([imageBuffer], 'floor-plan.png', { type: mediaType }),
-      prompt: `Create a new clean black-and-white architectural wall mask from this floor plan.
-
-Output requirements:
-- Pure white background.
-- Pure black, consistently thick solid bands for structural walls only.
-- Preserve the original layout, proportions, and wall positions as closely as possible.
-- Exterior walls should be thicker than interior partition walls.
-- Remove all text, room labels, dimensions, arrows, colored lines, dashed/dotted lines, furniture, fixtures, hatching, door arcs, window symbols, title blocks, page borders, scale bars, and decorative elements.
-- Do not invent walls. If an original open-plan area has no dividing wall, keep it open.
-- Keep only real structural walls that are visibly thicker than annotation/detail lines.
-
-The result should be a simple walls-only schematic suitable for computer-vision line extraction.`,
-      size: openAIImageSizeFor(width, height),
-      quality: 'high',
-      input_fidelity: 'high',
-      output_format: 'png',
-    });
-
-    const resultBase64 = response.data?.[0]?.b64_json;
-    if (!resultBase64) {
-      console.warn('[FloorPlan] OpenAI image edit returned no image');
-      return null;
-    }
-
-    console.log('[FloorPlan] Step 1 complete: clean diagram generated by OpenAI');
-    return resultBase64;
-  } catch (err) {
-    console.warn('[FloorPlan] OpenAI clean diagram generation failed:', err.message);
-    return null;
-  }
-}
-
-// Step 1: Ask Gemini to generate a clean walls-only diagram
-async function generateCleanDiagram(base64Image, mediaType, apiKey) {
-  console.log('[FloorPlan] Step 1: Generating clean walls-only diagram via Gemini...');
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inlineData: { mimeType: mediaType, data: base64Image } },
-            { text: `Look at this architectural floor plan. Generate a NEW clean image that shows ONLY the structural walls.
-
-The generated image MUST be a pure black-and-white line drawing — no color, no gray, no text, no annotations of any kind.
-
-STRICT RULES for the generated image:
-- WHITE background (pure #FFFFFF)
-- BLACK THICK lines (pure #000000) for ALL walls (exterior and interior partition walls)
-- CRITICAL: Walls must be drawn as CONSISTENTLY THICK solid bands — at least 6-10 pixels thick for interior walls, 10-16 pixels for exterior walls. DO NOT draw walls as thin single-pixel lines. Thin walls will be mistaken for noise and discarded by downstream processing.
-- All interior walls should have a similar, consistent thickness to each other
-- All exterior walls should have a similar, consistent thickness to each other (noticeably thicker than interior)
-- Follow the EXACT same layout, proportions, and positions as the original
-
-AGGRESSIVELY REMOVE everything that is NOT a structural wall. The following MUST be completely absent from the output:
-- ALL colored lines of any color (orange, red, green, blue, yellow, gray, etc.) — these are typically dimension lines, setback markers, property boundaries, or annotations and are NEVER walls
-- ALL dimension lines, measurement lines, and the arrows/tick marks at their ends
-- ALL text and numbers (dimension labels like "3500", "4.2m", room names like "Kitchen", area labels like "127sqm", "AREA", "1.0m setback", etc.)
-- ALL dashed, dotted, or double-dashed lines (property boundaries, setback lines, fold lines, invisible walls)
-- ALL furniture, appliances, fixtures (beds, sofas, tables, toilets, sinks, stoves, etc.)
-- ALL door arcs (quarter circles), window symbols, hatching, stair step lines
-- ALL title blocks, legends, scale bars, compass/north arrows
-- ALL page borders, frames, or decorative elements
-
-If a line in the original is anything other than solid black/dark gray AND clearly represents a structural wall, OMIT it from the output.
-
-WALL THICKNESS TEST: Only draw walls that are VISIBLY THICKER than the dimension/annotation lines in the original. Structural walls are drawn as heavy double-lines or thick filled bands — typically 3-10x thicker than dimension lines, property boundaries, or furniture outlines. Thin lines of any kind — even if they form rectangles or appear to enclose a space — are NEVER walls and must be omitted. If in doubt about whether a line is a wall or an annotation, leave it out.
-
-LAYOUT RULES:
-- Make walls as STRAIGHT horizontal or vertical lines (no wobble)
-- The outer boundary of the building must be fully enclosed by walls
-- Do NOT invent walls where the original floor plan has none — if two rooms share one open-plan space (e.g. open kitchen + dining, living + dining), leave the gap between them and do not draw a dividing wall
-- Stairwells and open-plan areas may have gaps where there is no wall
-
-The output must look like the simplest possible black-and-white architectural wall-only schematic — nothing else.` }
-          ]
-        }],
-        generationConfig: {
-          responseModalities: ['IMAGE'],
-          temperature: 0,
-        }
-      })
-    }
-  );
-
-  if (!response.ok) {
-    const err = await response.text();
-    console.warn('[FloorPlan] Gemini image gen failed:', response.status, err);
-    return null;
-  }
-
-  const data = await response.json();
-  const candidate = data.candidates?.[0];
-  if (!candidate?.content?.parts) {
-    console.warn('[FloorPlan] No image in Gemini response');
-    return null;
-  }
-
-  const imagePart = candidate.content.parts.find(p => p.inlineData);
-  if (!imagePart) {
-    console.warn('[FloorPlan] No inlineData in response parts');
-    return null;
-  }
-
-  console.log('[FloorPlan] Step 1 complete: clean diagram generated');
-  return imagePart.inlineData.data; // base64 PNG
-}
 
 // Step 2: Extract wall coordinates from clean image using row/column run-linking
 //
@@ -936,10 +856,14 @@ async function extractWallsFromCleanImage(cleanImageBase64, textBoxes = [], srcW
   const MIN_ROWS  = 4;    // min number of rows in a wall band (rejects thin lines)
 
   // ─── Helper: overlap fraction of two runs ────────────────────────────────────
+  // Relative to the LONGER run: a perpendicular wall's stub overlaps a full wall
+  // run 100% of its own length, and linking on that would drag the band through
+  // junctions until the merged blob fails the aspect test. On fully-connected
+  // drawings (CAD/vector plans) that collapses every wall to zero.
   function overlapFrac(a1, a2, b1, b2) {
     const overlap = Math.min(a2, b2) - Math.max(a1, b1);
-    const shorter = Math.min(a2 - a1, b2 - b1);
-    return shorter > 0 ? overlap / shorter : 0;
+    const longer = Math.max(a2 - a1, b2 - b1);
+    return longer > 0 ? overlap / longer : 0;
   }
 
   // ─── Scan rows → horizontal walls ────────────────────────────────────────────
@@ -1298,10 +1222,11 @@ Doors:
 - Find all hinged, double, sliding, and pocket doors.
 - Every enclosed room should have at least one door. If the symbol is ambiguous, infer the likely doorway with lower confidence by still returning the most likely center/wall.
 - Include center, width, wallIndex from the original wall list, positionAlongWall, rotation, and doorType.
+- positionAlongWall is the distance in PIXELS from the wall's start point to the door center, measured along the wall. NEVER return a 0-1 fraction of the wall length.
 
 Windows:
 - Find all exterior wall windows, glass markers, parallel wall segments, and large glazing panels.
-- Include center, width, wallIndex, and positionAlongWall.
+- Include center, width, wallIndex, and positionAlongWall (also in PIXELS from the wall start, never a fraction).
 
 Rooms:
 - Extract room names and centers. Room labeling is optional; use visible labels when present and sensible generic names otherwise.
@@ -1334,17 +1259,20 @@ Keep the JSON compact:
   return result;
 }
 
-async function directAnalysisWithOpenAI(openai, processedImage, originalImage, originalMediaType, processedMediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, modelW, modelH) {
+async function directAnalysisWithOpenAI(openai, processedImage, originalImage, originalMediaType, processedMediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, modelW, modelH, precomputedSemantics = null) {
   console.log(`[FloorPlan] Running direct OpenAI wall analysis via ${OPENAI_FLOOR_PLAN_MODEL}...`);
 
   const scaleHint = knownWidthMeters
     ? `The building width is ${knownWidthMeters} meters.`
     : 'Estimate scale from printed dimensions first, then standard door width if needed.';
 
-  const response = await openai.responses.create({
+  // Reasoning tokens count against max_output_tokens; an under-budgeted response
+  // truncates the JSON and looks like an empty result, so keep generous headroom
+  // and retry once — this is the last OpenAI-only fallback before total failure.
+  const requestWallAnalysis = () => openai.responses.create({
     model: OPENAI_FLOOR_PLAN_MODEL,
     reasoning: { effort: 'medium' },
-    max_output_tokens: 8000,
+    max_output_tokens: 16000,
     input: [{
       role: 'user',
       content: [
@@ -1387,14 +1315,37 @@ Return JSON matching the schema. Do not include markdown.`,
     },
   });
 
-  const wallResult = parseOpenAIJson(response, null);
+  let wallResult = null;
+  for (let attempt = 1; attempt <= 2 && !wallResult?.walls?.length; attempt++) {
+    try {
+      const response = await requestWallAnalysis();
+      wallResult = parseOpenAIJson(response, null);
+      if (!wallResult?.walls?.length) {
+        console.warn(`[FloorPlan] Direct wall analysis attempt ${attempt} returned no walls (status: ${response.status || 'unknown'})`);
+      }
+    } catch (error) {
+      console.warn(`[FloorPlan] Direct wall analysis attempt ${attempt} failed:`, error.message);
+    }
+  }
   if (!wallResult?.walls?.length) return null;
   wallResult.walls = splitWallsAtJunctions(wallResult.walls);
 
-  const semantics = await extractSemanticsFromOriginalWithOpenAI(
-    openai, originalImage, originalMediaType,
-    wallResult.walls, knownWidthMeters, dimensionHints, roomHints, modelW, modelH
-  );
+  // Semantics computed against an earlier wall list stay valid through their
+  // center coordinates; reusing them saves the second model call. Wall-relative
+  // fields refer to the old list and must be stripped so downstream code snaps
+  // openings to these walls by center instead.
+  const semantics = precomputedSemantics
+    ? {
+        ...precomputedSemantics,
+        // eslint-disable-next-line no-unused-vars
+        doors: (precomputedSemantics.doors || []).map(({ wallIndex, positionAlongWall, ...door }) => door),
+        // eslint-disable-next-line no-unused-vars
+        windows: (precomputedSemantics.windows || []).map(({ wallIndex, positionAlongWall, ...win }) => win),
+      }
+    : await extractSemanticsFromOriginalWithOpenAI(
+      openai, originalImage, originalMediaType,
+      wallResult.walls, knownWidthMeters, dimensionHints, roomHints, modelW, modelH
+    );
 
   const result = {
     success: true,
@@ -1653,144 +1604,144 @@ export default async function handler(req, res) {
     const mediaType = 'image/png';
 
     const dimensionPromise = (async () => {
-      if (knownWidthMeters) return [];
+      if (knownWidthMeters) return { dimensions: [], textBoxes: [] };
 
       if (openai) {
-        const openaiDimensions = await extractDimensionLabelsWithOpenAI(image, originalMediaType, openai);
-        if (openaiDimensions.length > 0 || !genai) return openaiDimensions;
+        const openaiOcr = await extractDimensionLabelsWithOpenAI(image, originalMediaType, openai);
+        if (openaiOcr.dimensions.length > 0 || openaiOcr.textBoxes.length > 0 || !genai) return openaiOcr;
       }
 
-      return genai ? extractDimensionLabels(image, originalMediaType, genai) : [];
+      return genai ? extractDimensionLabels(image, originalMediaType, genai) : { dimensions: [], textBoxes: [] };
     })();
 
     // Run OCR (on original image — text is readable before binarization)
     // and Roboflow (on preprocessed image) in parallel.
-    const [ocrDimensions, roboflowData] = await Promise.all([
+    const [ocrInfo, roboflowData] = await Promise.all([
       dimensionPromise,
       callRoboflow(processedImage),
     ]);
+    const ocrDimensions = ocrInfo.dimensions;
     const cvHints = formatRoboflowHints(roboflowData);
     const dimensionHints = knownWidthMeters ? '' : formatDimensionHints(ocrDimensions);
 
     // ============================================================
-    // NEW PIPELINE: OpenAI Image Gen → CV → OpenAI Semantics
-    // Falls back to legacy two-pass if image gen fails
+    // PIPELINE v6: Direct CV trace of the uploaded plan → LLM semantics + audit.
+    // Wall geometry is measured from the user's own pixels; the image-gen
+    // redraw runs only as a fallback when the direct trace is unusable.
     // ============================================================
     let result;
+    // Semantics from the trace path, reusable by the fallback to skip a model call
+    let traceSemantics = null;
 
-    // Step 1: Generate clean walls-only diagram
-    let cleanDiagram = openai
-      ? await generateCleanDiagramWithOpenAI(resizedOriginal, resizedOriginalMediaType, openai, geminiW, geminiH)
-      : null;
+    // Text bounding boxes (dimension labels + room labels etc.) in original image space
+    const ocrTextBoxes = [
+      ...ocrDimensions.filter(d => d.bbox && d.bbox.w > 0 && d.bbox.h > 0).map(d => d.bbox),
+      ...ocrInfo.textBoxes,
+    ];
 
-    if (!cleanDiagram && genai) {
-      cleanDiagram = await generateCleanDiagram(resizedOriginal, resizedOriginalMediaType, process.env.GEMINI_API_KEY);
-    }
+    const traceUsable = (trace) =>
+      trace.walls.length >= MIN_CV_WALLS_FOR_STRUCTURAL_RESULT &&
+      trace.walls.length <= MAX_CV_WALLS_FOR_STRUCTURAL_RESULT;
 
-    if (cleanDiagram) {
-      // Collect OCR text bounding boxes in original image space
-      const ocrTextBoxes = ocrDimensions
-        .filter(d => d.bbox && d.bbox.w > 0 && d.bbox.h > 0)
-        .map(d => d.bbox);
+    // Step 1: Trace walls directly from the preprocessed original. It shares the
+    // resized input's pixel grid, so traced coordinates carry no aspect distortion.
+    const cvResult = await extractWallsFromCleanImage(processedImage, ocrTextBoxes, actualWidth, actualHeight);
+    console.log(`[FloorPlan] Direct trace: ${cvResult.walls.length} walls`);
 
-      // Step 2: Extract wall coordinates from clean image via CV
-      // Pass OCR bboxes + original image size so CV can scale them to clean diagram space
-      const cvResult = await extractWallsFromCleanImage(cleanDiagram, ocrTextBoxes, actualWidth, actualHeight);
+    if (traceUsable(cvResult)) {
+      // Scale CV coordinates from traced image space to resized input space
+      // (no-op for the direct trace; legacy Gemini redraws may differ in size)
+      const cvScaleX = geminiW / cvResult.imageWidth;
+      const cvScaleY = geminiH / cvResult.imageHeight;
+      if (Math.abs(cvScaleX - 1) > 0.05 || Math.abs(cvScaleY - 1) > 0.05) {
+        cvResult.walls.forEach(w => {
+          w.start.x *= cvScaleX; w.start.y *= cvScaleY;
+          w.end.x *= cvScaleX; w.end.y *= cvScaleY;
+          w.thickness *= Math.max(cvScaleX, cvScaleY);
+        });
+        console.log(`[FloorPlan] Scaled CV coords: ${cvResult.imageWidth}x${cvResult.imageHeight} → ${geminiW}x${geminiH}`);
+      }
+      cvResult.walls = splitWallsAtJunctions(cvResult.walls);
 
-      if (cvResult.walls.length >= MIN_CV_WALLS_FOR_STRUCTURAL_RESULT) {
-        // Scale CV coordinates from generated image space to resized input space
-        // (generated image may be different size than our resized input)
-        const cvScaleX = geminiW / cvResult.imageWidth;
-        const cvScaleY = geminiH / cvResult.imageHeight;
-        if (Math.abs(cvScaleX - 1) > 0.05 || Math.abs(cvScaleY - 1) > 0.05) {
-          cvResult.walls.forEach(w => {
-            w.start.x *= cvScaleX; w.start.y *= cvScaleY;
-            w.end.x *= cvScaleX; w.end.y *= cvScaleY;
-            w.thickness *= Math.max(cvScaleX, cvScaleY);
-          });
-          console.log(`[FloorPlan] Scaled CV coords: ${cvResult.imageWidth}x${cvResult.imageHeight} → ${geminiW}x${geminiH}`);
-        }
-        cvResult.walls = splitWallsAtJunctions(cvResult.walls);
-
-        // Step 3: Extract semantic info from original image + audit walls
-        let semantics = null;
-        if (openai) {
-          try {
-            semantics = await extractSemanticsFromOriginalWithOpenAI(
-              openai, resizedOriginal, resizedOriginalMediaType,
-              cvResult.walls, knownWidthMeters, dimensionHints, roomHints, geminiW, geminiH
-            );
-          } catch (error) {
-            console.warn('[FloorPlan] OpenAI semantic extraction failed:', error.message);
-          }
-        }
-        if (!semantics && genai) {
-          semantics = await extractSemanticsFromOriginal(
-            genai, resizedOriginal, resizedOriginalMediaType,
+      // Step 3: Extract semantic info from original image + audit walls
+      let semantics = null;
+      if (openai) {
+        try {
+          semantics = await extractSemanticsFromOriginalWithOpenAI(
+            openai, resizedOriginal, resizedOriginalMediaType,
             cvResult.walls, knownWidthMeters, dimensionHints, roomHints, geminiW, geminiH
           );
+        } catch (error) {
+          console.warn('[FloorPlan] OpenAI semantic extraction failed:', error.message);
         }
-        if (!semantics) {
-          console.warn('[FloorPlan] No semantic extractor succeeded, falling back to direct analysis');
-        }
-
-        // Apply model wall audit: reject flagged walls and remap door/window wallIndex refs
-        if (semantics) {
-          let auditedWalls = cvResult.walls;
-          let auditedDoors = semantics.doors || [];
-          let auditedWindows = semantics.windows || [];
-          const rejectSet = new Set(
-            Array.isArray(semantics.rejectWallIndices) ? semantics.rejectWallIndices : []
-          );
-          if (rejectSet.size > 0 && rejectSet.size < cvResult.walls.length) {
-            const indexMap = new Map();
-            auditedWalls = [];
-            cvResult.walls.forEach((w, oldIdx) => {
-              if (!rejectSet.has(oldIdx)) {
-                indexMap.set(oldIdx, auditedWalls.length);
-                auditedWalls.push(w);
-              }
-            });
-            // Drop doors/windows referencing rejected walls, remap the rest
-            auditedDoors = auditedDoors
-              .filter(d => d.wallIndex == null || indexMap.has(d.wallIndex))
-              .map(d => d.wallIndex != null ? { ...d, wallIndex: indexMap.get(d.wallIndex) } : d);
-            auditedWindows = auditedWindows
-              .filter(w => w.wallIndex == null || indexMap.has(w.wallIndex))
-              .map(w => w.wallIndex != null ? { ...w, wallIndex: indexMap.get(w.wallIndex) } : w);
-            console.log(`[FloorPlan] Wall audit: rejected ${rejectSet.size} walls (${cvResult.walls.length} → ${auditedWalls.length})`);
-          }
-
-          const semanticScale = semantics.scale || { pixelsPerMeter: geminiW / 15, confidence: 0.3, source: 'estimated' };
-          if (cvWallCoverageLooksIncomplete(auditedWalls, semanticScale, ocrDimensions)) {
-            console.warn('[FloorPlan] CV wall coverage looks incomplete; falling back to direct structured analysis');
-          } else {
-            // Combine CV walls + semantic info
-            result = {
-              success: true,
-              imageSize: { width: geminiW, height: geminiH },
-              walls: auditedWalls,
-              doors: auditedDoors,
-              windows: auditedWindows,
-              rooms: semantics.rooms || [],
-              stairs: semantics.stairs || [],
-              scale: semanticScale,
-              overallShape: semantics.overallShape || 'rectangular',
-              totalArea: semantics.totalArea || null,
-            };
-
-            console.log(`[FloorPlan] New pipeline success: ${result.walls.length} walls (CV), ${result.doors.length} doors, ${result.rooms.length} rooms`);
-          }
-        }
-      } else {
-        console.warn(`[FloorPlan] CV extracted only ${cvResult.walls.length} walls; falling back to direct structured analysis`);
       }
+      if (!semantics && genai) {
+        semantics = await extractSemanticsFromOriginal(
+          genai, resizedOriginal, resizedOriginalMediaType,
+          cvResult.walls, knownWidthMeters, dimensionHints, roomHints, geminiW, geminiH
+        );
+      }
+      if (!semantics) {
+        console.warn('[FloorPlan] No semantic extractor succeeded, falling back to direct analysis');
+      }
+
+      // Apply model wall audit: reject flagged walls and remap door/window wallIndex refs
+      if (semantics) {
+        traceSemantics = semantics;
+        let auditedWalls = cvResult.walls;
+        let auditedDoors = semantics.doors || [];
+        let auditedWindows = semantics.windows || [];
+        const rejectSet = new Set(
+          Array.isArray(semantics.rejectWallIndices) ? semantics.rejectWallIndices : []
+        );
+        if (rejectSet.size > 0 && rejectSet.size < cvResult.walls.length) {
+          const indexMap = new Map();
+          auditedWalls = [];
+          cvResult.walls.forEach((w, oldIdx) => {
+            if (!rejectSet.has(oldIdx)) {
+              indexMap.set(oldIdx, auditedWalls.length);
+              auditedWalls.push(w);
+            }
+          });
+          // Drop doors/windows referencing rejected walls, remap the rest
+          auditedDoors = auditedDoors
+            .filter(d => d.wallIndex == null || indexMap.has(d.wallIndex))
+            .map(d => d.wallIndex != null ? { ...d, wallIndex: indexMap.get(d.wallIndex) } : d);
+          auditedWindows = auditedWindows
+            .filter(w => w.wallIndex == null || indexMap.has(w.wallIndex))
+            .map(w => w.wallIndex != null ? { ...w, wallIndex: indexMap.get(w.wallIndex) } : w);
+          console.log(`[FloorPlan] Wall audit: rejected ${rejectSet.size} walls (${cvResult.walls.length} → ${auditedWalls.length})`);
+        }
+
+        const semanticScale = semantics.scale || { pixelsPerMeter: geminiW / 15, confidence: 0.3, source: 'estimated' };
+        if (cvWallCoverageLooksIncomplete(auditedWalls, semanticScale, ocrDimensions)) {
+          console.warn('[FloorPlan] CV wall coverage looks incomplete; falling back to direct structured analysis');
+        } else {
+          // Combine CV walls + semantic info
+          result = {
+            success: true,
+            imageSize: { width: geminiW, height: geminiH },
+            walls: auditedWalls,
+            doors: auditedDoors,
+            windows: auditedWindows,
+            rooms: semantics.rooms || [],
+            stairs: semantics.stairs || [],
+            scale: semanticScale,
+            overallShape: semantics.overallShape || 'rectangular',
+            totalArea: semantics.totalArea || null,
+          };
+
+          console.log(`[FloorPlan] Trace pipeline success: ${result.walls.length} walls (CV), ${result.doors.length} doors, ${result.rooms.length} rooms`);
+        }
+      }
+    } else {
+      console.warn(`[FloorPlan] Trace unusable (${cvResult.walls.length} walls); falling back to direct structured analysis`);
     }
 
     // Fallback: direct OpenAI analysis, then legacy Gemini two-pass.
     if (!result) {
       if (openai) {
-        result = await directAnalysisWithOpenAI(openai, processedImage, resizedOriginal, resizedOriginalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, geminiW, geminiH);
+        result = await directAnalysisWithOpenAI(openai, processedImage, resizedOriginal, resizedOriginalMediaType, mediaType, cvHints, dimensionHints, roomHints, knownWidthMeters, geminiW, geminiH, traceSemantics);
       }
       if (!result && genai) {
         console.log('[FloorPlan] Falling back to legacy Gemini two-pass analysis');
@@ -1811,6 +1762,31 @@ export default async function handler(req, res) {
     result.scale = result.scale || { pixelsPerMeter: 50, confidence: 0.5, source: 'estimated' };
     if (!Number.isFinite(result.scale.pixelsPerMeter) || result.scale.pixelsPerMeter <= 0) {
       result.scale = { pixelsPerMeter: 50, confidence: 0.3, source: 'estimated_fallback' };
+    }
+
+    // Models sometimes return positionAlongWall as a 0-1 fraction of the wall
+    // length despite being asked for pixels. The converter multiplies by
+    // meters-per-pixel, so a fraction would pin the opening to the wall start.
+    // Pixel distances <= 1.5 are meaningless, which makes the encodings
+    // unambiguous: treat small values as fractions and convert.
+    let normalizedPositions = 0;
+    const normalizeOpeningPositions = (items) => {
+      for (const item of items) {
+        if (typeof item.positionAlongWall !== 'number' || item.positionAlongWall > 1.5) continue;
+        const wall = result.walls[item.wallIndex];
+        if (!wall?.start || !wall?.end) {
+          delete item.positionAlongWall;
+          continue;
+        }
+        const wallLen = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y);
+        item.positionAlongWall = Math.max(0, Math.min(1, item.positionAlongWall)) * wallLen;
+        normalizedPositions++;
+      }
+    };
+    normalizeOpeningPositions(result.doors);
+    normalizeOpeningPositions(result.windows);
+    if (normalizedPositions > 0) {
+      console.log(`[FloorPlan] Converted ${normalizedPositions} fractional positionAlongWall values to pixels`);
     }
 
     // Rescale coordinates from model input resolution to actual image dimensions
@@ -1857,8 +1833,11 @@ export default async function handler(req, res) {
         confidence: wall.confidence ?? 1.0,
       }));
 
-    // Snap nearby wall endpoints together (within 12px) for better connectivity
-    const SNAP_THRESHOLD = 20; // More aggressive snapping for Gemini's slightly looser coords
+    // Snap nearby wall endpoints together for better connectivity.
+    // Thresholds scale with image size so snapping cannot visibly move walls
+    // on small images or under-connect junctions on large scans.
+    const maxImageDim = Math.max(actualWidth, actualHeight);
+    const SNAP_THRESHOLD = Math.max(4, Math.min(24, Math.round(maxImageDim * 0.008)));
     const allEndpoints = [];
     result.walls.forEach((wall, i) => {
       allEndpoints.push({ wallIdx: i, key: 'start', pt: wall.start });
@@ -1880,7 +1859,7 @@ export default async function handler(req, res) {
     }
 
     // Wall connectivity validation: extend disconnected endpoints to nearest wall line
-    const CONNECT_THRESHOLD = 25; // px — more aggressive for Gemini's looser coords
+    const CONNECT_THRESHOLD = Math.max(6, Math.min(32, Math.round(maxImageDim * 0.012)));
     const wallCount = result.walls.length;
     for (let i = 0; i < wallCount; i++) {
       const wall = result.walls[i];
@@ -1951,7 +1930,7 @@ export default async function handler(req, res) {
           unmatched[0].pt.x - unmatched[1].pt.x,
           unmatched[0].pt.y - unmatched[1].pt.y
         );
-        if (gap > 0 && gap < 20) {
+        if (gap > 0 && gap < SNAP_THRESHOLD) {
           const mx = Math.round((unmatched[0].pt.x + unmatched[1].pt.x) / 2);
           const my = Math.round((unmatched[0].pt.y + unmatched[1].pt.y) / 2);
           result.walls[unmatched[0].wallIdx][unmatched[0].key] = { x: mx, y: my };
@@ -2116,6 +2095,33 @@ export default async function handler(req, res) {
             confidence: 0.9,
             source: 'dimension_label',
           };
+        }
+      }
+    }
+
+    // Last-resort scale rescue: when scale is still a low-confidence guess and the
+    // plan prints a total area, derive pixels-per-meter from the wall footprint
+    // instead of trusting the standard-door-width assumption.
+    if (!knownWidthMeters && (result.scale?.confidence ?? 0) < 0.6 && result.walls.length >= 4) {
+      let areaM2 = null;
+      if (result.totalArea?.value > 0) {
+        const unit = String(result.totalArea.unit || '').toLowerCase();
+        areaM2 = unit.includes('ft') ? result.totalArea.value * 0.0929 : result.totalArea.value;
+      }
+      if (areaM2 && areaM2 >= 10 && areaM2 <= 2000) {
+        const xs = result.walls.flatMap(w => [w.start.x, w.end.x]);
+        const ys = result.walls.flatMap(w => [w.start.y, w.end.y]);
+        const bboxPx = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
+        // The wall bounding box overstates floor area on non-rectangular plans
+        const fill = { rectangular: 0.95, 'L-shaped': 0.75, 'U-shaped': 0.7 }[result.overallShape] ?? 0.8;
+        if (bboxPx > 0) {
+          const areaPpm = Math.sqrt((bboxPx * fill) / areaM2);
+          const currentPpm = result.scale?.pixelsPerMeter || 0;
+          const diff = currentPpm > 0 ? Math.abs(areaPpm - currentPpm) / currentPpm : 1;
+          if (diff > 0.25) {
+            console.log(`[FloorPlan] Total-area scale rescue: ${currentPpm.toFixed(1)} → ${areaPpm.toFixed(1)} ppm (${areaM2.toFixed(0)} m²)`);
+            result.scale = { pixelsPerMeter: areaPpm, confidence: 0.6, source: 'total_area_label' };
+          }
         }
       }
     }

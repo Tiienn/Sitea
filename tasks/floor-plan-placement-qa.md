@@ -6,9 +6,9 @@ Local scene: `fixtures/floor-plan-qa/placement/real-floor-plan-scene.json`
 
 | Fixture | Status | Raw Walls | 3D Walls | Doors | Windows | Rooms | Stairs | Bounds | Scale | Notes |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| real-wide-40x30 | Visual QA candidate | 45 | 31 | 7 | 9 | 10 | 0 | 12.19m x 9.13m | dimension_label, 147.6 px/m, 95% | shortest wall 0.49m; longest wall 3.95m |
-| real-site-ground-floor | Visual QA candidate | 35 | 35 | 5 | 5 | 7 | 1 | 17.58m x 12.06m | dimension_label, 33.7 px/m, 95% | shortest wall 0.62m; longest wall 9.24m |
-| real-site-upper-floor | Visual QA candidate | 48 | 47 | 7 | 4 | 10 | 1 | 13.41m x 10m | dimension_label, 41.0 px/m, 93% | shortest wall 0.73m; longest wall 3.91m |
+| real-wide-40x30 | Needs visual fix | 46 | 29 | 8 | 9 | 9 | 0 | 12.12m x 9.03m | dimension_label_wall_bounds, 124.5 px/m, 93% | converter filtered 17/46 detected walls; shortest wall 0.75m; longest wall 3.97m |
+| real-site-ground-floor | Visual QA candidate | 34 | 33 | 5 | 6 | 6 | 1 | 15.52m x 11.78m | dimension_label, 34.8 px/m, 92% | shortest wall 0.57m; longest wall 7.53m |
+| real-site-upper-floor | Visual QA candidate | 59 | 53 | 5 | 5 | 10 | 1 | 13.36m x 8.29m | dimension_label, 43.4 px/m, 93% | 59 walls detected - may include furniture or duplicates; shortest wall 0.46m; longest wall 9.68m |
 
 ## Browser QA Steps
 

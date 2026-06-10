@@ -135,7 +135,17 @@ const editedDetectedDoorIndex = analysis.doors[preferredDetectedDoorIndex] && !h
   ? preferredDetectedDoorIndex
   : analysis.doors.findIndex((_, index) => !hiddenDetections.doors.includes(index))
 const editedDetectedWindowIndex = analysis.windows.findIndex((_, index) => !hiddenDetections.windows.includes(index))
-const doorTap = { x: 340, y: 332 }
+// Tap 30% along the longest visible wall: regenerated fixture data moves wall
+// geometry, and a hardcoded tap can land on a stub shorter than the door preset
+const doorTapWall = analysis.walls.reduce((best, wall, index) => {
+  if (hiddenDetections.walls.includes(index)) return best
+  const length = getWallLengthPx(wall)
+  return length > best.length ? { wall, length } : best
+}, { wall: null, length: 0 }).wall
+const doorTap = {
+  x: doorTapWall.start.x + (doorTapWall.end.x - doorTapWall.start.x) * 0.3,
+  y: doorTapWall.start.y + (doorTapWall.end.y - doorTapWall.start.y) * 0.3,
+}
 const windowTap = { x: 530, y: 636 }
 const snappedDoor = snapOpeningToNearestReviewWall(doorTap, analysis, hiddenDetections, addedWallsOnly)
 const snappedWindow = snapOpeningToNearestReviewWall(windowTap, analysis, hiddenDetections, addedWallsOnly)
@@ -390,7 +400,9 @@ assert(manualDoor.doorType === 'double', 'Double door preset should update door 
 assert(manualDoor.presetMeters === 1.6 && manualWindow.presetMeters === 1.8, 'Manual opening preset meter sizes are wrong')
 assert(manualDoor.snap?.wallKey === snappedDoor.snap?.wallKey, 'Door preset should preserve snapped wall metadata')
 assert(manualWindow.snap?.wallKey === snappedWindow.snap?.wallKey, 'Window preset should preserve snapped wall metadata')
-assert(nudgeStep === 8.42, 'Nudge step should use 0.25m from the fixture scale')
+// Derived from the fixture scale (0.25m, rounded to 2 decimals) so regenerating
+// fixture data with a slightly different detected scale does not break the QA
+assert(Math.abs(nudgeStep - pixelsPerMeter * 0.25) <= 0.005 + 1e-9, 'Nudge step should use 0.25m from the fixture scale')
 assert(nudgedDoor.snap?.wallKey === manualDoor.snap?.wallKey, 'Nudge should preserve snapped wall reference')
 assert(nudgedDoor.presetId === manualDoor.presetId && nudgedDoor.doorType === manualDoor.doorType, 'Nudge should preserve preset and door type')
 assert(Math.abs(nudgedDoor.positionAlongWall - manualDoor.positionAlongWall - nudgeStep) < 0.02, 'Nudge did not move by the expected step')

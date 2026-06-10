@@ -1,15 +1,15 @@
 {
   "fixtureId": "real-wide-40x30",
-  "capturedAt": "2026-05-27T19:46:57.981Z",
+  "capturedAt": "2026-06-10T14:29:30.024Z",
   "sourceFile": "samples/real/real-wide-40x30.webp",
   "imageFile": "samples/real/real-wide-40x30.webp",
   "analyzer": "api/analyze-floor-plan.js",
   "rawResultFile": "results/raw/real-wide-40x30.json",
   "detected": {
-    "walls": 45,
-    "doors": 7,
+    "walls": 46,
+    "doors": 8,
     "windows": 9,
-    "rooms": 10,
+    "rooms": 9,
     "stairs": 0
   },
   "criticalMisses": [],
@@ -19,8 +19,8 @@
   "artifacts": {},
   "placementOk": true,
   "scale": {
-    "pixelsPerMeter": 147.61906666666667,
-    "confidence": 0.95,
-    "source": "dimension_label"
+    "pixelsPerMeter": 124.48988783367727,
+    "confidence": 0.93,
+    "source": "dimension_label_wall_bounds"
   }
 }

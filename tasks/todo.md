@@ -1,5 +1,40 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v40 Floor-Plan Analyzer Fidelity — Trace, Don't Redraw
+
+Problem: the uploaded floor plan and the final 3D building don't match. Root causes identified in `api/analyze-floor-plan.js`:
+1. The primary pipeline asks an image-generation model to REDRAW the plan before measuring it — geometry is re-imagined, not measured (walls shift, drop, get invented). This step is also the slowest part of the upload (~30-90s) and the main timeout driver.
+2. The redrawn image is forced into fixed sizes (1024x1024 / 1536x1024 / 1024x1536) that rarely match the original aspect ratio, then coordinates are stretched back non-uniformly.
+3. Scale often falls back to "assume a 0.9m door" at ~40% confidence, so real-world size can be far off.
+4. Aggressive post-processing snapping (20-25px) visibly moves walls on smaller images.
+
+Direction (user-confirmed): prioritize fidelity with deterministic tracing of the original image, auto-first (no new manual UI). Inputs to support: clean architect plans, real-estate brochures, phone photos.
+
+- [x] Run the existing run-link CV wall scan (`extractWallsFromCleanImage`) directly on the binarized/morph-opened ORIGINAL image instead of the AI-redrawn diagram, so wall coordinates are measured from the user's actual upload (1:1 pixel space, no aspect distortion)
+- [x] Keep the existing protections against tracing noise: OCR text-box filtering, thickness filter, and the LLM wall-audit step (rejectWallIndices) to drop dimension lines, furniture, and annotations the trace picks up
+- [x] Demote the image-gen redraw to a fallback — superseded during implementation: the redraw was REMOVED entirely (see review; it preserved phone-scan tilt with input_fidelity high, which the axis-aligned CV scan cannot read, so as a fallback it only added ~100s and caused 504s)
+- [x] Strengthen scale estimation: prefer printed dimension labels, cross-check against printed total area when available, and keep the door-width guess only as a last resort with honest low confidence
+- [x] Make snapping thresholds scale-aware (relative to image size / wall thickness) instead of fixed 20-25px so post-processing stops visibly moving walls
+- [x] Verify before/after with `npm run qa:floor-plans:run` on synthetic fixtures and real samples (paid run — confirm budget), plus `npm run qa:floor-plans:check`, placement QA, focused lint, build, `git diff --check`
+- [x] Add v40 review notes: accuracy/speed before vs after, and what remains (diagonal walls, perspective-skewed phone photos)
+
+Out of scope for v40 (kept simple on purpose): diagonal/curved wall support, photo deskewing, new review UI, renderer changes.
+
+### v40 Review
+- Direction: v40 makes the 3D result match the uploaded floor plan by measuring wall geometry from the user's own pixels instead of an AI-redrawn diagram, and by removing the slowest pipeline step.
+- Root cause #1 (fidelity): the primary pipeline asked gpt-image-1.5 to redraw the plan before CV extraction, so geometry was re-imagined, not measured. The redraw is now gone; the run-link CV trace runs directly on the binarized original in 1:1 pixel space.
+- Root cause #2 (the hidden one): the CV scan's run-linking measured overlap relative to the SHORTER run, so at every T/L junction a perpendicular wall's stub overlapped a full wall run 100% and the band leaked through junctions until it failed the aspect test. On fully-connected drawings (CAD/vector plans — what architects upload) every wall collapsed to zero. Fixed to overlap-relative-to-longer-run. This also explains the old pipeline's over-segmentation: redrawn diagrams only traced because the generator left accidental junction gaps.
+- `splitWallsAtJunctions` is now thickness-aware (`thickness/2 + 3px` reach instead of 2px): traced endpoints stop at the band edge of the wall they meet, so the old threshold never detected junctions.
+- The pipeline chain is now: direct CV trace → LLM semantics + wall audit → (fallback) direct gpt-5.2 structured analysis → (fallback) legacy Gemini two-pass. The image-gen redraw and its prompts were deleted (~250 lines); net file size shrank by ~120 lines.
+- Fallbacks got cheaper and tougher: the wall-analysis call retries once on an empty/truncated response (16k token budget, reasoning tokens count against it), and when the wall-coverage check rejects a trace, the fallback reuses the already-computed semantics instead of paying for a second semantics call (~90s and one model call saved; this fixed the real-site-upper-floor 504).
+- OCR now also returns bounding boxes for room labels and other printed text, which shield the direct trace from text noise; endpoint snap/connect thresholds scale with image size (4-24px / 6-32px) instead of fixed 20-25px; a total-area scale rescue derives pixels-per-meter from the wall footprint when the only alternative is the 0.9m-door guess.
+- QA after: 3/3 synthetic fixtures demo-ready at 100% on every metric; 3/3 real plans complete. The dimensioned-plan scale corrected from the baseline's 43.8 px/m (a 28m-wide house) to 83.0 px/m (~14m, matching its printed labels). 5 of 6 fixtures now skip all generative steps for geometry; uploads that took 100-200s of image-gen now trace in ~2s.
+- Root cause #3 (doors/windows misplaced): gpt-5.2 semantics returned `positionAlongWall` as a 0-1 fraction of the wall length — the OpenAI prompt, unlike the Gemini one, never said pixels — and the converter multiplies by meters-per-pixel, pinning openings near the wall start. Present in the pre-v40 baseline data too, so this bug shipped with the OpenAI-first pipeline. Fixed in the prompt (explicit PIXELS, never a fraction) plus a defensive normalization in the handler (values ≤ 1.5 are unambiguously fractions; converted via the referenced wall's pixel length).
+- Root cause #4 (random slow path): the wall-coverage check rejected complete traces whose pixels-per-meter was merely miscalibrated, forcing the expensive LLM fallback (and 504s). When the wall-bounds aspect ratio matches the printed dimensions, it now keeps the trace and lets `adjustScaleFromWallBounds` recalibrate — verified live: 182.9 → 124.5 px/m on real-wide-40x30, landing exactly on its printed 12.19m x 9.14m.
+- QA script hardening (`scripts/floor-plan-review-qa.mjs`): the nudge-step assertion derived from the fixture scale instead of a hardcoded 8.42, and the manual-door tap point derived from the longest visible wall instead of hardcoded coordinates — regenerating fixture data no longer breaks review QA.
+- Verification: `npm run qa:floor-plans:run --all` (paid; several reruns while fixing the above), `npm run qa:floor-plans:check` (3/3 demo-ready), `npm run qa:floor-plans:placement`, `npm run qa:floor-plans:review`, `npm run qa:agent-text-actions`, ESLint on changed files, `npm run build`, `git diff --check`. All cached QA fixtures regenerated with pixel-correct opening positions.
+- Remaining limitations: diagonal/curved walls are still invisible to the axis-aligned trace (the LLM fallback catches those plans); tilted phone photos always take the LLM fallback (a deterministic deskew pass would let them use the fast trace); scale on plans without printed dimensions still bottoms out at the door-width assumption with honest ~40% confidence.
+
 ## Active Plan: v39 Agent-Guided Comparison Placement Around Uploaded Plans
 - [x] Keep v39 scoped to local scene control after v38 fit-around answers: no paid analyzer call, no provider switch, no renderer rewrite, and no new comparison object definitions
 - [x] Add placement intent to around-plan comparison actions so buttons like `Show tennis court` know they came from `What fits around the uploaded plan?`

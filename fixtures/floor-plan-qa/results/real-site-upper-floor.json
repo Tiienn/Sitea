@@ -1,14 +1,14 @@
 {
   "fixtureId": "real-site-upper-floor",
-  "capturedAt": "2026-05-27T19:17:14.751Z",
+  "capturedAt": "2026-06-10T10:31:45.074Z",
   "sourceFile": "samples/real/real-site-upper-floor.png",
   "imageFile": "samples/real/real-site-upper-floor.png",
   "analyzer": "api/analyze-floor-plan.js",
   "rawResultFile": "results/raw/real-site-upper-floor.json",
   "detected": {
-    "walls": 48,
-    "doors": 7,
-    "windows": 4,
+    "walls": 59,
+    "doors": 5,
+    "windows": 5,
     "rooms": 10,
     "stairs": 1
   },
@@ -19,7 +19,7 @@
   "artifacts": {},
   "placementOk": true,
   "scale": {
-    "pixelsPerMeter": 41,
+    "pixelsPerMeter": 43.4,
     "confidence": 0.93,
     "source": "dimension_label"
   }
