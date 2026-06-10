@@ -163,7 +163,16 @@
       "Read(//private/tmp/**)",
       "Bash(awk 'NR==124{while\\(\\(getline line < \"/tmp/roomfurn_preview.jsx\"\\) > 0\\) print line; print \"\"} {print}' /Users/tien/projects/sitea/src/components/FloorPlanPreview3D.jsx)",
       "Bash(sed -n '120,135p' /Users/tien/projects/sitea/src/components/FloorPlanPreview3D.jsx)",
-      "Bash(awk '/^\\\\/\\\\/ ─── Room Furniture/,/^}$/')"
+      "Bash(awk '/^\\\\/\\\\/ ─── Room Furniture/,/^}$/')",
+      "Bash(vercel --prod)",
+      "Bash(echo \"EXIT: $?\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(cat >> *)",
+      "Bash(git -C /Users/tien/projects/sitea push && vercel --prod > /tmp/vercel-v41.log 2>&1; echo \"EXIT: $?\"; tail -5 /tmp/vercel-v41.log)",
+      "Read(//Users/tien/Desktop/**)",
+      "Read(//Users/tien/Downloads/**)",
+      "Bash(mdfind -name \"Screenshot 2026-03-06 at 19.00.18\")",
+      "Bash(cp ~/Desktop/\"Screenshot 2026-03-06 at 19.00.18.png\" /Users/tien/projects/sitea/fixtures/floor-plan-qa/samples/real/real-lot-127sqm.png && ls /Users/tien/projects/sitea/fixtures/floor-plan-qa/samples/real/)"
     ],
     "deny": [],
     "ask": []
