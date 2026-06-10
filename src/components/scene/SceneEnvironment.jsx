@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { QUALITY, QUALITY_SETTINGS } from '../../constants/landSceneConstants'
 import { useGrassTextures, useSimpleGrassTexture } from '../../hooks/useGrassTextures'
 
@@ -173,6 +174,17 @@ export function EnhancedGround({ quality }) {
   const simpleTexture = useSimpleGrassTexture()
   const { detailTexture, macroTexture, roughnessTexture } = useGrassTextures(quality)
 
+  // Multiply the tiled detail map by the macro texture at a much larger scale
+  // so the 60x-repeated grass tile stops reading as a repeating pattern.
+  const injectMacroBlend = useMemo(() => (shader) => {
+    shader.uniforms.macroMap = { value: macroTexture }
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D macroMap;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        vec3 macro = texture2D(macroMap, vMapUv * 0.135).rgb * 2.0;
+        diffuseColor.rgb *= mix(vec3(1.0), macro, 0.4);`)
+  }, [macroTexture])
+
   if (quality === QUALITY.FAST) {
     return (
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
@@ -192,9 +204,107 @@ export function EnhancedGround({ quality }) {
         roughness={0.9}
         metalness={0}
         envMapIntensity={settings.envMapIntensity}
+        onBeforeCompile={injectMacroBlend}
       />
     </mesh>
   )
+}
+
+// Instanced 3D grass blades around the plot (BEST quality only — gate at
+// the call site so FAST never builds the geometry).
+// Stylized cross-quad tufts with a dark-base → light-tip gradient and
+// gentle vertex-shader wind sway. The plot interior is excluded so blades
+// never poke through building floors.
+export function GrassField() {
+  const { mesh, material } = useMemo(() => {
+    // Tuft geometry: 3 crossed narrow quads with bend segments
+    const blade = new THREE.PlaneGeometry(0.22, 0.48, 1, 2)
+    blade.translate(0, 0.24, 0)
+    const parts = []
+    for (let i = 0; i < 3; i++) {
+      const p = blade.clone()
+      p.rotateX(0.28) // lean outward so blades show some face from above
+      p.rotateY((Math.PI / 3) * i)
+      parts.push(p)
+    }
+    const tuft = mergeGeometries(parts)
+    blade.dispose()
+
+    // Vertex colors: ground-toned base to warm light tip
+    const base = new THREE.Color('#57a23c')
+    const tip = new THREE.Color('#c4e878')
+    const pos = tuft.attributes.position
+    const colors = new Float32Array(pos.count * 3)
+    const c = new THREE.Color()
+    for (let i = 0; i < pos.count; i++) {
+      const f = Math.min(1, pos.getY(i) / 0.48)
+      c.copy(base).lerp(tip, f * f)
+      colors[i * 3] = c.r
+      colors[i * 3 + 1] = c.g
+      colors[i * 3 + 2] = c.b
+    }
+    tuft.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+    // Up-facing normals: blades shade exactly like the ground beneath them,
+    // so they read as bright meadow instead of dark vertical cards
+    const normals = tuft.attributes.normal
+    for (let i = 0; i < normals.count; i++) normals.setXYZ(i, 0, 1, 0)
+
+    const mat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      roughness: 0.85,
+      metalness: 0,
+    })
+    // Wind sway: bend each tuft by height, phase-shifted by instance position
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = { value: 0 }
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uTime;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          float windPhase = instanceMatrix[3][0] * 0.45 + instanceMatrix[3][2] * 0.6;
+          float sway = sin(uTime * 1.6 + windPhase) + sin(uTime * 2.7 + windPhase * 1.3) * 0.4;
+          transformed.x += sway * 0.05 * position.y;
+          transformed.z += sway * 0.025 * position.y;`)
+      mat.userData.shader = shader
+    }
+
+    // Seeded scatter in a ring around the plot (same exclusion as trees)
+    let seed = 54321
+    const seededRandom = () => {
+      seed = (seed * 16807) % 2147483647
+      return (seed - 1) / 2147483646
+    }
+    const placements = []
+    for (let i = 0; i < 6000 && placements.length < 3500; i++) {
+      const angle = seededRandom() * Math.PI * 2
+      const dist = 30 + Math.pow(seededRandom(), 1.6) * 90
+      const x = Math.cos(angle) * dist
+      const z = Math.sin(angle) * dist
+      if (Math.abs(x) < 35 && Math.abs(z) < 35) continue
+      placements.push({ x, z, scale: 0.7 + seededRandom() * 0.8, rot: seededRandom() * Math.PI })
+    }
+
+    const instanced = new THREE.InstancedMesh(tuft, mat, placements.length)
+    const dummy = new THREE.Object3D()
+    placements.forEach((p, i) => {
+      dummy.position.set(p.x, 0, p.z)
+      dummy.rotation.set(0, p.rot, 0)
+      dummy.scale.set(p.scale, p.scale, p.scale)
+      dummy.updateMatrix()
+      instanced.setMatrixAt(i, dummy.matrix)
+    })
+    instanced.instanceMatrix.needsUpdate = true
+    instanced.frustumCulled = false
+    return { mesh: instanced, material: mat }
+  }, [])
+
+  useFrame((state) => {
+    const shader = material.userData.shader
+    if (shader) shader.uniforms.uTime.value = state.clock.elapsedTime
+  })
+
+  return <primitive object={mesh} />
 }
 
 // Mountain silhouettes on the horizon (3 concentric rings)

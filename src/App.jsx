@@ -48,6 +48,9 @@ import { useAIChat } from './hooks/useAIChat'
 
 // Import constants from LandScene (these are re-exported)
 import { CAMERA_MODE, DEFAULT_TP_DISTANCE, ORBIT_START_DISTANCE, QUALITY } from './constants/landSceneConstants'
+
+// Dev-only visual QA: ?qaTime unlocks the time-of-day slider without a subscription (stripped from prod builds)
+const DEV_TIME_QA = import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('qaTime')
 import { useUser } from './hooks/useUser'
 import { exportFloorPlanAsPNG } from './utils/exportFloorPlan'
 import { captureScreenshot, captureAndDownload } from './utils/screenshotCapture'
@@ -4595,7 +4598,7 @@ function App() {
         onNearbyBuildingChange={setNearbyBuilding}
         timeOfDay={timeOfDay}
         setTimeOfDay={setTimeOfDay}
-        isPaidUser={isPaidUser}
+        isPaidUser={isPaidUser || DEV_TIME_QA}
         />
       </Suspense>
 

@@ -61,7 +61,7 @@ import {
 } from '../constants/landSceneConstants'
 
 // Import extracted components
-import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees } from './scene/SceneEnvironment'
+import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees, GrassField } from './scene/SceneEnvironment'
 import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
 import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
@@ -312,7 +312,7 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
         {is2D ? (
           <meshBasicMaterial color={landFillColor} transparent opacity={0.5} />
         ) : (
-          <meshStandardMaterial color="#4a7c59" roughness={0.95} metalness={0} />
+          <meshStandardMaterial color="#54923d" roughness={0.95} metalness={0} />
         )}
       </mesh>
 
@@ -2703,6 +2703,9 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       {/* Mountain silhouettes and scattered trees (hidden in 2D) */}
       {viewMode !== '2d' && <MountainSilhouettes />}
       {viewMode !== '2d' && <ScatteredTrees quality={quality} />}
+
+      {/* 3D grass blades near the plot (BEST quality + 3D views only) */}
+      {viewMode !== '2d' && quality !== QUALITY.FAST && <GrassField />}
 
       {/* Subtle grid for scale reference (hidden in 2D - replaced by CAD-style grid) */}
       {viewMode !== '2d' && (
