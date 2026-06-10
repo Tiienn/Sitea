@@ -61,7 +61,7 @@ import {
 } from '../constants/landSceneConstants'
 
 // Import extracted components
-import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees, GrassField, GroundFoliage } from './scene/SceneEnvironment'
+import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees, GrassField, GroundFoliage, DistantTreeline } from './scene/SceneEnvironment'
 import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
 import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
@@ -2715,8 +2715,9 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       {/* Enhanced ground with quality-based materials (hidden in 2D - show flat dark surface) */}
       {viewMode !== '2d' && <EnhancedGround key={quality} quality={quality} />}
 
-      {/* Mountain silhouettes and scattered trees (hidden in 2D) */}
-      {viewMode !== '2d' && <MountainSilhouettes />}
+      {/* Mountain ranges, distant treeline, and scattered trees (hidden in 2D) */}
+      {viewMode !== '2d' && <MountainSilhouettes timeOfDay={isPaidUser ? timeOfDay : 0.35} />}
+      {viewMode !== '2d' && <DistantTreeline timeOfDay={isPaidUser ? timeOfDay : 0.35} />}
       {viewMode !== '2d' && <ScatteredTrees quality={quality} />}
 
       {/* 3D grass blades and ground foliage near the plot (BEST quality + 3D views only) */}

@@ -343,60 +343,82 @@ export function GrassField() {
   return <primitive object={mesh} />
 }
 
-// Mountain silhouettes on the horizon (3 concentric rings)
-export function MountainSilhouettes() {
-  const layers = useMemo(() => {
+// Day/night tint multiplier for unlit distant scenery (mountains, treeline)
+const DISTANT_TINT_STOPS = [
+  { t: 0.0,  tint: [0.14, 0.18, 0.32] },
+  { t: 0.2,  tint: [0.95, 0.62, 0.55] },
+  { t: 0.35, tint: [0.82, 0.90, 1.0] },
+  { t: 0.5,  tint: [0.80, 0.88, 1.0] },
+  { t: 0.7,  tint: [1.0, 0.60, 0.45] },
+  { t: 0.85, tint: [0.28, 0.22, 0.38] },
+  { t: 1.0,  tint: [0.14, 0.18, 0.32] },
+]
+
+// Build a circular ridge "curtain": jagged top edge with real silhouette
+// depth, vertex colors fading from peak color down into horizon haze
+function buildRidgeGeometry(radius, height, phase, peakColor, hazeColor) {
+  const segments = 160
+  const positions = []
+  const colors = []
+  const indices = []
+  const peak = new THREE.Color(peakColor)
+  const haze = new THREE.Color(hazeColor)
+  const litPeak = peak.clone().lerp(new THREE.Color('#ffffff'), 0.22)
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2
+    let p = 0
+    p += Math.sin(theta * 3 + phase * 1.7) * 0.30
+    p += Math.sin(theta * 7 + phase * 2.3) * 0.15
+    p += Math.sin(theta * 13 + phase * 0.9) * 0.08
+    p += Math.sin(theta * 23 + phase * 3.1) * 0.04
+    const hNorm = Math.max(0.18, 0.55 + p) // 0.18..~1.1
+    const x = Math.cos(theta) * radius
+    const z = Math.sin(theta) * radius
+    positions.push(x, hNorm * height, z, x, -4, z)
+    // peaks catch light; base melts into haze
+    const topC = peak.clone().lerp(litPeak, Math.max(0, (hNorm - 0.55) * 1.6))
+    colors.push(topC.r, topC.g, topC.b, haze.r, haze.g, haze.b)
+    if (i < segments) {
+      const a = i * 2
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+    }
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  geo.setIndex(indices)
+  return geo
+}
+
+// Layered mountain ranges on the horizon — real ridge geometry instead of
+// transparent billboards, progressively bluer with distance (aerial
+// perspective), tinted by time of day
+export function MountainSilhouettes({ timeOfDay = 0.35 }) {
+  const { group, materials } = useMemo(() => {
     const configs = [
-      { radius: 450, height: 80, color: '#8a7b9a', opacity: 0.4 },
-      { radius: 350, height: 100, color: '#7a8b6a', opacity: 0.6 },
-      { radius: 260, height: 70, color: '#5a7a55', opacity: 0.8 },
+      // far → near: lighter/bluer → more saturated
+      { radius: 450, height: 95, phase: 0, peak: '#8fa3c4', haze: '#c4d2e4' },
+      { radius: 355, height: 85, phase: 2.1, peak: '#6c87a8', haze: '#aabfd6' },
+      { radius: 265, height: 60, phase: 4.4, peak: '#52738c', haze: '#90aec4' },
     ]
-    return configs.map((cfg, i) => {
-      const canvas = document.createElement('canvas')
-      canvas.width = 1024
-      canvas.height = 128
-      const ctx = canvas.getContext('2d')
-      // Mountain profile via summed sine waves
-      ctx.fillStyle = cfg.color
-      ctx.beginPath()
-      ctx.moveTo(0, 128)
-      for (let x = 0; x <= 1024; x++) {
-        const t = x / 1024
-        let h = 0
-        h += Math.sin(t * Math.PI * 2 * 3 + i * 1.7) * 0.3
-        h += Math.sin(t * Math.PI * 2 * 7 + i * 2.3) * 0.15
-        h += Math.sin(t * Math.PI * 2 * 13 + i * 0.9) * 0.08
-        h = 0.5 + h * 0.5 // normalize to 0.2-0.8 range
-        const py = 128 - h * 100
-        ctx.lineTo(x, py)
-      }
-      ctx.lineTo(1024, 128)
-      ctx.closePath()
-      ctx.fill()
-      const texture = new THREE.CanvasTexture(canvas)
-      texture.wrapS = THREE.RepeatWrapping
-      texture.repeat.set(3, 1)
-      return { ...cfg, texture }
-    })
+    const g = new THREE.Group()
+    const mats = []
+    for (const cfg of configs) {
+      const geo = buildRidgeGeometry(cfg.radius, cfg.height, cfg.phase, cfg.peak, cfg.haze)
+      const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: false })
+      mats.push(mat)
+      g.add(new THREE.Mesh(geo, mat))
+    }
+    return { group: g, materials: mats }
   }, [])
 
-  return (
-    <group>
-      {layers.map((layer, i) => (
-        <mesh key={i} position={[0, layer.height * 0.3, 0]}>
-          <cylinderGeometry args={[layer.radius, layer.radius, layer.height, 64, 1, true]} />
-          <meshBasicMaterial
-            map={layer.texture}
-            side={THREE.BackSide}
-            transparent
-            opacity={layer.opacity}
-            depthWrite={false}
-            fog
-          />
-        </mesh>
-      ))}
-    </group>
-  )
+  // Tint with time of day (unlit material × tint ≈ aerial light)
+  useFrame(() => {
+    const tint = lerpStops(DISTANT_TINT_STOPS, timeOfDay, 'tint')
+    for (const m of materials) m.color.setRGB(tint[0], tint[1], tint[2])
+  })
+
+  return <primitive object={group} />
 }
 
 // ─── Stylized vegetation helpers ───────────────────────────────────────────
@@ -618,42 +640,65 @@ export function GroundFoliage() {
   return <primitive object={group} />
 }
 
-// Distant treeline for horizon
-export function DistantTreeline() {
-  const treelineTexture = useMemo(() => {
+// Distant circular treeline between the scattered trees and the mountains —
+// painted canopy-cluster silhouettes on a ring, tinted by time of day
+export function DistantTreeline({ timeOfDay = 0.35 }) {
+  const { texture, material } = useMemo(() => {
     const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = 64
+    canvas.width = 1024
+    canvas.height = 128
     const ctx = canvas.getContext('2d')
 
-    // Gradient background (transparent to tree color)
-    ctx.fillStyle = 'rgba(0,0,0,0)'
-    ctx.fillRect(0, 0, 512, 64)
-
-    // Draw simple tree silhouettes
-    for (let x = 0; x < 512; x += 3) {
-      const height = 20 + Math.random() * 35
-      const shade = Math.floor(Math.random() * 30)
-      ctx.fillStyle = `rgb(${30 + shade}, ${50 + shade}, ${35 + shade})`
-
-      // Tree shape
-      ctx.beginPath()
-      ctx.moveTo(x, 64)
-      ctx.lineTo(x + 1.5, 64 - height)
-      ctx.lineTo(x + 3, 64)
-      ctx.fill()
+    // Rounded canopy clusters at varying heights (painted, not triangles)
+    let seed = 24680
+    const rand = () => {
+      seed = (seed * 16807) % 2147483647
+      return (seed - 1) / 2147483646
+    }
+    for (let x = 0; x < 1024; x += 7) {
+      const clusterH = 38 + rand() * 50
+      const shade = 0.82 + rand() * 0.36
+      const r = Math.round(58 * shade)
+      const g = Math.round(92 * shade)
+      const b = Math.round(74 * shade)
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+      // stacked overlapping circles form a soft canopy silhouette
+      for (let j = 0; j < 3; j++) {
+        const cx = x + (rand() - 0.5) * 10
+        const cy = 128 - clusterH + j * 14
+        const cr = 12 + rand() * 10
+        ctx.beginPath()
+        ctx.arc(cx, cy, cr, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      // fill to the bottom so there are no gaps under canopies
+      ctx.fillRect(x - 6, 128 - clusterH + 26, 24, clusterH)
     }
 
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.wrapS = THREE.RepeatWrapping
-    texture.repeat.set(8, 1)
-    return texture
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.wrapS = THREE.RepeatWrapping
+    tex.repeat.set(10, 1)
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      alphaTest: 0.4,
+      side: THREE.BackSide,
+      fog: false,
+    })
+    return { texture: tex, material: mat }
   }, [])
 
+  useFrame(() => {
+    const tint = lerpStops(DISTANT_TINT_STOPS, timeOfDay, 'tint')
+    // slightly darker than the mountains so the treeline reads as nearer
+    material.color.setRGB(tint[0] * 0.8, tint[1] * 0.85, tint[2] * 0.8)
+  })
+
   return (
-    <mesh position={[0, 15, -200]} rotation={[0, 0, 0]}>
-      <planeGeometry args={[800, 40]} />
-      <meshBasicMaterial map={treelineTexture} transparent alphaTest={0.1} fog={true} />
+    <mesh position={[0, 7, 0]}>
+      <cylinderGeometry args={[225, 225, 16, 96, 1, true]} />
+      <primitive object={material} attach="material" map={texture} />
     </mesh>
   )
 }
