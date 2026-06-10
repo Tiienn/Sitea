@@ -85,7 +85,8 @@ export function buildScenePayload(state) {
       walls: b.walls || [],
       rooms: b.rooms || [],
       stairs: b.stairs || [],
-      stats: b.stats || null
+      stats: b.stats || null,
+      sourcePlan: b.sourcePlan || null
     })),
     // Walls with doors/windows (rooms auto-detect from walls)
     walls: (walls || []).map(wall => ({

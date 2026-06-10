@@ -693,6 +693,11 @@ function App() {
   const [pendingFloorPlan, setPendingFloorPlan] = useState(null) // { walls, rooms, stats }
   const [floorPlanReview, setFloorPlanReview] = useState(null)
   const [selectedBuildingId, setSelectedBuildingId] = useState(null)
+  const selectedGeneratedBuildingActionsRef = useRef({
+    rotate: null,
+    explode: null,
+    deselect: null,
+  })
   const [selectedComparisonId, setSelectedComparisonId] = useState(null)
   const [selectedRoomId, setSelectedRoomId] = useState(null)
   const [roomLabels, setRoomLabels] = useState({}) // { [roomId]: string } for Phase 2
@@ -2561,6 +2566,42 @@ function App() {
       return { ok: true }
     }
 
+    if (
+      action.type === 'rotate_selected_generated_building' ||
+      action.type === 'explode_selected_generated_building' ||
+      action.type === 'deselect_selected_generated_building'
+    ) {
+      const selectedGenerated = selectedBuildingId
+        ? buildings.find(building => building.id === selectedBuildingId)
+        : null
+      if (!selectedGenerated) {
+        return {
+          ok: false,
+          reason: 'missing_selected_building',
+          message: 'Select a placed floor-plan building first.',
+        }
+      }
+
+      if (action.type === 'rotate_selected_generated_building') {
+        selectedGeneratedBuildingActionsRef.current.rotate?.()
+        setActivePanel('build')
+        setUndoRedoToast(action.toast || 'Selected building rotated')
+        return { ok: true, buildingId: selectedGenerated.id }
+      }
+
+      if (action.type === 'explode_selected_generated_building') {
+        selectedGeneratedBuildingActionsRef.current.explode?.()
+        setActivePanel('build')
+        setUndoRedoToast(action.toast || 'Building made editable')
+        return { ok: true, buildingId: selectedGenerated.id }
+      }
+
+      selectedGeneratedBuildingActionsRef.current.deselect?.()
+      setActivePanel(null)
+      setUndoRedoToast(action.toast || 'Building deselected')
+      return { ok: true, buildingId: selectedGenerated.id }
+    }
+
     if (action.type === 'activate_comparison' && action.comparisonId) {
       setActiveComparisons(prev => ({ ...prev, [action.comparisonId]: true }))
       setSelectedComparisonId(action.comparisonId)
@@ -2865,8 +2906,10 @@ function App() {
     dimensions.width,
     gridSnapEnabled,
     handleAgentLandDimensionsUpdated,
+    buildings,
     placedBuildings,
     resetComparisonTransform,
+    selectedBuildingId,
     selectedPlacedBuildingId,
     snapEnabled,
     setbackDistanceM,
@@ -3043,6 +3086,14 @@ function App() {
     setSelectedBuildingId(null)
     showToast(`Exploded building into ${newWalls.length} walls and ${newFurniture.length} furniture items`, 3000)
   }, [selectedBuildingId, buildings, walls, pushWallsState, setFurnitureItems])
+
+  useEffect(() => {
+    selectedGeneratedBuildingActionsRef.current = {
+      rotate: () => rotateBuildingPreview(Math.PI / 2),
+      explode: () => explodeSelectedBuilding(),
+      deselect: () => setSelectedBuildingId(null),
+    }
+  }, [rotateBuildingPreview, explodeSelectedBuilding])
 
   // Rotate selected comparison object
   const rotateSelectedComparison = useCallback((angle = 90) => {
@@ -4521,6 +4572,8 @@ function App() {
           selectedBuildingId={selectedBuildingId}
           selectedFloorPlanSource={selectedGeneratedBuilding?.sourcePlan || null}
           onExplodeBuilding={explodeSelectedBuilding}
+          onRotateSelectedBuilding={() => rotateBuildingPreview(Math.PI / 2)}
+          onClearSelectedBuilding={() => setSelectedBuildingId(null)}
         />
       </div>
 
@@ -5333,7 +5386,7 @@ function App() {
       {!isMobileChatFocused && undoRedoToast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-xl sitea-status-toast text-[var(--color-text-primary)] text-sm font-medium animate-fade-in flex items-center gap-3 max-w-[min(92vw,560px)] text-center break-words" style={{ padding: '10px 22px' }}>
           {undoRedoToast === 'building_selected'
-            ? 'Building selected • R rotate • Del delete • E to explode'
+            ? 'Building selected • Drag to move • R rotate • E make editable • ESC deselect'
             : undoRedoToast}
         </div>
       )}

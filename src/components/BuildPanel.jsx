@@ -360,6 +360,8 @@ export default function BuildPanel({
   selectedBuildingId,
   selectedFloorPlanSource = null,
   onExplodeBuilding,
+  onRotateSelectedBuilding,
+  onClearSelectedBuilding,
 }) {
   const { isPaidUser, hasUsedUpload, canUseUpload, markUploadUsed, setShowPricingModal } = useUser()
   const [activeSection, setActiveSection] = useState('tools')
@@ -787,6 +789,47 @@ export default function BuildPanel({
             {/* TOOLS Section */}
             {activeSection === 'tools' && (
               <div className="space-y-4">
+                {selectedBuildingId && (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_14px_38px_rgba(15,23,42,0.2)]">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-teal-300/20 bg-teal-300/10 text-teal-100">
+                        <span className="h-5 w-5">{Icons.home}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white">Selected building</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
+                          Move, rotate, or turn the placed plan into editable walls.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => canEdit && onRotateSelectedBuilding?.()}
+                        disabled={!canEdit}
+                        className="sitea-btn sitea-btn-secondary min-h-11 px-3 py-2 text-xs"
+                      >
+                        Rotate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => canEdit && onExplodeBuilding?.()}
+                        disabled={!canEdit}
+                        className="sitea-btn sitea-btn-primary min-h-11 px-3 py-2 text-xs"
+                      >
+                        Edit walls
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onClearSelectedBuilding?.()}
+                        className="sitea-btn sitea-btn-secondary min-h-11 px-3 py-2 text-xs"
+                      >
+                        Deselect
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {selectedFloorPlanSource && (
                   <div className="rounded-2xl border border-teal-300/15 bg-teal-950/25 p-4 shadow-[0_14px_38px_rgba(15,23,42,0.24)]">
                     <div className="flex flex-wrap items-center gap-2">

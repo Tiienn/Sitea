@@ -1,5 +1,28 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v36 Selected Floor-Plan Building Actions
+- [x] Keep v36 scoped to post-placement actions for selected generated floor-plan buildings: no paid analyzer call, no provider switch, no renderer rewrite, and no new full editor mode
+- [x] Add a compact `Selected building` action card in `BuildPanel` when a generated building is selected, paired with the existing v35 source-plan card
+- [x] Surface the actions users naturally need after placement: rotate, make editable/explode, and clear selection, with mobile-safe buttons and no cramped text
+- [x] Wire Build panel buttons to existing `rotateBuildingPreview`, `explodeSelectedBuilding`, and selection-clearing logic instead of duplicating scene behavior
+- [x] Preserve current keyboard/mouse behavior: drag selected building to move, `R` rotates, `Delete` removes, `E` explodes, `ESC` deselects
+- [x] Add/adjust agent text-action handling so Sitea understands post-placement commands like “rotate this plan”, “make this building editable”, and “deselect it” using existing scene controls where possible
+- [x] Keep save/share/restoration stable for generated buildings with v35 `sourcePlan` metadata
+- [x] Extend no-cost QA for post-placement building actions and agent text commands without uploading files or calling paid analyzers
+- [x] Verify with focused lint, floor-plan placement/review QA if affected, agent text-action QA, build, `git diff --check`, local browser smoke, then commit/push/deploy
+- [x] Add v36 review notes with what selected-building actions improve and what remains for true post-placement wall/opening editing
+
+### v36 Review
+- Direction: v36 makes placed floor-plan buildings easier to act on after upload/review placement, without adding a new editor mode or any paid analyzer call.
+- Scope stayed small: selected generated buildings now get a compact `Selected building` card in Build tools with `Rotate`, `Edit walls`, and `Deselect`.
+- The card reuses existing scene behavior: rotate uses the current selected-building rotate path, edit walls uses the existing explode-to-walls path, and deselect clears the selected generated building.
+- Existing keyboard and pointer behavior remains intact: drag to move, `R` rotates, `Delete` removes, `E` explodes, and `ESC` deselects.
+- Sitea Agent now understands local text commands for selected floor-plan buildings such as `rotate this plan`, `make this building editable`, and `deselect it`; if no placed floor-plan building is selected, it gives a useful next step without calling the paid API.
+- Save/share restoration now preserves lean `sourcePlan` metadata for generated floor-plan buildings, so the source-plan card survives project/share reloads.
+- Placement QA output is now deterministic: fixture IDs use a stable QA prefix and the report no longer changes timestamp-only lines on every run.
+- Verification passed: focused ESLint for changed files, `npm run qa:floor-plans:placement`, `npm run qa:agent-text-actions`, `npm run build`, `git diff --check`, and local Playwright browser smoke. The browser smoke confirmed the selected-building card, source-plan card, and action buttons render against a seeded generated building.
+- Remaining limitation: v36 still converts a placed generated building into editable walls as a one-way explode step. True post-placement wall/opening edits directly inside the generated-building object remain a later feature.
+
 ## Active Plan: v35 Placed Floor-Plan Provenance
 - [x] Keep v35 scoped to post-placement floor-plan trust metadata: no paid analyzer call, no provider switch, no 3D renderer rewrite, and no new blocking gate
 - [x] Preserve lean source-plan metadata when a reviewed floor plan is placed as a generated building: source filename, live readiness, corrected counts, and correction summary

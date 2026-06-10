@@ -2040,6 +2040,31 @@ function parseStructureRefinementCommand(normalizedText) {
   return null
 }
 
+function parseSelectedGeneratedBuildingCommand(normalizedText) {
+  const mentionsPlacedPlan = /\b(floor plan|floor-plan|uploaded plan|placed plan|source plan|selected plan|current plan|this plan|that plan|selected building|current building|this building|that building)\b/.test(normalizedText)
+  const mentionsSelectedThing = /\b(selected|current|this|that|it)\b/.test(normalizedText)
+  const wantsDeselect = /\b(deselect|unselect|clear selection|clear selected|cancel selection)\b/.test(normalizedText)
+
+  if (wantsDeselect && (mentionsPlacedPlan || mentionsSelectedThing)) {
+    return { type: 'deselect_selected_generated_building' }
+  }
+
+  const mentionsBuildingActionTarget = mentionsPlacedPlan ||
+    (mentionsSelectedThing && /\b(plan|building|editable|selection)\b/.test(normalizedText))
+
+  if (!mentionsBuildingActionTarget) return null
+
+  if (/\b(explode|make editable|editable|turn into walls|convert to walls|edit walls|edit the walls)\b/.test(normalizedText)) {
+    return { type: 'explode_selected_generated_building' }
+  }
+
+  if (hasStructureRotateIntent(normalizedText)) {
+    return { type: 'rotate_selected_generated_building', degrees: parseRotationDegrees(normalizedText) }
+  }
+
+  return null
+}
+
 function createComparisonAction(object, label = `Show ${object.name} in 3D`) {
   return {
     type: 'activate_comparison',
@@ -2155,6 +2180,11 @@ function buildTextSceneAction(text, { landArea }) {
 
   if (isClearStructuresRequest(normalizedText)) {
     return { type: 'clear_structures' }
+  }
+
+  const selectedGeneratedBuildingAction = parseSelectedGeneratedBuildingCommand(normalizedText)
+  if (selectedGeneratedBuildingAction) {
+    return selectedGeneratedBuildingAction
   }
 
   const structureRefinement = parseStructureRefinementCommand(normalizedText)
@@ -3495,6 +3525,62 @@ export function useAIChat({
         }],
       }])
       onVisualHandoff?.({ toast: rotated ? `${structureName} rotated` : 'Rotation blocked' })
+      return true
+    }
+
+    if (
+      action.type === 'rotate_selected_generated_building' ||
+      action.type === 'explode_selected_generated_building' ||
+      action.type === 'deselect_selected_generated_building'
+    ) {
+      const labels = {
+        rotate_selected_generated_building: {
+          action: 'rotated',
+          content: 'Done. I rotated the selected floor-plan building.',
+          toast: 'Selected building rotated',
+        },
+        explode_selected_generated_building: {
+          action: 'made editable',
+          content: 'Done. I turned the selected floor-plan building into editable walls.',
+          toast: 'Building made editable',
+        },
+        deselect_selected_generated_building: {
+          action: 'deselected',
+          content: 'Done. I deselected the floor-plan building.',
+          toast: 'Building deselected',
+        },
+      }
+      const label = labels[action.type]
+      const result = onSceneControl?.({ type: action.type, degrees: action.degrees })
+      const success = result?.ok === true
+
+      setMessages(prev => [...prev, userMsg, {
+        role: 'assistant',
+        content: success
+          ? label.content
+          : `${result?.message || 'Select a placed floor-plan building first.'} Then I can rotate it, make it editable, or deselect it for you.`,
+        nextSteps: success ? [
+          { label: `Floor-plan building ${label.action}`, state: 'done' },
+          { label: 'Scene updated', state: 'done' },
+          { label: 'Ask for the next adjustment', state: 'current' },
+        ] : [
+          { label: 'Floor-plan building command understood', state: 'done' },
+          { label: 'Select a placed building first', state: 'current' },
+        ],
+        toolActions: [{
+          name: action.type,
+          input: {
+            buildingId: result?.buildingId || null,
+            degrees: action.degrees || null,
+            reason: result?.reason,
+          },
+          success,
+        }],
+      }])
+
+      if (success) {
+        onVisualHandoff?.({ toast: label.toast })
+      }
       return true
     }
 

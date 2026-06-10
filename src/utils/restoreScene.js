@@ -73,6 +73,7 @@ export function restoreScenePayload(payload, setters, buildingTypes) {
           rooms: b.rooms || [],
           stairs: b.stairs || [],
           stats: b.stats || null,
+          sourcePlan: b.sourcePlan || null,
         }))
       : []
     setBuildings(restoredGeneratedBuildings)

@@ -205,6 +205,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     doorHeight = 2.1,
     windowHeight = 1.2,
     windowSillHeight = 0.9,
+    idPrefix = `generated-${Date.now()}`,
   } = settings;
 
   // Get image center
@@ -255,7 +256,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     const end = toWorld(wall.end.x, wall.end.y);
 
     return {
-      id: `wall-generated-${Date.now()}-${index}`,
+      id: `wall-${idPrefix}-${index}`,
       start,
       end,
       height: wallHeight,
@@ -355,7 +356,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
       const width = (door.width || 90) * scale;
 
       wall.openings.push({
-        id: `door-generated-${Date.now()}-${index}`,
+        id: `door-${idPrefix}-${index}`,
         type: 'door',
         doorType: door.doorType || 'single',
         position: Math.max(width / 2, Math.min(position, wallLen - width / 2)),
@@ -378,7 +379,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
       const width = (window.width || 100) * scale;
 
       wall.openings.push({
-        id: `window-generated-${Date.now()}-${index}`,
+        id: `window-${idPrefix}-${index}`,
         type: 'window',
         position: Math.max(width / 2, Math.min(position, wallLen - width / 2)),
         width: Math.max(0.4, Math.min(width, 3)),
@@ -409,7 +410,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
     }
 
     return {
-      id: `room-generated-${Date.now()}-${index}`,
+      id: `room-${idPrefix}-${index}`,
       name: room.name || 'Room',
       center,
       area: areaInMeters,
@@ -420,7 +421,7 @@ export function convertFloorPlanToWorld(aiData, settings = {}) {
   const stairs = (aiData.stairs || []).map((stair, index) => {
     const center = toWorld(stair.center.x, stair.center.y);
     return {
-      id: `stair-generated-${Date.now()}-${index}`,
+      id: `stair-${idPrefix}-${index}`,
       center,
       direction: stair.direction || 'unknown',
     };

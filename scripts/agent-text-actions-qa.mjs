@@ -853,6 +853,30 @@ const CASES = [
     expectedToast: 'Placed structures cleared',
     expectChatVisible: false,
   },
+  {
+    name: 'desktop-rotate-selected-floor-plan-needs-selection',
+    viewport: 'desktop',
+    prompt: 'Rotate this plan',
+    expectedStoredText: 'Select a placed floor-plan building first',
+    expectedToolActionName: 'rotate_selected_generated_building',
+    expectChatVisible: true,
+  },
+  {
+    name: 'mobile-edit-selected-floor-plan-needs-selection',
+    viewport: 'mobile',
+    prompt: 'Make this building editable',
+    expectedStoredText: 'Select a placed floor-plan building first',
+    expectedToolActionName: 'explode_selected_generated_building',
+    expectChatVisible: true,
+  },
+  {
+    name: 'desktop-deselect-selected-floor-plan-needs-selection',
+    viewport: 'desktop',
+    prompt: 'Deselect it',
+    expectedStoredText: 'Select a placed floor-plan building first',
+    expectedToolActionName: 'deselect_selected_generated_building',
+    expectChatVisible: true,
+  },
 ]
 
 function fail(message, details = {}) {
@@ -906,7 +930,10 @@ async function readAudit(page, expectedToast) {
       action.name === 'offer_structure_layout_options' ||
       action.name === 'apply_structure_layout_option' ||
       action.name === 'place_structure_layout' ||
-      action.name === 'retry_structure_layout'
+      action.name === 'retry_structure_layout' ||
+      action.name === 'rotate_selected_generated_building' ||
+      action.name === 'explode_selected_generated_building' ||
+      action.name === 'deselect_selected_generated_building'
     )
     const latestLayoutAction = [...toolActions].reverse().find(action =>
       action.name === 'place_structure_layout' ||
