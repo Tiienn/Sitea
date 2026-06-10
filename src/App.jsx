@@ -3102,6 +3102,7 @@ function App() {
     confirmedPolygon,
     placedBuildings,
     generatedBuildings: buildings,
+    selectedGeneratedBuildingId: selectedBuildingId,
     activeComparisons,
     setbacksEnabled,
     setbackDistanceM,

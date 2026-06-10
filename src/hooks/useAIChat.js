@@ -609,6 +609,123 @@ function getObjectFit(object, landArea) {
   }
 }
 
+function buildFitLineForArea(object, area, areaLabel = 'area') {
+  const fit = getObjectFit(object, area)
+  if (fit.count === null) {
+    return `- ${object.displayName}: ${areaLabel} needed`
+  }
+  if (fit.count <= 0) {
+    return `- ${object.displayName}: not enough ${areaLabel} (${Math.round(fit.objectArea)}m² footprint)`
+  }
+  return `- ${object.displayName}: about ${fit.count} ${fit.count === 1 ? object.name : object.pluralName} in the ${areaLabel}`
+}
+
+function estimateGeneratedBuildingFootprint(building) {
+  const points = (building?.walls || []).flatMap(wall => [wall.start, wall.end])
+    .filter(point => Number.isFinite(point?.x) && Number.isFinite(point?.z))
+  if (points.length < 2) return null
+
+  const xs = points.map(point => point.x)
+  const zs = points.map(point => point.z)
+  const width = Math.max(...xs) - Math.min(...xs)
+  const length = Math.max(...zs) - Math.min(...zs)
+  const area = width * length
+  if (!Number.isFinite(area) || area <= 0) return null
+
+  return { width, length, area }
+}
+
+function resolveGeneratedBuildingForFit(generatedBuildings = [], selectedGeneratedBuildingId = null) {
+  if (!Array.isArray(generatedBuildings) || generatedBuildings.length === 0) return null
+
+  if (selectedGeneratedBuildingId) {
+    const selected = generatedBuildings.find(building => building.id === selectedGeneratedBuildingId)
+    if (selected) {
+      return { building: selected, targetSource: 'selected', generatedBuildingCount: generatedBuildings.length }
+    }
+  }
+
+  if (generatedBuildings.length === 1) {
+    return { building: generatedBuildings[0], targetSource: 'only', generatedBuildingCount: generatedBuildings.length }
+  }
+
+  return { building: generatedBuildings[generatedBuildings.length - 1], targetSource: 'latest', generatedBuildingCount: generatedBuildings.length }
+}
+
+function getGeneratedBuildingTargetLabel(target) {
+  if (target?.targetSource === 'latest' && target.generatedBuildingCount > 1) {
+    return 'the latest uploaded floor-plan building'
+  }
+  if (target?.targetSource === 'selected') {
+    return 'the selected uploaded floor-plan building'
+  }
+  return 'the uploaded floor-plan building'
+}
+
+function isFitAroundGeneratedBuildingRequest(normalizedText) {
+  const mentionsFit = hasFitIntent(normalizedText) || /\b(compare|comparison|scale)\b/.test(normalizedText)
+  const mentionsAround = /\b(around|beside|next to|near|nearby|outside|remaining|left over|leftover|else)\b/.test(normalizedText)
+  const mentionsPlan = /\b(uploaded plan|floor plan|floor-plan|placed plan|source plan|this plan|that plan|uploaded floor-plan|generated building|this building|that building|building)\b/.test(normalizedText)
+  return mentionsFit && mentionsAround && mentionsPlan
+}
+
+function buildFitAroundGeneratedBuildingAction({ landArea, generatedBuildings, selectedGeneratedBuildingId }) {
+  const target = resolveGeneratedBuildingForFit(generatedBuildings, selectedGeneratedBuildingId)
+  if (!target?.building) return null
+
+  const footprint = estimateGeneratedBuildingFootprint(target.building)
+  if (!footprint) return null
+
+  const remainingArea = Number.isFinite(landArea) ? Math.max(landArea - footprint.area, 0) : null
+  const targetLabel = getGeneratedBuildingTargetLabel(target)
+  const sourceFileName = target.building.sourcePlan?.sourceFileName || null
+  const sourceCopy = sourceFileName ? ` (${sourceFileName})` : ''
+  const latestCopy = target.targetSource === 'latest' && target.generatedBuildingCount > 1
+    ? ` There are ${target.generatedBuildingCount}; I used the latest placed one.`
+    : ''
+  const remainingLabel = 'approximate remaining area'
+  const fitLines = TEXT_ACTION_COMPARISONS
+    .map(object => buildFitLineForArea(object, remainingArea, remainingLabel))
+    .join('\n')
+  const suggestedActions = TEXT_ACTION_COMPARISONS
+    .filter(object => {
+      const fit = getObjectFit(object, remainingArea)
+      return fit.count === null || fit.count > 0
+    })
+    .slice(0, 2)
+    .map(object => createComparisonAction(object))
+
+  return {
+    type: 'fit_around_generated_building',
+    content: [
+      `Using ${targetLabel}${sourceCopy}, I estimate the placed floor-plan footprint at about ${formatArea(footprint.area)} (${formatMeters(footprint.width)} x ${formatMeters(footprint.length)}).${latestCopy}`,
+      '',
+      `That leaves roughly ${formatArea(remainingArea)} of ${formatArea(landArea)} for outdoor space, access, comparisons, and future structures before setbacks and shape constraints.`,
+      '',
+      'Area-first fit around it:',
+      fitLines,
+      '',
+      'This is an area-first estimate around the uploaded plan. Setbacks, driveway/access, slope, trees, and exact open-space packing can reduce what actually works.',
+    ].join('\n'),
+    suggestedActions,
+    toolInput: {
+      buildingId: target.building.id,
+      targetSource: target.targetSource,
+      generatedBuildingCount: target.generatedBuildingCount,
+      sourceFileName,
+      landArea: Math.round(landArea || 0),
+      footprintArea: Math.round(footprint.area),
+      footprintWidth: Number(footprint.width.toFixed(2)),
+      footprintLength: Number(footprint.length.toFixed(2)),
+      remainingArea: Number.isFinite(remainingArea) ? Math.round(remainingArea) : null,
+      objects: TEXT_ACTION_COMPARISONS.map(object => ({
+        id: object.id,
+        count: getObjectFit(object, remainingArea).count,
+      })),
+    },
+  }
+}
+
 function normalizeCommand(text) {
   return ` ${String(text || '')
     .toLowerCase()
@@ -1142,6 +1259,14 @@ function getSceneSummarySuggestedActions({ hasPlacedStructures, hasGeneratedBuil
     ]
   }
 
+  if (hasGeneratedBuildings) {
+    return [
+      { label: 'See what fits around it', prompt: 'What fits around the uploaded plan?' },
+      { label: 'Rotate plan', prompt: 'Rotate the uploaded plan' },
+      { label: 'Edit walls', prompt: 'Make the uploaded plan editable' },
+    ]
+  }
+
   const actions = [
     { label: 'Explain this layout', prompt: 'What changed?' },
     { label: 'Compare privacy vs backyard', prompt: 'Compare privacy vs backyard' },
@@ -1482,7 +1607,7 @@ function getFloorPlanBuildingFollowUpActions() {
   return [
     createPromptAction('Rotate plan', 'Rotate the uploaded plan'),
     createPromptAction('Edit walls', 'Make the uploaded plan editable'),
-    createPromptAction('See what fits around it', 'What can fit on my land?'),
+    createPromptAction('See what fits around it', 'What fits around the uploaded plan?'),
     createPromptAction('Summarize site', 'Summarize the site'),
   ]
 }
@@ -2168,7 +2293,7 @@ function parseLandAreaCommand(normalizedText) {
   return { area, length: side, width: side }
 }
 
-function buildTextSceneAction(text, { landArea }) {
+function buildTextSceneAction(text, { landArea, generatedBuildings = [], selectedGeneratedBuildingId = null }) {
   const normalizedText = normalizeCommand(text)
   const landDimensions = parseLandDimensionCommand(normalizedText)
   if (landDimensions) {
@@ -2302,6 +2427,15 @@ function buildTextSceneAction(text, { landArea }) {
     return { type: 'activate_comparison', object: comparison }
   }
 
+  if (isFitAroundGeneratedBuildingRequest(normalizedText)) {
+    const fitAroundPlan = buildFitAroundGeneratedBuildingAction({
+      landArea,
+      generatedBuildings,
+      selectedGeneratedBuildingId,
+    })
+    if (fitAroundPlan) return fitAroundPlan
+  }
+
   if (isGeneralFitRequest(normalizedText)) {
     return {
       type: 'general_fit_check',
@@ -2366,6 +2500,7 @@ export function useAIChat({
   confirmedPolygon,
   placedBuildings = [],
   generatedBuildings = [],
+  selectedGeneratedBuildingId = null,
   activeComparisons = {},
   setbacksEnabled = false,
   setbackDistanceM = 0,
@@ -2767,7 +2902,11 @@ export function useAIChat({
   }, [onSceneControl, onVisualHandoff])
 
   const handleTextSceneAction = useCallback((messageText) => {
-    const action = buildTextSceneAction(messageText, { landArea })
+    const action = buildTextSceneAction(messageText, {
+      landArea,
+      generatedBuildings,
+      selectedGeneratedBuildingId,
+    })
     if (!action) return false
 
     setError(null)
@@ -3202,7 +3341,11 @@ export function useAIChat({
       }
 
       if (agentRecommendation?.prompt) {
-        const promptedAction = buildTextSceneAction(agentRecommendation.prompt, { landArea })
+        const promptedAction = buildTextSceneAction(agentRecommendation.prompt, {
+          landArea,
+          generatedBuildings,
+          selectedGeneratedBuildingId,
+        })
 
         if (promptedAction?.type === 'offer_structure_layout_options') {
           pendingStructureLayoutRef.current = {
@@ -3290,7 +3433,7 @@ export function useAIChat({
           return true
         }
 
-        if (promptedAction?.type === 'general_fit_check') {
+        if (promptedAction?.type === 'general_fit_check' || promptedAction?.type === 'fit_around_generated_building') {
           setMessages(prev => [...prev, userMsg, {
             role: 'assistant',
             content: promptedAction.content,
@@ -3915,6 +4058,7 @@ export function useAIChat({
     rooms,
     setbackDistanceM,
     setbacksEnabled,
+    selectedGeneratedBuildingId,
     shapeMode,
     walls,
   ])

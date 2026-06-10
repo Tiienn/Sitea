@@ -1,5 +1,33 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: v38 Context-Aware Fit Around Uploaded Plans
+- [x] Keep v38 scoped to local agent reasoning for fit checks after a floor-plan building is placed: no paid analyzer call, no provider switch, no renderer rewrite, and no new UI panel
+- [x] Add a small helper in `useAIChat` to estimate generated floor-plan building footprint from its wall bounds and report approximate occupied area
+- [x] Update the `See what fits around it` follow-up prompt so it asks what fits around the uploaded plan, not just generic land fit
+- [x] Teach the local text parser to recognize fit-around-plan requests like `what fits around the uploaded plan`, `what can fit around this building`, and `compare around the floor plan`
+- [x] When a generated floor-plan building exists, make the fit response subtract the generated building footprint from land area and say which uploaded plan it used: only/latest/selected-style wording where possible
+- [x] Keep the copy honest: call it an area-first estimate and mention that setbacks, access, shape, and exact open-space packing can reduce what actually works
+- [x] Preserve the existing generic `What can fit on my land?` behavior when no uploaded/generated floor-plan building exists
+- [x] Keep suggested comparison actions useful by offering objects that fit the approximate remaining area, while still using existing comparison activation actions
+- [x] Extend no-cost agent text-action QA with seeded generated-building scenes for fit-around-plan responses and empty/generic fit behavior, without uploading files or calling paid analyzers
+- [x] Verify with focused lint, agent text-action QA, build, `git diff --check`, and floor-plan placement QA if shared fixtures change
+- [x] Add v38 review notes with what the fit-around answer improves and what remains for exact geometric placement/packing around buildings
+
+### v38 Review
+- Direction: v38 makes `See what fits around it` respect an uploaded/generated floor-plan building already placed on the land.
+- Scope stayed local and no-cost: no paid analyzer call, no provider switch, no renderer rewrite, and no new UI panel.
+- Added a small generated-building footprint estimator that uses local wall bounds to calculate approximate width, length, and occupied area.
+- The floor-plan follow-up button now asks `What fits around the uploaded plan?` instead of falling back to the generic land-wide fit prompt.
+- Sitea Agent now recognizes around-plan requests such as `what fits around the uploaded plan` and `compare around the floor plan`.
+- When a generated floor-plan building exists, the fit answer subtracts the estimated building footprint from total land area and reports the approximate remaining area.
+- Targeting follows v37 behavior where possible: selected generated building first, otherwise the only generated building, otherwise the latest generated building with clear wording.
+- The answer is intentionally honest: it calls the result an area-first estimate and warns that setbacks, access, slope, trees, and exact open-space packing can reduce what works.
+- Generic `What can fit on my land?` behavior remains available for empty scenes or broad fit checks.
+- Suggested actions still reuse existing comparison activation actions, filtered by the approximate remaining area.
+- Extended `npm run qa:agent-text-actions` with seeded generated-building cases for fit-around-plan and latest-plan targeting. These tests do not upload files or call paid analyzers.
+- Verification passed: focused ESLint for changed files, `npm run qa:agent-text-actions`, `npm run qa:floor-plans:placement`, `npm run build`, and `git diff --check`.
+- Remaining limitation: v38 does not perform exact geometric packing around the building footprint. It subtracts approximate area; a later version should check actual open regions, setbacks, access corridors, and object dimensions against the site shape.
+
 ## Active Plan: v37 Agent-Led Floor-Plan Building Control
 - [x] Keep v37 scoped to local agent-to-scene control for placed/generated floor-plan buildings: no paid analyzer call, no provider switch, no renderer rewrite, and no new editor mode
 - [x] Add a small resolver in `App.jsx` that can find the active generated floor-plan building by selected ID, explicit action target, only building, or latest building

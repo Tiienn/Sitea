@@ -913,6 +913,36 @@ const CASES = [
     expectChatVisible: false,
   },
   {
+    name: 'desktop-fit-around-uploaded-floor-plan',
+    viewport: 'desktop',
+    seedScene: QA_SCENE_WITH_GENERATED_BUILDING,
+    prompt: 'What fits around the uploaded plan?',
+    expectedStoredText: 'footprint at about 48m²',
+    expectedAdditionalStoredText: [
+      'That leaves roughly 2702m² of 2750m²',
+      'Area-first fit around it',
+    ],
+    expectedToolActionName: 'fit_around_generated_building',
+    expectedToolActionBuildingId: 'qa-generated-plan-1',
+    expectedToolActionTargetSource: 'only',
+    expectChatVisible: true,
+  },
+  {
+    name: 'desktop-fit-around-latest-floor-plan',
+    viewport: 'desktop',
+    seedScene: QA_SCENE_WITH_TWO_GENERATED_BUILDINGS,
+    prompt: 'Compare around the floor plan',
+    expectedStoredText: 'Using the latest uploaded floor-plan building',
+    expectedAdditionalStoredText: [
+      'There are 2; I used the latest placed one.',
+      'That leaves roughly 2702m² of 2750m²',
+    ],
+    expectedToolActionName: 'fit_around_generated_building',
+    expectedToolActionBuildingId: 'qa-generated-plan-2',
+    expectedToolActionTargetSource: 'latest',
+    expectChatVisible: true,
+  },
+  {
     name: 'desktop-rotate-uploaded-floor-plan-auto-target',
     viewport: 'desktop',
     seedScene: QA_SCENE_WITH_GENERATED_BUILDING,
@@ -1008,6 +1038,7 @@ async function readAudit(page, expectedToast) {
       action.name === 'apply_structure_layout_option' ||
       action.name === 'place_structure_layout' ||
       action.name === 'retry_structure_layout' ||
+      action.name === 'fit_around_generated_building' ||
       action.name === 'select_generated_building' ||
       action.name === 'rotate_selected_generated_building' ||
       action.name === 'explode_selected_generated_building' ||
