@@ -61,7 +61,7 @@ import {
 } from '../constants/landSceneConstants'
 
 // Import extracted components
-import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees, GrassField } from './scene/SceneEnvironment'
+import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees, GrassField, GroundFoliage } from './scene/SceneEnvironment'
 import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
 import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
@@ -312,7 +312,9 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
         {is2D ? (
           <meshBasicMaterial color={landFillColor} transparent opacity={0.5} />
         ) : (
-          <meshStandardMaterial color="#54923d" roughness={0.95} metalness={0} />
+          // Semi-transparent tint: the painted meadow shows through while the
+          // plot still reads as a distinct, slightly lighter surface
+          <meshStandardMaterial color="#6cb84a" transparent opacity={0.4} roughness={0.95} metalness={0} />
         )}
       </mesh>
 
@@ -2704,8 +2706,9 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       {viewMode !== '2d' && <MountainSilhouettes />}
       {viewMode !== '2d' && <ScatteredTrees quality={quality} />}
 
-      {/* 3D grass blades near the plot (BEST quality + 3D views only) */}
+      {/* 3D grass blades and ground foliage near the plot (BEST quality + 3D views only) */}
       {viewMode !== '2d' && quality !== QUALITY.FAST && <GrassField />}
+      {viewMode !== '2d' && quality !== QUALITY.FAST && <GroundFoliage />}
 
       {/* Subtle grid for scale reference (hidden in 2D - replaced by CAD-style grid) */}
       {viewMode !== '2d' && (

@@ -363,73 +363,223 @@ export function MountainSilhouettes() {
   )
 }
 
-// Scattered low-poly trees around the land plot
+// ─── Stylized vegetation helpers ───────────────────────────────────────────
+
+// Write a base→top vertex-color gradient onto a geometry (by local Y), then
+// translate it into place. brightness shades whole clumps lighter/darker.
+function paintGradient(geo, baseColor, topColor, brightness = 1) {
+  const pos = geo.attributes.position
+  geo.computeBoundingBox()
+  const minY = geo.boundingBox.min.y
+  const maxY = geo.boundingBox.max.y
+  const span = Math.max(maxY - minY, 0.0001)
+  const colors = new Float32Array(pos.count * 3)
+  const base = new THREE.Color(baseColor)
+  const top = new THREE.Color(topColor)
+  const c = new THREE.Color()
+  for (let i = 0; i < pos.count; i++) {
+    const t = (pos.getY(i) - minY) / span
+    c.copy(base).lerp(top, t).multiplyScalar(brightness)
+    colors[i * 3] = c.r
+    colors[i * 3 + 1] = c.g
+    colors[i * 3 + 2] = c.b
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  return geo
+}
+
+// Build one stylized tree as a single vertex-colored geometry:
+// tapered trunk + layered foliage clumps (the Genshin look — distinct
+// rounded clusters, each with its own dark-base → light-top gradient).
+function buildTreeGeometry(kind) {
+  const parts = []
+  const blob = (r, x, y, z, squashY, base, top, brightness) => {
+    const g = new THREE.IcosahedronGeometry(r, 1)
+    g.scale(1, squashY, 1)
+    paintGradient(g, base, top, brightness)
+    g.translate(x, y, z)
+    parts.push(g)
+  }
+  const trunk = (rTop, rBottom, h, x = 0, z = 0) => {
+    // non-indexed to match IcosahedronGeometry blobs for mergeGeometries
+    const g = new THREE.CylinderGeometry(rTop, rBottom, h, 6).toNonIndexed()
+    paintGradient(g, '#4e3a20', '#6f5433', 1)
+    g.translate(x, h / 2, z)
+    parts.push(g)
+  }
+
+  if (kind === 'round') {
+    // Broad leafy tree: big crown + surrounding clumps
+    trunk(0.16, 0.24, 2.4)
+    blob(1.45, 0, 3.7, 0, 0.85, '#2f7030', '#8cc44e', 1.0)
+    blob(1.0, 1.05, 3.0, 0.25, 0.8, '#2f7030', '#8cc44e', 0.92)
+    blob(0.95, -1.0, 3.1, -0.2, 0.8, '#2f7030', '#8cc44e', 1.06)
+    blob(0.9, 0.15, 3.0, 1.0, 0.8, '#2f7030', '#8cc44e', 0.88)
+    blob(0.85, -0.2, 3.15, -1.0, 0.8, '#2f7030', '#8cc44e', 1.1)
+  } else if (kind === 'tall') {
+    // Tall cool-green tree: stacked, narrowing clumps
+    trunk(0.13, 0.2, 3.0)
+    blob(1.25, 0, 3.0, 0, 0.75, '#235c39', '#67ab49', 0.95)
+    blob(1.0, 0, 4.1, 0, 0.75, '#235c39', '#67ab49', 1.0)
+    blob(0.75, 0, 5.0, 0, 0.75, '#235c39', '#67ab49', 1.08)
+    blob(0.45, 0, 5.7, 0, 0.8, '#235c39', '#67ab49', 1.15)
+  } else {
+    // Small warm bushy tree
+    trunk(0.11, 0.16, 1.5)
+    blob(1.0, 0, 2.2, 0, 0.8, '#4a8a2c', '#aed258', 1.0)
+    blob(0.7, 0.7, 1.9, 0.3, 0.75, '#4a8a2c', '#aed258', 0.9)
+    blob(0.65, -0.65, 2.0, -0.25, 0.75, '#4a8a2c', '#aed258', 1.08)
+  }
+  return mergeGeometries(parts)
+}
+
+// Shared foliage material: vertex colors + gentle wind sway above trunk height
+function makeSwayMaterial() {
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 })
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = { value: 0 }
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        float canopyH = max(transformed.y - 1.2, 0.0);
+        float treePhase = instanceMatrix[3][0] * 0.35 + instanceMatrix[3][2] * 0.5;
+        float treeSway = sin(uTime * 1.1 + treePhase) + sin(uTime * 1.9 + treePhase * 1.4) * 0.5;
+        transformed.x += treeSway * 0.018 * canopyH;
+        transformed.z += treeSway * 0.012 * canopyH;`)
+    mat.userData.shader = shader
+  }
+  return mat
+}
+
+// Deterministic scatter in a ring around the plot, excluding the plot itself
+function scatterRing(seedStart, count, distMin, distMax, distPow = 1) {
+  let seed = seedStart
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647
+    return (seed - 1) / 2147483646
+  }
+  const out = []
+  for (let i = 0; i < count * 2 && out.length < count; i++) {
+    const angle = rand() * Math.PI * 2
+    const dist = distMin + Math.pow(rand(), distPow) * (distMax - distMin)
+    const x = Math.cos(angle) * dist
+    const z = Math.sin(angle) * dist
+    if (Math.abs(x) < 35 && Math.abs(z) < 35) continue
+    out.push({ x, z, scale: 0.7 + rand() * 0.6, rot: rand() * Math.PI * 2, pick: rand() })
+  }
+  return out
+}
+
+function fillInstances(mesh, placements) {
+  const dummy = new THREE.Object3D()
+  placements.forEach((p, i) => {
+    dummy.position.set(p.x, 0, p.z)
+    dummy.rotation.set(0, p.rot, 0)
+    dummy.scale.set(p.scale, p.scale, p.scale)
+    dummy.updateMatrix()
+    mesh.setMatrixAt(i, dummy.matrix)
+  })
+  mesh.instanceMatrix.needsUpdate = true
+}
+
+// Scattered stylized trees around the land plot — 3 variants, one
+// instanced draw call each, layered-clump foliage with wind sway
 export function ScatteredTrees({ quality }) {
   const treeCount = quality === QUALITY.FAST ? 40 : 120
+  const castShadows = quality !== QUALITY.FAST
 
-  const { trunkData, canopyData } = useMemo(() => {
-    const trunks = []
-    const canopies = []
-    // Seeded random for deterministic placement
-    let seed = 12345
-    const seededRandom = () => {
-      seed = (seed * 16807) % 2147483647
-      return (seed - 1) / 2147483646
+  const { group, material } = useMemo(() => {
+    const placements = scatterRing(12345, treeCount, 40, 200)
+    const byKind = { round: [], tall: [], bush: [] }
+    for (const p of placements) {
+      byKind[p.pick < 0.55 ? 'round' : p.pick < 0.8 ? 'tall' : 'bush'].push(p)
     }
-    for (let i = 0; i < treeCount; i++) {
-      const angle = seededRandom() * Math.PI * 2
-      const dist = 40 + seededRandom() * 160
-      const x = Math.cos(angle) * dist
-      const z = Math.sin(angle) * dist
-      // Exclude land plot area
-      if (Math.abs(x) < 35 && Math.abs(z) < 35) continue
-      const scale = 0.7 + seededRandom() * 0.6
-      trunks.push({ x, z, scale })
-      canopies.push({ x, z, scale })
+    const mat = makeSwayMaterial()
+    const g = new THREE.Group()
+    for (const kind of Object.keys(byKind)) {
+      const list = byKind[kind]
+      if (!list.length) continue
+      const mesh = new THREE.InstancedMesh(buildTreeGeometry(kind), mat, list.length)
+      fillInstances(mesh, list)
+      mesh.castShadow = castShadows
+      g.add(mesh)
     }
-    return { trunkData: trunks, canopyData: canopies }
-  }, [treeCount])
+    return { group: g, material: mat }
+  }, [treeCount, castShadows])
 
-  const trunkRef = useMemo(() => {
-    const dummy = new THREE.Object3D()
-    const mesh = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.15, 0.2, 3, 6),
-      new THREE.MeshStandardMaterial({ color: '#8B6914' }),
-      trunkData.length
-    )
-    trunkData.forEach((t, i) => {
-      dummy.position.set(t.x, 1.5 * t.scale, t.z)
-      dummy.scale.set(t.scale, t.scale, t.scale)
-      dummy.updateMatrix()
-      mesh.setMatrixAt(i, dummy.matrix)
+  useFrame((state) => {
+    const shader = material.userData.shader
+    if (shader) shader.uniforms.uTime.value = state.clock.elapsedTime
+  })
+
+  return <primitive object={group} />
+}
+
+// Ground foliage: bushes, rocks, and flowers scattered outside the plot
+// (BEST quality only — gate at the call site)
+export function GroundFoliage() {
+  const group = useMemo(() => {
+    const g = new THREE.Group()
+
+    // Bushes: two merged squashed blobs
+    const bushParts = []
+    const b1 = new THREE.IcosahedronGeometry(0.55, 1)
+    b1.scale(1.2, 0.7, 1)
+    paintGradient(b1, '#2f7030', '#8cc44e', 0.95)
+    b1.translate(0, 0.32, 0)
+    bushParts.push(b1)
+    const b2 = new THREE.IcosahedronGeometry(0.4, 1)
+    b2.scale(1.1, 0.75, 1)
+    paintGradient(b2, '#2f7030', '#9ed25c', 1.05)
+    b2.translate(0.45, 0.26, 0.2)
+    bushParts.push(b2)
+    const bushGeo = mergeGeometries(bushParts)
+    const foliageMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 })
+    const bushes = new THREE.InstancedMesh(bushGeo, foliageMat, 70)
+    fillInstances(bushes, scatterRing(77777, 70, 30, 130, 1.4))
+    g.add(bushes)
+
+    // Rocks: low-poly, cool gray with warm top
+    const rockGeo = new THREE.DodecahedronGeometry(0.45, 0)
+    rockGeo.scale(1.3, 0.8, 1)
+    paintGradient(rockGeo, '#6b7280', '#aab2bd', 1)
+    rockGeo.translate(0, 0.25, 0)
+    const rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 })
+    const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 26)
+    fillInstances(rocks, scatterRing(31313, 26, 32, 150, 1.3))
+    g.add(rocks)
+
+    // Flowers: tiny cross-quads, stem painted green, head tinted per mesh
+    const flowerColors = ['#ffffff', '#ffd84d', '#ff9ec4']
+    flowerColors.forEach((headColor, fi) => {
+      const quad = new THREE.PlaneGeometry(0.16, 0.3, 1, 2)
+      quad.translate(0, 0.15, 0)
+      const cross = mergeGeometries([quad, quad.clone().rotateY(Math.PI / 2)])
+      // stem (lower 55%) green, head takes the flower color
+      const pos = cross.attributes.position
+      const colors = new Float32Array(pos.count * 3)
+      const stem = new THREE.Color('#3f8f2d')
+      const head = new THREE.Color(headColor)
+      for (let i = 0; i < pos.count; i++) {
+        const c = pos.getY(i) > 0.165 ? head : stem
+        colors[i * 3] = c.r
+        colors[i * 3 + 1] = c.g
+        colors[i * 3 + 2] = c.b
+      }
+      cross.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+      const norms = cross.attributes.normal
+      for (let i = 0; i < norms.count; i++) norms.setXYZ(i, 0, 1, 0)
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85 })
+      const flowers = new THREE.InstancedMesh(cross, mat, 60)
+      fillInstances(flowers, scatterRing(91000 + fi * 137, 60, 30, 110, 1.5))
+      flowers.frustumCulled = false
+      g.add(flowers)
     })
-    mesh.instanceMatrix.needsUpdate = true
-    return mesh
-  }, [trunkData])
 
-  const canopyRef = useMemo(() => {
-    const dummy = new THREE.Object3D()
-    const mesh = new THREE.InstancedMesh(
-      new THREE.IcosahedronGeometry(1.8, 1),
-      new THREE.MeshStandardMaterial({ color: '#4a9e3f', flatShading: true }),
-      canopyData.length
-    )
-    canopyData.forEach((t, i) => {
-      dummy.position.set(t.x, 3.5 * t.scale, t.z)
-      dummy.scale.set(t.scale, t.scale * 1.1, t.scale)
-      dummy.updateMatrix()
-      mesh.setMatrixAt(i, dummy.matrix)
-    })
-    mesh.instanceMatrix.needsUpdate = true
-    return mesh
-  }, [canopyData])
+    return g
+  }, [])
 
-  return (
-    <group>
-      <primitive object={trunkRef} />
-      <primitive object={canopyRef} />
-    </group>
-  )
+  return <primitive object={group} />
 }
 
 // Distant treeline for horizon
