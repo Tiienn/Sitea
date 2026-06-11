@@ -316,7 +316,7 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
         ) : (
           // Semi-transparent tint: the painted meadow shows through while the
           // plot still reads as a distinct, slightly lighter surface
-          <meshStandardMaterial color="#6cb84a" transparent opacity={0.4} roughness={0.95} metalness={0} />
+          <meshStandardMaterial color="#79b35c" transparent opacity={0.35} roughness={0.95} metalness={0} />
         )}
       </mesh>
 
@@ -372,8 +372,8 @@ function LandPlot({ length, width, polygonPoints, onClick, onPointerMove, onPoin
 const LIGHT_STOPS = [
   { t: 0.0,  sunY: 40,  sunInt: 0.35, sunCol: [0.450,0.550,0.780], ambInt: 0.55, ambCol: [0.220,0.280,0.450], fogCol: [0.078,0.137,0.243] },
   { t: 0.2,  sunY: 20,  sunInt: 1.0,  sunCol: [1.0,0.58,0.32],     ambInt: 0.35, ambCol: [0.600,0.480,0.520], fogCol: [0.880,0.560,0.420] },
-  { t: 0.35, sunY: 120, sunInt: 1.5,  sunCol: [1.0,0.960,0.860],   ambInt: 0.42, ambCol: [0.900,0.940,1.0],   fogCol: [0.671,0.820,0.914] },
-  { t: 0.5,  sunY: 150, sunInt: 1.6,  sunCol: [1.0,0.980,0.920],   ambInt: 0.45, ambCol: [0.920,0.950,1.0],   fogCol: [0.561,0.769,0.918] },
+  { t: 0.35, sunY: 120, sunInt: 1.5,  sunCol: [1.0,0.960,0.860],   ambInt: 0.42, ambCol: [0.900,0.940,1.0],   fogCol: [0.700,0.800,0.880] },
+  { t: 0.5,  sunY: 150, sunInt: 1.6,  sunCol: [1.0,0.980,0.920],   ambInt: 0.45, ambCol: [0.920,0.950,1.0],   fogCol: [0.640,0.760,0.860] },
   { t: 0.7,  sunY: 30,  sunInt: 1.1,  sunCol: [1.0,0.480,0.220],   ambInt: 0.33, ambCol: [0.620,0.450,0.420], fogCol: [0.920,0.550,0.320] },
   { t: 0.85, sunY: -10, sunInt: 0.25, sunCol: [0.450,0.350,0.550], ambInt: 0.40, ambCol: [0.250,0.250,0.420], fogCol: [0.300,0.180,0.320] },
   { t: 1.0,  sunY: 40,  sunInt: 0.35, sunCol: [0.450,0.550,0.780], ambInt: 0.55, ambCol: [0.220,0.280,0.450], fogCol: [0.078,0.137,0.243] },

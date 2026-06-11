@@ -10,9 +10,9 @@ import { useGrassTextures, useSimpleGrassTexture } from '../../hooks/useGrassTex
 const SKY_STOPS = [
   { t: 0.0, sunY: 40,  top: [0.024, 0.055, 0.125], horizon: [0.078, 0.137, 0.243], bottom: [0.039, 0.067, 0.110], cloud: [0.16, 0.18, 0.30], sun: [0.5, 0.6, 0.8] },
   { t: 0.2, sunY: 20,  top: [0.231, 0.282, 0.486], horizon: [0.957, 0.580, 0.392], bottom: [1.0, 0.741, 0.478],   cloud: [1.0, 0.78, 0.60],  sun: [1.0, 0.62, 0.30] },
-  { t: 0.35, sunY: 120, top: [0.255, 0.494, 0.835], horizon: [0.671, 0.820, 0.914], bottom: [0.878, 0.929, 0.961], cloud: [1.0, 0.99, 0.96],  sun: [1.0, 0.95, 0.82] },
-  { t: 0.5, sunY: 150,  top: [0.165, 0.443, 0.851], horizon: [0.561, 0.769, 0.918], bottom: [0.812, 0.898, 0.953], cloud: [1.0, 1.0, 1.0],    sun: [1.0, 0.98, 0.90] },
-  { t: 0.7, sunY: 30,  top: [0.282, 0.314, 0.580], horizon: [0.984, 0.557, 0.282], bottom: [1.0, 0.776, 0.420],   cloud: [1.0, 0.72, 0.46],  sun: [1.0, 0.52, 0.18] },
+  { t: 0.35, sunY: 120, top: [0.350, 0.530, 0.780], horizon: [0.700, 0.810, 0.890], bottom: [0.880, 0.920, 0.950], cloud: [1.0, 0.99, 0.96],  sun: [1.0, 0.95, 0.82] },
+  { t: 0.5, sunY: 150,  top: [0.290, 0.490, 0.760], horizon: [0.620, 0.780, 0.890], bottom: [0.820, 0.890, 0.940], cloud: [1.0, 1.0, 1.0],    sun: [1.0, 0.98, 0.90] },
+  { t: 0.7, sunY: 30,  top: [0.300, 0.330, 0.560], horizon: [0.930, 0.580, 0.350], bottom: [0.980, 0.780, 0.470],   cloud: [1.0, 0.72, 0.46],  sun: [1.0, 0.52, 0.18] },
   { t: 0.85, sunY: -10, top: [0.075, 0.110, 0.278], horizon: [0.439, 0.227, 0.420], bottom: [0.804, 0.380, 0.263], cloud: [0.42, 0.24, 0.34], sun: [0.9, 0.4, 0.3] },
   { t: 1.0, sunY: 40,  top: [0.024, 0.055, 0.125], horizon: [0.078, 0.137, 0.243], bottom: [0.039, 0.067, 0.110], cloud: [0.16, 0.18, 0.30], sun: [0.5, 0.6, 0.8] },
 ]
@@ -55,9 +55,9 @@ function makeLeafTexture() {
   canvas.width = 256
   canvas.height = 256
   const ctx = canvas.getContext('2d')
-  ctx.fillStyle = '#3d7c2f'
+  ctx.fillStyle = '#42663a'
   ctx.fillRect(0, 0, 256, 256)
-  const tones = ['#2f6824', '#418532', '#55a040', '#6cb84f', '#86cc5f', '#a3df73']
+  const tones = ['#33522a', '#3f6334', '#4d7540', '#5c864c', '#6e9759', '#82a868']
   for (let i = 0; i < 1400; i++) {
     const x = Math.random() * 256
     const y = Math.random() * 256
@@ -124,8 +124,8 @@ function makeBladeTexture() {
     const w = 3.5 + Math.random() * 3.5
     const g = 160 + Math.random() * 75
     const grad = ctx.createLinearGradient(0, 128, 0, tipY)
-    grad.addColorStop(0, `rgb(${(g * 0.52) | 0}, ${(g * 0.88) | 0}, ${(g * 0.36) | 0})`)
-    grad.addColorStop(1, `rgb(${(g * 0.68) | 0}, ${Math.min(g * 1.08, 255) | 0}, ${(g * 0.42) | 0})`)
+    grad.addColorStop(0, `rgb(${(g * 0.60) | 0}, ${(g * 0.86) | 0}, ${(g * 0.46) | 0})`)
+    grad.addColorStop(1, `rgb(${(g * 0.70) | 0}, ${Math.min(g * 1.02, 255) | 0}, ${(g * 0.50) | 0})`)
     ctx.fillStyle = grad
     ctx.beginPath()
     ctx.moveTo(baseX - w, 128)
@@ -472,9 +472,9 @@ export function MountainSilhouettes({ timeOfDay = 0.35 }) {
   const { group, materials } = useMemo(() => {
     const configs = [
       // far → near: lighter/bluer → more saturated
-      { radius: 450, height: 95, phase: 0, peak: '#8fa3c4', haze: '#c4d2e4' },
-      { radius: 355, height: 85, phase: 2.1, peak: '#6c87a8', haze: '#aabfd6' },
-      { radius: 265, height: 60, phase: 4.4, peak: '#52738c', haze: '#90aec4' },
+      { radius: 450, height: 80, phase: 0, peak: '#a8b6cc', haze: '#cdd8e6' },
+      { radius: 355, height: 72, phase: 2.1, peak: '#8ea2b8', haze: '#bccadb' },
+      { radius: 265, height: 52, phase: 4.4, peak: '#74909f', haze: '#a8bfcc' },
     ]
     const g = new THREE.Group()
     const mats = []
@@ -550,21 +550,21 @@ function buildCanopyGeometry(kind, jitterSeed) {
   // colors are multipliers over the leaf texture: dark gray base → white-ish
   // lit top, with a slight per-variant hue cast
   if (kind === 'round') {
-    clump(1.45, 0, 3.8, 0, 0.85, '#83907a', '#ffffff', 1.05)
-    clump(1.0, 1.1, 3.1, 0.3, 0.8, '#83907a', '#ffffff', 0.92)
-    clump(0.95, -1.05, 3.2, -0.25, 0.8, '#83907a', '#ffffff', 1.05)
-    clump(0.9, 0.2, 3.05, 1.05, 0.8, '#83907a', '#ffffff', 0.88)
-    clump(0.85, -0.25, 3.2, -1.05, 0.8, '#83907a', '#ffffff', 1.1)
-    clump(0.7, 0.65, 4.5, -0.5, 0.85, '#83907a', '#ffffff', 1.15)
+    clump(1.45, 0, 3.8, 0, 0.85, '#86907e', '#f2f5ea', 1.05)
+    clump(1.0, 1.1, 3.1, 0.3, 0.8, '#86907e', '#f2f5ea', 0.92)
+    clump(0.95, -1.05, 3.2, -0.25, 0.8, '#86907e', '#f2f5ea', 1.05)
+    clump(0.9, 0.2, 3.05, 1.05, 0.8, '#86907e', '#f2f5ea', 0.88)
+    clump(0.85, -0.25, 3.2, -1.05, 0.8, '#86907e', '#f2f5ea', 1.1)
+    clump(0.7, 0.65, 4.5, -0.5, 0.85, '#86907e', '#f2f5ea', 1.15)
   } else if (kind === 'tall') {
-    clump(1.25, 0, 3.1, 0, 0.72, '#73847e', '#e8f8ec', 0.95)
-    clump(1.0, 0.15, 4.2, -0.1, 0.72, '#73847e', '#e8f8ec', 1.0)
-    clump(0.75, -0.1, 5.1, 0.1, 0.72, '#73847e', '#e8f8ec', 1.1)
-    clump(0.45, 0.05, 5.8, 0, 0.8, '#73847e', '#e8f8ec', 1.18)
+    clump(1.25, 0, 3.1, 0, 0.72, '#7b8a84', '#dfeee3', 0.95)
+    clump(1.0, 0.15, 4.2, -0.1, 0.72, '#7b8a84', '#dfeee3', 1.0)
+    clump(0.75, -0.1, 5.1, 0.1, 0.72, '#7b8a84', '#dfeee3', 1.1)
+    clump(0.45, 0.05, 5.8, 0, 0.8, '#7b8a84', '#dfeee3', 1.18)
   } else {
-    clump(1.0, 0, 2.25, 0, 0.78, '#8f947a', '#fffbe6', 1.05)
-    clump(0.7, 0.72, 1.95, 0.3, 0.72, '#8f947a', '#fffbe6', 0.92)
-    clump(0.65, -0.68, 2.05, -0.25, 0.72, '#8f947a', '#fffbe6', 1.1)
+    clump(1.0, 0, 2.25, 0, 0.78, '#8f947f', '#f5f1de', 1.05)
+    clump(0.7, 0.72, 1.95, 0.3, 0.72, '#8f947f', '#f5f1de', 0.92)
+    clump(0.65, -0.68, 2.05, -0.25, 0.72, '#8f947f', '#f5f1de', 1.1)
   }
   const merged = mergeGeometries(parts)
   merged.scale(1.18, 1.18, 1.18)
@@ -709,12 +709,12 @@ export function GroundFoliage() {
     const bushParts = []
     const b1 = new THREE.IcosahedronGeometry(0.55, 2)
     b1.scale(1.2, 0.7, 1)
-    paintGradient(b1, '#83907a', '#ffffff', 0.95)
+    paintGradient(b1, '#86907e', '#f2f5ea', 0.95)
     b1.translate(0, 0.32, 0)
     bushParts.push(b1)
     const b2 = new THREE.IcosahedronGeometry(0.4, 2)
     b2.scale(1.1, 0.75, 1)
-    paintGradient(b2, '#83907a', '#ffffff', 1.08)
+    paintGradient(b2, '#86907e', '#f2f5ea', 1.08)
     b2.translate(0.45, 0.26, 0.2)
     bushParts.push(b2)
     const bushGeo = mergeGeometries(bushParts)
@@ -739,7 +739,7 @@ export function GroundFoliage() {
     g.add(rocks)
 
     // Flowers: tiny cross-quads, stem painted green, head tinted per mesh
-    const flowerColors = ['#ffffff', '#ffd84d', '#ff9ec4']
+    const flowerColors = ['#f5f2e8', '#ead9a0']
     flowerColors.forEach((headColor, fi) => {
       const quad = new THREE.PlaneGeometry(0.16, 0.3, 1, 2)
       quad.translate(0, 0.15, 0)
@@ -759,8 +759,8 @@ export function GroundFoliage() {
       const norms = cross.attributes.normal
       for (let i = 0; i < norms.count; i++) norms.setXYZ(i, 0, 1, 0)
       const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85 })
-      const flowers = new THREE.InstancedMesh(cross, mat, 60)
-      fillInstances(flowers, scatterRing(91000 + fi * 137, 60, 30, 110, 1.5))
+      const flowers = new THREE.InstancedMesh(cross, mat, 40)
+      fillInstances(flowers, scatterRing(91000 + fi * 137, 40, 30, 110, 1.5))
       flowers.frustumCulled = false
       g.add(flowers)
     })

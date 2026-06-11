@@ -15,13 +15,13 @@ export function useGrassTextures(quality = QUALITY.BEST) {
     const detailCtx = detailCanvas.getContext('2d')
 
     // Meadow base with a soft vertical tone drift
-    detailCtx.fillStyle = '#4e8c35'
+    detailCtx.fillStyle = '#5d8248'
     detailCtx.fillRect(0, 0, SIZE, SIZE)
 
     // Very soft, sparse hue variation (subtle — no blotches)
     const patchHues = [
-      { color: '120, 168, 64', count: 10, rMin: 90, rMax: 220, aMax: 0.14 },
-      { color: '46, 110, 44', count: 12, rMin: 80, rMax: 200, aMax: 0.16 },
+      { color: '125, 158, 88', count: 10, rMin: 90, rMax: 220, aMax: 0.12 },
+      { color: '64, 102, 56', count: 12, rMin: 80, rMax: 200, aMax: 0.14 },
     ]
     for (const hue of patchHues) {
       for (let i = 0; i < hue.count; i++) {
@@ -47,9 +47,9 @@ export function useGrassTextures(quality = QUALITY.BEST) {
       // tone distribution: mostly mid greens, some dark shadow blades, few bright
       const pick = Math.random()
       let r, g, b
-      if (pick < 0.30) { g = 95 + Math.random() * 30; r = g * 0.45; b = g * 0.42 }       // shadow
-      else if (pick < 0.85) { g = 135 + Math.random() * 35; r = g * 0.52; b = g * 0.36 }  // mid
-      else { g = 185 + Math.random() * 35; r = g * 0.62; b = g * 0.34 }                   // lit
+      if (pick < 0.30) { g = 95 + Math.random() * 30; r = g * 0.58; b = g * 0.50 }       // shadow
+      else if (pick < 0.85) { g = 135 + Math.random() * 35; r = g * 0.62; b = g * 0.46 }  // mid
+      else { g = 180 + Math.random() * 30; r = g * 0.70; b = g * 0.46 }                   // lit
       detailCtx.strokeStyle = `rgba(${r | 0}, ${g | 0}, ${b | 0}, 0.55)`
       detailCtx.lineWidth = Math.random() * 1.2 + 0.5
       detailCtx.beginPath()
@@ -188,7 +188,7 @@ export function useSimpleGrassTexture() {
     canvas.height = 512
     const ctx = canvas.getContext('2d')
 
-    ctx.fillStyle = '#4e8c35'
+    ctx.fillStyle = '#5d8248'
     ctx.fillRect(0, 0, 512, 512)
 
     for (let i = 0; i < 5000; i++) {
@@ -198,9 +198,9 @@ export function useSimpleGrassTexture() {
       const lean = (Math.random() - 0.5) * 5
       const pick = Math.random()
       let r, g, b
-      if (pick < 0.30) { g = 95 + Math.random() * 30; r = g * 0.45; b = g * 0.42 }
-      else if (pick < 0.85) { g = 135 + Math.random() * 35; r = g * 0.52; b = g * 0.36 }
-      else { g = 185 + Math.random() * 35; r = g * 0.62; b = g * 0.34 }
+      if (pick < 0.30) { g = 95 + Math.random() * 30; r = g * 0.58; b = g * 0.50 }
+      else if (pick < 0.85) { g = 135 + Math.random() * 35; r = g * 0.62; b = g * 0.46 }
+      else { g = 180 + Math.random() * 30; r = g * 0.70; b = g * 0.46 }
       ctx.strokeStyle = `rgba(${r | 0}, ${g | 0}, ${b | 0}, 0.5)`
       ctx.lineWidth = Math.random() * 1.1 + 0.5
       ctx.beginPath()
