@@ -133,24 +133,29 @@ export function stopAmbient() {
   ambientNodes = null
 }
 
-// Grass footstep: short shaped noise burst through a bandpass
+// Grass footstep: a soft "swish" — noise with a gentle attack (no click)
+// shaped through a high bandpass, like dry grass brushing underfoot
 export function playFootstep(running = false) {
   if (!ensureCtx() || muted || ctx.state !== 'running') return
-  const dur = 0.09
+  const dur = running ? 0.11 : 0.14
   const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate)
   const d = buf.getChannelData(0)
   for (let i = 0; i < d.length; i++) {
-    const env = 1 - i / d.length
-    d[i] = (Math.random() * 2 - 1) * env * env
+    const p = i / d.length
+    // ~25% eased attack, then smooth decay — removes the percussive knock
+    const attack = Math.min(1, p / 0.25)
+    const env = attack * attack * Math.pow(1 - p, 1.6)
+    d[i] = (Math.random() * 2 - 1) * env
   }
   const src = ctx.createBufferSource()
   src.buffer = buf
+  src.playbackRate.value = 0.9 + Math.random() * 0.25
   const bp = ctx.createBiquadFilter()
   bp.type = 'bandpass'
-  bp.frequency.value = 320 + Math.random() * 280
-  bp.Q.value = 0.8
+  bp.frequency.value = 1400 + Math.random() * 900
+  bp.Q.value = 0.45
   const gain = ctx.createGain()
-  gain.gain.value = running ? 0.5 : 0.33
+  gain.gain.value = running ? 0.3 : 0.2
   src.connect(bp)
   bp.connect(gain)
   gain.connect(master)
