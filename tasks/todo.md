@@ -1,5 +1,10 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: Visual cleanup round (user feedback on professional grade)
+- [x] Remove flowers and the 3D grass-tuft speckle ("green green on the floor") — GroundFoliage keeps bushes + rocks only; GrassField deleted
+- [x] Breadcrumb trail dots smaller (0.05m) and fainter (0.25 opacity)
+- [x] Avatar: hide the construction helmet + hi-vis vest meshes in character.glb so the player reads as a casual visitor (white top, dark work clothes). Note: this GLB shares one texture-atlas material across all clothing meshes and resists per-mesh tinting (per-primitive variant behavior was contradictory under testing) — deeper avatar redesign means swapping the GLB, parked for now.
+
 ## Active Plan: Embodiment Package — "Walk Your Land"
 
 Direction (user-confirmed): Sitea should feel like a game — walkthrough/feel/see the land and floor plan. First deliverable: the embodiment package. Keep changes small and scoped to the scene/controls layer.
@@ -2496,3 +2501,47 @@ readout prose pushed the plan canvas below the fold.
 - [x] Canvas (the actual work surface) now sits directly under the strip;
       "Needs a look" advisories appear right above it when present.
 - [x] Lint, review QA, build pass.
+
+---
+
+# v51: Agentic workbench revamp (PLANNED — awaiting user verification)
+
+User wants a full UI revamp: agent-first layout like Claude Code desktop /
+Codex — persistent left sidebar with the chat and options, canvas in the
+middle. Free rein on colors, fonts, buttons, panel positions.
+
+## Design direction: "Site cockpit"
+- Persistent left sidebar (~380px, full height, near-black surface
+  #0b1220 with hairline borders) containing:
+  1. Header: Sitea wordmark + project name + live land-area badge
+  2. Agent chat fills the column (messages scroll; the agent is the
+     primary way to drive the app)
+  3. Tool rail above the composer: Land / Build / Compare / Export /
+     Share / Save / Reset as compact icon chips (replaces the bottom
+     ribbon on desktop)
+  4. Composer with upload-plan button pinned at the bottom
+- Tool panels (LandPanel, BuildPanel, ComparePanel, ExportPanel) dock as
+  a second column sliding out NEXT to the sidebar instead of over the
+  canvas edge
+- Canvas fills the remainder; view controls stay top-right; bottom ribbon
+  removed on desktop
+- Typography: keep Outfit display + DM Sans body; add a mono accent
+  (ui-monospace stack) for measurements/coords/stats to give the
+  terminal-cockpit feel
+- Palette: keep the teal accent identity; deepen surfaces, kill the
+  floating chat bubble (chat is always present)
+- Mobile (< lg breakpoint): keep the current ribbon + floating chat in
+  this phase — sidebar revamp is desktop-first to avoid breaking touch
+
+## Plan
+- [ ] A1. New `AgentSidebar` component: docked variant of AIChatPanel
+      (chat list + composer, no fixed positioning) + header + tool rail.
+- [ ] A2. App.jsx desktop layout: left sidebar column, canvas offset,
+      panels dock at sidebar edge, ribbon hidden on desktop, floating
+      chat button removed on desktop.
+- [ ] A3. Wire tool rail to existing togglePanel actions; keyboard
+      shortcuts unchanged.
+- [ ] B1. Polish pass: mono accents for stats, panel skin alignment,
+      view-controls restyle to match.
+- [ ] C1. Verify: build, agent-text-actions QA, browser smoke (desktop +
+      narrow viewport), screenshots for user review; deploy.

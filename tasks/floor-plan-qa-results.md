@@ -1,9 +1,9 @@
 # Floor Plan QA Results
 
-Generated: 2026-06-10T20:41:12.881Z
+Generated: 2026-06-11T12:55:41.695Z
 
 Demo-ready fixtures: 3/3
-Review-only real fixtures with results: 4/4
+Review-only real fixtures with results: 6/6
 
 | Fixture | Source | Status | Walls | Doors | Windows | Rooms | Stairs | Notes |
 |---|---|---|---:|---:|---:|---:|---:|---|
@@ -14,6 +14,8 @@ Review-only real fixtures with results: 4/4
 | real-site-ground-floor | samples/real/real-site-ground-floor.png | Review-only | 34 detected | 5 detected | 6 detected | 6 detected | 1 detected | local analyzer fixture run; scale: dimension_label, 34.8 px/m, 92% confidence |
 | real-site-upper-floor | samples/real/real-site-upper-floor.png | Review-only | 59 detected | 5 detected | 5 detected | 10 detected | 1 detected | local analyzer fixture run; scale: dimension_label, 43.4 px/m, 93% confidence |
 | real-lot-127sqm | samples/real/real-lot-127sqm.png | Review-only | 32 detected | 6 detected | 6 detected | 6 detected | 1 detected | local analyzer fixture run; scale: dimension_chain, 42.7 px/m, 93% confidence |
+| real-villa-color | samples/real/real-villa-color.png | Review-only | 32 detected | 10 detected | 13 detected | 15 detected | 2 detected | local analyzer fixture run; scale: assumedDoorWidth0.9m, 44.4 px/m, 40% confidence |
+| real-apartment-71sqm | samples/real/real-apartment-71sqm.png | Review-only | 15 detected | 3 detected | 4 detected | 6 detected | 0 detected | local analyzer fixture run; scale: dimension_label_wall_bounds, 30.5 px/m, 93% confidence |
 
 ## Demo Readiness Rules
 

@@ -198,8 +198,9 @@ function DecisionCard({ decision }) {
   )
 }
 
-export default function AIChatPanel({ messages, isLoading, activeProcess, onSend, onAction, onClear, onClose }) {
+export default function AIChatPanel({ messages, isLoading, activeProcess, onSend, onAction, onClear, onClose, variant = 'floating' }) {
   const isMobile = useIsMobile()
+  const isDocked = variant === 'docked'
   const [input, setInput] = useState('')
   const [isDragActive, setIsDragActive] = useState(false)
   const [preparingFileName, setPreparingFileName] = useState('')
@@ -304,10 +305,12 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`sitea-agent-panel flex flex-col backdrop-blur-xl text-white ${
-        isMobile
-          ? 'fixed left-3 right-3 bottom-3 z-[220] rounded-2xl h-[64vh] max-h-[620px] safe-area-bottom'
-          : 'fixed right-6 bottom-6 z-50 rounded-2xl w-[400px] max-h-[600px]'
+      className={`sitea-agent-panel flex flex-col text-white ${
+        isDocked
+          ? 'h-full min-h-0 w-full rounded-none border-0 bg-transparent shadow-none'
+          : isMobile
+            ? 'fixed left-3 right-3 bottom-3 z-[220] rounded-2xl h-[64vh] max-h-[620px] safe-area-bottom backdrop-blur-xl'
+            : 'fixed right-6 bottom-6 z-50 rounded-2xl w-[400px] max-h-[600px] backdrop-blur-xl'
       }`}>
       {isDragActive && (
         <div className="absolute inset-3 z-10 rounded-2xl border border-[var(--color-accent)] bg-[var(--color-bg-primary)]/85 backdrop-blur-md flex flex-col items-center justify-center text-center pointer-events-none" style={{ padding: '24px' }}>
@@ -320,7 +323,8 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
           <div className="text-sm text-[var(--color-text-secondary)]">Sitea Agent will read the plan and prepare the next visual move.</div>
         </div>
       )}
-      {/* Header */}
+      {/* Header — docked mode gets its header from AgentSidebar */}
+      {!isDocked && (
       <div className="flex items-center justify-between border-b border-[var(--color-border)] shrink-0" style={{ padding: '16px 20px' }}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/25 flex items-center justify-center shrink-0 shadow-lg shadow-teal-950/30">
@@ -354,6 +358,7 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
           </button>
         </div>
       </div>
+      )}
 
       {/* Messages */}
       <div ref={listRef} className="sitea-agent-scroll flex-1 overflow-y-auto space-y-3 min-h-0" style={{ padding: '20px 20px' }}>

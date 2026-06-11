@@ -45,6 +45,10 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       if (child.isMesh) {
         child.castShadow = true
         child.receiveShadow = false
+        // Casual look: hide the construction helmet and hi-vis vest so the
+        // avatar reads as a regular visitor, not a construction worker
+        const n = child.name.toLowerCase()
+        if (n.includes('helmet') || n.includes('vest')) child.visible = false
       }
       // Find the root Hips bone and save its bind position
       if (child.isBone && child.name.toLowerCase().includes('hips')) {

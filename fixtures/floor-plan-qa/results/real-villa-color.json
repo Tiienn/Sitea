@@ -1,0 +1,26 @@
+{
+  "fixtureId": "real-villa-color",
+  "capturedAt": "2026-06-11T12:53:59.626Z",
+  "sourceFile": "samples/real/real-villa-color.png",
+  "imageFile": "samples/real/real-villa-color.png",
+  "analyzer": "api/analyze-floor-plan.js",
+  "rawResultFile": "results/raw/real-villa-color.json",
+  "detected": {
+    "walls": 32,
+    "doors": 10,
+    "windows": 13,
+    "rooms": 15,
+    "stairs": 2
+  },
+  "criticalMisses": [],
+  "notes": [
+    "local analyzer fixture run"
+  ],
+  "artifacts": {},
+  "placementOk": true,
+  "scale": {
+    "pixelsPerMeter": 44.4,
+    "confidence": 0.4,
+    "source": "assumedDoorWidth0.9m"
+  }
+}

@@ -111,34 +111,6 @@ function makeBarkTexture() {
   return tex
 }
 
-// Alpha-cutout grass tuft: a fan of tapered blades on transparent background
-function makeBladeTexture() {
-  const canvas = document.createElement('canvas')
-  canvas.width = 128
-  canvas.height = 128
-  const ctx = canvas.getContext('2d')
-  for (let i = 0; i < 11; i++) {
-    const baseX = 28 + Math.random() * 72
-    const tipX = baseX + (Math.random() - 0.5) * 70
-    const tipY = 6 + Math.random() * 38
-    const w = 3.5 + Math.random() * 3.5
-    const g = 160 + Math.random() * 75
-    const grad = ctx.createLinearGradient(0, 128, 0, tipY)
-    grad.addColorStop(0, `rgb(${(g * 0.60) | 0}, ${(g * 0.86) | 0}, ${(g * 0.46) | 0})`)
-    grad.addColorStop(1, `rgb(${(g * 0.70) | 0}, ${Math.min(g * 1.02, 255) | 0}, ${(g * 0.50) | 0})`)
-    ctx.fillStyle = grad
-    ctx.beginPath()
-    ctx.moveTo(baseX - w, 128)
-    ctx.quadraticCurveTo(baseX - w * 0.4, (128 + tipY) / 2, tipX, tipY)
-    ctx.quadraticCurveTo(baseX + w * 0.4, (128 + tipY) / 2, baseX + w, 128)
-    ctx.closePath()
-    ctx.fill()
-  }
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.colorSpace = THREE.SRGBColorSpace
-  return tex
-}
-
 // Stylized painterly sky: gradient + domain-warped two-tone cumulus clouds
 // with slow drift, sun disc + glow, and horizon haze — animated by timeOfDay
 export function RealisticSky({ timeOfDay = 0.35 }) {
@@ -365,57 +337,6 @@ export function EnhancedGround({ quality }) {
       />
     </mesh>
   )
-}
-
-// Instanced grass tufts around the plot (BEST quality only — gate at the
-// call site so FAST never builds the geometry). Each tuft is two crossed
-// cards with an alpha-cutout painted blade fan, up-facing normals so they
-// shade like the ground, and vertex-shader wind sway. The plot interior is
-// excluded so blades never poke through building floors.
-export function GrassField() {
-  const { mesh, material } = useMemo(() => {
-    const card = new THREE.PlaneGeometry(0.55, 0.45, 1, 1)
-    card.translate(0, 0.215, 0)
-    const tuft = mergeGeometries([card, card.clone().rotateY(Math.PI / 2)])
-    card.dispose()
-
-    // Up-facing normals: tufts shade exactly like the meadow beneath them
-    const normals = tuft.attributes.normal
-    for (let i = 0; i < normals.count; i++) normals.setXYZ(i, 0, 1, 0)
-
-    const mat = new THREE.MeshStandardMaterial({
-      map: makeBladeTexture(),
-      alphaTest: 0.5,
-      side: THREE.DoubleSide,
-      roughness: 0.9,
-      metalness: 0,
-    })
-    // Wind sway: bend each tuft by height, phase-shifted by instance position
-    mat.onBeforeCompile = (shader) => {
-      shader.uniforms.uTime = { value: 0 }
-      shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nuniform float uTime;')
-        .replace('#include <begin_vertex>', `#include <begin_vertex>
-          float windPhase = instanceMatrix[3][0] * 0.45 + instanceMatrix[3][2] * 0.6;
-          float sway = sin(uTime * 1.6 + windPhase) + sin(uTime * 2.7 + windPhase * 1.3) * 0.4;
-          transformed.x += sway * 0.05 * position.y;
-          transformed.z += sway * 0.025 * position.y;`)
-      mat.userData.shader = shader
-    }
-
-    const placements = scatterRing(54321, 4500, 28, 140, 1.5)
-    const instanced = new THREE.InstancedMesh(tuft, mat, placements.length)
-    fillInstances(instanced, placements)
-    instanced.frustumCulled = false
-    return { mesh: instanced, material: mat }
-  }, [])
-
-  useFrame((state) => {
-    const shader = material.userData.shader
-    if (shader) shader.uniforms.uTime.value = state.clock.elapsedTime
-  })
-
-  return <primitive object={mesh} />
 }
 
 // Day/night tint multiplier for unlit distant scenery (mountains, treeline)
@@ -737,33 +658,6 @@ export function GroundFoliage() {
     const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 26)
     fillInstances(rocks, scatterRing(31313, 26, 32, 150, 1.3))
     g.add(rocks)
-
-    // Flowers: tiny cross-quads, stem painted green, head tinted per mesh
-    const flowerColors = ['#f5f2e8', '#ead9a0']
-    flowerColors.forEach((headColor, fi) => {
-      const quad = new THREE.PlaneGeometry(0.16, 0.3, 1, 2)
-      quad.translate(0, 0.15, 0)
-      const cross = mergeGeometries([quad, quad.clone().rotateY(Math.PI / 2)])
-      // stem (lower 55%) green, head takes the flower color
-      const pos = cross.attributes.position
-      const colors = new Float32Array(pos.count * 3)
-      const stem = new THREE.Color('#3f8f2d')
-      const head = new THREE.Color(headColor)
-      for (let i = 0; i < pos.count; i++) {
-        const c = pos.getY(i) > 0.165 ? head : stem
-        colors[i * 3] = c.r
-        colors[i * 3 + 1] = c.g
-        colors[i * 3 + 2] = c.b
-      }
-      cross.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-      const norms = cross.attributes.normal
-      for (let i = 0; i < norms.count; i++) norms.setXYZ(i, 0, 1, 0)
-      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85 })
-      const flowers = new THREE.InstancedMesh(cross, mat, 40)
-      fillInstances(flowers, scatterRing(91000 + fi * 137, 40, 30, 110, 1.5))
-      flowers.frustumCulled = false
-      g.add(flowers)
-    })
 
     return g
   }, [])

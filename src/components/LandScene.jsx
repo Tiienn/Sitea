@@ -61,7 +61,7 @@ import {
 } from '../constants/landSceneConstants'
 
 // Import extracted components
-import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees, GrassField, GroundFoliage, DistantTreeline } from './scene/SceneEnvironment'
+import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees, GroundFoliage, DistantTreeline } from './scene/SceneEnvironment'
 import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
 import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
@@ -2725,8 +2725,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       {/* Breadcrumb trail of walked path (hidden in 2D) */}
       {viewMode !== '2d' && <BreadcrumbTrail walkTrackerRef={walkTrackerRef} />}
 
-      {/* 3D grass blades and ground foliage near the plot (BEST quality + 3D views only) */}
-      {viewMode !== '2d' && quality !== QUALITY.FAST && <GrassField />}
+      {/* Ground foliage near the plot (BEST quality + 3D views only) */}
       {viewMode !== '2d' && quality !== QUALITY.FAST && <GroundFoliage />}
 
       {/* Subtle grid for scale reference (hidden in 2D - replaced by CAD-style grid) */}

@@ -1,0 +1,26 @@
+{
+  "fixtureId": "real-apartment-71sqm",
+  "capturedAt": "2026-06-11T12:55:41.693Z",
+  "sourceFile": "samples/real/real-apartment-71sqm.png",
+  "imageFile": "samples/real/real-apartment-71sqm.png",
+  "analyzer": "api/analyze-floor-plan.js",
+  "rawResultFile": "results/raw/real-apartment-71sqm.json",
+  "detected": {
+    "walls": 15,
+    "doors": 3,
+    "windows": 4,
+    "rooms": 6,
+    "stairs": 0
+  },
+  "criticalMisses": [],
+  "notes": [
+    "local analyzer fixture run"
+  ],
+  "artifacts": {},
+  "placementOk": true,
+  "scale": {
+    "pixelsPerMeter": 30.52285930790604,
+    "confidence": 0.93,
+    "source": "dimension_label_wall_bounds"
+  }
+}

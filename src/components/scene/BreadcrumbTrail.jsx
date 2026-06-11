@@ -11,12 +11,12 @@ export function BreadcrumbTrail({ walkTrackerRef }) {
   const lastVersion = useRef(-1)
 
   const mesh = useMemo(() => {
-    const geo = new THREE.CircleGeometry(0.09, 10)
+    const geo = new THREE.CircleGeometry(0.05, 10)
     geo.rotateX(-Math.PI / 2)
     const mat = new THREE.MeshBasicMaterial({
       color: '#2dd4bf',
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.25,
       depthWrite: false,
     })
     const m = new THREE.InstancedMesh(geo, mat, MAX_POINTS)

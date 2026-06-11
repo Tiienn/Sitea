@@ -110,6 +110,32 @@
         "Scale comes from interior mm dimension chains (~43-45 px/m); building bounds ~12.5m x ~10.4m, not lot-sized",
         "Bedroom, bath, stairs, living/dining walls and the covered-terrace edge are present and connected"
       ]
+    },
+    {
+      "id": "real-villa-color",
+      "title": "Real villa CAD plan with color fills, verandahs, and red annotations",
+      "sourceFile": "samples/real/real-villa-color.png",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Green room fills and red annotation/dimension lines are not traced as walls",
+        "Blue wall outlines trace as the structural walls",
+        "Verandahs and the open private area are not enclosed by invented walls",
+        "Non-rectangular massing (stepped plan) keeps its footprint shape"
+      ]
+    },
+    {
+      "id": "real-apartment-71sqm",
+      "title": "Real 71 sqm apartment plan with meter dimension chains",
+      "sourceFile": "samples/real/real-apartment-71sqm.png",
+      "pageNumber": 1,
+      "reviewOnly": true,
+      "criticalChecks": [
+        "Scale from the meter chains (5.37m + 3.68m width, 1.63/2.49/2.78m depth) or TOTAL AREA = 71 m2",
+        "Balcony stays open (thin outline, not a full wall enclosure)",
+        "Bedroom, bathroom, entry hall partitions and their doors detected",
+        "Kitchen fixtures and furniture are not traced as walls"
+      ]
     }
   ]
 }
