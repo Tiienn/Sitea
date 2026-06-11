@@ -1,5 +1,15 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: Floor-plan walkthrough (specs/floor-plan-walkthrough.md)
+- [ ] Audio: add `playDoorSound()` (soft procedural creak, ≥150 ms global gap) and `setIndoor(bool)` (wind gain down + tighter lowpass, birds quieter) to src/utils/ambientAudio.js
+- [ ] Door panels: swing-animated leaf meshes for single/double door openings in WallSegment.jsx (hinge-pivot groups, useFrame damp toward open/closed, hysteresis 1.5 m open / 2.5 m close, swings away from player); static closed in orbit, untouched in 2D; plumb a shared `playerPosRef` from LandScene wrapper → Scene → both WallSegment call sites
+- [ ] Room presence: new src/hooks/useRoomPresence.js — 5 Hz point-in-polygon for hand-drawn rooms (innermost wins) + nearest-room-center inside building footprint for floor-plan buildings (they have no polygons — center+area only); returns {id, name, area} or null, state changes only on enter/exit
+- [ ] HUD: room chip ("Name · 16 m²", fades after 3 s) + "☀ Morning light" button in a fixed row under the WalkStats cluster (absolute overlay, no layout shift, 44 px touch target), walk-mode only
+- [ ] Morning light: `timeOverride` state in LandScene wrapper, eased to 0.27 over 1.5 s (rAF), reset restores prior time; Scene uses `timeOverride ?? (isPaidUser ? timeOfDay : 0.35)` everywhere the free pin appears; override clears on leaving walk mode; subtle one-line Pro-slider hint for free users after reset
+- [ ] Indoor ambience: wire setIndoor(currentRoom != null) in walk mode
+- [ ] Verify: eslint on changed files, npm run build, browser walkthrough (draw room + door, walk through, screenshots to tasks/screenshots/floor-plan-walkthrough/), check acceptance criteria in spec
+- [ ] Finish: spec → status built + Build notes, todo review section, push branch
+
 ## Active Plan: Avatar replacement (user feedback: transparent body, bald)
 - [x] Replace the player character entirely: Mixamo Ch17 worker GLB → three.js Xbot mannequin (self-hosted at public/models/xbot.glb), the neutral white/graphite scale figure used in archviz. Ships its own idle/walk/run clips on its own skeleton, so the cross-rig retarget problem disappears; extra movement states map to the nearest clip (walkback = walk reversed). GLB's shipped salmon materials restyled in code. Drops 13 animation GLB downloads from Supabase.
 
