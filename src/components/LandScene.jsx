@@ -4202,32 +4202,48 @@ function WalkStats({ walkTrackerRef }) {
 
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full"
-      style={{ top: 84, background: 'rgba(30, 41, 59, 0.85)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)', zIndex: 20 }}
+      className="absolute left-1/2 -translate-x-1/2 flex items-stretch gap-2"
+      style={{ top: 16, zIndex: 20 }}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M4 16v-2.4c0-1.5 1-2.6 2.4-2.6 1.5 0 2.6 1.1 2.6 2.6V16" />
-        <path d="M15 20v-2.4c0-1.5 1-2.6 2.4-2.6 1.5 0 2.6 1.1 2.6 2.6V20" />
-        <path d="M6.4 8.5c.8 0 1.4-.9 1.4-2S7.2 4.5 6.4 4.5 5 5.4 5 6.5s.6 2 1.4 2z" />
-        <path d="M17.4 12.5c.8 0 1.4-.9 1.4-2s-.6-2-1.4-2-1.4.9-1.4 2 .6 2 1.4 2z" />
-      </svg>
-      <span className="text-xs font-medium" style={{ color: 'var(--color-text-primary, #f8fafc)' }}>
-        {stats.steps.toLocaleString()} steps · {stats.meters.toLocaleString()} m
-      </span>
+      {/* Walk readout — drafting pill, mono numbers */}
+      <div
+        className="flex items-center gap-3 rounded-lg px-4 py-2.5"
+        style={{ background: 'rgba(19, 18, 17, 0.92)', border: '1px solid rgba(242, 239, 233, 0.12)' }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent, #f04e23)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M4 16v-2.4c0-1.5 1-2.6 2.4-2.6 1.5 0 2.6 1.1 2.6 2.6V16" />
+          <path d="M15 20v-2.4c0-1.5 1-2.6 2.4-2.6 1.5 0 2.6 1.1 2.6 2.6V20" />
+          <path d="M6.4 8.5c.8 0 1.4-.9 1.4-2S7.2 4.5 6.4 4.5 5 5.4 5 6.5s.6 2 1.4 2z" />
+          <path d="M17.4 12.5c.8 0 1.4-.9 1.4-2s-.6-2-1.4-2-1.4.9-1.4 2 .6 2 1.4 2z" />
+        </svg>
+        <span className="font-mono-data text-sm font-medium" style={{ color: '#f2efe9' }}>
+          {stats.steps.toLocaleString()}<span style={{ color: '#6f6a62' }}> steps</span>
+        </span>
+        <span style={{ width: 1, alignSelf: 'stretch', background: 'rgba(242, 239, 233, 0.12)' }} />
+        <span className="font-mono-data text-sm font-medium" style={{ color: '#f2efe9' }}>
+          {stats.meters.toLocaleString()}<span style={{ color: '#6f6a62' }}> m</span>
+        </span>
+      </div>
+
+      {/* Sound — its own control */}
       <button
         onClick={toggleSound}
-        className="p-1.5 -mr-1 rounded-full"
-        style={{ color: soundOff ? '#64748b' : '#2dd4bf' }}
+        className="flex items-center justify-center rounded-lg px-3"
+        style={{
+          background: 'rgba(19, 18, 17, 0.92)',
+          border: '1px solid rgba(242, 239, 233, 0.12)',
+          color: soundOff ? '#6f6a62' : 'var(--color-accent, #f04e23)',
+        }}
         title={soundOff ? 'Turn sound on' : 'Turn sound off'}
         aria-label={soundOff ? 'Turn sound on' : 'Turn sound off'}
       >
         {soundOff ? (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
             <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
           </svg>
         ) : (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
             <path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
           </svg>

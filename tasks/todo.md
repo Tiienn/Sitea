@@ -2611,3 +2611,26 @@ Sans body, hairline rules, squared corners, no glass/glow/gradients.
 - [x] DESIGN.md replaced with the new system.
 - [x] Verified at 1440px + 375px; agent QA, handoff QA, review QA, build
       all pass.
+
+---
+
+# v54: Cockpit refinement round (user's 7-point list)
+
+- [x] 1. Scene centered: new .scene-shell wraps the 3D canvas, offset by
+      --sidebar-w on desktop — the WebGL viewport and all in-scene HUD now
+      center in the visible region right of the sidebar.
+- [x] 2. Walk readout redesigned: drafting pill at top-center of the scene
+      region — mono numbers, divider, accent walker icon, top: 16.
+- [x] 3. Sound is its own control beside the pill.
+- [x] 4. Profile in the dock next to Share: avatar/initial button with a
+      popover (email + plan, Projects, Upgrade, Sign in/out).
+- [x] 5. Composer rebuilt Lovable-style: card with input line on top and a
+      controls row below — round + (upload) left, AGENT tag + round
+      arrow-up send right.
+- [x] 6. Sidebar header: history button (past prompts popover → fills the
+      composer), collapse button; floating reopen button when collapsed
+      (scene + dock + panels reflow via --sidebar-w).
+- [x] 7. Project title now text-lg and click-to-rename (Enter/blur commits,
+      Esc cancels); area readout larger in accent mono, click → Projects.
+- [x] QA selectors updated for the new placeholder; agent + handoff QA,
+      build pass. Verified collapse/expand cycle and dock contents live.

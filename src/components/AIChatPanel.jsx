@@ -209,6 +209,20 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
   const fileInputRef = useRef(null)
   const dragDepthRef = useRef(0)
 
+  // Sidebar history popover fills the composer via this event (docked only)
+  useEffect(() => {
+    if (!isDocked) return
+    const fill = (e) => {
+      const text = e.detail?.text
+      if (typeof text === 'string') {
+        setInput(text)
+        inputRef.current?.focus()
+      }
+    }
+    window.addEventListener('sitea:fill-composer', fill)
+    return () => window.removeEventListener('sitea:fill-composer', fill)
+  }, [isDocked])
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (listRef.current && (messages.length > 0 || isLoading)) {
@@ -488,38 +502,45 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
         onChange={handleFileUpload}
         className="hidden"
       />
-      <form onSubmit={handleSubmit} className="shrink-0 border-t border-[var(--color-border)]" style={{ padding: '12px 20px 20px' }}>
-        <div className="sitea-agent-input-shell flex items-center gap-2 rounded-xl" style={{ padding: '12px' }}>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            className="sitea-icon-btn shrink-0"
-            title="Upload site plan, floor plan PDF, or image"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V5.25a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5v14.25a1.5 1.5 0 001.5 1.5z" />
-            </svg>
-          </button>
+      <form onSubmit={handleSubmit} className="shrink-0 px-4 pb-4 pt-2">
+        {/* Composer card: input line on top, controls row underneath */}
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3.5 pb-2.5 pt-3.5 transition-colors focus-within:border-[var(--color-border-hover)]">
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.stopPropagation()}
-              placeholder="Ask Sitea or upload a plan..."
+            placeholder="Ask Sitea..."
+            disabled={isLoading}
+            className="w-full bg-transparent text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none"
+          />
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="flex-1 min-h-[44px] bg-transparent text-sm text-white placeholder-[var(--color-text-muted)] outline-none"
-            />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="sitea-icon-btn sitea-icon-btn-primary shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-            </svg>
-          </button>
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.06] hover:text-[var(--color-text-primary)]"
+              title="Upload site plan, floor plan PDF, or image"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="font-mono-data text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Agent</span>
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-35"
+                title="Send"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </form>
     </div>

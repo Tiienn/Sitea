@@ -678,6 +678,10 @@ function App() {
   const isGuidedMode = guidedStep > 0
   const [userHasLand, setUserHasLand] = useState(false) // Will be set true when user defines their land
   const [isDefiningLand, setIsDefiningLand] = useState(false) // Shows land definition flow
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-w', sidebarCollapsed ? '0px' : '380px')
+  }, [sidebarCollapsed])
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     return localStorage.getItem('landVisualizerIntroSeen') === 'true'
   })
@@ -4438,6 +4442,7 @@ function App() {
         />
       )}
 
+      <div className="scene-shell">
       <Suspense fallback={<LoadingFallback />}>
         <LandScene
           length={dimensions.length}
@@ -4603,6 +4608,7 @@ function App() {
         isPaidUser={isPaidUser || DEV_TIME_QA}
         />
       </Suspense>
+      </div>
 
       {/* Minimap (hidden in 2D mode - redundant with top-down view) */}
       {viewMode !== '2d' && !isGuidedMode && !isMobileChatFocused && (
@@ -5889,13 +5895,26 @@ function App() {
       )}
 
       {/* Agent cockpit sidebar — desktop shell (lg+): the chat owns the column */}
-      {!isReadOnly && !isGuidedMode && (
+      {!isReadOnly && !isGuidedMode && !sidebarCollapsed && (
         <AgentSidebar
           aiChat={aiChat}
-          projectName={currentProjectId ? currentProjectName : null}
+          projectName={currentProjectName}
           areaLabel={formatArea(area, areaUnit)}
           onOpenProjects={() => setShowProjectsModal(true)}
+          onRenameProject={setCurrentProjectName}
+          onCollapse={() => setSidebarCollapsed(true)}
         />
+      )}
+      {!isReadOnly && !isGuidedMode && sidebarCollapsed && (
+        <button
+          onClick={() => setSidebarCollapsed(false)}
+          title="Open agent panel"
+          className="fixed left-4 top-4 z-[70] hidden h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] lg:flex"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5zM9 5.25v13.5" />
+          </svg>
+        </button>
       )}
 
       {/* Canvas footer dock — desktop nav over the scene */}
@@ -5911,6 +5930,10 @@ function App() {
           isDefiningLand={isDefiningLand}
           isPaidUser={isPaidUser}
           onUpgrade={() => setShowPricingModal(true)}
+          user={user}
+          onSignIn={() => setShowAuthModal(true)}
+          onSignOut={signOut}
+          onOpenProjects={() => setShowProjectsModal(true)}
         />
       )}
 

@@ -1141,7 +1141,7 @@ async function ensureChatOpen(page) {
 async function submitPrompt(page, prompt, expectedStoredText, testCaseName = 'unknown') {
   await ensureChatOpen(page)
   // Two chat panels exist since the docked sidebar (desktop) — scope to the visible one
-  const input = page.locator('.sitea-agent-panel:visible').getByPlaceholder('Ask Sitea or upload a plan...')
+  const input = page.locator('.sitea-agent-panel:visible').getByPlaceholder(/Ask Sitea/)
   await input.fill(prompt)
   await input.press('Enter')
   await waitForStoredText(page, expectedStoredText, testCaseName)

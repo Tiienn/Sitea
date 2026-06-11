@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 // Footer dock over the 3D canvas (desktop shell). Carries the compact nav
 // that used to live in the bottom ribbon / sidebar: tools, share, save, and
 // the Pro chip. Drafting-toolbar look — flat graphite, hairline border,
@@ -49,9 +51,14 @@ export default function CanvasDock({
   isDefiningLand,
   isPaidUser,
   onUpgrade,
+  user,
+  onSignIn,
+  onSignOut,
+  onOpenProjects,
 }) {
+  const [showProfile, setShowProfile] = useState(false)
   return (
-    <div className="pointer-events-none fixed bottom-4 left-[380px] right-0 z-50 hidden justify-center lg:flex">
+    <div className="pointer-events-none fixed bottom-4 right-0 z-50 hidden justify-center lg:flex" style={{ left: 'var(--sidebar-w)' }}>
       <div className="canvas-dock pointer-events-auto flex items-stretch gap-0.5 rounded-xl p-1.5">
         {canEdit && (
           <>
@@ -103,6 +110,63 @@ export default function CanvasDock({
           </svg>
           Share
         </button>
+        <div className="relative flex">
+          <button
+            onClick={() => setShowProfile(v => !v)}
+            title={user ? user.email : 'Sign in'}
+            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+              showProfile ? 'bg-white/[0.08] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)] hover:bg-white/[0.06] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-bg-elevated)] text-[10px] font-semibold">
+              {user?.email?.charAt(0)?.toUpperCase() || (
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              )}
+            </span>
+            Profile
+          </button>
+          {showProfile && (
+            <div className="absolute bottom-full right-0 mb-2 w-56 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-1.5 shadow-xl">
+              <div className="border-b border-[var(--color-border)] px-3 pb-2 pt-1.5">
+                <p className="truncate text-xs font-medium text-[var(--color-text-primary)]">{user ? user.email : 'Not signed in'}</p>
+                <p className="font-mono-data text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{user ? (isPaidUser ? 'Pro plan' : 'Free plan') : 'Guest'}</p>
+              </div>
+              <div className="pt-1">
+                <button
+                  onClick={() => { onOpenProjects(); setShowProfile(false) }}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.06] hover:text-[var(--color-text-primary)]"
+                >
+                  Projects
+                </button>
+                {!isPaidUser && (
+                  <button
+                    onClick={() => { onUpgrade(); setShowProfile(false) }}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.06] hover:text-[var(--color-text-primary)]"
+                  >
+                    Upgrade to Pro
+                  </button>
+                )}
+                {user ? (
+                  <button
+                    onClick={() => { onSignOut(); setShowProfile(false) }}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-xs text-[var(--color-danger)] transition-colors hover:bg-white/[0.06]"
+                  >
+                    Sign out
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { onSignIn(); setShowProfile(false) }}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-xs text-[var(--color-accent)] transition-colors hover:bg-white/[0.06]"
+                  >
+                    Sign in
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         <span className="my-1.5 w-px bg-[var(--color-border)]" />
         <button
           onClick={onSave}
