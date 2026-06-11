@@ -1,15 +1,92 @@
-import { useState, useMemo } from 'react'
-import { useThree } from '@react-three/fiber'
+import { useState, useMemo, useRef } from 'react'
+import { useThree, useFrame } from '@react-three/fiber'
 import { Text, Billboard, Line } from '@react-three/drei'
+import * as THREE from 'three'
 import { FEET_PER_METER } from '../../constants/landSceneConstants'
 import { createWallTexture } from '../../utils/textureGenerators'
+import { playDoorSound } from '../../utils/ambientAudio'
+
+// Scratch vector for player-position transforms (avoids per-frame allocation)
+const _playerLocal = new THREE.Vector3()
+
+/**
+ * SwingDoor - hinged door leaf (1 for single, 2 for double) that swings open
+ * away from the player when they approach in walk mode. Rendered closed and
+ * static in orbit view. Lives inside the door-opening group, so local
+ * coordinates run along the wall (z) with the hinge at the jamb.
+ */
+function SwingDoor({ doorWidth, doorHeight, thickness, isDouble, playerPosRef, animate }) {
+  const rootRef = useRef()
+  const leftHingeRef = useRef()
+  const rightHingeRef = useRef()
+  // open/close state + swing direction, kept out of React state (per-frame)
+  const swingRef = useRef({ open: false, dir: 1, angle: 0 })
+
+  const leafLen = isDouble ? doorWidth / 2 : doorWidth
+  const leafThick = Math.min(0.05, thickness)
+  const OPEN_ANGLE = Math.PI * 0.47 // ~85° — clears the opening without re-entering the wall
+  const OPEN_DIST = 1.5
+  const CLOSE_DIST = 2.5
+
+  useFrame((_, delta) => {
+    const s = swingRef.current
+    if (animate && playerPosRef?.current && rootRef.current) {
+      _playerLocal.set(playerPosRef.current.x, 0, playerPosRef.current.z)
+      rootRef.current.worldToLocal(_playerLocal) // handles building position/rotation too
+      const dist = Math.hypot(_playerLocal.x, _playerLocal.z)
+      if (!s.open && dist < OPEN_DIST) {
+        s.open = true
+        s.dir = _playerLocal.x >= 0 ? 1 : -1 // remember which side they came from
+        playDoorSound()
+      } else if (s.open && dist > CLOSE_DIST) {
+        s.open = false
+      }
+    } else if (s.open || s.angle !== 0) {
+      s.open = false
+    } else {
+      return // closed and idle — nothing to update
+    }
+    const target = s.open ? OPEN_ANGLE : 0
+    s.angle = Math.abs(target - s.angle) < 0.001 ? target : THREE.MathUtils.damp(s.angle, target, 9, delta)
+    // dir=1 → player on +x side → leaves swing toward -x (away from them)
+    if (leftHingeRef.current) leftHingeRef.current.rotation.y = -s.dir * s.angle
+    if (rightHingeRef.current) rightHingeRef.current.rotation.y = s.dir * s.angle
+  })
+
+  return (
+    <group ref={rootRef}>
+      {/* Single leaf / left leaf — hinged at the -z jamb */}
+      <group ref={leftHingeRef} position={[0, 0, -doorWidth / 2]}>
+        <mesh position={[0, doorHeight / 2, leafLen / 2]} castShadow>
+          <boxGeometry args={[leafThick, doorHeight - 0.04, leafLen - 0.03]} />
+          <meshStandardMaterial color="#A86A32" roughness={0.7} />
+        </mesh>
+        {!isDouble && (
+          <mesh position={[leafThick / 2 + 0.02, 1.0, leafLen - 0.12]}>
+            <boxGeometry args={[0.03, 0.03, 0.12]} />
+            <meshStandardMaterial color="#404040" metalness={0.8} roughness={0.2} />
+          </mesh>
+        )}
+      </group>
+      {/* Right leaf — hinged at the +z jamb */}
+      {isDouble && (
+        <group ref={rightHingeRef} position={[0, 0, doorWidth / 2]}>
+          <mesh position={[0, doorHeight / 2, -leafLen / 2]} castShadow>
+            <boxGeometry args={[leafThick, doorHeight - 0.04, leafLen - 0.03]} />
+            <meshStandardMaterial color="#A86A32" roughness={0.7} />
+          </mesh>
+        </group>
+      )}
+    </group>
+  )
+}
 
 /**
  * WallSegment - renders a single wall between two points, with openings (doors/windows)
  * Supports both 2D (floor plan view) and 3D rendering modes
  * Handles regular walls and various fence styles
  */
-export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelected = false, onSelect, isDeleteMode = false, onDelete, isOpeningMode = false, openingType = 'door', onPlaceOpening, showDimensions = true, roomMoveDragState, wallColor, onOpenProperties, floorYOffset = 0, isInactiveFloor = false, onOpeningDragStart, isDrawingTool = false, onDrawingClick }) {
+export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', isSelected = false, onSelect, isDeleteMode = false, onDelete, isOpeningMode = false, openingType = 'door', onPlaceOpening, showDimensions = true, roomMoveDragState, wallColor, onOpenProperties, floorYOffset = 0, isInactiveFloor = false, onOpeningDragStart, isDrawingTool = false, onDrawingClick, playerPosRef = null }) {
   const [isHovered, setIsHovered] = useState(false)
   const { gl } = useThree()
   const { start: rawStart, end: rawEnd, height = 2.7, thickness = 0.15, openings = [] } = wall
@@ -793,7 +870,7 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
           )
         }
 
-        // Single or Double door: wood frame
+        // Single or Double door: wood frame + swinging leaf panel(s)
         const isDoubleDoor = dType === 'double'
         return (
           <group key={`door-${opening.id ?? opening.position}`} position={[pos.x, 0, pos.z]} rotation={[0, angle, 0]}>
@@ -812,13 +889,14 @@ export function WallSegment({ wall, lengthUnit = 'm', viewMode = 'firstPerson', 
               <boxGeometry args={[frameDepth, frameThickness, doorWidth + frameThickness * 2]} />
               <meshStandardMaterial color="#8B4513" />
             </mesh>
-            {/* Center mullion for double doors */}
-            {isDoubleDoor && (
-              <mesh position={[0, doorHeight / 2, 0]} castShadow>
-                <boxGeometry args={[frameDepth, doorHeight, frameThickness]} />
-                <meshStandardMaterial color="#8B4513" />
-              </mesh>
-            )}
+            <SwingDoor
+              doorWidth={doorWidth}
+              doorHeight={doorHeight}
+              thickness={thickness}
+              isDouble={isDoubleDoor}
+              playerPosRef={playerPosRef}
+              animate={viewMode === 'firstPerson'}
+            />
           </group>
         )
       })}

@@ -67,7 +67,8 @@ import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
 import { CameraController } from './scene/CameraController'
 import { BreadcrumbTrail } from './scene/BreadcrumbTrail'
-import { startAmbient, stopAmbient, setAudioMuted, isAudioMuted } from '../utils/ambientAudio'
+import { startAmbient, stopAmbient, setAudioMuted, isAudioMuted, setIndoor } from '../utils/ambientAudio'
+import { useRoomPresence } from '../hooks/useRoomPresence'
 import { calculateNPCPositions } from '../utils/npcHelpers'
 import {
   createFloorTexture,
@@ -393,12 +394,13 @@ function lerpLightValue(time, key) {
 }
 
 // Updates lights, fog imperatively each frame — no React re-renders
-function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sunRef, ambientRef, fillRef, fogRef, hemiRef }) {
+function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, timeOverride = null, sunRef, ambientRef, fillRef, fogRef, hemiRef }) {
   const isPaused = useRef(false)
 
   useFrame((_, delta) => {
     // Auto-cycle: ~1 hour per full cycle, only for paid users in 3D
-    if (isPaidUser && viewMode !== '2d' && !isPaused.current) {
+    // (paused while the morning-light override holds the clock)
+    if (isPaidUser && viewMode !== '2d' && !isPaused.current && timeOverride === null) {
       // 3600s cycle → delta/3600 per frame
       setTimeOfDay(prev => {
         const next = prev + delta / 3600
@@ -406,8 +408,8 @@ function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sun
       })
     }
 
-    // Clamp for free users
-    const t = isPaidUser ? timeOfDay : 0.35
+    // Morning-light override wins (free users included); else clamp for free users
+    const t = timeOverride ?? (isPaidUser ? timeOfDay : 0.35)
 
     // Sun orbit
     const sunX = Math.cos(t * Math.PI * 2) * 80
@@ -449,7 +451,7 @@ function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sun
   return null
 }
 
-function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, furnitureItems = [], addFurniture, deleteFurniture, updateFurniture, selectedFurnitureId = null, setSelectedFurnitureId, selectedFurnitureCatalogId = null, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null, walkTrackerRef = null }) {
+function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, furnitureItems = [], addFurniture, deleteFurniture, updateFurniture, selectedFurnitureId = null, setSelectedFurnitureId, selectedFurnitureCatalogId = null, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null, walkTrackerRef = null, playerPosRef = null, timeOverride = null }) {
   const { camera, gl } = useThree()
   const [previewPos, setPreviewPos] = useState(null)
   const qualitySettings = QUALITY_SETTINGS[quality]
@@ -2672,6 +2674,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         setTimeOfDay={setTimeOfDay}
         isPaidUser={isPaidUser}
         viewMode={viewMode}
+        timeOverride={timeOverride}
         sunRef={sunRef}
         ambientRef={ambientRef}
         fillRef={fillRef}
@@ -2683,10 +2686,10 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       {viewMode !== '2d' && <fog ref={fogRef} attach="fog" args={['#c0d4e0', 60, 280]} />}
 
       {/* Original gradient sky with clouds (hidden in 2D mode) */}
-      {viewMode !== '2d' && <RealisticSky timeOfDay={isPaidUser ? timeOfDay : 0.35} />}
+      {viewMode !== '2d' && <RealisticSky timeOfDay={timeOverride ?? (isPaidUser ? timeOfDay : 0.35)} />}
 
       {/* Night stars (hidden in 2D mode) */}
-      {viewMode !== '2d' && <NightStars timeOfDay={isPaidUser ? timeOfDay : 0.35} />}
+      {viewMode !== '2d' && <NightStars timeOfDay={timeOverride ?? (isPaidUser ? timeOfDay : 0.35)} />}
 
       {/* Main sun light */}
       <directionalLight
@@ -2718,8 +2721,8 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       {viewMode !== '2d' && <EnhancedGround key={quality} quality={quality} />}
 
       {/* Mountain ranges, distant treeline, and scattered trees (hidden in 2D) */}
-      {viewMode !== '2d' && <MountainSilhouettes timeOfDay={isPaidUser ? timeOfDay : 0.35} />}
-      {viewMode !== '2d' && <DistantTreeline timeOfDay={isPaidUser ? timeOfDay : 0.35} />}
+      {viewMode !== '2d' && <MountainSilhouettes timeOfDay={timeOverride ?? (isPaidUser ? timeOfDay : 0.35)} />}
+      {viewMode !== '2d' && <DistantTreeline timeOfDay={timeOverride ?? (isPaidUser ? timeOfDay : 0.35)} />}
       {viewMode !== '2d' && <ScatteredTrees quality={quality} />}
 
       {/* Breadcrumb trail of walked path (hidden in 2D) */}
@@ -3524,6 +3527,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
           onSelect={activeBuildTool === BUILD_TOOLS.SELECT ? () => {
             setSelectedElement?.({ type: 'wall', id: wall.id })
           } : undefined}
+          playerPosRef={playerPosRef}
           isDeleteMode={activeBuildTool === BUILD_TOOLS.DELETE}
           onDelete={activeBuildTool === BUILD_TOOLS.DELETE ? () => {
             deleteWall?.(wall.id)
@@ -3616,6 +3620,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
               viewMode={viewMode}
               showDimensions={labels.buildingDimensions}
               isSelected={selectedBuildingId === building.id}
+              playerPosRef={playerPosRef}
             />
           ))}
           <BuildingInterior walls={building.walls} rooms={building.rooms} />
@@ -3919,6 +3924,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         orbitEnabled={orbitEnabled}
         orbitTarget={orbitTarget}
         onPlayerPositionUpdate={(state) => {
+          if (playerPosRef) playerPosRef.current = state.position
           setPlayerState(state)
           if (onCameraUpdate) onCameraUpdate(state)
         }}
@@ -4253,6 +4259,102 @@ function WalkStats({ walkTrackerRef }) {
   )
 }
 
+// Morning-light target: ≈ 8 AM warm sun through the windows
+const MORNING_LIGHT_T = 0.27
+
+// Room chip + morning-light button. Sits in its own absolutely-positioned row
+// under the WalkStats cluster so appearing/disappearing never shifts layout.
+function RoomPresenceHUD({ currentRoom, lengthUnit, morningLightOn, onToggleMorningLight, showProHint }) {
+  // Chip content sticks around after exit so the fade-out has something to show
+  const [chip, setChip] = useState(null)
+  const [chipVisible, setChipVisible] = useState(false)
+  const hideTimer = useRef(null)
+
+  useEffect(() => {
+    if (!currentRoom) {
+      setChipVisible(false)
+      return
+    }
+    const isFt = lengthUnit === 'ft'
+    const shown = isFt ? currentRoom.area * SQ_FEET_PER_SQ_METER : currentRoom.area
+    setChip({
+      name: currentRoom.name || 'Room',
+      areaLabel: `${Math.round(shown)} ${isFt ? 'ft²' : 'm²'}`,
+    })
+    setChipVisible(true)
+    clearTimeout(hideTimer.current)
+    hideTimer.current = setTimeout(() => setChipVisible(false), 3000)
+    return () => clearTimeout(hideTimer.current)
+  }, [currentRoom, lengthUnit])
+
+  return (
+    <div
+      className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5"
+      style={{ top: 70, zIndex: 20, pointerEvents: 'none' }}
+    >
+      <div className="flex items-stretch gap-2">
+        {/* Room chip — name + mono area */}
+        {chip && (
+          <div
+            className="flex items-center gap-2 rounded-lg px-3 py-2"
+            style={{
+              background: 'rgba(19, 18, 17, 0.92)',
+              border: '1px solid rgba(242, 239, 233, 0.12)',
+              opacity: chipVisible ? 1 : 0,
+              transition: 'opacity 0.35s ease',
+            }}
+          >
+            <span className="text-xs font-medium" style={{ color: '#f2efe9' }}>{chip.name}</span>
+            <span style={{ width: 1, alignSelf: 'stretch', background: 'rgba(242, 239, 233, 0.12)' }} />
+            <span className="font-mono-data text-xs" style={{ color: '#a8a29a' }}>{chip.areaLabel}</span>
+          </div>
+        )}
+
+        {/* Morning light — only while inside a room */}
+        {currentRoom && (
+          <button
+            onClick={onToggleMorningLight}
+            className="flex items-center gap-1.5 rounded-lg px-3"
+            style={{
+              background: 'rgba(19, 18, 17, 0.92)',
+              border: '1px solid rgba(242, 239, 233, 0.12)',
+              color: '#f2efe9',
+              minHeight: 44,
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+            }}
+            title={morningLightOn ? 'Restore previous light' : 'Preview morning light in this room'}
+            aria-label={morningLightOn ? 'Reset light' : 'Morning light'}
+          >
+            {morningLightOn ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a8a29a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent, #f04e23)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              </svg>
+            )}
+            <span className="text-xs font-medium">{morningLightOn ? 'Reset light' : 'Morning light'}</span>
+          </button>
+        )}
+      </div>
+
+      {/* One-line Pro hint after a free user resets the light — no modal, no nag */}
+      {showProHint && (
+        <div className="text-[11px]" style={{ color: '#a8a29a' }}>
+          Pro unlocks the full time-of-day slider
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, furnitureItems = [], addFurniture, deleteFurniture, updateFurniture, selectedFurnitureId = null, setSelectedFurnitureId, selectedFurnitureCatalogId = null, canvasRef, sceneRef, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null, timeSliderMobileTop = 248 }) {
   const qualitySettings = QUALITY_SETTINGS[quality]
 
@@ -4262,6 +4364,77 @@ export default function LandScene({ length, width, isExploring, comparisonObject
   // Walk tracking shared between CameraController (writes), BreadcrumbTrail
   // (reads in-canvas) and the WalkStats HUD (reads outside canvas)
   const walkTrackerRef = useRef({ distance: 0, points: [], version: 0 })
+
+  // Player position shared by ref so door animation (in-canvas) and room
+  // presence detection (outside canvas) can read it without re-renders
+  const playerPosRef = useRef({ x: 0, y: 1.65, z: 0 })
+
+  // Which room is the player standing in (walk mode only)
+  const currentRoom = useRoomPresence({
+    playerPosRef,
+    rooms,
+    buildings,
+    roomLabels,
+    enabled: viewMode === 'firstPerson',
+  })
+
+  // Indoors: muffle wind/birds; outdoors (or leaving walk mode) restores them
+  useEffect(() => {
+    setIndoor(viewMode === 'firstPerson' && currentRoom != null)
+    return () => setIndoor(false)
+  }, [viewMode, currentRoom])
+
+  // Morning-light override: transient time-of-day that wins over the free-user
+  // pin and the Pro auto-cycle while active. Eased over ~1.5 s via rAF.
+  const [timeOverride, setTimeOverride] = useState(null)
+  const [showProHint, setShowProHint] = useState(false)
+  const overrideAnim = useRef(null)
+  const preLightTime = useRef(0.35)
+  const proHintTimer = useRef(null)
+
+  const animateTimeOverride = useCallback((from, to, onDone) => {
+    cancelAnimationFrame(overrideAnim.current)
+    const start = performance.now()
+    const DURATION = 1500
+    const step = (now) => {
+      const p = Math.min(1, (now - start) / DURATION)
+      const e = p < 0.5 ? 2 * p * p : 1 - ((-2 * p + 2) ** 2) / 2 // easeInOutQuad
+      setTimeOverride(from + (to - from) * e)
+      if (p < 1) overrideAnim.current = requestAnimationFrame(step)
+      else if (onDone) onDone()
+    }
+    overrideAnim.current = requestAnimationFrame(step)
+  }, [])
+
+  const toggleMorningLight = () => {
+    if (timeOverride === null) {
+      preLightTime.current = isPaidUser ? timeOfDay : 0.35
+      animateTimeOverride(preLightTime.current, MORNING_LIGHT_T)
+    } else {
+      animateTimeOverride(timeOverride, preLightTime.current, () => {
+        setTimeOverride(null)
+        if (!isPaidUser) {
+          setShowProHint(true)
+          clearTimeout(proHintTimer.current)
+          proHintTimer.current = setTimeout(() => setShowProHint(false), 4000)
+        }
+      })
+    }
+  }
+
+  // Leaving walk mode clears the transient override (free users return to the
+  // pinned time, Pro users to their slider time)
+  useEffect(() => {
+    if (viewMode !== 'firstPerson' && timeOverride !== null) {
+      cancelAnimationFrame(overrideAnim.current)
+      setTimeOverride(null)
+    }
+  }, [viewMode, timeOverride])
+
+  useEffect(() => () => {
+    cancelAnimationFrame(overrideAnim.current)
+    clearTimeout(proHintTimer.current)
+  }, [])
 
   // Ambient audio (wind + birds) lives in walk mode only
   useEffect(() => {
@@ -4459,6 +4632,8 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         isPaidUser={isPaidUser}
         initialCameraPosition={initialCameraPosition}
         walkTrackerRef={walkTrackerRef}
+        playerPosRef={playerPosRef}
+        timeOverride={timeOverride}
         />
       </Canvas>
     </Canvas3DErrorBoundary>
@@ -4470,6 +4645,17 @@ export default function LandScene({ length, width, isExploring, comparisonObject
 
     {/* Walk mode HUD: steps walked + sound toggle */}
     {viewMode === 'firstPerson' && <WalkStats walkTrackerRef={walkTrackerRef} />}
+
+    {/* Walk mode HUD: room chip + morning light (under the walk pill) */}
+    {viewMode === 'firstPerson' && (
+      <RoomPresenceHUD
+        currentRoom={currentRoom}
+        lengthUnit={lengthUnit}
+        morningLightOn={timeOverride !== null}
+        onToggleMorningLight={toggleMorningLight}
+        showProHint={showProHint}
+      />
+    )}
 
   </>
   )
