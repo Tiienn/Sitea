@@ -45,6 +45,7 @@ import StairsPropertiesPanel from './components/StairsPropertiesPanel'
 import AIChatButton from './components/AIChatButton'
 import AIChatPanel from './components/AIChatPanel'
 import AgentSidebar from './components/AgentSidebar'
+import CanvasDock from './components/CanvasDock'
 import { useAIChat } from './hooks/useAIChat'
 
 // Import constants from LandScene (these are re-exported)
@@ -5887,12 +5888,19 @@ function App() {
         </div>
       )}
 
-      {/* Agent cockpit sidebar — desktop shell (lg+) */}
+      {/* Agent cockpit sidebar — desktop shell (lg+): the chat owns the column */}
       {!isReadOnly && !isGuidedMode && (
         <AgentSidebar
           aiChat={aiChat}
           projectName={currentProjectId ? currentProjectName : null}
           areaLabel={formatArea(area, areaUnit)}
+          onOpenProjects={() => setShowProjectsModal(true)}
+        />
+      )}
+
+      {/* Canvas footer dock — desktop nav over the scene */}
+      {!isReadOnly && !isGuidedMode && (
+        <CanvasDock
           activePanel={activePanel}
           onTogglePanel={togglePanel}
           onShare={handleShare}
@@ -5903,8 +5911,6 @@ function App() {
           isDefiningLand={isDefiningLand}
           isPaidUser={isPaidUser}
           onUpgrade={() => setShowPricingModal(true)}
-          onOpenProjects={() => setShowProjectsModal(true)}
-          userInitial={user?.email?.charAt(0)?.toUpperCase() || null}
         />
       )}
 

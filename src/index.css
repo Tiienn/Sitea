@@ -5,34 +5,36 @@
    ======================================== */
 
 :root {
-  /* Color Palette — flat neutral dark (Lovable/Linear school): near-black
-     surfaces, quiet grays, color reserved for the brand accent */
-  --color-bg-primary: #0a0a0b;
-  --color-bg-secondary: #141416;
-  --color-bg-elevated: #1e1e21;
-  --color-accent: #14b8a6;
-  --color-accent-hover: #2dd4bf;
-  --color-accent-glow: rgba(20, 184, 166, 0.3);
-  --color-text-primary: #fafafa;
-  --color-text-secondary: #a1a1aa;
-  --color-text-muted: #6b6b74;
-  --color-border: rgba(255, 255, 255, 0.07);
-  --color-border-hover: rgba(255, 255, 255, 0.14);
-  --color-surface: rgba(255, 255, 255, 0.045);
-  --color-surface-strong: rgba(255, 255, 255, 0.08);
-  --color-surface-warm: rgba(244, 231, 197, 0.06);
-  --color-ink-soft: #d9d9de;
-  --color-success: #34d399;
+  /* Color Palette — "drafting graphite": warm graphite surfaces, hairline
+     rules, and a single red-pen accent. Mono type carries all measurements.
+     No glass, no glow, no gradients. */
+  --color-bg-primary: #131211;
+  --color-bg-secondary: #1b1a18;
+  --color-bg-elevated: #252320;
+  --color-accent: #f04e23;
+  --color-accent-hover: #ff6a3d;
+  --color-accent-glow: rgba(240, 78, 35, 0.25);
+  --color-text-primary: #f2efe9;
+  --color-text-secondary: #a8a29a;
+  --color-text-muted: #6f6a62;
+  --color-border: rgba(242, 239, 233, 0.08);
+  --color-border-hover: rgba(242, 239, 233, 0.16);
+  --color-surface: rgba(242, 239, 233, 0.04);
+  --color-surface-strong: rgba(242, 239, 233, 0.07);
+  --color-surface-warm: rgba(242, 231, 205, 0.05);
+  --color-ink-soft: #ddd8cf;
+  --color-success: #4ade80;
   --color-warning: #fbbf24;
   --color-danger: #fb7185;
 
   /* Panel backgrounds - dark enough for readability */
-  --color-panel: rgba(12, 12, 13, 0.92);
-  --color-panel-elevated: rgba(22, 22, 24, 0.95);
+  --color-panel: rgba(19, 18, 17, 0.94);
+  --color-panel-elevated: rgba(27, 26, 24, 0.96);
 
   /* Typography */
-  --font-display: 'Outfit', system-ui, sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -46,10 +48,14 @@
   --shadow-glow: 0 0 20px var(--color-accent-glow);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* Reset lives in the base layer so Tailwind utility classes (later layers)
+   can win — an unlayered universal reset silently kills every px-*/py-*. */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 html, body, #root {
@@ -131,13 +137,10 @@ body {
 
 /* Premium panel base */
 .panel-premium {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.012) 100%),
-    var(--color-panel);
-  backdrop-filter: blur(18px) saturate(1.05);
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 16px;
-  box-shadow: 0 18px 46px rgba(2, 6, 23, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
 .sitea-agent-scroll {
@@ -166,21 +169,18 @@ body {
 /* Premium button */
 .btn-primary {
   background: var(--color-accent);
-  color: var(--color-bg-primary);
+  color: #fff;
   font-family: var(--font-display);
   font-weight: 600;
   padding: 0.625rem 1.25rem;
-  border-radius: 10px;
+  border-radius: 8px;
   border: none;
   cursor: pointer;
   transition: all var(--transition-base);
-  box-shadow: 0 2px 8px rgba(20, 184, 166, 0.3);
 }
 
 .btn-primary:hover {
   background: var(--color-accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(20, 184, 166, 0.4);
 }
 
 .btn-primary:active {
@@ -194,7 +194,7 @@ body {
   gap: 0.5rem;
   min-height: 44px;
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: 8px;
   font-family: var(--font-display);
   font-size: 0.875rem;
   font-weight: 700;
@@ -211,15 +211,13 @@ body {
 }
 
 .sitea-btn-primary {
-  background: linear-gradient(180deg, #5eead4 0%, var(--color-accent) 88%);
-  color: var(--color-bg-primary);
-  border-color: rgba(45, 212, 191, 0.48);
-  box-shadow: 0 12px 28px rgba(20, 184, 166, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  background: var(--color-accent);
+  color: #fff;
+  border-color: transparent;
 }
 
 .sitea-btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 36px rgba(20, 184, 166, 0.33), inset 0 1px 0 rgba(255, 255, 255, 0.38);
+  background: var(--color-accent-hover);
 }
 
 .sitea-btn-secondary {
@@ -258,24 +256,22 @@ body {
 }
 
 .sitea-icon-btn-primary {
-  color: var(--color-bg-primary);
-  background: linear-gradient(180deg, var(--color-accent-hover) 0%, var(--color-accent) 100%);
-  border-color: rgba(45, 212, 191, 0.48);
-  box-shadow: 0 10px 22px rgba(20, 184, 166, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  color: #fff;
+  background: var(--color-accent);
+  border-color: transparent;
 }
 
 .sitea-icon-btn-primary:hover:not(:disabled) {
-  color: var(--color-bg-primary);
-  background: linear-gradient(180deg, #5eead4 0%, var(--color-accent) 100%);
-  border-color: rgba(45, 212, 191, 0.68);
+  color: #fff;
+  background: var(--color-accent-hover);
 }
 
 .sitea-agent-panel {
   background:
     linear-gradient(180deg, rgba(24, 34, 50, 0.96) 0%, rgba(10, 16, 28, 0.95) 100%),
-    linear-gradient(135deg, rgba(20, 184, 166, 0.08), rgba(244, 231, 197, 0.035));
+    linear-gradient(135deg, rgba(240, 78, 35, 0.08), rgba(244, 231, 197, 0.035));
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45), 0 0 0 1px rgba(20, 184, 166, 0.04);
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45), 0 0 0 1px rgba(240, 78, 35, 0.04);
 }
 
 .sitea-agent-action {
@@ -296,15 +292,15 @@ body {
 }
 
 .sitea-agent-action-primary {
-  background: linear-gradient(180deg, rgba(20, 184, 166, 0.18) 0%, rgba(20, 184, 166, 0.09) 100%);
-  border-color: rgba(45, 212, 191, 0.34);
+  background: linear-gradient(180deg, rgba(240, 78, 35, 0.18) 0%, rgba(240, 78, 35, 0.09) 100%);
+  border-color: rgba(255, 106, 61, 0.34);
   color: var(--color-text-primary);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 28px rgba(20, 184, 166, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 28px rgba(240, 78, 35, 0.12);
 }
 
 .sitea-agent-action-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, rgba(45, 212, 191, 0.22) 0%, rgba(20, 184, 166, 0.13) 100%);
-  border-color: rgba(45, 212, 191, 0.56);
+  background: linear-gradient(180deg, rgba(255, 106, 61, 0.22) 0%, rgba(240, 78, 35, 0.13) 100%);
+  border-color: rgba(255, 106, 61, 0.56);
 }
 
 .sitea-agent-progress {
@@ -318,9 +314,9 @@ body {
   padding: 16px;
   border-radius: 14px;
   background:
-    linear-gradient(180deg, rgba(20, 184, 166, 0.16) 0%, rgba(15, 23, 42, 0.38) 100%),
+    linear-gradient(180deg, rgba(240, 78, 35, 0.16) 0%, rgba(15, 23, 42, 0.38) 100%),
     rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(45, 212, 191, 0.28);
+  border: 1px solid rgba(255, 106, 61, 0.28);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -403,7 +399,7 @@ body {
 
 .sitea-agent-step-current .sitea-agent-step-dot {
   color: var(--color-bg-primary);
-  border-color: rgba(45, 212, 191, 0.64);
+  border-color: rgba(255, 106, 61, 0.64);
   background: var(--color-accent);
 }
 
@@ -415,7 +411,7 @@ body {
 
 .sitea-agent-launcher {
   background:
-    linear-gradient(180deg, rgba(94, 234, 212, 0.98) 0%, rgba(20, 184, 166, 0.98) 100%);
+    linear-gradient(180deg, rgba(255, 134, 95, 0.98) 0%, rgba(240, 78, 35, 0.98) 100%);
   color: var(--color-bg-primary);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow: 0 18px 40px rgba(15, 118, 110, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.42);
@@ -449,9 +445,9 @@ body {
 
 .sitea-field:focus {
   outline: none;
-  border-color: rgba(45, 212, 191, 0.72);
+  border-color: rgba(255, 106, 61, 0.72);
   background: rgba(8, 13, 24, 0.82);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12);
+  box-shadow: 0 0 0 3px rgba(240, 78, 35, 0.12);
 }
 
 .sitea-control-panel {
@@ -490,7 +486,7 @@ body {
 .sitea-segment-btn.active {
   color: var(--color-bg-primary);
   background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent));
-  box-shadow: 0 8px 18px rgba(20, 184, 166, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  box-shadow: 0 8px 18px rgba(240, 78, 35, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 
 .sitea-control-row {
@@ -563,7 +559,7 @@ body {
 .toggle-switch.active::before {
   background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent));
   border-color: var(--color-accent);
-  box-shadow: 0 8px 20px rgba(20, 184, 166, 0.18);
+  box-shadow: 0 8px 20px rgba(240, 78, 35, 0.18);
 }
 
 .toggle-switch .toggle-knob {
@@ -609,7 +605,7 @@ body {
 .select-premium:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12);
+  box-shadow: 0 0 0 3px rgba(240, 78, 35, 0.12);
 }
 
 .select-premium option {
@@ -650,7 +646,7 @@ body {
 .ribbon-btn.active {
   color: var(--color-text-primary);
   background:
-    linear-gradient(180deg, rgba(20, 184, 166, 0.16), rgba(20, 184, 166, 0.08)),
+    linear-gradient(180deg, rgba(240, 78, 35, 0.16), rgba(240, 78, 35, 0.08)),
     var(--color-surface);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
@@ -735,9 +731,9 @@ body {
 .minimap-frame {
   background: var(--color-panel);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(20, 184, 166, 0.2);
+  border: 1px solid rgba(240, 78, 35, 0.2);
   border-radius: 14px;
-  box-shadow: 0 0 20px rgba(20, 184, 166, 0.1), var(--shadow-lg);
+  box-shadow: 0 0 20px rgba(240, 78, 35, 0.1), var(--shadow-lg);
   overflow: hidden;
 }
 
@@ -779,8 +775,19 @@ body {
 
 /* Agent cockpit sidebar (desktop shell) — flat neutral, no glass */
 .agent-sidebar {
-  background: #0a0a0b;
-  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  background: #131211;
+  border-right: 1px solid rgba(242, 239, 233, 0.08);
+}
+
+/* Canvas footer dock (desktop shell) — drafting toolbar */
+.canvas-dock {
+  background: rgba(19, 18, 17, 0.96);
+  border: 1px solid rgba(242, 239, 233, 0.09);
+  backdrop-filter: blur(8px);
+}
+.font-mono-data {
+  font-family: var(--font-mono);
+  letter-spacing: -0.01em;
 }
 
 /* Desktop shell: tool panels dock beside the agent sidebar instead of the
@@ -829,7 +836,7 @@ body {
 
 .icon-rail-btn.active {
   color: #99f6e4;
-  background: rgba(20, 184, 166, 0.13);
+  background: rgba(240, 78, 35, 0.13);
 }
 
 .icon-rail-btn.active::before {
@@ -938,8 +945,8 @@ body {
 
 .structure-card.selected {
   border-color: var(--color-accent);
-  background: rgba(20, 184, 166, 0.15);
-  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.12);
+  background: rgba(240, 78, 35, 0.15);
+  box-shadow: 0 10px 24px rgba(240, 78, 35, 0.12);
 }
 
 .structure-card:disabled {
@@ -973,9 +980,9 @@ body {
 
 .tool-btn.active {
   border-color: var(--color-accent);
-  background: linear-gradient(180deg, rgba(20, 184, 166, 0.18), rgba(20, 184, 166, 0.09));
+  background: linear-gradient(180deg, rgba(240, 78, 35, 0.18), rgba(240, 78, 35, 0.09));
   color: #99f6e4;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 24px rgba(20, 184, 166, 0.11);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 24px rgba(240, 78, 35, 0.11);
 }
 
 .tool-btn:disabled {
@@ -1007,15 +1014,15 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 0%, rgba(20, 184, 166, 0.15) 0%, transparent 60%);
+  background: radial-gradient(circle at 50% 0%, rgba(240, 78, 35, 0.15) 0%, transparent 60%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 .method-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(20, 184, 166, 0.4);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(20, 184, 166, 0.15);
+  border-color: rgba(240, 78, 35, 0.4);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(240, 78, 35, 0.15);
 }
 
 .method-card:hover::before {
@@ -1025,7 +1032,7 @@ body {
 .method-card.selected {
   transform: scale(1.05);
   border-color: var(--color-accent);
-  box-shadow: 0 0 40px rgba(20, 184, 166, 0.3);
+  box-shadow: 0 0 40px rgba(240, 78, 35, 0.3);
 }
 
 /* Card preview container */

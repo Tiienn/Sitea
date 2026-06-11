@@ -2583,3 +2583,31 @@ middle. Free rein on colors, fonts, buttons, panel positions.
       footer with user initial + save status.
 - [x] Sidebar surface flattened: no gradient/blur/glow, hairline border.
 - [x] Verified in preview at 1440px; both agent QA suites + build pass.
+
+---
+
+# v53: "Drafting graphite" redesign + chat-only sidebar + canvas dock
+
+User: chat takes the whole left panel; nav moves to a footer on the canvas;
+delete DESIGN.md; redesign completely — "looks AI slop right now".
+
+Design direction committed: drafting set. Warm graphite surfaces
+(#131211/#1b1a18), ONE red-pen accent (#f04e23) replacing teal everywhere,
+IBM Plex Mono for all numbers/shortcuts, Archivo caps wordmark, IBM Plex
+Sans body, hairline rules, squared corners, no glass/glow/gradients.
+
+- [x] Fonts swapped (Outfit/DM Sans → Archivo/Plex Sans/Plex Mono).
+- [x] All CSS tokens + 27 hardcoded teal colors converted to the accent;
+      glassy gradients in panel/button classes flattened.
+- [x] AgentSidebar = header strip (wordmark · project · mono area · clear)
+      + chat only.
+- [x] New CanvasDock: floating drafting toolbar centered over the canvas —
+      Edit land | Land/Build/Compare/Export (+mono shortcut chips) | Share
+      | Save | Pro chip (free users).
+- [x] ROOT CAUSE FIX: the global `* { padding: 0 }` reset was unlayered and
+      silently killed every Tailwind px-*/py-* utility app-wide (hence the
+      inline-style paddings everywhere). Moved into @layer base — utilities
+      now win; spacing improved across the app (view controls, chips).
+- [x] DESIGN.md replaced with the new system.
+- [x] Verified at 1440px + 375px; agent QA, handoff QA, review QA, build
+      all pass.

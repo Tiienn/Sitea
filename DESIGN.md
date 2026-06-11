@@ -1,108 +1,79 @@
-# SiteA Design System
+# Sitea Design System — "Drafting Graphite"
 
-Rules for every UI element. Follow these every time you create or modify a component.
+Sitea is a land and architecture tool. The UI is a drafting set: warm
+graphite surfaces, hairline rules, one red-pen accent, and monospace type
+for every number. No glass, no glow, no gradients, no decoration that a
+working drawing wouldn't carry.
 
----
+## Principles
 
-## Spacing
+1. **The canvas is the drawing; chrome is the instrument.** UI surfaces are
+   quiet and flat so the 3D scene reads as the subject.
+2. **One accent.** Red-pen orange (`--color-accent`) marks the active tool,
+   the primary action, and nothing else. If two things are orange at once,
+   one of them is wrong.
+3. **Numbers are mono.** Areas, dimensions, coordinates, shortcuts — always
+   `--font-mono` (`.font-mono-data`). Words are never mono.
+4. **Hairlines, not shadows.** Separation comes from 1px `--color-border`
+   rules. Shadows only lift true overlays (modals, the dock).
+5. **Squared geometry.** `rounded-md`/`rounded-lg` (6–10px) on controls,
+   `rounded-xl` (12px) max on floating surfaces. Nothing pill-shaped except
+   status chips.
 
-**Buttons must have breathing room.** Text should never touch the edges.
+## Colors (CSS variables)
 
-| Element | Min Padding | Example |
-|---------|-------------|---------|
-| Primary button (`.btn-primary`) | `py-3 px-6` (12px 24px) | `<button className="btn-primary py-3 px-6">` |
-| Small button / pill toggle | `py-2 px-4` (8px 16px) | `<button className="px-4 py-2">` |
-| Tiny button (icon + label) | `py-1.5 px-3` (6px 12px) | `<button className="px-3 py-1.5">` |
-| Icon-only button | `p-2.5` (10px) min | `<button className="p-2.5">` |
+```
+--color-bg-primary: #131211      (app chrome, sidebar)
+--color-bg-secondary: #1b1a18    (panels, cards)
+--color-bg-elevated: #252320     (inputs, toggles)
+--color-accent: #f04e23          (red pen — active tool, primary action)
+--color-accent-hover: #ff6a3d
+--color-text-primary: #f2efe9    (warm white ink)
+--color-text-secondary: #a8a29a  (annotations)
+--color-text-muted: #6f6a62      (faint pencil)
+--color-border: rgba(242,239,233,0.08)   (hairline)
+--color-success: #4ade80  --color-warning: #fbbf24  --color-danger: #fb7185
+```
 
-**Never** use `px-1`, `px-2`, or `py-1` on buttons with text. The text will be unreadable.
-
-## Modals & Panels
-
-Every modal and panel needs inner padding so content doesn't touch the edges.
-
-| Element | Padding | Notes |
-|---------|---------|-------|
-| Modal / dialog | `p-6` (24px) min | Use `p-8` for large modals |
-| Panel (`.panel-premium`) | `p-4` (16px) min | Use `p-5` or `p-6` for sidebars |
-| Card inside panel | `p-3` (12px) min | Nested content still needs space |
-| Section within modal | `mb-4` between sections | Keep vertical rhythm consistent |
-
-**Modal title** should have `mb-4` (16px) below it before content starts.
-**Modal actions** (buttons at bottom) should have `mt-6` (24px) above them.
+White text on `--color-accent` buttons (`#fff`), never dark-on-orange.
 
 ## Typography
 
 | Use | Font | Weight | Size |
 |-----|------|--------|------|
-| Display headings | `font-display` (Outfit) | `font-bold` (700) | `text-xl` to `text-2xl` |
-| Section titles | `font-display` (Outfit) | `font-semibold` (600) | `text-base` to `text-lg` |
-| Body text | DM Sans (default) | `font-normal` (400) | `text-sm` (14px) |
-| Labels / captions | DM Sans | `font-medium` (500) | `text-xs` (12px) |
-| Tiny labels | DM Sans | `font-medium` (500) | `text-[10px]` or `text-[11px]` |
+| Wordmark / display | Archivo (`--font-display`) | 700–800, uppercase, tracking-wide | 14–24px |
+| Section titles | Archivo | 600 | 14–16px |
+| Body | IBM Plex Sans (`--font-body`) | 400 | 13–14px |
+| Labels / captions | IBM Plex Sans | 500 | 11–12px |
+| Measurements, coords, shortcuts | IBM Plex Mono (`--font-mono`, `.font-mono-data`) | 400–500 | 10–13px |
 
-## Colors (CSS Variables)
+## Layout shells
 
-```
---color-bg-primary: #0a0a0b       (darkest background — flat near-black)
---color-bg-secondary: #141416     (panels, cards)
---color-bg-elevated: #1e1e21      (inputs, toggles)
---color-accent: #14b8a6           (teal — primary action, used sparingly)
---color-accent-hover: #2dd4bf     (hover state)
---color-text-primary: #fafafa     (white text)
---color-text-secondary: #a1a1aa   (gray text)
---color-text-muted: #6b6b74      (dim text)
---color-border: rgba(255,255,255,0.07)
-```
+- **Desktop (lg+)**: `AgentSidebar` (380px, full height, chat only) +
+  `CanvasDock` (floating footer toolbar over the scene, centered in the
+  canvas region) + tool panels docked at `left: 380px`.
+- **Mobile (< lg)**: bottom ribbon + floating chat (legacy shell).
 
-**Style school (since v52):** flat neutral dark — near-black surfaces, no
-gradients/glass/glow, hairline borders, compact icon+label nav rows
-(rounded-lg, 36px, hover bg-white/[0.05], active bg-white/[0.08]),
-keyboard-shortcut chips in mono, color reserved for the teal accent and
-status moments.
+## Spacing
 
-**Active/selected state:** `bg-[var(--color-accent)] text-[var(--color-bg-primary)]`
-**Inactive state:** `text-[var(--color-text-secondary)]`
+- Buttons: text never touches edges — `px-3 py-2` minimum on compact
+  controls, `py-3 px-6` on primary CTAs.
+- Panels/modals: `p-6` minimum inner padding; `p-4` for dense sidebars.
+- Toolbar items separated by hairline dividers (`w-px bg-border`), not gaps.
 
-## Component Patterns
+## Components
 
-### Pill toggle group (1P/3D/2D style)
-```jsx
-<div className="panel-premium rounded-xl p-1.5 flex items-center gap-1">
-  <button className="px-5 py-2.5 text-base font-bold rounded-lg">Label</button>
-</div>
-```
+### Dock button (CanvasDock)
+icon 16px + label (12px, Plex Sans 500) + mono shortcut chip.
+Active: `bg-white/[0.08] text-accent`. Hover: `bg-white/[0.06]`.
 
-### Floating overlay card (guided onboarding style)
-```jsx
-<div className="panel-premium p-6 max-w-sm text-center">
-  <h2 className="font-display font-semibold text-white text-base mb-2">Title</h2>
-  <p className="text-[var(--color-text-secondary)] text-sm mb-5">Description</p>
-  <button className="btn-primary w-full py-3">Action</button>
-</div>
-```
+### Shortcut chip
+`<kbd>` — mono 10px, `border-color-border`, `bg-white/[0.04]`, rounded (4px).
 
-### Mobile HUD button (top-right controls)
-```jsx
-<button className="panel-premium p-3 rounded-xl">
-  <svg className="w-6 h-6" ... />
-</button>
-```
+### Status chip
+Success/teal-free: `text-success`; saving: `text-warning` + spinner;
+errors: `text-danger`. Chips never use the accent.
 
-## Key Rules
-
-1. **No cramped text.** Every button with text must have at least `px-4 py-2`.
-2. **Modals get `p-6` minimum.** Content must never touch modal edges.
-3. **Consistent gaps.** Use `gap-2` (8px) between items, `gap-4` (16px) between sections.
-4. **Mobile-first.** Touch targets must be at least 44px tall (`py-2.5` + text).
-5. **No layout shifts.** Toggling state must not change a component's width or height.
-6. **Transitions on everything interactive.** Add `transition-all` to buttons, toggles, panels.
-7. **Breathing room everywhere.** Every new component must have visible padding on all four sides (top, right, bottom, left). Content must never touch container edges. Use inline `style={{ padding: '...' }}` when Tailwind classes aren't rendering reliably (e.g. panels with dynamic classes). Specific minimums:
-   - Outer panel/modal container: 20px on all sides
-   - Header rows: 16px top/bottom, 20px left/right
-   - Scrollable content areas: 20px on all sides
-   - Input bars: 16px left, 12px top/bottom/right
-   - Buttons with text inside containers: 10px vertical, 16px horizontal
-   - Send/action icons inside input bars: `p-3` (12px) so icons don't touch the button edge
-   - Chat message bubbles: 18px horizontal, 10px vertical (`style={{ padding: '10px 18px' }}`) — text must never touch bubble edges
-   - Last element before a section border: at least 12px gap below it
+### Cards in chat
+Flat `bg-surface` + hairline; the *recommended* card gets a 2px left rule
+in the accent instead of a filled background.

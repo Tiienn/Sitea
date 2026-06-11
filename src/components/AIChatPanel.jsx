@@ -327,7 +327,7 @@ export default function AIChatPanel({ messages, isLoading, activeProcess, onSend
       {!isDocked && (
       <div className="flex items-center justify-between border-b border-[var(--color-border)] shrink-0" style={{ padding: '16px 20px' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/25 flex items-center justify-center shrink-0 shadow-lg shadow-teal-950/30">
+          <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/25 flex items-center justify-center shrink-0 shadow-lg shadow-black/30">
             <svg className="w-4 h-4 text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
             </svg>
