@@ -5,29 +5,30 @@
    ======================================== */
 
 :root {
-  /* Color Palette */
-  --color-bg-primary: #0f172a;
-  --color-bg-secondary: #1e293b;
-  --color-bg-elevated: #334155;
+  /* Color Palette — flat neutral dark (Lovable/Linear school): near-black
+     surfaces, quiet grays, color reserved for the brand accent */
+  --color-bg-primary: #0a0a0b;
+  --color-bg-secondary: #141416;
+  --color-bg-elevated: #1e1e21;
   --color-accent: #14b8a6;
   --color-accent-hover: #2dd4bf;
   --color-accent-glow: rgba(20, 184, 166, 0.3);
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-hover: rgba(255, 255, 255, 0.15);
-  --color-surface: rgba(255, 255, 255, 0.055);
-  --color-surface-strong: rgba(255, 255, 255, 0.09);
-  --color-surface-warm: rgba(244, 231, 197, 0.08);
-  --color-ink-soft: #d7dee8;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #6b6b74;
+  --color-border: rgba(255, 255, 255, 0.07);
+  --color-border-hover: rgba(255, 255, 255, 0.14);
+  --color-surface: rgba(255, 255, 255, 0.045);
+  --color-surface-strong: rgba(255, 255, 255, 0.08);
+  --color-surface-warm: rgba(244, 231, 197, 0.06);
+  --color-ink-soft: #d9d9de;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #fb7185;
 
   /* Panel backgrounds - dark enough for readability */
-  --color-panel: rgba(13, 20, 32, 0.9);
-  --color-panel-elevated: rgba(23, 32, 48, 0.94);
+  --color-panel: rgba(12, 12, 13, 0.92);
+  --color-panel-elevated: rgba(22, 22, 24, 0.95);
 
   /* Typography */
   --font-display: 'Outfit', system-ui, sans-serif;
@@ -776,12 +777,10 @@ body {
   pointer-events: none;
 }
 
-/* Agent cockpit sidebar (desktop shell) */
+/* Agent cockpit sidebar (desktop shell) — flat neutral, no glass */
 .agent-sidebar {
-  background: linear-gradient(180deg, rgba(9, 14, 24, 0.97), rgba(7, 11, 19, 0.98));
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(18px);
-  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.35);
+  background: #0a0a0b;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 /* Desktop shell: tool panels dock beside the agent sidebar instead of the

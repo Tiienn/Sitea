@@ -2564,3 +2564,19 @@ middle. Free rein on colors, fonts, buttons, panel positions.
 - NOTE: a concurrent session on this machine (open-world work) committed
   15a03cc which swept in v51 WIP files (sidebar, fixtures) before this
   completion commit; this commit supersedes those file states.
+
+---
+
+# v52: Flat-neutral reskin (Lovable/Linear style, user-provided reference)
+
+- [x] Global palette: slate-blue dark → flat near-black neutrals
+      (#0a0a0b / #141416 / #1e1e21, zinc text ramp); teal accent kept but
+      used sparingly. Applied via the CSS variables, so all panels/modals
+      inherit. DESIGN.md tokens updated with the new style school.
+- [x] AgentSidebar rebuilt in the reference's language: logo row, project
+      pill (avatar square + name + mono area + chevron → opens Projects),
+      compact nav list with keyboard-shortcut chips (L/B/C/P), divider,
+      docked chat, "Upgrade to Pro" card (free users → pricing modal),
+      footer with user initial + save status.
+- [x] Sidebar surface flattened: no gradient/blur/glow, hairline border.
+- [x] Verified in preview at 1440px; both agent QA suites + build pass.

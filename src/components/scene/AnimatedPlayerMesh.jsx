@@ -10,8 +10,31 @@ import {
 const TARGET_HEIGHT = 1.9 // desired character height in meters
 const FADE_DURATION = 0.25
 
-// GLB models hosted on Supabase Storage
+// Animation pack hosted on Supabase Storage (Mixamo locomotion clips)
 const ASSET_BASE = 'https://utudexexqnmaoohmnsmk.supabase.co/storage/v1/object/public/assets/models'
+// Neutral mannequin avatar (three.js examples Xbot) — self-hosted, reads as a
+// clean human-scale figure like the people in architectural visualizations
+const CHARACTER_URL = '/models/xbot.glb'
+
+// Retarget a Mixamo clip onto this skeleton: clips and characters may use
+// different bone-name prefixes (e.g. mixamorig1 vs mixamorig)
+function retargetClip(clip, charPrefix) {
+  if (!clip) return clip
+  const hipsTrack = clip.tracks.find((t) => /Hips\./i.test(t.name))
+  if (!hipsTrack) return clip
+  const animPrefix = hipsTrack.name.slice(0, hipsTrack.name.search(/Hips\./i))
+  const c = clip.clone()
+  // Keep rotation tracks only: position tracks carry the source rig's units
+  // and proportions, which mangle a different skeleton. The player's world
+  // position comes from movement physics, not the clip.
+  c.tracks = c.tracks
+    .filter((t) => t.name.endsWith('.quaternion'))
+    .map((t) => {
+      if (t.name.startsWith(animPrefix)) t.name = charPrefix + t.name.slice(animPrefix.length)
+      return t
+    })
+  return c
+}
 
 export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, moveType = 'idle' }) {
   const groupRef = useRef()
@@ -21,8 +44,8 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
   const hipsRef = useRef(null)
   const hipsBindPos = useRef(new THREE.Vector3())
 
-  // Load character model (GLB from Supabase)
-  const { scene: characterScene } = useGLTF(`${ASSET_BASE}/character.glb`)
+  // Load character model
+  const { scene: characterScene } = useGLTF(CHARACTER_URL)
 
   // Load all animations from locomotion pack
   const { animations: idleAnims } = useGLTF(`${ASSET_BASE}/idle.glb`)
@@ -45,10 +68,6 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       if (child.isMesh) {
         child.castShadow = true
         child.receiveShadow = false
-        // Casual look: hide the construction helmet and hi-vis vest so the
-        // avatar reads as a regular visitor, not a construction worker
-        const n = child.name.toLowerCase()
-        if (n.includes('helmet') || n.includes('vest')) child.visible = false
       }
       // Find the root Hips bone and save its bind position
       if (child.isBone && child.name.toLowerCase().includes('hips')) {
@@ -69,20 +88,28 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
     const mixer = new THREE.AnimationMixer(characterScene)
     mixerRef.current = mixer
 
+    // The clip pack and the avatar may use different bone-name prefixes —
+    // detect the avatar's and rename clip tracks to match
+    let hipsName = null
+    characterScene.traverse((o) => {
+      if (!hipsName && o.isBone && /hips$/i.test(o.name)) hipsName = o.name
+    })
+    const charPrefix = hipsName ? hipsName.replace(/Hips$/i, '') : ''
+
     const clips = {
-      idle: idleAnims[0],
-      walk: walkAnims[0],
-      run: runAnims[0],
-      jump: jumpAnims[0],
-      walkback: walkbackAnims[0],
-      strafe: strafeAnims[0],
-      straferight: straferightAnims[0],
-      straferunleft: straferunleftAnims[0],
-      straferunright: straferunrightAnims[0],
-      turnleft: turnleftAnims[0],
-      turnright: turnrightAnims[0],
-      turnleft90: turnleft90Anims[0],
-      turnright90: turnright90Anims[0]
+      idle: retargetClip(idleAnims[0], charPrefix),
+      walk: retargetClip(walkAnims[0], charPrefix),
+      run: retargetClip(runAnims[0], charPrefix),
+      jump: retargetClip(jumpAnims[0], charPrefix),
+      walkback: retargetClip(walkbackAnims[0], charPrefix),
+      strafe: retargetClip(strafeAnims[0], charPrefix),
+      straferight: retargetClip(straferightAnims[0], charPrefix),
+      straferunleft: retargetClip(straferunleftAnims[0], charPrefix),
+      straferunright: retargetClip(straferunrightAnims[0], charPrefix),
+      turnleft: retargetClip(turnleftAnims[0], charPrefix),
+      turnright: retargetClip(turnrightAnims[0], charPrefix),
+      turnleft90: retargetClip(turnleft90Anims[0], charPrefix),
+      turnright90: retargetClip(turnright90Anims[0], charPrefix)
     }
 
     const actions = {}

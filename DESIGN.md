@@ -44,16 +44,22 @@ Every modal and panel needs inner padding so content doesn't touch the edges.
 ## Colors (CSS Variables)
 
 ```
---color-bg-primary: #0f172a       (darkest background)
---color-bg-secondary: #1e293b     (panels, cards)
---color-bg-elevated: #334155      (inputs, toggles)
---color-accent: #14b8a6           (teal — primary action)
+--color-bg-primary: #0a0a0b       (darkest background — flat near-black)
+--color-bg-secondary: #141416     (panels, cards)
+--color-bg-elevated: #1e1e21      (inputs, toggles)
+--color-accent: #14b8a6           (teal — primary action, used sparingly)
 --color-accent-hover: #2dd4bf     (hover state)
---color-text-primary: #f8fafc     (white text)
---color-text-secondary: #94a3b8   (gray text)
---color-text-muted: #64748b       (dim text)
---color-border: rgba(255,255,255,0.08)
+--color-text-primary: #fafafa     (white text)
+--color-text-secondary: #a1a1aa   (gray text)
+--color-text-muted: #6b6b74      (dim text)
+--color-border: rgba(255,255,255,0.07)
 ```
+
+**Style school (since v52):** flat neutral dark — near-black surfaces, no
+gradients/glass/glow, hairline borders, compact icon+label nav rows
+(rounded-lg, 36px, hover bg-white/[0.05], active bg-white/[0.08]),
+keyboard-shortcut chips in mono, color reserved for the teal accent and
+status moments.
 
 **Active/selected state:** `bg-[var(--color-accent)] text-[var(--color-bg-primary)]`
 **Inactive state:** `text-[var(--color-text-secondary)]`

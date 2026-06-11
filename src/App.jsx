@@ -5901,6 +5901,10 @@ function App() {
           canEdit={canEdit}
           onEditLand={startDefiningLand}
           isDefiningLand={isDefiningLand}
+          isPaidUser={isPaidUser}
+          onUpgrade={() => setShowPricingModal(true)}
+          onOpenProjects={() => setShowProjectsModal(true)}
+          userInitial={user?.email?.charAt(0)?.toUpperCase() || null}
         />
       )}
 
