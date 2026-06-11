@@ -10,10 +10,15 @@ import {
 const TARGET_HEIGHT = 1.8 // desired character height in meters
 const FADE_DURATION = 0.25
 
-// Neutral mannequin avatar (three.js examples Xbot) — self-hosted, with its
-// own embedded idle/walk/run clips so no cross-rig retargeting is needed.
-// Reads as a clean human-scale figure like the people in archviz renders.
-const CHARACTER_URL = '/models/xbot.glb'
+// Stylized casual human (Quaternius "Casual Character", CC0) — self-hosted,
+// with its own embedded animation set so no cross-rig retargeting is needed.
+// Matches Sitea's low-poly art style and reads as a relatable person.
+const CHARACTER_URL = '/models/character-casual.glb'
+
+// Clip names look like "CharacterArmature|Walk" — find by suffix
+function findClip(animations, name) {
+  return animations.find((c) => c.name === name || c.name.endsWith(`|${name}`))
+}
 
 export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, moveType = 'idle' }) {
   const groupRef = useRef()
@@ -32,18 +37,6 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       if (child.isMesh) {
         child.castShadow = true
         child.receiveShadow = false
-        // The GLB ships with salmon-red materials; restyle as a clean
-        // mannequin: light surface, graphite joints
-        if (child.material) {
-          child.material = child.material.clone()
-          if (/joint/i.test(child.material.name)) {
-            child.material.color.set('#3a4046')
-            child.material.metalness = 0.3
-          } else {
-            child.material.color.set('#e9ecef')
-            child.material.metalness = 0.05
-          }
-        }
       }
       // Find the root Hips bone and save its bind position
       if (child.isBone && child.name.toLowerCase().includes('hips')) {
@@ -65,24 +58,23 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
     const mixer = new THREE.AnimationMixer(characterScene)
     mixerRef.current = mixer
 
-    const byName = {}
-    for (const clip of animations) byName[clip.name] = clip
-    const idle = byName.idle
-    const walk = byName.walk
-    const run = byName.run
-    const walkback = walk ? walk.clone() : null
-    if (walkback) walkback.name = 'walkback'
+    const idle = findClip(animations, 'Idle_Neutral') || findClip(animations, 'Idle')
+    const walk = findClip(animations, 'Walk')
+    const run = findClip(animations, 'Run')
+    const runBack = findClip(animations, 'Run_Back') || walk
+    const runLeft = findClip(animations, 'Run_Left') || walk
+    const runRight = findClip(animations, 'Run_Right') || walk
 
     const clips = {
       idle,
       walk,
       run,
       jump: idle,
-      walkback,
-      strafe: walk,
-      straferight: walk,
-      straferunleft: run,
-      straferunright: run,
+      walkback: runBack,
+      strafe: runLeft,
+      straferight: runRight,
+      straferunleft: runLeft,
+      straferunright: runRight,
       turnleft: idle,
       turnright: idle,
       turnleft90: idle,
@@ -99,8 +91,7 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       if (!seen.has(action)) {
         seen.add(action)
         action.play()
-        action.setEffectiveWeight(clip.name === 'idle' ? 1 : 0)
-        if (clip.name === 'walkback') action.timeScale = -1
+        action.setEffectiveWeight(clip === idle ? 1 : 0)
       }
       actions[name] = action
     }
@@ -137,7 +128,7 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       if (from && to && from !== to) {
         to.reset()
         to.setEffectiveWeight(1)
-        to.setEffectiveTimeScale(to.getClip().name === 'walkback' ? -1 : 1)
+        to.setEffectiveTimeScale(1)
         from.crossFadeTo(to, FADE_DURATION, true)
       }
 
