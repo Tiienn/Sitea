@@ -7,34 +7,13 @@ import {
   PLAYER_HEIGHT
 } from '../../constants/landSceneConstants'
 
-const TARGET_HEIGHT = 1.9 // desired character height in meters
+const TARGET_HEIGHT = 1.8 // desired character height in meters
 const FADE_DURATION = 0.25
 
-// Animation pack hosted on Supabase Storage (Mixamo locomotion clips)
-const ASSET_BASE = 'https://utudexexqnmaoohmnsmk.supabase.co/storage/v1/object/public/assets/models'
-// Neutral mannequin avatar (three.js examples Xbot) — self-hosted, reads as a
-// clean human-scale figure like the people in architectural visualizations
+// Neutral mannequin avatar (three.js examples Xbot) — self-hosted, with its
+// own embedded idle/walk/run clips so no cross-rig retargeting is needed.
+// Reads as a clean human-scale figure like the people in archviz renders.
 const CHARACTER_URL = '/models/xbot.glb'
-
-// Retarget a Mixamo clip onto this skeleton: clips and characters may use
-// different bone-name prefixes (e.g. mixamorig1 vs mixamorig)
-function retargetClip(clip, charPrefix) {
-  if (!clip) return clip
-  const hipsTrack = clip.tracks.find((t) => /Hips\./i.test(t.name))
-  if (!hipsTrack) return clip
-  const animPrefix = hipsTrack.name.slice(0, hipsTrack.name.search(/Hips\./i))
-  const c = clip.clone()
-  // Keep rotation tracks only: position tracks carry the source rig's units
-  // and proportions, which mangle a different skeleton. The player's world
-  // position comes from movement physics, not the clip.
-  c.tracks = c.tracks
-    .filter((t) => t.name.endsWith('.quaternion'))
-    .map((t) => {
-      if (t.name.startsWith(animPrefix)) t.name = charPrefix + t.name.slice(animPrefix.length)
-      return t
-    })
-  return c
-}
 
 export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, moveType = 'idle' }) {
   const groupRef = useRef()
@@ -44,30 +23,27 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
   const hipsRef = useRef(null)
   const hipsBindPos = useRef(new THREE.Vector3())
 
-  // Load character model
-  const { scene: characterScene } = useGLTF(CHARACTER_URL)
+  // Load character model (embedded animations included)
+  const { scene: characterScene, animations } = useGLTF(CHARACTER_URL)
 
-  // Load all animations from locomotion pack
-  const { animations: idleAnims } = useGLTF(`${ASSET_BASE}/idle.glb`)
-  const { animations: walkAnims } = useGLTF(`${ASSET_BASE}/walk.glb`)
-  const { animations: runAnims } = useGLTF(`${ASSET_BASE}/run.glb`)
-  const { animations: jumpAnims } = useGLTF(`${ASSET_BASE}/jump.glb`)
-  const { animations: walkbackAnims } = useGLTF(`${ASSET_BASE}/walkback.glb`)
-  const { animations: strafeAnims } = useGLTF(`${ASSET_BASE}/strafe.glb`)
-  const { animations: straferightAnims } = useGLTF(`${ASSET_BASE}/straferight.glb`)
-  const { animations: straferunleftAnims } = useGLTF(`${ASSET_BASE}/straferunleft.glb`)
-  const { animations: straferunrightAnims } = useGLTF(`${ASSET_BASE}/straferunright.glb`)
-  const { animations: turnleftAnims } = useGLTF(`${ASSET_BASE}/turnleft.glb`)
-  const { animations: turnrightAnims } = useGLTF(`${ASSET_BASE}/turnright.glb`)
-  const { animations: turnleft90Anims } = useGLTF(`${ASSET_BASE}/turnleft90.glb`)
-  const { animations: turnright90Anims } = useGLTF(`${ASSET_BASE}/turnright90.glb`)
-
-  // Auto-detect model height and compute correct scale
+  // Auto-detect model height, restyle materials, and find the hips bone
   const modelScale = useMemo(() => {
     characterScene.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true
         child.receiveShadow = false
+        // The GLB ships with salmon-red materials; restyle as a clean
+        // mannequin: light surface, graphite joints
+        if (child.material) {
+          child.material = child.material.clone()
+          if (/joint/i.test(child.material.name)) {
+            child.material.color.set('#3a4046')
+            child.material.metalness = 0.3
+          } else {
+            child.material.color.set('#e9ecef')
+            child.material.metalness = 0.05
+          }
+        }
       }
       // Find the root Hips bone and save its bind position
       if (child.isBone && child.name.toLowerCase().includes('hips')) {
@@ -79,51 +55,54 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
     })
     const box = new THREE.Box3().setFromObject(characterScene)
     const height = box.max.y - box.min.y
-    console.log('[PlayerMesh] Model height:', height, '-> scale:', height > 0 ? TARGET_HEIGHT / height : 1)
     return height > 0 ? TARGET_HEIGHT / height : 1
   }, [characterScene])
 
-  // Set up AnimationMixer and all actions
+  // Set up AnimationMixer using the model's own clips. Movement states the
+  // pack doesn't cover map onto the nearest clip (walkback plays walk in
+  // reverse via negative timeScale).
   useEffect(() => {
     const mixer = new THREE.AnimationMixer(characterScene)
     mixerRef.current = mixer
 
-    // The clip pack and the avatar may use different bone-name prefixes —
-    // detect the avatar's and rename clip tracks to match
-    let hipsName = null
-    characterScene.traverse((o) => {
-      if (!hipsName && o.isBone && /hips$/i.test(o.name)) hipsName = o.name
-    })
-    const charPrefix = hipsName ? hipsName.replace(/Hips$/i, '') : ''
+    const byName = {}
+    for (const clip of animations) byName[clip.name] = clip
+    const idle = byName.idle
+    const walk = byName.walk
+    const run = byName.run
+    const walkback = walk ? walk.clone() : null
+    if (walkback) walkback.name = 'walkback'
 
     const clips = {
-      idle: retargetClip(idleAnims[0], charPrefix),
-      walk: retargetClip(walkAnims[0], charPrefix),
-      run: retargetClip(runAnims[0], charPrefix),
-      jump: retargetClip(jumpAnims[0], charPrefix),
-      walkback: retargetClip(walkbackAnims[0], charPrefix),
-      strafe: retargetClip(strafeAnims[0], charPrefix),
-      straferight: retargetClip(straferightAnims[0], charPrefix),
-      straferunleft: retargetClip(straferunleftAnims[0], charPrefix),
-      straferunright: retargetClip(straferunrightAnims[0], charPrefix),
-      turnleft: retargetClip(turnleftAnims[0], charPrefix),
-      turnright: retargetClip(turnrightAnims[0], charPrefix),
-      turnleft90: retargetClip(turnleft90Anims[0], charPrefix),
-      turnright90: retargetClip(turnright90Anims[0], charPrefix)
+      idle,
+      walk,
+      run,
+      jump: idle,
+      walkback,
+      strafe: walk,
+      straferight: walk,
+      straferunleft: run,
+      straferunright: run,
+      turnleft: idle,
+      turnright: idle,
+      turnleft90: idle,
+      turnright90: idle
     }
 
     const actions = {}
+    const seen = new Set()
     for (const [name, clip] of Object.entries(clips)) {
-      if (clip) {
-        const action = mixer.clipAction(clip)
-        if (name === 'jump' || name === 'turnleft90' || name === 'turnright90') {
-          action.setLoop(THREE.LoopOnce)
-          action.clampWhenFinished = true
-        }
+      if (!clip) continue
+      // clipAction returns the same action for the same clip — reuse it so
+      // shared clips (e.g. strafe → walk) don't fight over weights
+      const action = mixer.clipAction(clip)
+      if (!seen.has(action)) {
+        seen.add(action)
         action.play()
-        action.setEffectiveWeight(name === 'idle' ? 1 : 0)
-        actions[name] = action
+        action.setEffectiveWeight(clip.name === 'idle' ? 1 : 0)
+        if (clip.name === 'walkback') action.timeScale = -1
       }
+      actions[name] = action
     }
 
     actionsRef.current = actions
@@ -133,7 +112,7 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       mixer.stopAllAction()
       mixerRef.current = null
     }
-  }, [characterScene, idleAnims, walkAnims, runAnims, jumpAnims, walkbackAnims, strafeAnims, straferightAnims, straferunleftAnims, straferunrightAnims, turnleftAnims, turnrightAnims, turnleft90Anims, turnright90Anims])
+  }, [characterScene, animations])
 
   useFrame((_, delta) => {
     if (!visible) return
@@ -155,10 +134,10 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       const from = actionsRef.current[currentActionRef.current]
       const to = actionsRef.current[desired]
 
-      if (from && to) {
+      if (from && to && from !== to) {
         to.reset()
         to.setEffectiveWeight(1)
-        to.setEffectiveTimeScale(1)
+        to.setEffectiveTimeScale(to.getClip().name === 'walkback' ? -1 : 1)
         from.crossFadeTo(to, FADE_DURATION, true)
       }
 

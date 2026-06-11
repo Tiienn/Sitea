@@ -1,5 +1,8 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: Avatar replacement (user feedback: transparent body, bald)
+- [x] Replace the player character entirely: Mixamo Ch17 worker GLB → three.js Xbot mannequin (self-hosted at public/models/xbot.glb), the neutral white/graphite scale figure used in archviz. Ships its own idle/walk/run clips on its own skeleton, so the cross-rig retarget problem disappears; extra movement states map to the nearest clip (walkback = walk reversed). GLB's shipped salmon materials restyled in code. Drops 13 animation GLB downloads from Supabase.
+
 ## Active Plan: Visual cleanup round (user feedback on professional grade)
 - [x] Remove flowers and the 3D grass-tuft speckle ("green green on the floor") — GroundFoliage keeps bushes + rocks only; GrassField deleted
 - [x] Breadcrumb trail dots smaller (0.05m) and fainter (0.25 opacity)
