@@ -2504,7 +2504,7 @@ readout prose pushed the plan canvas below the fold.
 
 ---
 
-# v51: Agentic workbench revamp (PLANNED — awaiting user verification)
+# v51: Agentic workbench revamp (SHIPPED phase A)
 
 User wants a full UI revamp: agent-first layout like Claude Code desktop /
 Codex — persistent left sidebar with the chat and options, canvas in the
@@ -2534,14 +2534,33 @@ middle. Free rein on colors, fonts, buttons, panel positions.
   this phase — sidebar revamp is desktop-first to avoid breaking touch
 
 ## Plan
-- [ ] A1. New `AgentSidebar` component: docked variant of AIChatPanel
+- [x] A1. New `AgentSidebar` component: docked variant of AIChatPanel
       (chat list + composer, no fixed positioning) + header + tool rail.
-- [ ] A2. App.jsx desktop layout: left sidebar column, canvas offset,
+- [x] A2. App.jsx desktop layout: left sidebar column, canvas offset,
       panels dock at sidebar edge, ribbon hidden on desktop, floating
       chat button removed on desktop.
-- [ ] A3. Wire tool rail to existing togglePanel actions; keyboard
+- [x] A3. Wire tool rail to existing togglePanel actions; keyboard
       shortcuts unchanged.
-- [ ] B1. Polish pass: mono accents for stats, panel skin alignment,
+- [~] B1. (cockpit surface + mono area badge shipped; deeper skin pass pending user feedback) Polish pass: mono accents for stats, panel skin alignment,
       view-controls restyle to match.
-- [ ] C1. Verify: build, agent-text-actions QA, browser smoke (desktop +
+- [x] C1. Verify: build, agent-text-actions QA, browser smoke (desktop +
       narrow viewport), screenshots for user review; deploy.
+
+
+## v51 review
+- AgentSidebar (380px, lg+): brand header, project name, mono area badge,
+  Edit land, docked always-on agent chat, tool rail (Land/Build/Compare/
+  Export/Share/Save) replacing the bottom ribbon on desktop.
+- AIChatPanel gained a `docked` variant (no fixed positioning, no own
+  header); floating variant untouched for the mobile shell.
+- Tool panels dock at left:380px on lg+ via a CSS media-query override —
+  no inline-style surgery on the four panel wrappers.
+- Old desktop "Define Your Land" card hidden on lg+ (sidebar carries it).
+- Verified in live preview at 1440px and 375px; Land panel docks beside
+  the sidebar; mobile shell unchanged.
+- Playwright QA updated for the two-shell world: selectors scope to the
+  visible chat panel; chat-visibility expectations apply per shell
+  (docked chat never closes on desktop). Both agent QA suites pass.
+- NOTE: a concurrent session on this machine (open-world work) committed
+  15a03cc which swept in v51 WIP files (sidebar, fixtures) before this
+  completion commit; this commit supersedes those file states.

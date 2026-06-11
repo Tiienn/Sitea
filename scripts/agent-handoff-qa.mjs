@@ -130,7 +130,7 @@ async function runCase(browser, baseUrl, testCase, viewport) {
   })
 
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 15000 })
+  await page.waitForSelector('.sitea-agent-panel:visible', { state: 'visible', timeout: 15000 })
   await page.getByRole('button', { name: testCase.actionLabel }).click()
   await page.waitForTimeout(900)
 
@@ -158,7 +158,7 @@ async function runCase(browser, baseUrl, testCase, viewport) {
 
     return {
       canvasCount: document.querySelectorAll('canvas').length,
-      chatVisible: visible(document.querySelector('.sitea-agent-panel')),
+      chatVisible: Array.from(document.querySelectorAll('.sitea-agent-panel')).some(el => visible(el)),
       viewControlsVisible: hasText('3D') || hasText('2D') || hasText('1P'),
       expectedToastVisible: hasText(expectedToast),
       horizontalOverflow: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - innerWidth,
@@ -176,7 +176,14 @@ async function runCase(browser, baseUrl, testCase, viewport) {
   if (consoleErrors.length > 0) {
     fail('Browser console errors found', { consoleErrors, testCase: testCase.name, viewport: viewport.name })
   }
-  if (audit.chatVisible) {
+  // Desktop shell docks the chat permanently in the agent sidebar — after a
+  // handoff the canvas shows the result NEXT to the chat. Only the mobile
+  // shell still closes the floating chat to reveal the scene.
+  if (viewport.width >= 1024) {
+    if (!audit.chatVisible) {
+      fail('Docked agent chat disappeared after visual handoff', { audit, testCase: testCase.name, viewport: viewport.name })
+    }
+  } else if (audit.chatVisible) {
     fail('Agent chat stayed visible after visual handoff', { audit, testCase: testCase.name, viewport: viewport.name })
   }
   if (!audit.viewControlsVisible) {

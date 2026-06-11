@@ -29,3 +29,4 @@ output/
 .mcp.json
 .env*.local
 .playwright-mcp/
+.claude/launch.json

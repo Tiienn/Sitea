@@ -44,6 +44,7 @@ import FoundationPropertiesPanel from './components/FoundationPropertiesPanel'
 import StairsPropertiesPanel from './components/StairsPropertiesPanel'
 import AIChatButton from './components/AIChatButton'
 import AIChatPanel from './components/AIChatPanel'
+import AgentSidebar from './components/AgentSidebar'
 import { useAIChat } from './hooks/useAIChat'
 
 // Import constants from LandScene (these are re-exported)
@@ -4874,11 +4875,11 @@ function App() {
         />
       </div>
 
-      {/* Navigation ribbon - bottom in portrait, left sidebar in landscape */}
+      {/* Navigation ribbon - bottom in portrait, left rail in landscape; replaced by AgentSidebar on desktop */}
       <div className={
         isLandscape
-          ? "fixed left-0 top-0 bottom-0 w-12 z-50 ribbon-nav landscape-nav flex flex-col"
-          : "fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up safe-area-bottom"
+          ? "lg:hidden fixed left-0 top-0 bottom-0 w-12 z-50 ribbon-nav landscape-nav flex flex-col"
+          : "lg:hidden fixed bottom-0 left-0 right-0 z-50 ribbon-nav animate-slide-up safe-area-bottom"
       } style={isGuidedMode || isMobileChatFocused ? { display: 'none' } : undefined}>
         <div className={
           isLandscape
@@ -5262,9 +5263,9 @@ function App() {
             )}
           </div>
         ) : (
-          /* Desktop: full version */
+          /* Desktop: full version — hidden on lg+ where the AgentSidebar header carries area + edit land */
           <div
-            className="absolute top-4 panel-premium p-5 text-white z-50 min-w-[220px] animate-fade-in transition-all duration-300"
+            className="lg:hidden absolute top-4 panel-premium p-5 text-white z-50 min-w-[220px] animate-fade-in transition-all duration-300"
             style={{
               left: (activePanel === 'build' || activePanel === 'compare' || activePanel === 'land' || activePanel === 'export')
                 ? (panelExpanded ? '332px' : '72px')
@@ -5886,24 +5887,43 @@ function App() {
         </div>
       )}
 
-      {/* AI Chat */}
-      <AIChatButton
-        onClick={() => setShowAIChat(true)}
-        visible={!showPricingModal && !showAuthModal && !isReadOnly && !showAIChat && !isGuidedMode && !isDefiningLand}
-        locked={false}
-      />
-      {isAIChatVisible && (
-        <AIChatPanel
-          messages={aiChat.messages}
-          isLoading={aiChat.isLoading}
-          activeProcess={aiChat.activeProcess}
-          error={aiChat.error}
-          onSend={aiChat.sendMessage}
-          onAction={aiChat.handleAction}
-          onClear={aiChat.clearChat}
-          onClose={() => setShowAIChat(false)}
+      {/* Agent cockpit sidebar — desktop shell (lg+) */}
+      {!isReadOnly && !isGuidedMode && (
+        <AgentSidebar
+          aiChat={aiChat}
+          projectName={currentProjectId ? currentProjectName : null}
+          areaLabel={formatArea(area, areaUnit)}
+          activePanel={activePanel}
+          onTogglePanel={togglePanel}
+          onShare={handleShare}
+          onSave={handleSave}
+          saveState={projectSaveStatus === 'saving' ? 'saving' : (saveStatus === 'saved' || projectSaveStatus === 'saved') ? 'saved' : 'idle'}
+          canEdit={canEdit}
+          onEditLand={startDefiningLand}
+          isDefiningLand={isDefiningLand}
         />
       )}
+
+      {/* AI Chat — floating, mobile/tablet shell only */}
+      <div className="lg:hidden">
+        <AIChatButton
+          onClick={() => setShowAIChat(true)}
+          visible={!showPricingModal && !showAuthModal && !isReadOnly && !showAIChat && !isGuidedMode && !isDefiningLand}
+          locked={false}
+        />
+        {isAIChatVisible && (
+          <AIChatPanel
+            messages={aiChat.messages}
+            isLoading={aiChat.isLoading}
+            activeProcess={aiChat.activeProcess}
+            error={aiChat.error}
+            onSend={aiChat.sendMessage}
+            onAction={aiChat.handleAction}
+            onClear={aiChat.clearChat}
+            onClose={() => setShowAIChat(false)}
+          />
+        )}
+      </div>
 
       {showPricingModal && (
         <Suspense fallback={<LoadingFallback />}>

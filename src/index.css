@@ -776,6 +776,27 @@ body {
   pointer-events: none;
 }
 
+/* Agent cockpit sidebar (desktop shell) */
+.agent-sidebar {
+  background: linear-gradient(180deg, rgba(9, 14, 24, 0.97), rgba(7, 11, 19, 0.98));
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.35);
+}
+
+/* Desktop shell: tool panels dock beside the agent sidebar instead of the
+   screen edge. The !important wins over the inline `left` style the mobile
+   layout computes. */
+@media (min-width: 1024px) {
+  .build-sidebar {
+    left: 380px !important;
+    bottom: 0 !important;
+  }
+  .build-sidebar.closed {
+    transform: translateX(calc(-100% - 380px));
+  }
+}
+
 /* Icon Rail - always visible when sidebar open */
 .icon-rail {
   width: 56px;

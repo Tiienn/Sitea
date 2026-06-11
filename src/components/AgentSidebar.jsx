@@ -53,6 +53,7 @@ export default function AgentSidebar({
   areaLabel,
   activePanel,
   onTogglePanel,
+  onShare,
   onSave,
   saveState,
   canEdit,
@@ -131,7 +132,7 @@ export default function AgentSidebar({
           {TOOLS.map(tool => (
             <button
               key={tool.id}
-              onClick={() => onTogglePanel(tool.id)}
+              onClick={() => (tool.id === 'share' ? onShare() : onTogglePanel(tool.id))}
               disabled={!canEdit && tool.id === 'land'}
               title={tool.shortcut ? `${tool.label} (${tool.shortcut})` : tool.label}
               className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 transition-all ${

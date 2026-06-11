@@ -1087,7 +1087,7 @@ async function readAudit(page, expectedToast) {
 
     return {
       canvasCount: document.querySelectorAll('canvas').length,
-      chatVisible: visible(document.querySelector('.sitea-agent-panel')),
+      chatVisible: Array.from(document.querySelectorAll('.sitea-agent-panel')).some(el => visible(el)),
       expectedToastVisible: toastText ? hasText(toastText) : true,
       horizontalOverflow: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - innerWidth,
       storedText,
@@ -1130,17 +1130,18 @@ function validateExpectedLayout(audit, expectedLayout, testCaseName, { allowPool
 }
 
 async function ensureChatOpen(page) {
-  const panel = page.locator('.sitea-agent-panel')
+  const panel = page.locator('.sitea-agent-panel:visible')
   if (await panel.isVisible().catch(() => false)) return
   const launcher = page.locator('.sitea-agent-launcher')
   await launcher.waitFor({ state: 'visible', timeout: 5000 })
   await launcher.click()
-  await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 5000 })
+  await page.waitForSelector('.sitea-agent-panel:visible', { state: 'visible', timeout: 5000 })
 }
 
 async function submitPrompt(page, prompt, expectedStoredText, testCaseName = 'unknown') {
   await ensureChatOpen(page)
-  const input = page.getByPlaceholder('Ask Sitea or upload a plan...')
+  // Two chat panels exist since the docked sidebar (desktop) — scope to the visible one
+  const input = page.locator('.sitea-agent-panel:visible').getByPlaceholder('Ask Sitea or upload a plan...')
   await input.fill(prompt)
   await input.press('Enter')
   await waitForStoredText(page, expectedStoredText, testCaseName)
@@ -1176,7 +1177,7 @@ async function clickActionAndWait(page, label, expectedStoredText) {
 
 async function reloadApp(page) {
   await page.reload({ waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 15000 })
+  await page.waitForSelector('.sitea-agent-panel:visible', { state: 'visible', timeout: 15000 })
 }
 
 async function runCase(browser, baseUrl, testCase) {
@@ -1229,7 +1230,7 @@ async function runCase(browser, baseUrl, testCase) {
   })
 
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('.sitea-agent-panel', { state: 'visible', timeout: 15000 })
+  await page.waitForSelector('.sitea-agent-panel:visible', { state: 'visible', timeout: 15000 })
 
   for (const setup of testCase.setupPrompts || []) {
     await submitPrompt(page, setup.prompt, setup.expectedPromptText || setup.expectedStoredText, testCase.name)
@@ -1271,9 +1272,13 @@ async function runCase(browser, baseUrl, testCase) {
 
   await context.close()
 
-  const expectedChatVisible = testCase.clickActionLabel
+  const caseChatExpectation = testCase.clickActionLabel
     ? testCase.expectChatVisibleAfterClick
     : testCase.expectChatVisible
+  // The desktop shell docks the chat permanently in the agent sidebar, so
+  // close-after-action expectations only apply to the mobile shell.
+  const isDesktopShellViewport = (VIEWPORTS[testCase.viewport || 'desktop']?.width || 1280) >= 1024
+  const expectedChatVisible = isDesktopShellViewport ? true : caseChatExpectation
 
   if (consoleErrors.length > 0) {
     fail('Browser console errors found', { consoleErrors, testCase: testCase.name })
