@@ -960,79 +960,54 @@ export default function FloorPlanReviewModal({ review, onClose, onPlace }) {
         </div>
 
         <div className="max-h-[calc(88vh-156px)] overflow-y-auto px-5 py-5 sm:px-6">
-          <div className="mb-4 rounded-2xl border border-teal-300/15 bg-teal-950/25 px-4 py-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="rounded-full border border-teal-300/25 bg-teal-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-teal-100">
-                    Sitea readout
-                  </span>
-                  <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${readinessStyle.badge}`}>
-                    {readiness.label}
-                  </span>
-                  <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${
-                    readout.scaleState === 'good'
-                      ? 'border border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
-                      : 'border border-amber-300/25 bg-amber-300/10 text-amber-100'
-                  }`}
-                  >
-                    {readout.scaleState === 'good' ? 'Scale usable' : 'Check scale'}
-                  </span>
-                </div>
-                <p className="text-sm font-semibold leading-6 text-white">{readout.summary}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-300">{readout.caveat}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-200">{readiness.detail}</p>
-                <p className="mt-2 text-xs leading-5 text-slate-400">{readinessUpdateCopy}</p>
-              </div>
-              <div className="grid min-w-[220px] grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
-                {[
-                  ['Walls', readout.counts.wallCount],
-                  ['Doors', readout.counts.doorCount],
-                  ['Windows', readout.counts.windowCount],
-                  ['Rooms', readout.counts.roomCount],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
-                    <div className="mt-0.5 text-lg font-bold text-white">{value}</div>
-                  </div>
-                ))}
-              </div>
+          <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${readinessStyle.badge}`}>
+                {readiness.label}
+              </span>
+              <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${
+                readout.scaleState === 'good'
+                  ? 'border border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
+                  : 'border border-amber-300/25 bg-amber-300/10 text-amber-100'
+              }`}
+              >
+                {readout.scaleState === 'good' ? 'Scale usable' : 'Check scale'}
+              </span>
+              <p className="min-w-[200px] flex-1 text-sm leading-6 text-slate-300">{readiness.detail}</p>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">What Sitea found</p>
-                <div className="space-y-2">
-                  {readout.findings.slice(0, 3).map((item, index) => (
-                    <p key={`${item}-${index}`} className="text-sm leading-6 text-slate-200">{item}</p>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-amber-300/20 bg-amber-950/15 px-4 py-3">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-amber-100">Check before 3D</p>
-                <div className="space-y-2">
-                  {readout.reviewNotes.slice(0, 3).map((item, index) => (
-                    <p key={`${item}-${index}`} className="text-sm leading-6 text-amber-50/90">{item}</p>
-                  ))}
-                </div>
-              </div>
-              <div className={`rounded-2xl border px-4 py-3 md:col-span-2 ${readinessStyle.panel}`}>
-                <p className={`mb-2 text-xs font-bold uppercase tracking-wide ${readinessStyle.title}`}>Readiness checklist</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {readiness.checklist.map((item, index) => (
-                    <p key={`${item}-${index}`} className="text-sm leading-6">{item}</p>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {Object.entries(counts).map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
-                <div className="mt-1 text-2xl font-bold text-white">{value}</div>
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {Object.entries(counts).map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center">
+                  <div className="text-lg font-bold leading-6 text-white">{value}</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
+                </div>
+              ))}
+            </div>
+
+            <details className="group mt-3">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-2 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 transition-all hover:text-slate-200 [&::-webkit-details-marker]:hidden">
+                <svg className="h-3.5 w-3.5 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m9 5 7 7-7 7" />
+                </svg>
+                Details & checklist
+              </summary>
+              <div className="mt-2 grid gap-3 px-2 pb-1 md:grid-cols-2">
+                <div>
+                  <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">What Sitea found</p>
+                  {readout.findings.slice(0, 3).map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm leading-6 text-slate-300">{item}</p>
+                  ))}
+                  <p className="mt-1.5 text-xs leading-5 text-slate-500">{readinessUpdateCopy}</p>
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-100/80">Check before 3D</p>
+                  {[...readout.reviewNotes.slice(0, 2), ...readiness.checklist.slice(0, 2)].map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm leading-6 text-slate-300">{item}</p>
+                  ))}
+                </div>
               </div>
-            ))}
+            </details>
           </div>
 
           <FloorPlanReviewCanvas

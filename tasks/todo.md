@@ -2477,3 +2477,22 @@ printed); the 500 body was non-JSON — a Vercel platform transient at
 response delivery, not an analyzer bug. Local repro at identical size:
 200 OK. Client now retries the analysis once (2s delay) when the response
 status is 5xx before surfacing an error.
+
+---
+
+# v50: Simplify the review modal (user feedback: easier on the eyes)
+
+User confirmed the 40x30 plan converts well on v49 but found the Review
+detected plan modal cluttered. Counts were displayed 3 times; "Check
+before 3D" and "Readiness checklist" overlapped; four paragraphs of
+readout prose pushed the plan canvas below the fold.
+
+- [x] One compact status strip: readiness chip + scale chip + a single
+      detail sentence.
+- [x] One live stat row (walls/doors/windows/rooms/stairs) — duplicates
+      removed.
+- [x] Findings, review notes, checklist, and update copy folded into a
+      collapsed "Details & checklist" disclosure.
+- [x] Canvas (the actual work surface) now sits directly under the strip;
+      "Needs a look" advisories appear right above it when present.
+- [x] Lint, review QA, build pass.
