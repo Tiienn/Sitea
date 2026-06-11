@@ -49,9 +49,10 @@ export const ORBIT_START_DISTANCE = 10.0
 export const FOLLOW_SMOOTH = 0.1
 export const YAW_SMOOTH = 0.08
 
-// Movement speed constants
-export const WALK_SPEED = 3.0
-export const RUN_SPEED = 6.0
+// Movement speed constants — true-to-life so walking the plot conveys real
+// scale (average human walk ≈ 1.4 m/s; 1.6 keeps it honest but not sluggish)
+export const WALK_SPEED = 1.6
+export const RUN_SPEED = 4.0
 export const ZOOM_SPEED = 0.002
 export const PINCH_SPEED = 0.01
 

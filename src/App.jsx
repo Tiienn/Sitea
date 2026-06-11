@@ -5473,7 +5473,7 @@ function App() {
         <div className={`sitea-mobile-view-controls absolute right-3 z-30 flex flex-col items-end gap-2 animate-fade-in ${isReadOnly ? 'top-20' : 'top-12'}`}>
           <div className="flex items-center gap-2">
             <div className="sitea-control-panel sitea-segment">
-              {[['firstPerson', '1P'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
+              {[['firstPerson', 'Walk'], ['orbit', '3D'], ['2d', '2D']].map(([mode, label]) => (
                 <button key={mode} onClick={() => setViewMode(mode)}
                   className={`sitea-segment-btn ${viewMode === mode ? 'active' : ''}`}
                 >{label}</button>
@@ -5577,9 +5577,9 @@ function App() {
                   <button
                     onClick={() => setViewMode('firstPerson')}
                     className={`sitea-segment-btn ${viewMode === 'firstPerson' ? 'active' : ''}`}
-                    title="First Person View (Press 1)"
+                    title="Walk your land (Press 1)"
                   >
-                    1P
+                    Walk
                   </button>
                   <button
                     onClick={() => setViewMode('orbit')}
@@ -6027,7 +6027,7 @@ function App() {
 
                   {helpGuideSection === 'views' && (
                     <div className="space-y-1.5 text-gray-300">
-                      <div className="flex gap-3"><span className="text-white font-medium w-8 shrink-0">1P</span><span>First-person walkthrough — feel the real scale</span></div>
+                      <div className="flex gap-3"><span className="text-white font-medium w-8 shrink-0">Walk</span><span>Walk your land — feel the real scale at true walking speed</span></div>
                       <div className="flex gap-3"><span className="text-white font-medium w-8 shrink-0">3D</span><span>Orbit view — rotate and zoom freely</span></div>
                       <div className="flex gap-3"><span className="text-white font-medium w-8 shrink-0">2D</span><span>Top-down view — precise placement and measurements</span></div>
                     </div>

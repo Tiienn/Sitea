@@ -1,5 +1,23 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: Embodiment Package — "Walk Your Land"
+
+Direction (user-confirmed): Sitea should feel like a game — walkthrough/feel/see the land and floor plan. First deliverable: the embodiment package. Keep changes small and scoped to the scene/controls layer.
+
+- [x] True walk speed: WALK_SPEED → 1.6 m/s, RUN_SPEED → 4.0 m/s in landSceneConstants.js so crossing the plot takes real-world time (the product point: feel the size)
+- [x] Procedural audio (no assets): Web Audio wind bed + occasional bird chirps + grass footsteps synced to stride distance; starts on first user gesture; small mute toggle; new hook src/hooks/useAmbientAudio.js
+- [x] Breadcrumb trail + step counter: record walked path in first-person mode, draw a fading dotted trail on the ground, HUD chip with steps + meters walked
+- [x] "Walk your land" entry ritual: switching to 1P animates the camera from its current position down to eye height over ~1.2s instead of teleporting; rename the 1P view tab to "Walk"
+- [x] Verify in browser (movement, trail, HUD, no console errors), npm run build, commit, deploy
+
+### Embodiment Review
+- Walk speed verified in-browser: 4s of W-key = 6 m = exactly 1.6 m/s; HUD read "9 steps · 6 m".
+- Audio is fully synthesized (src/utils/ambientAudio.js): looped-noise wind bed with LFO breathing, FM sine bird chirps on a random 2.5-9.5s timer, bandpassed noise-burst footsteps fired every 0.72 m of stride (1.05 m running). Starts when entering Walk mode, resumes on first gesture per autoplay policy, mute persisted in localStorage.
+- CameraController now also: follows the rolling terrain (groundY = PLAYER_HEIGHT + terrainHeight — players could previously walk inside the round-2 hills), records breadcrumbs (>0.6 m spacing, 600 cap) and total distance into walkTrackerRef, and glides 1.4 s ease-in-out from the previous camera pose to eye level when re-entering first-person instead of teleporting.
+- BreadcrumbTrail renders the walked path as instanced teal dots (visible from orbit — you can see where you walked); WalkStats HUD polls the tracker at 2 Hz so there are no per-frame React re-renders.
+- Desktop View tab renamed 1P → Walk (the desktop panel is hardcoded separately from the mobile array — both updated).
+- Verified: walk + HUD, trail from 3D, entry glide mid/done frames, 0 console errors, build passes.
+
 ## Active Plan: Open-World Redesign — Genshin-Style Stylized Environment
 
 Goal: make the open world look like a Genshin Impact–style open world (stylized anime-realism, hand-painted, lush) across terrain, vegetation, sky/lighting, and distant scenery. Branch: `feature/open-world-genshin` off main. All changes stay inside the scene environment layer (`SceneEnvironment.jsx`, `useGrassTextures.js`, lighting stops in `LandScene.jsx`); `ComparisonObjects.jsx`, floor-plan logic, camera modes, and the `timeOfDay` system are untouched except minimal integration points.

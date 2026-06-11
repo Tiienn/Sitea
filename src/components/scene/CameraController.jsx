@@ -31,6 +31,8 @@ import {
   trackWalk5sCompleted,
   accumulateWalkTime,
 } from '../../services/analytics'
+import { playFootstep } from '../../utils/ambientAudio'
+import { terrainHeight } from './SceneEnvironment'
 
 export function CameraController({
   enabled,
@@ -46,7 +48,8 @@ export function CameraController({
   walls = [],
   mobileRunning = false,
   mobileJumpTrigger = 0,
-  initialCameraPosition = null
+  initialCameraPosition = null,
+  walkTrackerRef = null
 }) {
   const { camera, gl } = useThree()
 
@@ -82,15 +85,32 @@ export function CameraController({
   // Camera bob time accumulator
   const bobTimeRef = useRef(0)
 
+  // Footstep stride accumulator (meters since last step sound)
+  const strideRef = useRef(0)
+  // Last breadcrumb point dropped
+  const lastCrumbRef = useRef(null)
+
+  // "Walk your land" entry ritual: glide from wherever the camera was
+  // (orbit height, 2D) down to eye level instead of teleporting
+  const entryAnim = useRef({ active: false, t: 0, fromPos: new THREE.Vector3(), fromQuat: new THREE.Quaternion() })
+
   // Sync player position from camera or initialCameraPosition
   const hasInitialized = useRef(false)
   useEffect(() => {
     if (!enabled) return // Don't touch refs when disabling (preserves position for re-enable)
 
     if (hasInitialized.current) {
-      // Re-enabling (e.g. returning from 2D mode): restore camera from preserved refs
-      camera.position.copy(playerPosition.current)
-      camera.quaternion.setFromEuler(euler.current)
+      // Re-enabling (e.g. returning from 3D/2D mode): glide down to the
+      // player's eye position in FP mode, restore instantly otherwise
+      if (cameraMode === CAMERA_MODE.FIRST_PERSON) {
+        entryAnim.current.active = true
+        entryAnim.current.t = 0
+        entryAnim.current.fromPos.copy(camera.position)
+        entryAnim.current.fromQuat.copy(camera.quaternion)
+      } else {
+        camera.position.copy(playerPosition.current)
+        camera.quaternion.setFromEuler(euler.current)
+      }
       return
     }
 
@@ -570,21 +590,62 @@ export function CameraController({
       }
     }
 
+    // Ground level follows the rolling terrain outside the plot
+    const groundY = PLAYER_HEIGHT + terrainHeight(playerPosition.current.x, playerPosition.current.z)
+
     // Apply gravity and jumping physics
     if (!isGrounded.current) {
       verticalVelocity.current -= GRAVITY * delta
       playerPosition.current.y += verticalVelocity.current * delta
 
       // Ground check
-      if (playerPosition.current.y <= PLAYER_HEIGHT) {
-        playerPosition.current.y = PLAYER_HEIGHT
+      if (playerPosition.current.y <= groundY) {
+        playerPosition.current.y = groundY
         verticalVelocity.current = 0
         isGrounded.current = true
+      }
+    } else {
+      playerPosition.current.y = groundY
+    }
+
+    // Footsteps + walk tracking: stride-synced step sounds, breadcrumbs and
+    // distance for the walk HUD
+    if (isMoving && isGrounded.current && currentSpeed.current > 0.1) {
+      const moved = currentSpeed.current * delta
+      const isRunningNow = currentSpeed.current > WALK_SPEED * 1.2
+      strideRef.current += moved
+      const strideLen = isRunningNow ? 1.05 : 0.72
+      if (strideRef.current >= strideLen) {
+        strideRef.current -= strideLen
+        playFootstep(isRunningNow)
+      }
+      if (walkTrackerRef?.current) {
+        const tracker = walkTrackerRef.current
+        tracker.distance += moved
+        const last = lastCrumbRef.current
+        const px = playerPosition.current.x
+        const pz = playerPosition.current.z
+        if (!last || (px - last.x) * (px - last.x) + (pz - last.z) * (pz - last.z) > 0.36) {
+          const crumb = { x: px, y: playerPosition.current.y - PLAYER_HEIGHT, z: pz }
+          lastCrumbRef.current = crumb
+          tracker.points.push(crumb)
+          if (tracker.points.length > 600) tracker.points.splice(0, tracker.points.length - 600)
+          tracker.version++
+        }
       }
     }
 
     // Update camera based on mode
-    if (cameraMode === CAMERA_MODE.FIRST_PERSON) {
+    if (cameraMode === CAMERA_MODE.FIRST_PERSON && entryAnim.current.active) {
+      // Entry ritual: ease from the previous camera pose down to eye level
+      const anim = entryAnim.current
+      anim.t = Math.min(1, anim.t + delta / 1.4)
+      const e = anim.t < 0.5 ? 4 * anim.t ** 3 : 1 - Math.pow(-2 * anim.t + 2, 3) / 2
+      camera.position.lerpVectors(anim.fromPos, playerPosition.current, e)
+      const targetQuat = new THREE.Quaternion().setFromEuler(euler.current)
+      camera.quaternion.copy(anim.fromQuat).slerp(targetQuat, e)
+      if (anim.t >= 1) anim.active = false
+    } else if (cameraMode === CAMERA_MODE.FIRST_PERSON) {
       // FP: camera at player position with subtle bob
       camera.position.copy(playerPosition.current)
 

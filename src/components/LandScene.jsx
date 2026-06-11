@@ -66,6 +66,8 @@ import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
 import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
 import { CameraController } from './scene/CameraController'
+import { BreadcrumbTrail } from './scene/BreadcrumbTrail'
+import { startAmbient, stopAmbient, setAudioMuted, isAudioMuted } from '../utils/ambientAudio'
 import { calculateNPCPositions } from '../utils/npcHelpers'
 import {
   createFloorTexture,
@@ -447,7 +449,7 @@ function DayNightController({ timeOfDay, setTimeOfDay, isPaidUser, viewMode, sun
   return null
 }
 
-function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, furnitureItems = [], addFurniture, deleteFurniture, updateFurniture, selectedFurnitureId = null, setSelectedFurnitureId, selectedFurnitureCatalogId = null, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null }) {
+function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, furnitureItems = [], addFurniture, deleteFurniture, updateFurniture, selectedFurnitureId = null, setSelectedFurnitureId, selectedFurnitureCatalogId = null, onNPCInteract, wrapperActiveNPC, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null, walkTrackerRef = null }) {
   const { camera, gl } = useThree()
   const [previewPos, setPreviewPos] = useState(null)
   const qualitySettings = QUALITY_SETTINGS[quality]
@@ -2720,6 +2722,9 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       {viewMode !== '2d' && <DistantTreeline timeOfDay={isPaidUser ? timeOfDay : 0.35} />}
       {viewMode !== '2d' && <ScatteredTrees quality={quality} />}
 
+      {/* Breadcrumb trail of walked path (hidden in 2D) */}
+      {viewMode !== '2d' && <BreadcrumbTrail walkTrackerRef={walkTrackerRef} />}
+
       {/* 3D grass blades and ground foliage near the plot (BEST quality + 3D views only) */}
       {viewMode !== '2d' && quality !== QUALITY.FAST && <GrassField />}
       {viewMode !== '2d' && quality !== QUALITY.FAST && <GroundFoliage />}
@@ -3922,6 +3927,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         mobileRunning={mobileRunning}
         mobileJumpTrigger={mobileJumpTrigger}
         initialCameraPosition={initialCameraPosition}
+        walkTrackerRef={walkTrackerRef}
       />
 
       {/* Orbit controls (when orbit mode enabled) */}
@@ -4175,11 +4181,79 @@ function TimeSlider({ timeOfDay, setTimeOfDay, mobileTop = 248 }) {
   )
 }
 
+// Walk-mode HUD: live step/distance readout + ambient sound toggle.
+// Reads walkTrackerRef on an interval (no per-frame React re-renders).
+function WalkStats({ walkTrackerRef }) {
+  const [stats, setStats] = useState({ steps: 0, meters: 0 })
+  const [soundOff, setSoundOff] = useState(isAudioMuted())
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = walkTrackerRef.current?.distance || 0
+      setStats({ steps: Math.round(d / 0.72), meters: Math.round(d) })
+    }, 500)
+    return () => clearInterval(id)
+  }, [walkTrackerRef])
+
+  const toggleSound = () => {
+    const next = !soundOff
+    setSoundOff(next)
+    setAudioMuted(next)
+  }
+
+  return (
+    <div
+      className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full"
+      style={{ top: 84, background: 'rgba(30, 41, 59, 0.85)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)', zIndex: 20 }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 16v-2.4c0-1.5 1-2.6 2.4-2.6 1.5 0 2.6 1.1 2.6 2.6V16" />
+        <path d="M15 20v-2.4c0-1.5 1-2.6 2.4-2.6 1.5 0 2.6 1.1 2.6 2.6V20" />
+        <path d="M6.4 8.5c.8 0 1.4-.9 1.4-2S7.2 4.5 6.4 4.5 5 5.4 5 6.5s.6 2 1.4 2z" />
+        <path d="M17.4 12.5c.8 0 1.4-.9 1.4-2s-.6-2-1.4-2-1.4.9-1.4 2 .6 2 1.4 2z" />
+      </svg>
+      <span className="text-xs font-medium" style={{ color: 'var(--color-text-primary, #f8fafc)' }}>
+        {stats.steps.toLocaleString()} steps · {stats.meters.toLocaleString()} m
+      </span>
+      <button
+        onClick={toggleSound}
+        className="p-1.5 -mr-1 rounded-full"
+        style={{ color: soundOff ? '#64748b' : '#2dd4bf' }}
+        title={soundOff ? 'Turn sound on' : 'Turn sound off'}
+        aria-label={soundOff ? 'Turn sound on' : 'Turn sound off'}
+      >
+        {soundOff ? (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+          </svg>
+        ) : (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+          </svg>
+        )}
+      </button>
+    </div>
+  )
+}
+
 export default function LandScene({ length, width, isExploring, comparisonObjects = [], polygonPoints, placedBuildings = [], selectedBuilding, selectedBuildingType, onPlaceBuilding, onDeleteBuilding, onMoveBuilding, selectedPlacedBuildingId = null, setSelectedPlacedBuildingId, joystickInput, lengthUnit = 'm', onCameraUpdate, buildingRotation = 0, snapInfo, onPointerMove, setbacksEnabled = false, setbackDistanceM = 0, placementValid = true, overlappingBuildingIds = new Set(), labels = {}, canEdit = true, analyticsMode = 'example', cameraMode, setCameraMode, followDistance, setFollowDistance, orbitEnabled, setOrbitEnabled, viewMode = 'firstPerson', fitToLandTrigger = 0, quality = QUALITY.BEST, comparisonPositions = {}, onComparisonPositionChange, comparisonRotations = {}, onComparisonRotationChange, gridSnapEnabled = false, gridSize = 1, walls = [], wallDrawingMode = false, setWallDrawingMode, wallDrawingPoints = [], setWallDrawingPoints, addWallFromPoints, openingPlacementMode = 'none', setOpeningPlacementMode, addOpeningToWall, updateOpeningPosition, activeBuildTool = 'none', setActiveBuildTool, selectedElement, setSelectedElement, BUILD_TOOLS = {}, deleteWall, doorWidth = 0.9, doorHeight = 2.1, doorType = 'single', windowWidth = 1.2, windowHeight = 1.2, windowSillHeight = 0.9, halfWallHeight = 1.2, fenceType = 'picket', rooms = [], floorPlanImage = null, floorPlanSettings = {}, buildings = [], floorPlanPlacementMode = false, pendingFloorPlan = null, buildingPreviewPosition = { x: 0, z: 0 }, setBuildingPreviewPosition, buildingPreviewRotation = 0, placeFloorPlanBuilding, selectedBuildingId = null, setSelectedBuildingId, moveSelectedBuilding, selectedComparisonId = null, setSelectedComparisonId, selectedRoomId = null, setSelectedRoomId, roomLabels = {}, roomStyles = {}, setRoomLabel, moveRoom, moveWallsByIds, rotateWallsByIds, commitWallsToHistory, setRoomPropertiesOpen, setWallPropertiesOpen, setFencePropertiesOpen, pools = [], addPool, deletePool, updatePool, poolPolygonPoints = [], setPoolPolygonPoints, poolDepth = 1.5, selectedPoolId = null, setSelectedPoolId, setPoolPropertiesOpen, foundations = [], addFoundation, deleteFoundation, updateFoundation, foundationPolygonPoints = [], setFoundationPolygonPoints, roomPolygonPoints = [], setRoomPolygonPoints, foundationHeight = 0.6, selectedFoundationId = null, setSelectedFoundationId, setFoundationPropertiesOpen, stairs = [], addStairs, deleteStairs, updateStairs, stairsStartPoint = null, setStairsStartPoint, stairsWidth = 1.0, stairsTopY = 2.7, stairsStyle = 'straight', rotateDegreeInput = '', setRotateDegreeInput, selectedStairsId = null, setSelectedStairsId, setStairsPropertiesOpen, furnitureItems = [], addFurniture, deleteFurniture, updateFurniture, selectedFurnitureId = null, setSelectedFurnitureId, selectedFurnitureCatalogId = null, canvasRef, sceneRef, currentFloor = 0, floorHeight = 2.7, totalFloors = 1, addFloorsToRoom, mobileRunning = false, mobileJumpTrigger = 0, onNearbyNPCChange, onNearbyBuildingChange, timeOfDay = 0.35, setTimeOfDay, isPaidUser = false, initialCameraPosition = null, timeSliderMobileTop = 248 }) {
   const qualitySettings = QUALITY_SETTINGS[quality]
 
   // NPC dialog state - lifted to wrapper so dialog renders outside Canvas
   const [wrapperActiveNPC, setWrapperActiveNPC] = useState(null)
+
+  // Walk tracking shared between CameraController (writes), BreadcrumbTrail
+  // (reads in-canvas) and the WalkStats HUD (reads outside canvas)
+  const walkTrackerRef = useRef({ distance: 0, points: [], version: 0 })
+
+  // Ambient audio (wind + birds) lives in walk mode only
+  useEffect(() => {
+    if (viewMode !== 'firstPerson') return
+    startAmbient()
+    return () => stopAmbient()
+  }, [viewMode])
 
   // Compute DPR capped by device capability
   const dpr = useMemo(() => {
@@ -4369,6 +4443,7 @@ export default function LandScene({ length, width, isExploring, comparisonObject
         setTimeOfDay={setTimeOfDay}
         isPaidUser={isPaidUser}
         initialCameraPosition={initialCameraPosition}
+        walkTrackerRef={walkTrackerRef}
         />
       </Canvas>
     </Canvas3DErrorBoundary>
@@ -4377,6 +4452,9 @@ export default function LandScene({ length, width, isExploring, comparisonObject
     {viewMode !== '2d' && isPaidUser && (
       <TimeSlider timeOfDay={timeOfDay} setTimeOfDay={setTimeOfDay} mobileTop={timeSliderMobileTop} />
     )}
+
+    {/* Walk mode HUD: steps walked + sound toggle */}
+    {viewMode === 'firstPerson' && <WalkStats walkTrackerRef={walkTrackerRef} />}
 
   </>
   )
