@@ -7,31 +7,29 @@ export function useGrassTextures(quality = QUALITY.BEST) {
   return useMemo(() => {
     const settings = QUALITY_SETTINGS[quality]
 
-    // Main grass color texture (detail) — painterly meadow, not noise
+    // Main grass color texture (detail) — dense fine blades, like real turf
+    const SIZE = 1024
     const detailCanvas = document.createElement('canvas')
-    detailCanvas.width = 512
-    detailCanvas.height = 512
+    detailCanvas.width = SIZE
+    detailCanvas.height = SIZE
     const detailCtx = detailCanvas.getContext('2d')
 
-    // Saturated meadow base
-    detailCtx.fillStyle = '#57a23c'
-    detailCtx.fillRect(0, 0, 512, 512)
+    // Meadow base with a soft vertical tone drift
+    detailCtx.fillStyle = '#4e8c35'
+    detailCtx.fillRect(0, 0, SIZE, SIZE)
 
-    // Soft hue patches: warm sunlit yellow-greens, deep cool greens, subtle teal shade
+    // Very soft, sparse hue variation (subtle — no blotches)
     const patchHues = [
-      { color: '168, 205, 82', count: 26, rMin: 30, rMax: 90, aMax: 0.30 },  // sunlit
-      { color: '52, 128, 50', count: 30, rMin: 25, rMax: 80, aMax: 0.35 },   // deep green
-      { color: '46, 118, 88', count: 14, rMin: 35, rMax: 95, aMax: 0.22 },   // cool teal shade
-      { color: '142, 186, 60', count: 18, rMin: 20, rMax: 60, aMax: 0.28 },  // fresh green
+      { color: '120, 168, 64', count: 10, rMin: 90, rMax: 220, aMax: 0.14 },
+      { color: '46, 110, 44', count: 12, rMin: 80, rMax: 200, aMax: 0.16 },
     ]
     for (const hue of patchHues) {
       for (let i = 0; i < hue.count; i++) {
-        const x = Math.random() * 512
-        const y = Math.random() * 512
+        const x = Math.random() * SIZE
+        const y = Math.random() * SIZE
         const radius = hue.rMin + Math.random() * (hue.rMax - hue.rMin)
-        const alpha = hue.aMax * (0.5 + Math.random() * 0.5)
         const gradient = detailCtx.createRadialGradient(x, y, 0, x, y, radius)
-        gradient.addColorStop(0, `rgba(${hue.color}, ${alpha})`)
+        gradient.addColorStop(0, `rgba(${hue.color}, ${hue.aMax})`)
         gradient.addColorStop(1, `rgba(${hue.color}, 0)`)
         detailCtx.fillStyle = gradient
         detailCtx.beginPath()
@@ -40,37 +38,32 @@ export function useGrassTextures(quality = QUALITY.BEST) {
       }
     }
 
-    // Painterly blade strokes — clustered tufts, light and dark tones
-    for (let c = 0; c < 220; c++) {
-      const cx = Math.random() * 512
-      const cy = Math.random() * 512
-      const tuftSize = 6 + Math.random() * 10
-      const light = Math.random() > 0.45
-      for (let i = 0; i < 12; i++) {
-        const x = cx + (Math.random() - 0.5) * tuftSize * 2
-        const y = cy + (Math.random() - 0.5) * tuftSize
-        const length = Math.random() * 9 + 5
-        const lean = (Math.random() - 0.5) * 5
-        if (light) {
-          const g = 185 + Math.random() * 40
-          detailCtx.strokeStyle = `rgba(${g * 0.62}, ${g}, ${g * 0.34}, 0.35)`
-        } else {
-          const g = 95 + Math.random() * 35
-          detailCtx.strokeStyle = `rgba(${g * 0.42}, ${g}, ${g * 0.40}, 0.40)`
-        }
-        detailCtx.lineWidth = Math.random() * 1.4 + 0.6
-        detailCtx.beginPath()
-        detailCtx.moveTo(x, y)
-        detailCtx.quadraticCurveTo(x + lean * 0.5, y - length * 0.6, x + lean, y - length)
-        detailCtx.stroke()
-      }
+    // Dense fine blade pass — this is what makes it read as grass
+    for (let i = 0; i < 15000; i++) {
+      const x = Math.random() * SIZE
+      const y = Math.random() * SIZE
+      const length = Math.random() * 9 + 5
+      const lean = (Math.random() - 0.5) * 6
+      // tone distribution: mostly mid greens, some dark shadow blades, few bright
+      const pick = Math.random()
+      let r, g, b
+      if (pick < 0.30) { g = 95 + Math.random() * 30; r = g * 0.45; b = g * 0.42 }       // shadow
+      else if (pick < 0.85) { g = 135 + Math.random() * 35; r = g * 0.52; b = g * 0.36 }  // mid
+      else { g = 185 + Math.random() * 35; r = g * 0.62; b = g * 0.34 }                   // lit
+      detailCtx.strokeStyle = `rgba(${r | 0}, ${g | 0}, ${b | 0}, 0.55)`
+      detailCtx.lineWidth = Math.random() * 1.2 + 0.5
+      detailCtx.beginPath()
+      detailCtx.moveTo(x, y)
+      detailCtx.quadraticCurveTo(x + lean * 0.5, y - length * 0.6, x + lean, y - length)
+      detailCtx.stroke()
     }
 
     const detailTexture = new THREE.CanvasTexture(detailCanvas)
     detailTexture.colorSpace = THREE.SRGBColorSpace
     detailTexture.wrapS = THREE.RepeatWrapping
     detailTexture.wrapT = THREE.RepeatWrapping
-    detailTexture.repeat.set(60, 60)
+    detailTexture.anisotropy = 4
+    detailTexture.repeat.set(50, 50)
 
     // Macro variation texture — multiplied over the tiled detail map in the
     // ground shader at a much larger scale to break visible tiling.
@@ -84,17 +77,17 @@ export function useGrassTextures(quality = QUALITY.BEST) {
     macroCtx.fillStyle = 'rgb(128, 128, 128)'
     macroCtx.fillRect(0, 0, 256, 256)
 
-    // Large organic patches for variety — brightness and subtle warm/cool tint
-    for (let i = 0; i < 26; i++) {
+    // Large organic patches — gentle brightness drift with subtle warm/cool tint
+    for (let i = 0; i < 22; i++) {
       const x = Math.random() * 256
       const y = Math.random() * 256
-      const radius = Math.random() * 80 + 40
-      const v = 100 + Math.random() * 56
+      const radius = Math.random() * 90 + 50
+      const v = 112 + Math.random() * 32
       const warm = Math.random() > 0.5
-      const r = warm ? v * 1.08 : v * 0.94
-      const b = warm ? v * 0.92 : v * 1.04
+      const r = warm ? v * 1.05 : v * 0.96
+      const b = warm ? v * 0.95 : v * 1.03
       const gradient = macroCtx.createRadialGradient(x, y, 0, x, y, radius)
-      gradient.addColorStop(0, `rgba(${r | 0}, ${v | 0}, ${b | 0}, 0.85)`)
+      gradient.addColorStop(0, `rgba(${r | 0}, ${v | 0}, ${b | 0}, 0.6)`)
       gradient.addColorStop(1, 'rgba(128, 128, 128, 0)')
       macroCtx.fillStyle = gradient
       macroCtx.beginPath()
@@ -186,43 +179,41 @@ export function useLandTexture() {
   }, [])
 }
 
-// Simple stylized grass texture for low quality — same palette as the
-// painted BEST texture, but cheap (soft patches only, no stroke pass)
+// Simple grass texture for low quality — same fine-blade look as BEST,
+// at lower resolution and stroke count
 export function useSimpleGrassTexture() {
   return useMemo(() => {
     const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = 256
+    canvas.width = 512
+    canvas.height = 512
     const ctx = canvas.getContext('2d')
 
-    ctx.fillStyle = '#57a23c'
-    ctx.fillRect(0, 0, 256, 256)
+    ctx.fillStyle = '#4e8c35'
+    ctx.fillRect(0, 0, 512, 512)
 
-    const hues = [
-      { color: '168, 205, 82', count: 14, aMax: 0.25 },
-      { color: '52, 128, 50', count: 16, aMax: 0.30 },
-      { color: '142, 186, 60', count: 10, aMax: 0.22 },
-    ]
-    for (const hue of hues) {
-      for (let i = 0; i < hue.count; i++) {
-        const x = Math.random() * 256
-        const y = Math.random() * 256
-        const radius = 15 + Math.random() * 45
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
-        gradient.addColorStop(0, `rgba(${hue.color}, ${hue.aMax})`)
-        gradient.addColorStop(1, `rgba(${hue.color}, 0)`)
-        ctx.fillStyle = gradient
-        ctx.beginPath()
-        ctx.arc(x, y, radius, 0, Math.PI * 2)
-        ctx.fill()
-      }
+    for (let i = 0; i < 5000; i++) {
+      const x = Math.random() * 512
+      const y = Math.random() * 512
+      const length = Math.random() * 7 + 4
+      const lean = (Math.random() - 0.5) * 5
+      const pick = Math.random()
+      let r, g, b
+      if (pick < 0.30) { g = 95 + Math.random() * 30; r = g * 0.45; b = g * 0.42 }
+      else if (pick < 0.85) { g = 135 + Math.random() * 35; r = g * 0.52; b = g * 0.36 }
+      else { g = 185 + Math.random() * 35; r = g * 0.62; b = g * 0.34 }
+      ctx.strokeStyle = `rgba(${r | 0}, ${g | 0}, ${b | 0}, 0.5)`
+      ctx.lineWidth = Math.random() * 1.1 + 0.5
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      ctx.quadraticCurveTo(x + lean * 0.5, y - length * 0.6, x + lean, y - length)
+      ctx.stroke()
     }
 
     const texture = new THREE.CanvasTexture(canvas)
     texture.colorSpace = THREE.SRGBColorSpace
     texture.wrapS = THREE.RepeatWrapping
     texture.wrapT = THREE.RepeatWrapping
-    texture.repeat.set(80, 80)
+    texture.repeat.set(60, 60)
     return texture
   }, [])
 }

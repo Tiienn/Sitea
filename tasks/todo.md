@@ -13,6 +13,14 @@ Approach: procedural-first (no downloaded assets) — painted canvas textures, l
 - [x] Verify visually after each area: dev server + screenshots from multiple angles and dawn/noon/dusk/night, iterate until it reads Genshin-style; save before/after to `tasks/screenshots/open-world/`
 - [x] Run `npm run build`, fix errors, commit per area, open PR to main (no merge) with screenshots and FAST/BEST performance notes
 
+### Round 2 — user feedback: "too fake, trees childish, grass/ground fake; sky is good"
+- [x] Rolling terrain: gentle hills outside a flat plot zone (height function shared by ground mesh + all scatter placements), so the ground stops being an infinite flat plane
+- [x] Ground texture: replace blotchy painterly patches with dense fine grass-blade detail (1024px BEST), softer macro variation
+- [x] Trees: separate bark-textured trunks (with branch stubs) + canopies made of jittered irregular clusters surfaced with a tiling painted leaf texture — no more smooth balloons
+- [x] Grass tufts: alpha-cutout painted blade-cluster texture on crossed cards instead of solid-color quads
+- [x] Bushes get the leaf texture; all foliage/rocks/flowers sit on the terrain height
+- [x] Iterate with screenshots until it reads believable, redeploy — 3 visual iterations (brightness/scale tuning); verified noon/dusk, 3D orbit, FAST mode; build passes
+
 ### Open-World Redesign Review
 - All four areas landed as separate commits on `feature/open-world-genshin`; everything is procedural (zero downloaded assets, zero bundle weight added), so the 15 MB asset budget was never touched and no ATTRIBUTION.md is needed.
 - Terrain: grass detail/simple textures repainted as hand-painted meadow (saturated hue patches + clustered painterly strokes); the previously-generated-but-unused macro texture now multiplies over the tiled detail map in the ground shader (`onBeforeCompile`), which visibly kills tiling repetition from orbit height. New `GrassField` renders ~3.5k instanced 3-quad tufts (BEST only) with up-facing normals — the key trick that makes blades shade like the ground instead of reading as dark cards — plus vertex-shader wind sway.

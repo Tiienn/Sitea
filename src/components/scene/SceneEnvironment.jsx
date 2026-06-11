@@ -29,6 +29,116 @@ function lerpStops(stops, time, key) {
   return stops[0][key]
 }
 
+// ─── Terrain ────────────────────────────────────────────────────────────────
+
+// Rolling-hill height: dead flat near the plot (buildings, comparisons, NPCs
+// all live inside r<65), gentle hills further out. Shared by the ground mesh
+// and every scatter placement so vegetation sits on the terrain.
+export function terrainHeight(x, z) {
+  const r = Math.sqrt(x * x + z * z)
+  if (r < 65) return 0
+  const fade = Math.min((r - 65) / 130, 1)
+  const smooth = fade * fade * (3 - 2 * fade)
+  const amp = 4.2 * smooth
+  return (
+    Math.sin(x * 0.020 + 1.3) * 0.45 +
+    Math.sin(z * 0.016 - 0.7) * 0.35 +
+    Math.sin((x + z) * 0.011 + 2.1) * 0.20
+  ) * amp
+}
+
+// ─── Procedural surface textures (canvas-painted, generated once) ──────────
+
+// Tiling leaf-cluster texture: dense small leaves in layered green tones
+function makeLeafTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#3d7c2f'
+  ctx.fillRect(0, 0, 256, 256)
+  const tones = ['#2f6824', '#418532', '#55a040', '#6cb84f', '#86cc5f', '#a3df73']
+  for (let i = 0; i < 1400; i++) {
+    const x = Math.random() * 256
+    const y = Math.random() * 256
+    const w = 4 + Math.random() * 7
+    const h = w * (0.45 + Math.random() * 0.3)
+    const rot = Math.random() * Math.PI
+    // bias brighter leaves slightly toward the top of the tile
+    const bias = Math.min(1, (1 - y / 256) * 0.7 + Math.random() * 0.6)
+    const tone = tones[Math.min(tones.length - 1, Math.floor(bias * tones.length))]
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(rot)
+    ctx.fillStyle = tone
+    ctx.globalAlpha = 0.85
+    ctx.beginPath()
+    ctx.ellipse(0, 0, w, h, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+  }
+  ctx.globalAlpha = 1
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  return tex
+}
+
+// Vertical-streak bark texture
+function makeBarkTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 128
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#5d4730'
+  ctx.fillRect(0, 0, 128, 256)
+  for (let i = 0; i < 110; i++) {
+    const x = Math.random() * 128
+    const w = 1 + Math.random() * 4
+    const dark = Math.random() > 0.45
+    const v = dark ? 0.55 + Math.random() * 0.2 : 1.1 + Math.random() * 0.25
+    ctx.fillStyle = `rgba(${(93 * v) | 0}, ${(71 * v) | 0}, ${(48 * v) | 0}, ${0.35 + Math.random() * 0.3})`
+    const y0 = Math.random() * 256
+    const len = 60 + Math.random() * 180
+    ctx.fillRect(x, y0, w, len)
+    if (y0 + len > 256) ctx.fillRect(x, 0, w, y0 + len - 256) // wrap for tiling
+  }
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  return tex
+}
+
+// Alpha-cutout grass tuft: a fan of tapered blades on transparent background
+function makeBladeTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 128
+  canvas.height = 128
+  const ctx = canvas.getContext('2d')
+  for (let i = 0; i < 11; i++) {
+    const baseX = 28 + Math.random() * 72
+    const tipX = baseX + (Math.random() - 0.5) * 70
+    const tipY = 6 + Math.random() * 38
+    const w = 3.5 + Math.random() * 3.5
+    const g = 160 + Math.random() * 75
+    const grad = ctx.createLinearGradient(0, 128, 0, tipY)
+    grad.addColorStop(0, `rgb(${(g * 0.52) | 0}, ${(g * 0.88) | 0}, ${(g * 0.36) | 0})`)
+    grad.addColorStop(1, `rgb(${(g * 0.68) | 0}, ${Math.min(g * 1.08, 255) | 0}, ${(g * 0.42) | 0})`)
+    ctx.fillStyle = grad
+    ctx.beginPath()
+    ctx.moveTo(baseX - w, 128)
+    ctx.quadraticCurveTo(baseX - w * 0.4, (128 + tipY) / 2, tipX, tipY)
+    ctx.quadraticCurveTo(baseX + w * 0.4, (128 + tipY) / 2, baseX + w, 128)
+    ctx.closePath()
+    ctx.fill()
+  }
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
 // Stylized painterly sky: gradient + domain-warped two-tone cumulus clouds
 // with slow drift, sun disc + glow, and horizon haze — animated by timeOfDay
 export function RealisticSky({ timeOfDay = 0.35 }) {
@@ -211,29 +321,40 @@ export function EnhancedGround({ quality }) {
   const { detailTexture, macroTexture, roughnessTexture } = useGrassTextures(quality)
 
   // Multiply the tiled detail map by the macro texture at a much larger scale
-  // so the 60x-repeated grass tile stops reading as a repeating pattern.
+  // so the repeated grass tile stops reading as a repeating pattern.
   const injectMacroBlend = useMemo(() => (shader) => {
     shader.uniforms.macroMap = { value: macroTexture }
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform sampler2D macroMap;')
       .replace('#include <map_fragment>', `#include <map_fragment>
         vec3 macro = texture2D(macroMap, vMapUv * 0.135).rgb * 2.0;
-        diffuseColor.rgb *= mix(vec3(1.0), macro, 0.4);`)
+        diffuseColor.rgb *= mix(vec3(1.0), macro, 0.25);`)
   }, [macroTexture])
+
+  // Rolling terrain: displace the plane with terrainHeight (flat near plot).
+  // Plane is rotated -90° about X, so local (x, y) → world (x, -y) and
+  // local z becomes world height.
+  const terrainGeo = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(2000, 2000, 160, 160)
+    const pos = geo.attributes.position
+    for (let i = 0; i < pos.count; i++) {
+      pos.setZ(i, terrainHeight(pos.getX(i), -pos.getY(i)))
+    }
+    geo.computeVertexNormals()
+    return geo
+  }, [])
 
   if (quality === QUALITY.FAST) {
     return (
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[2000, 2000]} />
-        <meshStandardMaterial map={simpleTexture} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow geometry={terrainGeo}>
+        <meshStandardMaterial map={simpleTexture} roughness={0.95} metalness={0} />
       </mesh>
     )
   }
 
   // Best quality: use enhanced material
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[2000, 2000, 64, 64]} />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow geometry={terrainGeo}>
       <meshStandardMaterial
         map={detailTexture}
         roughnessMap={roughnessTexture}
@@ -246,50 +367,27 @@ export function EnhancedGround({ quality }) {
   )
 }
 
-// Instanced 3D grass blades around the plot (BEST quality only — gate at
-// the call site so FAST never builds the geometry).
-// Stylized cross-quad tufts with a dark-base → light-tip gradient and
-// gentle vertex-shader wind sway. The plot interior is excluded so blades
-// never poke through building floors.
+// Instanced grass tufts around the plot (BEST quality only — gate at the
+// call site so FAST never builds the geometry). Each tuft is two crossed
+// cards with an alpha-cutout painted blade fan, up-facing normals so they
+// shade like the ground, and vertex-shader wind sway. The plot interior is
+// excluded so blades never poke through building floors.
 export function GrassField() {
   const { mesh, material } = useMemo(() => {
-    // Tuft geometry: 3 crossed narrow quads with bend segments
-    const blade = new THREE.PlaneGeometry(0.22, 0.48, 1, 2)
-    blade.translate(0, 0.24, 0)
-    const parts = []
-    for (let i = 0; i < 3; i++) {
-      const p = blade.clone()
-      p.rotateX(0.28) // lean outward so blades show some face from above
-      p.rotateY((Math.PI / 3) * i)
-      parts.push(p)
-    }
-    const tuft = mergeGeometries(parts)
-    blade.dispose()
+    const card = new THREE.PlaneGeometry(0.55, 0.45, 1, 1)
+    card.translate(0, 0.215, 0)
+    const tuft = mergeGeometries([card, card.clone().rotateY(Math.PI / 2)])
+    card.dispose()
 
-    // Vertex colors: ground-toned base to warm light tip
-    const base = new THREE.Color('#57a23c')
-    const tip = new THREE.Color('#c4e878')
-    const pos = tuft.attributes.position
-    const colors = new Float32Array(pos.count * 3)
-    const c = new THREE.Color()
-    for (let i = 0; i < pos.count; i++) {
-      const f = Math.min(1, pos.getY(i) / 0.48)
-      c.copy(base).lerp(tip, f * f)
-      colors[i * 3] = c.r
-      colors[i * 3 + 1] = c.g
-      colors[i * 3 + 2] = c.b
-    }
-    tuft.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-
-    // Up-facing normals: blades shade exactly like the ground beneath them,
-    // so they read as bright meadow instead of dark vertical cards
+    // Up-facing normals: tufts shade exactly like the meadow beneath them
     const normals = tuft.attributes.normal
     for (let i = 0; i < normals.count; i++) normals.setXYZ(i, 0, 1, 0)
 
     const mat = new THREE.MeshStandardMaterial({
-      vertexColors: true,
+      map: makeBladeTexture(),
+      alphaTest: 0.5,
       side: THREE.DoubleSide,
-      roughness: 0.85,
+      roughness: 0.9,
       metalness: 0,
     })
     // Wind sway: bend each tuft by height, phase-shifted by instance position
@@ -305,32 +403,9 @@ export function GrassField() {
       mat.userData.shader = shader
     }
 
-    // Seeded scatter in a ring around the plot (same exclusion as trees)
-    let seed = 54321
-    const seededRandom = () => {
-      seed = (seed * 16807) % 2147483647
-      return (seed - 1) / 2147483646
-    }
-    const placements = []
-    for (let i = 0; i < 6000 && placements.length < 3500; i++) {
-      const angle = seededRandom() * Math.PI * 2
-      const dist = 30 + Math.pow(seededRandom(), 1.6) * 90
-      const x = Math.cos(angle) * dist
-      const z = Math.sin(angle) * dist
-      if (Math.abs(x) < 35 && Math.abs(z) < 35) continue
-      placements.push({ x, z, scale: 0.7 + seededRandom() * 0.8, rot: seededRandom() * Math.PI })
-    }
-
+    const placements = scatterRing(54321, 4500, 28, 140, 1.5)
     const instanced = new THREE.InstancedMesh(tuft, mat, placements.length)
-    const dummy = new THREE.Object3D()
-    placements.forEach((p, i) => {
-      dummy.position.set(p.x, 0, p.z)
-      dummy.rotation.set(0, p.rot, 0)
-      dummy.scale.set(p.scale, p.scale, p.scale)
-      dummy.updateMatrix()
-      instanced.setMatrixAt(i, dummy.matrix)
-    })
-    instanced.instanceMatrix.needsUpdate = true
+    fillInstances(instanced, placements)
     instanced.frustumCulled = false
     return { mesh: instanced, material: mat }
   }, [])
@@ -374,7 +449,7 @@ function buildRidgeGeometry(radius, height, phase, peakColor, hazeColor) {
     const hNorm = Math.max(0.18, 0.55 + p) // 0.18..~1.1
     const x = Math.cos(theta) * radius
     const z = Math.sin(theta) * radius
-    positions.push(x, hNorm * height, z, x, -4, z)
+    positions.push(x, hNorm * height, z, x, -10, z)
     // peaks catch light; base melts into haze
     const topC = peak.clone().lerp(litPeak, Math.max(0, (hNorm - 0.55) * 1.6))
     colors.push(topC.r, topC.g, topC.b, haze.r, haze.g, haze.b)
@@ -446,54 +521,92 @@ function paintGradient(geo, baseColor, topColor, brightness = 1) {
   return geo
 }
 
-// Build one stylized tree as a single vertex-colored geometry:
-// tapered trunk + layered foliage clumps (the Genshin look — distinct
-// rounded clusters, each with its own dark-base → light-top gradient).
-function buildTreeGeometry(kind) {
+// Foliage canopy: irregular jittered clumps surfaced with the tiling leaf
+// texture — silhouettes are bumpy, the surface reads as actual leaves.
+function buildCanopyGeometry(kind, jitterSeed) {
+  let seed = jitterSeed
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647
+    return (seed - 1) / 2147483646
+  }
   const parts = []
-  const blob = (r, x, y, z, squashY, base, top, brightness) => {
-    const g = new THREE.IcosahedronGeometry(r, 1)
+  const clump = (r, x, y, z, squashY, base, top, brightness) => {
+    const g = new THREE.IcosahedronGeometry(r, 2)
+    // radial jitter for an organic, non-balloon silhouette
+    const pos = g.attributes.position
+    const v = new THREE.Vector3()
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i)
+      const n = 1 + (rand() - 0.5) * 0.34
+      pos.setXYZ(i, v.x * n, v.y * n, v.z * n)
+    }
     g.scale(1, squashY, 1)
+    g.computeVertexNormals()
     paintGradient(g, base, top, brightness)
     g.translate(x, y, z)
     parts.push(g)
   }
-  const trunk = (rTop, rBottom, h, x = 0, z = 0) => {
-    // non-indexed to match IcosahedronGeometry blobs for mergeGeometries
-    const g = new THREE.CylinderGeometry(rTop, rBottom, h, 6).toNonIndexed()
-    paintGradient(g, '#4e3a20', '#6f5433', 1)
-    g.translate(x, h / 2, z)
-    parts.push(g)
-  }
 
+  // colors are multipliers over the leaf texture: dark gray base → white-ish
+  // lit top, with a slight per-variant hue cast
   if (kind === 'round') {
-    // Broad leafy tree: big crown + surrounding clumps
-    trunk(0.16, 0.24, 2.4)
-    blob(1.45, 0, 3.7, 0, 0.85, '#2f7030', '#8cc44e', 1.0)
-    blob(1.0, 1.05, 3.0, 0.25, 0.8, '#2f7030', '#8cc44e', 0.92)
-    blob(0.95, -1.0, 3.1, -0.2, 0.8, '#2f7030', '#8cc44e', 1.06)
-    blob(0.9, 0.15, 3.0, 1.0, 0.8, '#2f7030', '#8cc44e', 0.88)
-    blob(0.85, -0.2, 3.15, -1.0, 0.8, '#2f7030', '#8cc44e', 1.1)
+    clump(1.45, 0, 3.8, 0, 0.85, '#83907a', '#ffffff', 1.05)
+    clump(1.0, 1.1, 3.1, 0.3, 0.8, '#83907a', '#ffffff', 0.92)
+    clump(0.95, -1.05, 3.2, -0.25, 0.8, '#83907a', '#ffffff', 1.05)
+    clump(0.9, 0.2, 3.05, 1.05, 0.8, '#83907a', '#ffffff', 0.88)
+    clump(0.85, -0.25, 3.2, -1.05, 0.8, '#83907a', '#ffffff', 1.1)
+    clump(0.7, 0.65, 4.5, -0.5, 0.85, '#83907a', '#ffffff', 1.15)
   } else if (kind === 'tall') {
-    // Tall cool-green tree: stacked, narrowing clumps
-    trunk(0.13, 0.2, 3.0)
-    blob(1.25, 0, 3.0, 0, 0.75, '#235c39', '#67ab49', 0.95)
-    blob(1.0, 0, 4.1, 0, 0.75, '#235c39', '#67ab49', 1.0)
-    blob(0.75, 0, 5.0, 0, 0.75, '#235c39', '#67ab49', 1.08)
-    blob(0.45, 0, 5.7, 0, 0.8, '#235c39', '#67ab49', 1.15)
+    clump(1.25, 0, 3.1, 0, 0.72, '#73847e', '#e8f8ec', 0.95)
+    clump(1.0, 0.15, 4.2, -0.1, 0.72, '#73847e', '#e8f8ec', 1.0)
+    clump(0.75, -0.1, 5.1, 0.1, 0.72, '#73847e', '#e8f8ec', 1.1)
+    clump(0.45, 0.05, 5.8, 0, 0.8, '#73847e', '#e8f8ec', 1.18)
   } else {
-    // Small warm bushy tree
-    trunk(0.11, 0.16, 1.5)
-    blob(1.0, 0, 2.2, 0, 0.8, '#4a8a2c', '#aed258', 1.0)
-    blob(0.7, 0.7, 1.9, 0.3, 0.75, '#4a8a2c', '#aed258', 0.9)
-    blob(0.65, -0.65, 2.0, -0.25, 0.75, '#4a8a2c', '#aed258', 1.08)
+    clump(1.0, 0, 2.25, 0, 0.78, '#8f947a', '#fffbe6', 1.05)
+    clump(0.7, 0.72, 1.95, 0.3, 0.72, '#8f947a', '#fffbe6', 0.92)
+    clump(0.65, -0.68, 2.05, -0.25, 0.72, '#8f947a', '#fffbe6', 1.1)
   }
-  return mergeGeometries(parts)
+  const merged = mergeGeometries(parts)
+  merged.scale(1.18, 1.18, 1.18)
+  return merged
 }
 
-// Shared foliage material: vertex colors + gentle wind sway above trunk height
-function makeSwayMaterial() {
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 })
+// Trunk with a couple of branch stubs reaching into the canopy
+function buildTrunkGeometry(kind) {
+  const parts = []
+  const seg = (rTop, rBottom, h, tx, ty, tz, tiltZ = 0, tiltX = 0) => {
+    const g = new THREE.CylinderGeometry(rTop, rBottom, h, 7).toNonIndexed()
+    g.translate(0, h / 2, 0)
+    g.rotateZ(tiltZ)
+    g.rotateX(tiltX)
+    g.translate(tx, ty, tz)
+    // subtle AO: darker base, full brightness up top (multiplies bark map)
+    paintGradient(g, '#9b9b9b', '#ffffff', 1)
+    parts.push(g)
+  }
+  if (kind === 'round') {
+    seg(0.14, 0.26, 2.6, 0, 0, 0)
+    seg(0.06, 0.10, 1.4, 0.1, 1.6, 0.05, 0.55)
+    seg(0.05, 0.09, 1.2, -0.05, 1.8, -0.05, -0.5, 0.3)
+  } else if (kind === 'tall') {
+    seg(0.10, 0.22, 3.2, 0, 0, 0)
+  } else {
+    seg(0.09, 0.17, 1.7, 0, 0, 0, 0.08)
+    seg(0.04, 0.07, 0.9, 0.06, 1.0, 0, 0.6)
+  }
+  const merged = mergeGeometries(parts)
+  merged.scale(1.18, 1.18, 1.18)
+  return merged
+}
+
+// Shared foliage material: leaf texture + vertex tint + gentle wind sway
+function makeSwayMaterial(leafTexture) {
+  const mat = new THREE.MeshStandardMaterial({
+    map: leafTexture,
+    vertexColors: true,
+    roughness: 0.9,
+    metalness: 0,
+  })
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = { value: 0 }
     shader.vertexShader = shader.vertexShader
@@ -509,7 +622,8 @@ function makeSwayMaterial() {
   return mat
 }
 
-// Deterministic scatter in a ring around the plot, excluding the plot itself
+// Deterministic scatter in a ring around the plot, excluding the plot itself;
+// placements land on the rolling terrain
 function scatterRing(seedStart, count, distMin, distMax, distPow = 1) {
   let seed = seedStart
   const rand = () => {
@@ -523,7 +637,7 @@ function scatterRing(seedStart, count, distMin, distMax, distPow = 1) {
     const x = Math.cos(angle) * dist
     const z = Math.sin(angle) * dist
     if (Math.abs(x) < 35 && Math.abs(z) < 35) continue
-    out.push({ x, z, scale: 0.7 + rand() * 0.6, rot: rand() * Math.PI * 2, pick: rand() })
+    out.push({ x, z, y: terrainHeight(x, z), scale: 0.7 + rand() * 0.6, rot: rand() * Math.PI * 2, pick: rand() })
   }
   return out
 }
@@ -531,7 +645,7 @@ function scatterRing(seedStart, count, distMin, distMax, distPow = 1) {
 function fillInstances(mesh, placements) {
   const dummy = new THREE.Object3D()
   placements.forEach((p, i) => {
-    dummy.position.set(p.x, 0, p.z)
+    dummy.position.set(p.x, (p.y || 0) - 0.04, p.z)
     dummy.rotation.set(0, p.rot, 0)
     dummy.scale.set(p.scale, p.scale, p.scale)
     dummy.updateMatrix()
@@ -540,10 +654,10 @@ function fillInstances(mesh, placements) {
   mesh.instanceMatrix.needsUpdate = true
 }
 
-// Scattered stylized trees around the land plot — 3 variants, one
-// instanced draw call each, layered-clump foliage with wind sway
+// Scattered stylized trees around the land plot — 3 variants, each drawn as
+// two instanced meshes (bark-textured trunk + leaf-textured canopy)
 export function ScatteredTrees({ quality }) {
-  const treeCount = quality === QUALITY.FAST ? 40 : 120
+  const treeCount = quality === QUALITY.FAST ? 40 : 150
   const castShadows = quality !== QUALITY.FAST
 
   const { group, material } = useMemo(() => {
@@ -552,17 +666,29 @@ export function ScatteredTrees({ quality }) {
     for (const p of placements) {
       byKind[p.pick < 0.55 ? 'round' : p.pick < 0.8 ? 'tall' : 'bush'].push(p)
     }
-    const mat = makeSwayMaterial()
+    const leafMat = makeSwayMaterial(makeLeafTexture())
+    const barkMat = new THREE.MeshStandardMaterial({
+      map: makeBarkTexture(),
+      vertexColors: true,
+      roughness: 0.95,
+      metalness: 0,
+    })
     const g = new THREE.Group()
+    let jitterSeed = 9421
     for (const kind of Object.keys(byKind)) {
       const list = byKind[kind]
       if (!list.length) continue
-      const mesh = new THREE.InstancedMesh(buildTreeGeometry(kind), mat, list.length)
-      fillInstances(mesh, list)
-      mesh.castShadow = castShadows
-      g.add(mesh)
+      const canopy = new THREE.InstancedMesh(buildCanopyGeometry(kind, jitterSeed), leafMat, list.length)
+      jitterSeed += 517
+      const trunk = new THREE.InstancedMesh(buildTrunkGeometry(kind), barkMat, list.length)
+      fillInstances(canopy, list)
+      fillInstances(trunk, list)
+      canopy.castShadow = castShadows
+      trunk.castShadow = castShadows
+      g.add(canopy)
+      g.add(trunk)
     }
-    return { group: g, material: mat }
+    return { group: g, material: leafMat }
   }, [treeCount, castShadows])
 
   useFrame((state) => {
@@ -579,20 +705,25 @@ export function GroundFoliage() {
   const group = useMemo(() => {
     const g = new THREE.Group()
 
-    // Bushes: two merged squashed blobs
+    // Bushes: two merged squashed blobs surfaced with the leaf texture
     const bushParts = []
-    const b1 = new THREE.IcosahedronGeometry(0.55, 1)
+    const b1 = new THREE.IcosahedronGeometry(0.55, 2)
     b1.scale(1.2, 0.7, 1)
-    paintGradient(b1, '#2f7030', '#8cc44e', 0.95)
+    paintGradient(b1, '#83907a', '#ffffff', 0.95)
     b1.translate(0, 0.32, 0)
     bushParts.push(b1)
-    const b2 = new THREE.IcosahedronGeometry(0.4, 1)
+    const b2 = new THREE.IcosahedronGeometry(0.4, 2)
     b2.scale(1.1, 0.75, 1)
-    paintGradient(b2, '#2f7030', '#9ed25c', 1.05)
+    paintGradient(b2, '#83907a', '#ffffff', 1.08)
     b2.translate(0.45, 0.26, 0.2)
     bushParts.push(b2)
     const bushGeo = mergeGeometries(bushParts)
-    const foliageMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 })
+    const foliageMat = new THREE.MeshStandardMaterial({
+      map: makeLeafTexture(),
+      vertexColors: true,
+      roughness: 0.9,
+      metalness: 0,
+    })
     const bushes = new THREE.InstancedMesh(bushGeo, foliageMat, 70)
     fillInstances(bushes, scatterRing(77777, 70, 30, 130, 1.4))
     g.add(bushes)
@@ -696,8 +827,8 @@ export function DistantTreeline({ timeOfDay = 0.35 }) {
   })
 
   return (
-    <mesh position={[0, 7, 0]}>
-      <cylinderGeometry args={[225, 225, 16, 96, 1, true]} />
+    <mesh position={[0, 5, 0]}>
+      <cylinderGeometry args={[225, 225, 22, 96, 1, true]} />
       <primitive object={material} attach="material" map={texture} />
     </mesh>
   )
