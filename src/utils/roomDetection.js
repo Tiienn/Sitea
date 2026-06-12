@@ -18,10 +18,11 @@ export function detectRooms(walls, options = {}) {
 
   if (!walls || walls.length < 3) return [] // Need at least 3 walls for a room
 
-  // Filter to only actual user-drawn walls (not land boundary segments)
+  // Filter to walls with an id and valid geometry. (Ids were once prefixed
+  // 'wall-'/'fsm-' but are crypto.randomUUID() since the ID refactor — any id
+  // counts as user-drawn now.)
   const validWalls = walls.filter(wall => {
-    // Must have wall ID format (user-drawn 'wall-' or preset 'fsm-')
-    if (!wall.id || !(wall.id.startsWith('wall-') || wall.id.startsWith('fsm-'))) return false
+    if (!wall.id) return false
     // Must have valid start/end points
     if (!wall.start || !wall.end) return false
     return true
@@ -315,9 +316,7 @@ export function isPointInPolygon(point, polygon) {
  */
 export function findConnectedWalls(startingWallIds, allWalls, threshold = 0.3) {
   // Filter to valid walls only
-  const validWalls = allWalls.filter(w =>
-    w.id && (w.id.startsWith('wall-') || w.id.startsWith('fsm-')) && w.start && w.end
-  )
+  const validWalls = allWalls.filter(w => w.id && w.start && w.end)
 
   const visited = new Set(startingWallIds)
   const queue = [...startingWallIds]
@@ -385,7 +384,7 @@ export function findWallsForRoom(room, walls) {
 
     // Find wall that matches this edge
     for (const wall of walls) {
-      if (!wall.id?.startsWith('wall-') && !wall.id?.startsWith('fsm-')) continue
+      if (!wall.id) continue
       if (wallIds.includes(wall.id)) continue
 
       // Check if wall matches edge in either direction (exact endpoint match)
