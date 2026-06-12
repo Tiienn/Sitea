@@ -12,6 +12,7 @@
 - Perf unchanged: still one InstancedMesh (500 cap), one reused Object3D for matrix writes; the per-frame pass replaces the old version-gated one because ages change continuously.
 - `tracker.points` had no other consumers (HUD steps derive from `tracker.distance`), so the crumb format change is contained to CameraController + BreadcrumbTrail.
 - eslint 0 errors, build passes, 0 console errors in browser QA; screenshots in tasks/screenshots/realistic-avatar/footprints-*.jpg.
+- Orientation fix (user feedback, `4fb6e83`): prints now point along the actual direction of travel — strafing leaves sideways prints, diagonals angle — except pure backpedal, which keeps toes facing forward like real backward steps (crumb field renamed yaw → heading; verified strafe-prints-sideways.jpg).
 
 ## Active Plan: Realistic avatar (specs/realistic-avatar.md)
 - [x] Avatar registry: new src/constants/avatars.js — `AVATARS` array (first entry: `visitor` / "Site visitor" / `<SUPABASE>/character.glb` / `clipSource: 'pack'`), `getSelectedAvatar()` with localStorage `siteaAvatar` + stale-id fallback to first entry, `setSelectedAvatar(id)`, and a tiny `useAvatar()` hook (useSyncExternalStore on a custom event) so App and the mesh stay in sync without threading props through Scene's giant signature
