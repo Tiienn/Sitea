@@ -14,8 +14,8 @@ Docs:
 
 Product (small tasks, in spec order):
 - [x] Enable + verify analytics in production (VITE_ANALYTICS_ENABLED) — wired track() to a Supabase analytics_events sink; **Tien must run sql/analytics_events.sql in the Supabase SQL editor**, then events flow on the next deploy
-- [ ] Deep-link scene loading (?s=80perche style)
-- [ ] Mauritian units: toise / perche / arpent with sourced exact factors
+- [x] Deep-link scene loading (?s=80perche style) — extends the existing ?size= path; parses number+unit, lands straight on the plot with comparisons on and the agent chat closed; landing_loaded now tracks mode 'deeplink' + unit
+- [x] Mauritian units: toise / perche / arpent — 1 arpent = 4220.87 m², 1 perche = 42.2087 m², 1 toise = 3.7987 m² (propertymap.mu, decordier-immobilier.mu, fody.mu); area readouts display the deep-linked unit
 - [ ] Branded Facebook-ready share-image export
 - [ ] Pricing simplification: single $20 one-time Pro; remove subscription + lifetime
 - [ ] Curate default comparison panel; hide DXF/GLB from primary export UI

@@ -32,6 +32,7 @@ import Onboarding from './components/Onboarding'
 import GuidedOnboarding from './components/GuidedOnboarding'
 import { FSM_HOUSE_WALLS, FSM_LAND, FSM_CAMERA_START, FSM_HOUSE_BOUNDS } from './data/houseTemplate'
 import { houseTemplates } from './data/houseTemplates'
+import { areaToRectDims } from './data/landTemplates'
 import BuildPanel from './components/BuildPanel'
 import ComparePanel from './components/ComparePanel'
 import LandPanel from './components/LandPanel'
@@ -81,6 +82,10 @@ const MM_PER_METER = 1000
 const SQ_FEET_PER_SQ_METER = 10.7639
 const SQ_METERS_PER_ACRE = 4046.86
 const SQ_METERS_PER_HECTARE = 10000
+// Mauritian land units: 1 arpent = 100 perches = 1111 toises (toise ≈ 3.7987 m²)
+const SQ_METERS_PER_ARPENT = 4220.87
+const SQ_METERS_PER_PERCHE = 42.2087
+const SQ_METERS_PER_TOISE = 3.7987
 
 // Conversion utilities
 const convertLength = (meters, unit) => {
@@ -104,8 +109,46 @@ const convertArea = (sqMeters, unit) => {
     case 'ft²': return sqMeters * SQ_FEET_PER_SQ_METER
     case 'acres': return sqMeters / SQ_METERS_PER_ACRE
     case 'hectares': return sqMeters / SQ_METERS_PER_HECTARE
+    case 'arpents': return sqMeters / SQ_METERS_PER_ARPENT
+    case 'perches': return sqMeters / SQ_METERS_PER_PERCHE
+    case 'toises': return sqMeters / SQ_METERS_PER_TOISE
     default: return sqMeters
   }
+}
+
+const convertAreaToM2 = (value, unit) => {
+  switch (unit) {
+    case 'ft²': return value / SQ_FEET_PER_SQ_METER
+    case 'acres': return value * SQ_METERS_PER_ACRE
+    case 'hectares': return value * SQ_METERS_PER_HECTARE
+    case 'arpents': return value * SQ_METERS_PER_ARPENT
+    case 'perches': return value * SQ_METERS_PER_PERCHE
+    case 'toises': return value * SQ_METERS_PER_TOISE
+    default: return value
+  }
+}
+
+// Deep-link size parsing: "?s=80perche", "?s=2000", "?s=1.5arpents", "?s=0.5acre"
+const AREA_UNIT_ALIASES = {
+  'm2': 'm²', 'm²': 'm²', 'sqm': 'm²',
+  'ft2': 'ft²', 'ft²': 'ft²', 'sqft': 'ft²',
+  'p': 'perches', 'perche': 'perches', 'perches': 'perches', 'perch': 'perches',
+  't': 'toises', 'toise': 'toises', 'toises': 'toises',
+  'arpent': 'arpents', 'arpents': 'arpents',
+  'ac': 'acres', 'acre': 'acres', 'acres': 'acres',
+  'ha': 'hectares', 'hectare': 'hectares', 'hectares': 'hectares',
+}
+
+const parseAreaParam = (raw) => {
+  const match = String(raw).trim().toLowerCase().match(/^([\d.,]+)\s*([a-z]*[2²]?)$/)
+  if (!match) return null
+  const value = parseFloat(match[1].replace(',', '.'))
+  if (!(value > 0)) return null
+  const unit = match[2] ? AREA_UNIT_ALIASES[match[2]] : 'm²'
+  if (!unit) return null
+  // Clamp to a renderable range: 10 m² to 100 ha
+  const areaM2 = Math.min(Math.max(convertAreaToM2(value, unit), 10), 1_000_000)
+  return { areaM2, areaUnit: unit }
 }
 
 const formatLength = (meters, unit) => {
@@ -115,8 +158,11 @@ const formatLength = (meters, unit) => {
 
 const formatArea = (sqMeters, areaUnit) => {
   const value = convertArea(sqMeters, areaUnit)
-  if (areaUnit === 'acres' || areaUnit === 'hectares') {
+  if (areaUnit === 'acres' || areaUnit === 'hectares' || areaUnit === 'arpents') {
     return `${value.toFixed(2)} ${areaUnit}`
+  }
+  if (areaUnit === 'perches' || areaUnit === 'toises') {
+    return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)} ${areaUnit}`
   }
   return `${value.toFixed(0)} ${areaUnit}`
 }
@@ -1515,27 +1561,31 @@ function App() {
       track('landing_loaded', { mode: 'shared', device: getDeviceType() })
       loadSharedScene(match[1])
     } else {
-      // Check for ?size= param (shared plot link)
+      // Check for ?s= / ?size= deep link ("80perche", "2000", "1.5arpents")
       const params = new URLSearchParams(window.location.search)
-      const sizeParam = params.get('size')
-      if (sizeParam) {
-        const sizeM2 = parseFloat(sizeParam)
-        if (sizeM2 > 0) {
-          const side = Math.sqrt(sizeM2)
-          setDimensions({ length: side, width: side })
-          setShapeMode('rectangle')
-          setConfirmedPolygon(null)
-          setUserHasLand(true)
-          setHasSeenIntro(true)
-          localStorage.setItem('landVisualizerIntroSeen', 'true')
-          localStorage.setItem('fsmCompleted', 'true')
-          setActiveComparisons({ basketballCourt: true, tennisCourt: true })
-        }
+      const sizeParam = params.get('s') || params.get('size')
+      const parsedSize = sizeParam ? parseAreaParam(sizeParam) : null
+      if (parsedSize) {
+        const { widthM, lengthM } = areaToRectDims(parsedSize.areaM2)
+        setDimensions({ length: lengthM, width: widthM })
+        setShapeMode('rectangle')
+        setConfirmedPolygon(null)
+        setUserHasLand(true)
+        setHasSeenIntro(true)
+        localStorage.setItem('landVisualizerIntroSeen', 'true')
+        localStorage.setItem('fsmCompleted', 'true')
+        setActiveComparisons({ basketballCourt: true, tennisCourt: true })
+        setAreaUnit(parsedSize.areaUnit)
+        setShowAIChat(false) // deep-link visitors came to see the land, not a chat form
       }
       // Check if user has saved land data
       const hasSavedLand = localStorage.getItem('landVisualizer') !== null
-      const mode = hasSavedLand ? 'user' : 'example'
-      track('landing_loaded', { mode, device: getDeviceType() })
+      const mode = parsedSize ? 'deeplink' : hasSavedLand ? 'user' : 'example'
+      track('landing_loaded', {
+        mode,
+        device: getDeviceType(),
+        ...(parsedSize ? { unit: parsedSize.areaUnit, areaM2: roundArea(parsedSize.areaM2) } : {}),
+      })
     }
   }, [loadSharedScene])
 
@@ -1548,9 +1598,9 @@ function App() {
   // When length unit changes, update area unit to match (m→m², ft→ft², mm→m²)
   const handleLengthUnitChange = (unit) => {
     setLengthUnit(unit)
-    // Auto-switch area unit to match, unless using acres/hectares
-    // For mm, keep m² since mm² is too small for land areas
-    if (areaUnit !== 'acres' && areaUnit !== 'hectares') {
+    // Auto-switch area unit to match, unless using a named land unit
+    // (acres/hectares/arpents/perches/toises). For mm, keep m².
+    if (areaUnit === 'm²' || areaUnit === 'ft²') {
       if (unit === 'ft') setAreaUnit('ft²')
       else setAreaUnit('m²') // m and mm both use m²
     }
