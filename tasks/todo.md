@@ -22,6 +22,12 @@ Product (small tasks, in spec order):
 
 Not code (Tien, weekly, ~2 h): the listing-visualization post loop per spec section 5 — Facebook land groups + r/mauritius. Starts before the build queue finishes; first post can use manual screenshots.
 
+### Launch Review (2026-06-12)
+- `feature/open-world-genshin` fast-forwarded into `main` (41 commits) and pushed; Vercel git integration auto-built and **production is live at sitea.live** with the deep links, Mauritian units, and the analytics sink.
+- `sql/analytics_events.sql` executed on production Supabase (via the dashboard SQL editor): table + index + RLS insert-only policy created, "Success. No rows returned". Anon-key insert smoke test returned HTTP 201 — the exact path browsers use.
+- Live proof: https://sitea.live/?s=80perches renders the plot with "80.0 perches" in the header. **Sitea is shipped; the first post can go out now.**
+- Remaining build queue: branded share image, single $20 Pro tier, comparison curation + DXF/GLB hiding. Future work happens on `main`; the genshin feature branch is frozen per the reset.
+
 ### v1 reset docs Review
 - New product spec at specs/v1-reset-mauritius.md, written from the 2026-06-12 founder interview: zero users, Mauritius-first wedge ("see exactly how big that land really is, before you visit it"), pre-purchase land buyer persona, side-project economics (goal ≈ $200–300/month), distribution loop as the roadmap, 90-day kill criteria, and a freeze list.
 - PRD.md rewritten as v4.0 around the reset; old v3.0 content superseded (its history is in git). README.md and APP_STATUS.md updated to match — both keep all operational content and honestly mark the deployed 3-tier pricing as "until the pricing-simplification task lands" so docs never contradict production.
