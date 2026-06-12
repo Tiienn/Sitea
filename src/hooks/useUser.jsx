@@ -4,6 +4,11 @@ import { toErrorMessage } from '../utils/errorMessages'
 
 const UserContext = createContext(null)
 
+// Launch promo (v1 reset): Pro features are free for everyone while Sitea
+// hunts its first users. Flip to false to restore the paywall. Server-side
+// upload caps still apply per signed-in user (server/uploadQuota.js).
+const FREE_LAUNCH = true
+
 export function UserProvider({ children }) {
   const [user, setUser] = useState(null)
   const [isPaidUser, setIsPaidUser] = useState(false)
@@ -188,7 +193,7 @@ export function UserProvider({ children }) {
 
   // Show pricing modal when user tries to access paid feature
   const requirePaid = useCallback((callback) => {
-    if (isPaidUser) {
+    if (FREE_LAUNCH || isPaidUser) {
       callback?.()
       return true
     }
@@ -259,7 +264,7 @@ export function UserProvider({ children }) {
   return (
     <UserContext.Provider value={{
       user,
-      isPaidUser,
+      isPaidUser: FREE_LAUNCH || isPaidUser,
       isLoading,
       planType,
       showPricingModal,

@@ -42,6 +42,7 @@ Everything below works **without sign-in**, loads fast on a phone, and points ba
 - **Sitea Pro — $20 one-time:** floor-plan upload (20 uploads), unlimited saved projects, time-of-day control. The floor-plan analyzer becomes *the* paid feature — its real API costs are then paid by the only people who use it.
 - **Cut:** the $9.99/month subscription (PayPal subscription verification is ongoing maintenance for a side project) and the $149 lifetime tier (meaningless at zero volume; two prices is one price too many).
 - **Math:** goal ≈ $200–300/month ⇒ 10–15 Pro sales/month. Achievable from one island's Facebook groups if the free loop works.
+- **Launch promo (live since 2026-06-12):** Pro features are free for everyone while Sitea hunts its first users — `FREE_LAUNCH` flag in `src/hooks/useUser.jsx`; free upload cap raised 1 → 20 per signed-in user in `server/uploadQuota.js` so AI-analysis costs stay bounded. Flip the flag to restore the paywall when the loop proves demand.
 
 ## 5. The distribution loop (this IS the roadmap)
 

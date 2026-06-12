@@ -77,6 +77,8 @@ The origin insight: people browsing land listings cannot picture what 2000 m² o
 
 The `$9.99/month` subscription and `$149` lifetime tiers are **removed** (subscription plumbing is maintenance a side project can't afford; two prices is one too many at zero volume).
 
+**Launch promo (live):** while Sitea hunts its first users, Pro features are free for everyone (`FREE_LAUNCH` flag in `src/hooks/useUser.jsx`); the free upload cap is 20 per signed-in user (`server/uploadQuota.js`) so per-user AI costs stay bounded.
+
 ## 6. Frozen (code stays, zero new work)
 
 - Open-world/Genshin direction (NPCs, quests, terrain expansion). Shipped polish (avatar, footprints, doors, audio) stays because it serves the walk.

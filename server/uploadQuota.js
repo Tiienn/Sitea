@@ -7,7 +7,9 @@ import {
   isSubscriptionActive,
 } from './subscriptions.js';
 
-const FREE_UPLOAD_LIMIT = 1;
+// Launch promo: raised from 1 while Pro is free for everyone (see FREE_LAUNCH
+// in src/hooks/useUser.jsx). Per-user cap stays so AI analysis costs are bounded.
+const FREE_UPLOAD_LIMIT = 20;
 const MONTHLY_UPLOAD_LIMIT = 3;
 const HOMEOWNER_UPLOAD_LIMIT = 20;
 const UNLIMITED_RPC_LIMIT = 2147483647;

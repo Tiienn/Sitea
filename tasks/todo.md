@@ -17,7 +17,8 @@ Product (small tasks, in spec order):
 - [x] Deep-link scene loading (?s=80perche style) — extends the existing ?size= path; parses number+unit, lands straight on the plot with comparisons on and the agent chat closed; landing_loaded now tracks mode 'deeplink' + unit
 - [x] Mauritian units: toise / perche / arpent — 1 arpent = 4220.87 m², 1 perche = 42.2087 m², 1 toise = 3.7987 m² (propertymap.mu, decordier-immobilier.mu, fody.mu); area readouts display the deep-linked unit
 - [ ] Branded Facebook-ready share-image export
-- [ ] Pricing simplification: single $20 one-time Pro; remove subscription + lifetime
+- [x] Launch promo: Pro free for everyone (user request 2026-06-12) — FREE_LAUNCH flag in useUser.jsx unlocks time-of-day + premium comparisons + requirePaid paths; server free upload cap 1 → 20 per signed-in user keeps AI costs bounded; flip the flag to restore the paywall
+- [ ] Pricing simplification: single $20 one-time Pro; remove subscription + lifetime (PricingModal still exists for anyone who insists on paying during the promo)
 - [ ] Curate default comparison panel; hide DXF/GLB from primary export UI
 
 Not code (Tien, weekly, ~2 h): the listing-visualization post loop per spec section 5 — Facebook land groups + r/mauritius. Starts before the build queue finishes; first post can use manual screenshots.
