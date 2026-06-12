@@ -36,6 +36,18 @@ Not code (Tien, weekly, ~2 h): the listing-visualization post loop per spec sect
 - Frozen, not deleted: open-world/Genshin direction, building-editor depth, Capacitor shells, DXF/GLB in primary UI, subscription billing, analyzer investment. Code stays; work stops.
 - Next: product build queue above, one small task at a time. Items 1–4 (analytics, deep links, Mauritian units, share image) are the launch-critical ones.
 
+## Active Plan: Comparison-object quality pass (user feedback 2026-06-12)
+
+- [x] Basketball (BasketballCourt3D): rim was on the baseline side of the backboard (sign flip) — rim+net now 0.38 m in front of the board (basket center lands at FIBA's 1.575 m from the endline, matching the floor marking); shooter square moved to the court-facing face; frame behind the board; pole relocated outside the baseline (and raised so the arm connects); 3-pt straights at 0.9 m from sidelines with tangent-correct depth (2.99 m) and the arc clipped to meet them
+- [x] Olympic pool (SwimmingPool3D): flicker = 3 transparent planes within 15 mm (water 0.08 / white lane planes 0.09 / shimmer 0.095) fighting in the transparent sort — now a single water plane with depthWrite off, and lane markings are opaque dark-navy lines on the pool bottom (one per lane center, like real pools); ropes/floats unchanged
+- [x] House wall streaks: shadow acne (1024px map stretched over the 200 m shadow camera) — `shadow-normalBias={0.6}` on the sun light in LandScene; fixes all buildings/walls scene-wide. Verified clean at 2 m in walk mode (house-approach-4.png), shadows still grounded (no peter-panning)
+- [x] Visual sweep: tennis, soccer, car, school bus, parking eyeballed in orbit — clean. Long tail (~30 landmark/gaming objects) not individually audited; revisit if a user shot looks off
+- [x] eslint 0 errors, build passes; evidence in tasks/screenshots/compare-objects/
+
+### Comparison-object quality pass Review
+- Walk-mode QA done via headful Playwright (pointer lock fails headless; preview embeds can't send trusted keys) — approach choreography: deep link a small plot, JS-click panel buttons, trusted canvas click for pointer lock, relative mouse move to aim, WASD bursts with per-second screenshots.
+- The shadow-acne fix is scene-global and the most visible quality win — every wall in every screenshot a user shares now renders clean.
+
 ## Archive
 
 Completed plans and reviews through June 2026 live in tasks/todo-archive-2026-06.md.

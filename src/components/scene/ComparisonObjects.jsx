@@ -343,12 +343,16 @@ function SoccerField3D({ obj }) {
 // Basketball Court with hoops
 function BasketballCourt3D({ obj }) {
   const texture = useBasketballCourtTexture(obj.width, obj.length)
-  const poleHeight = 3, rimHeight = 3.05, backboardWidth = 1.8, backboardHeight = 1.05
+  const poleHeight = 3.35, rimHeight = 3.05, backboardWidth = 1.8, backboardHeight = 1.05
   const lineWidth = 0.09
   const keyWidth = Math.min(4.9, obj.width * 0.38)
   const keyDepth = Math.min(5.8, obj.length * 0.23)
   const circleRadius = Math.min(1.8, obj.width * 0.14)
+  // FIBA 3-pt: 6.75 m arc from basket center, straight portions 0.9 m from sidelines
   const threePointRadius = Math.min(6.75, obj.width / 2 - 0.35)
+  const threePointSide = Math.min(obj.width / 2 - 0.9, threePointRadius - 0.05)
+  const arcClip = Math.acos(Math.min(threePointSide / threePointRadius, 1))
+  const straightDepth = Math.min(1.575, obj.length * 0.06) + threePointRadius * Math.sin(arcClip)
   const basketOffset = Math.min(1.575, obj.length * 0.06)
 
   return (
@@ -382,38 +386,39 @@ function BasketballCourt3D({ obj }) {
               lineWidth={lineWidth}
               y={0.098}
               z={basketZ}
-              arc={Math.PI}
-              rotationZ={side > 0 ? Math.PI : 0}
+              arc={Math.PI - 2 * arcClip}
+              rotationZ={(side > 0 ? Math.PI : 0) + arcClip}
             />
             <SurfaceLine
-              x={-threePointRadius}
-              z={side * (obj.length / 2 - keyDepth / 2)}
+              x={-threePointSide}
+              z={side * (obj.length / 2 - straightDepth / 2)}
               width={lineWidth}
-              depth={keyDepth}
+              depth={straightDepth}
               y={0.1}
             />
             <SurfaceLine
-              x={threePointRadius}
-              z={side * (obj.length / 2 - keyDepth / 2)}
+              x={threePointSide}
+              z={side * (obj.length / 2 - straightDepth / 2)}
               width={lineWidth}
-              depth={keyDepth}
+              depth={straightDepth}
               y={0.1}
             />
           </group>
         )
       })}
 
-      {/* Hoops at each end */}
+      {/* Hoops at each end — board face 1.2 m inside the baseline, rim hanging
+          toward the court so the basket center lands ~1.575 m from the endline */}
       {[-1, 1].map((side) => (
         <group key={side} position={[0, 0, side * (obj.length / 2 - 1.2)]}>
-          {/* Pole */}
-          <mesh position={[0, poleHeight / 2, side * 0.5]} castShadow>
+          {/* Pole — outside the baseline, behind the board */}
+          <mesh position={[0, poleHeight / 2, side * 1.35]} castShadow>
             <cylinderGeometry args={[0.1, 0.1, poleHeight, 8]} />
             <meshStandardMaterial color="#333333" />
           </mesh>
-          {/* Support arm */}
-          <mesh position={[0, rimHeight + 0.1, side * 0.24]} castShadow>
-            <boxGeometry args={[0.16, 0.16, 0.68]} />
+          {/* Support arm — spans from pole to backboard */}
+          <mesh position={[0, rimHeight + 0.1, side * 0.675]} castShadow>
+            <boxGeometry args={[0.16, 0.16, 1.35]} />
             <meshStandardMaterial color="#333333" roughness={0.52} />
           </mesh>
           {/* Backboard */}
@@ -421,23 +426,23 @@ function BasketballCourt3D({ obj }) {
             <boxGeometry args={[backboardWidth, backboardHeight, 0.05]} />
             <meshStandardMaterial color="#e0f2fe" transparent opacity={0.68} roughness={0.18} />
           </mesh>
-          {/* Backboard frame */}
-          <mesh position={[0, rimHeight + backboardHeight / 2 - 0.15, -side * 0.03]}>
+          {/* Backboard frame — behind the board, toward the pole */}
+          <mesh position={[0, rimHeight + backboardHeight / 2 - 0.15, side * 0.03]}>
             <boxGeometry args={[backboardWidth + 0.1, backboardHeight + 0.1, 0.02]} />
             <meshStandardMaterial color="#333333" />
           </mesh>
-          {/* Shooter square */}
-          <mesh position={[0, rimHeight + 0.18, side * 0.04]}>
+          {/* Shooter square — on the court-facing face */}
+          <mesh position={[0, rimHeight + 0.18, -side * 0.045]}>
             <boxGeometry args={[0.62, 0.42, 0.025]} />
             <meshStandardMaterial color="#f8fafc" roughness={0.3} />
           </mesh>
-          {/* Rim */}
-          <mesh position={[0, rimHeight, side * 0.25]} rotation={[Math.PI / 2, 0, 0]}>
+          {/* Rim — in front of the board, over the court */}
+          <mesh position={[0, rimHeight, -side * 0.38]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.23, 0.02, 8, 24]} />
             <meshStandardMaterial color="#ff6600" />
           </mesh>
           {/* Simple net */}
-          <mesh position={[0, rimHeight - 0.18, side * 0.25]}>
+          <mesh position={[0, rimHeight - 0.18, -side * 0.38]}>
             <cylinderGeometry args={[0.2, 0.14, 0.36, 12, 1, true]} />
             <meshStandardMaterial color="#ffffff" transparent opacity={0.42} side={THREE.DoubleSide} />
           </mesh>
@@ -4305,26 +4310,24 @@ function SwimmingPool3D({ obj }) {
         <meshStandardMaterial color="#7CC4D6" roughness={0.62} />
       </mesh>
 
-      {/* Water surface */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
-        <planeGeometry args={[obj.width, obj.length]} />
-        <meshStandardMaterial color="#2CB5D6" transparent opacity={0.68} roughness={0.12} metalness={0.02} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.095, 0]}>
-        <planeGeometry args={[obj.width * 0.92, obj.length * 0.92]} />
-        <meshStandardMaterial color="#a7f3d0" transparent opacity={0.12} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Lane lines — 8 lanes for Olympic pool */}
-      {Array.from({ length: laneCount + 1 }, (_, i) => {
-        const x = -obj.width / 2 + (obj.width / laneCount) * i
+      {/* Lane markings — dark line on the pool bottom at each lane center,
+          opaque and well below the water plane so nothing z-fights */}
+      {Array.from({ length: laneCount }, (_, i) => {
+        const x = -obj.width / 2 + (obj.width / laneCount) * (i + 0.5)
         return (
-          <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.09, 0]}>
-            <planeGeometry args={[0.1, obj.length * 0.95]} />
-            <meshStandardMaterial color="#ffffff" transparent opacity={0.6} />
+          <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.02, 0]}>
+            <planeGeometry args={[0.25, obj.length * 0.9]} />
+            <meshStandardMaterial color="#1e3a8a" roughness={0.6} />
           </mesh>
         )
       })}
+
+      {/* Water surface — single transparent plane; depthWrite off so the
+          transparent sort can't flicker against the markings below */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
+        <planeGeometry args={[obj.width, obj.length]} />
+        <meshStandardMaterial color="#2CB5D6" transparent opacity={0.7} roughness={0.12} metalness={0.02} depthWrite={false} />
+      </mesh>
       {Array.from({ length: laneCount - 1 }, (_, i) => {
         const x = -obj.width / 2 + (obj.width / laneCount) * (i + 1)
         return (

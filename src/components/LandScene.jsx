@@ -2720,6 +2720,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
         shadow-camera-top={100}
         shadow-camera-bottom={-100}
         shadow-bias={-0.0001}
+        shadow-normalBias={0.6}
       />
 
       {/* Ambient light */}
