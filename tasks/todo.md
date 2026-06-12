@@ -1,14 +1,20 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
 ## Active Plan: Floor-plan walkthrough (specs/floor-plan-walkthrough.md)
-- [ ] Audio: add `playDoorSound()` (soft procedural creak, ≥150 ms global gap) and `setIndoor(bool)` (wind gain down + tighter lowpass, birds quieter) to src/utils/ambientAudio.js
-- [ ] Door panels: swing-animated leaf meshes for single/double door openings in WallSegment.jsx (hinge-pivot groups, useFrame damp toward open/closed, hysteresis 1.5 m open / 2.5 m close, swings away from player); static closed in orbit, untouched in 2D; plumb a shared `playerPosRef` from LandScene wrapper → Scene → both WallSegment call sites
-- [ ] Room presence: new src/hooks/useRoomPresence.js — 5 Hz point-in-polygon for hand-drawn rooms (innermost wins) + nearest-room-center inside building footprint for floor-plan buildings (they have no polygons — center+area only); returns {id, name, area} or null, state changes only on enter/exit
-- [ ] HUD: room chip ("Name · 16 m²", fades after 3 s) + "☀ Morning light" button in a fixed row under the WalkStats cluster (absolute overlay, no layout shift, 44 px touch target), walk-mode only
-- [ ] Morning light: `timeOverride` state in LandScene wrapper, eased to 0.27 over 1.5 s (rAF), reset restores prior time; Scene uses `timeOverride ?? (isPaidUser ? timeOfDay : 0.35)` everywhere the free pin appears; override clears on leaving walk mode; subtle one-line Pro-slider hint for free users after reset
-- [ ] Indoor ambience: wire setIndoor(currentRoom != null) in walk mode
-- [ ] Verify: eslint on changed files, npm run build, browser walkthrough (draw room + door, walk through, screenshots to tasks/screenshots/floor-plan-walkthrough/), check acceptance criteria in spec
-- [ ] Finish: spec → status built + Build notes, todo review section, push branch
+- [x] Audio: add `playDoorSound()` (soft procedural creak, ≥150 ms global gap) and `setIndoor(bool)` (wind gain down + tighter lowpass, birds quieter) to src/utils/ambientAudio.js
+- [x] Door panels: swing-animated leaf meshes for single/double door openings in WallSegment.jsx (hinge-pivot groups, useFrame damp toward open/closed, hysteresis 1.5 m open / 2.5 m close, swings away from player); static closed in orbit, untouched in 2D; plumb a shared `playerPosRef` from LandScene wrapper → Scene → both WallSegment call sites
+- [x] Room presence: new src/hooks/useRoomPresence.js — 5 Hz point-in-polygon for hand-drawn rooms (innermost wins) + nearest-room-center inside building footprint for floor-plan buildings (they have no polygons — center+area only); returns {id, name, area} or null, state changes only on enter/exit
+- [x] HUD: room chip ("Name · 16 m²", fades after 3 s) + "☀ Morning light" button in a fixed row under the WalkStats cluster (absolute overlay, no layout shift, 44 px touch target), walk-mode only
+- [x] Morning light: `timeOverride` state in LandScene wrapper, eased to 0.27 over 1.5 s (rAF), reset restores prior time; Scene uses `timeOverride ?? (isPaidUser ? timeOfDay : 0.35)` everywhere the free pin appears; override clears on leaving walk mode; subtle one-line Pro-slider hint for free users after reset
+- [x] Indoor ambience: wire setIndoor(currentRoom != null) in walk mode
+- [x] Verify: eslint on changed files, npm run build, browser walkthrough (draw room + door, walk through, screenshots to tasks/screenshots/floor-plan-walkthrough/), check acceptance criteria in spec
+- [x] Finish: spec → status built + Build notes, todo review section, push branch
+
+### Floor-plan walkthrough Review
+- Shipped in 4 commits: door sound + indoor muffling (`a62f824`), doors/chip/morning-light feature core (`bb1c17a`), and two root-cause fixes for pre-existing bugs discovered during browser QA: room detection broken by the UUID wall-id refactor (`da93120` — detectRooms/findConnectedWalls/findWallsForRoom filtered on legacy `wall-` id prefixes, so NO rooms were detected for any wall drawn since commit `ebe31f2`; this also restored room floors/labels product-wide) and wall-click door placement dropping the selected doorType (`71d6747` — "Double" doors silently became wide singles).
+- Architecture: zero per-frame React state. Doors read a shared `playerPosRef` inside `useFrame` and convert to door-local space with `worldToLocal` (handles rotated buildings); room presence polls the same ref at 5 Hz and only sets state on enter/exit; the morning-light ease is a transient 1.5 s rAF.
+- Verified end-to-end in the dev preview by drawing a room + doors through the real UI and walking through them: open-on-approach (both approach sides → swings away from player), close-after-pass, double-door leaves, chip text/fade ("Room · 226 m²", "Master bedroom · 30 m²" from an injected rotated building), free-user morning light + reset + Pro hint, mobile 375 px layout, orbit (closed/static) and 2D (unchanged) modes, 0 console errors, eslint 0 errors, build passes. 8 screenshots in tasks/screenshots/floor-plan-walkthrough/.
+- Audio is code-verified only (headless browser can't unlock Web Audio); worth a 10-second listen on a real machine: walk through a door (soft creak), step inside (wind muffles).
 
 ## Active Plan: Avatar replacement (user feedback: transparent body, bald)
 - [x] Replace the player character entirely: Mixamo Ch17 worker GLB → three.js Xbot mannequin (self-hosted at public/models/xbot.glb), the neutral white/graphite scale figure used in archviz. Ships its own idle/walk/run clips on its own skeleton, so the cross-rig retarget problem disappears; extra movement states map to the nearest clip (walkback = walk reversed). GLB's shipped salmon materials restyled in code. Drops 13 animation GLB downloads from Supabase.

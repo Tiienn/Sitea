@@ -1,7 +1,8 @@
 # Floor-plan walkthrough — doors, room labels, morning light
 
-Status: ready-to-build
+Status: built
 Created: 2026-06-11
+Built: 2026-06-12
 
 ## Summary
 Make walking through a home on your land feel like visiting it: doors swing open as you approach, a label tells you which room you're in and how big it is, and one tap fills the room with morning light. This is the emotional payoff of the floor-plan upload flow — the moment a plan becomes "my future house".
@@ -56,16 +57,36 @@ As a homeowner who uploaded a floor plan (or drew rooms), I want to walk through
 - FAST quality: everything ships in FAST too (door panels are trivial geometry; no quality gating needed).
 
 ## Acceptance criteria
-- [ ] Walking toward a single door opens it before contact; it closes after passing; double doors open both leaves
-- [ ] Door sound plays on open (audible with sound on, silent when muted)
-- [ ] Entering a named room shows "«name» · «area» m²" chip for ~3 s; unnamed shows "Room · «area» m²"
-- [ ] Entering a hand-drawn room and a floor-plan building room both trigger the chip
-- [ ] "☀ Morning light" button appears only while inside a room, in Walk mode, on desktop and mobile widths
-- [ ] Tapping it as a FREE user visibly warms the light over ~1.5 s; Reset restores prior light
-- [ ] Ambient sound audibly muffles indoors, restores outdoors
-- [ ] No console errors; eslint clean on changed files; `npm run build` passes
-- [ ] 3D orbit view shows closed door panels, no animation; 2D mode visually unchanged
-- [ ] No per-frame React re-renders introduced (chip state changes only on room enter/exit)
+- [x] Walking toward a single door opens it before contact; it closes after passing; double doors open both leaves
+- [x] Door sound plays on open (audible with sound on, silent when muted) — *code path verified; headless QA browser cannot play audio (see Build notes)*
+- [x] Entering a named room shows "«name» · «area» m²" chip for ~3 s; unnamed shows "Room · «area» m²"
+- [x] Entering a hand-drawn room and a floor-plan building room both trigger the chip
+- [x] "☀ Morning light" button appears only while inside a room, in Walk mode, on desktop and mobile widths
+- [x] Tapping it as a FREE user visibly warms the light over ~1.5 s; Reset restores prior light
+- [x] Ambient sound audibly muffles indoors, restores outdoors — *wiring verified (setIndoor flips on enter/exit); audio inaudible in headless QA (see Build notes)*
+- [x] No console errors; eslint clean on changed files; `npm run build` passes
+- [x] 3D orbit view shows closed door panels, no animation; 2D mode visually unchanged
+- [x] No per-frame React re-renders introduced (chip state changes only on room enter/exit)
+
+## Build notes
+
+**What shipped** (branch `feature/open-world-genshin`):
+- `src/utils/ambientAudio.js` — `playDoorSound()` (filtered noise creak with rising bandpass + low sine thump, global ≥150 ms gap) and `setIndoor(bool)` (wind lowpass 380→160 Hz, gain 0.045→0.016, LFO depth eased over 0.8 s; bird chirps 0.035→0.01 while indoors).
+- `src/components/scene/WallSegment.jsx` — `SwingDoor`: hinge-pivot leaf groups (1 leaf single, 2 leaves double) animated in `useFrame` with `THREE.MathUtils.damp` (~0.4 s feel), open at <1.5 m, close at >2.5 m (hysteresis), swing direction away from the player captured at open time via `worldToLocal` (works inside rotated building groups). Sliding/garage doors untouched. Static closed when not in walk mode.
+- `src/hooks/useRoomPresence.js` — 5 Hz interval poll of the shared `playerPosRef`; hand-drawn rooms via point-in-polygon (innermost wins), floor-plan building rooms via nearest room center inside the building's wall bounding box (transformed to building-local coords); React state changes only on room enter/exit.
+- `src/components/LandScene.jsx` — shared `playerPosRef` (written in the existing `onPlayerPositionUpdate` callback), `RoomPresenceHUD` (chip with 3 s fade + Morning light button, absolute row under the WalkStats pill at top:70 → zero layout shift; 44 px button), `timeOverride` state with 1.5 s eased rAF animation, free-user Pro-slider hint (4 s, one line) after reset, `setIndoor` wiring. `DayNightController` + `RealisticSky`/`NightStars`/`MountainSilhouettes`/`DistantTreeline` now use `timeOverride ?? (isPaidUser ? timeOfDay : 0.35)`; the Pro auto-cycle pauses while the override holds.
+
+**Pre-existing bugs found and fixed (root causes, both predate this spec):**
+1. `roomDetection.js` filtered walls by legacy `wall-`/`fsm-` id prefixes; commit `ebe31f2` switched ids to `crypto.randomUUID()`, silently breaking room detection (no rooms, no floors/labels) for all newly drawn walls. Filter now accepts any wall with an id and valid endpoints (`da93120`).
+2. The wall-click door placement path (`onPlaceOpening`) dropped the selected `doorType`, so "Double"/"Sliding"/"Garage" doors placed by clicking a wall always became wide singles (`71d6747`).
+
+**Deviations:**
+- Building rooms carry only `center` + `area` (no polygons exist in the converter output), so building-room detection is nearest-room-center within the building footprint instead of the spec's point-in-polygon. Hand-drawn rooms use true polygons.
+- The static center mullion on double doors was removed — the two swinging leaves replace it.
+- Door sound + indoor muffling could not be heard in the headless QA browser (Web Audio requires a real user gesture; `AudioContext` stays suspended, the code no-ops safely). The code paths (open-transition trigger, 150 ms gap, mute early-return, indoor ramps) were verified by review and exercised without errors.
+- Unit setting: chip area converts to ft² when `lengthUnit === 'ft'` (no separate area-unit plumbing exists in LandScene).
+
+**Verification:** driven end-to-end in the dev preview (drawn 226 m² room + injected rotated floor-plan building): door swings both approach directions, double-door leaves, close-after-pass, chip text/fade timings (DOM opacity probes at 0.6 s/2 s/4.5 s), free-user morning light + reset + hint, mobile 375 px layout (button 50 px tall, cluster fits), 2D/orbit modes, 0 console errors. Screenshots: `tasks/screenshots/floor-plan-walkthrough/` (WebGL canvas captures; the DOM HUD layer is excluded by capture method — HUD verified via measured DOM geometry and inline preview screenshots).
 
 ## Open questions
 None — all forks resolved in the interview (doors swing on approach; HUD chip labels; button-triggered light, free included; all walls/rooms; light-touch sound; "Room · m²" fallback; tour deferred to its own spec).
