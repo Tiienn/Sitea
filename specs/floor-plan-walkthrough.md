@@ -1,8 +1,9 @@
 # Floor-plan walkthrough — doors, room labels, morning light
 
-Status: built
+Status: approved
 Created: 2026-06-11
 Built: 2026-06-12
+Reviewed: 2026-06-12
 
 ## Summary
 Make walking through a home on your land feel like visiting it: doors swing open as you approach, a label tells you which room you're in and how big it is, and one tap fills the room with morning light. This is the emotional payoff of the floor-plan upload flow — the moment a plan becomes "my future house".
@@ -90,3 +91,25 @@ As a homeowner who uploaded a floor plan (or drew rooms), I want to walk through
 
 ## Open questions
 None — all forks resolved in the interview (doors swing on approach; HUD chip labels; button-triggered light, free included; all walls/rooms; light-touch sound; "Room · m²" fallback; tour deferred to its own spec).
+
+## Review — 2026-06-12
+Verdict: approved
+
+### Verified
+- Spec compliance: diffed all four code commits (`a62f824`, `bb1c17a`, `da93120`, `71d6747`) line by line against the spec. Every in-scope behavior is implemented; everything in "Out" is untouched (no tour, no furniture/window changes, no orbit/2D door animation, no door-state persistence). The two out-of-spec fixes (room detection, doorType) are root-cause repairs of pre-existing bugs that blocked acceptance criteria, both documented.
+- Door opens before contact, player passes through, closes beyond 2.5 m — fresh page, room built via the app's own `addWallFromPoints`/`addOpeningToWall`, walked from (0, 11.8) through the door at (0, 3) to (0.2, 0.0); position telemetry confirmed the doorway pass; build-phase screenshots 03/04/06/07/08 show open/closed states and the swing flipping direction with approach side.
+- Room detection from a cold start — 4 UUID-id walls produced 1 detected room (the `da93120` fix working without prior state).
+- Chip on entry through the door — DOM probe immediately after crossing: "Room · 48 m²" at opacity 1 (8×6 room = 48 m² exact); fades to 0 (timing exact in a focused tab; the headless tab throttles `setTimeout`, observed late fade is environmental).
+- Spawn-inside edge case — entering walk mode while inside the polygon announced the room on first detection.
+- Morning light (free user) — button label flips to "Reset light" while the eased override is active; canvas captures show the warmed sky; leaving walk mode with the override active and returning shows "Morning light" again (override cleared, free pin restored).
+- 3D orbit shows closed static panels (review-02 screenshot); 2D mode renders flat symbols only (SwingDoor exists solely in the 3D branch).
+- `npx eslint` on all five changed files: 0 errors (39 pre-existing warnings). `npm run build` passes. Browser console: 0 errors.
+
+### Findings
+- [minor] src/hooks/useRoomPresence.js:18 — hand-drawn room matching ignores `floorLevel`; on a multi-storey build, an upstairs room with the same footprint can win the innermost-area tiebreak while walking the ground floor. Walk mode is ground-level only, so filtering to `room.floorLevel === 0` (or preferring the lowest floor) would be correct. Multi-floor was explicitly out of scope, but the chip is new behavior that can mislabel there.
+- [minor] src/components/scene/WallSegment.jsx (SwingDoor) — proximity distance uses local x/z only, so a door on an upper floor directly above the player would swing and play its sound. Low impact today (added floors are created without openings); guard by including the local y offset in the distance test.
+- [minor] src/components/LandScene.jsx (setIndoor effect) — the cleanup-then-run on room→room transitions schedules an outdoor ramp and an indoor ramp in the same commit. Inaudible in practice; deriving a single `isIndoor` boolean as the effect dep (or `cancelAndHoldAtTime` in ambientAudio) would be cleaner.
+- [minor] src/components/LandScene.jsx (toggleMorningLight) — a Pro user who drags the time slider while the override is active has that input discarded on Reset (restores the pre-tap time). Edge interaction not covered by the spec; consider hiding/disabling the slider while the override holds.
+- [minor][pre-existing, out of scope] Floor-plan building walls have no walk-mode collision (CameraController only collides with the hand-drawn `walls` array), so players walk through building walls and the swinging doors there are cosmetic. Pre-dates this spec; worth its own task.
+
+No blockers or majors. The minor findings are all in multi-floor or Pro-edge territory the spec scoped out; fine to ship and fold the first two into the next walkthrough iteration.
