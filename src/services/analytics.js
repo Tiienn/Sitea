@@ -5,6 +5,8 @@
  * Debug mode logs to console when VITE_ANALYTICS_DEBUG=true
  */
 
+import { supabase } from '../lib/supabaseClient'
+
 const ANALYTICS_ENABLED = import.meta.env.VITE_ANALYTICS_ENABLED === 'true'
 const ANALYTICS_DEBUG = import.meta.env.VITE_ANALYTICS_DEBUG === 'true'
 
@@ -77,12 +79,16 @@ export function track(eventName, props = {}) {
   // If analytics disabled, stop here
   if (!ANALYTICS_ENABLED) return
 
-  // Future: hook into real analytics provider here
-  // Examples:
-  // - PostHog: posthog.capture(eventName, props)
-  // - Plausible: plausible(eventName, { props })
-  // - GA4: gtag('event', eventName, props)
-  // - Segment: analytics.track(eventName, props)
+  // Sink: append-only analytics_events table (sql/analytics_events.sql).
+  // Fire-and-forget — analytics must never break or slow the app.
+  if (supabase) {
+    supabase
+      .from('analytics_events')
+      .insert({ event_name: eventName, props, device: getDeviceType() })
+      .then(({ error }) => {
+        if (error && ANALYTICS_DEBUG) console.warn('[analytics] insert failed', error.message)
+      })
+  }
 }
 
 /**

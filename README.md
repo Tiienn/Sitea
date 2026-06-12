@@ -92,12 +92,14 @@ PAYPAL_ENV=live
 
 `PAYPAL_ENV` defaults to sandbox behavior unless set to `live`. The client ID and monthly plan ID are exposed to the browser through `VITE_` variables; `PAYPAL_CLIENT_SECRET` must only exist on the server/Vercel.
 
-Optional analytics flags:
+Analytics flags (enabled in production since the June 2026 reset):
 
 ```bash
-VITE_ANALYTICS_ENABLED=false
+VITE_ANALYTICS_ENABLED=true
 VITE_ANALYTICS_DEBUG=false
 ```
+
+Events are appended to the Supabase `analytics_events` table (`sql/analytics_events.sql` — insert-only RLS, read it from the Supabase SQL editor). Analytics is fire-and-forget and never blocks the app; if the table or env vars are missing, events are dropped silently.
 
 ## Scripts
 

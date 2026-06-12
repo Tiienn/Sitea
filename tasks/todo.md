@@ -13,7 +13,7 @@ Docs:
 - [x] Delete docs/competitive-analysis.html (duplicate of the .md)
 
 Product (small tasks, in spec order):
-- [ ] Enable + verify analytics in production (VITE_ANALYTICS_ENABLED)
+- [x] Enable + verify analytics in production (VITE_ANALYTICS_ENABLED) — wired track() to a Supabase analytics_events sink; **Tien must run sql/analytics_events.sql in the Supabase SQL editor**, then events flow on the next deploy
 - [ ] Deep-link scene loading (?s=80perche style)
 - [ ] Mauritian units: toise / perche / arpent with sourced exact factors
 - [ ] Branded Facebook-ready share-image export
