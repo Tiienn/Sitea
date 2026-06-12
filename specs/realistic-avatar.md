@@ -1,6 +1,6 @@
 # Realistic avatar — mocap motion, intact worker, camera feel
 
-Status: built
+Status: approved
 Created: 2026-06-12
 
 ## Summary
@@ -90,3 +90,23 @@ Deviations / findings:
 - Footstep audio is code-verified only (headless browser can't unlock Web Audio); worth a 10-second listen on a real machine.
 
 Screenshots: `tasks/screenshots/realistic-avatar/` (idle/walk/run/jump-arc ×3/walkback/strafes, view-panel-avatar-row.png, broken-avatar-no-crash.jpg, final-regression-walk.jpg).
+
+## Review — 2026-06-12
+Verdict: approved
+
+### Verified
+- Spec compliance: diffed all three build commits (`fa31418`→`79a719d` range); every in-scope item implemented, no silent omissions; the two additions beyond spec (View-panel `z-20`, `scripts/qa-shot-server.mjs`) are justified and documented in Build notes. Out-of-scope items untouched (no NPC/speed/physics changes, no new assets).
+- Intact worker in TP — `review-tp-idle.jpg` (helmet + vest, shadow, framed left-of-center by the shoulder offset).
+- Mocap walk vs sprint + FOV ease — `review-walk.jpg` vs `review-sprint-fov.jpg`: distinct gaits and visibly wider field at sprint; `review-back-to-walk.jpg` confirms fov restores after an orbit round-trip mid-walk (the reset effect path).
+- Sprint + jump simultaneously — `review-sprint-jump.jpg`: airborne jump pose, FOV stays keyed to ground speed (spec edge case).
+- Stale localStorage id (`ghost-avatar`) — `review-stale-id-tp.jpg`: falls back to first registry entry and renders; HUD still counts steps after reload.
+- Single-entry config — Avatar row absent on desktop panel and in the mobile View Settings sheet (`review-mobile-sheet.png`: Dimensions/Grid/Quality only, no layout change at 375 px).
+- Code pass: mixer cleanup on unmount, stable hook deps (memoized `clips`, module-const `PACK_ONE_SHOTS`), `useSyncExternalStore` snapshot returns stable references, jump re-trigger via `reset()` matches the original, hips lock restored, no debug leftovers (QA instrumentation was added and fully removed pre-commit).
+- eslint 0 errors (36 warnings, all the file's pre-existing `react-hooks/immutability` camera-mutation pattern); `npm run build` passes; 0 console errors across the review session.
+
+### Findings
+- [minor] src/components/LandScene.jsx:99 — SilentErrorBoundary never resets `hasError`, so after a broken avatar model 404s, switching back to a healthy avatar leaves the player invisible until reload. Unreachable in v1 (row hidden); fix when a second avatar ships, e.g. key the boundary by avatar id so it remounts on switch.
+- [minor] src/components/scene/AnimatedPlayerMesh.jsx:141-155 — the 13 `useGLTF` calls suspend sequentially (network waterfall on first third-person entry). Matches the restored original per spec, but `useGLTF.preload()` of the pack URLs at module scope would parallelize and warm the cache before TP entry.
+- [minor] src/components/scene/AnimatedPlayerMesh.jsx:186 — EmbeddedAvatar maps a found `Jump` clip without LoopOnce/clampWhenFinished, so a future embedded avatar with a real jump clip would loop it mid-air. Pass one-shot names for the embedded path when a true jump clip exists.
+- [minor] scripts/qa-shot-server.mjs:14 — `name` from the query string is unsanitized; `..%2F` escapes the output dir. Dev-only and manually started, but `name.replace(/[^\w-]/g, '_')` closes it.
+- [minor] src/App.jsx Avatar segment — three+ entries or long labels make the segment cramped (visible in the QA screenshot with 3 test entries); at >2 entries switch the row to the `select-premium` pattern used by Quality.
