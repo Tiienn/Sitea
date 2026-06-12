@@ -45,8 +45,9 @@ export const MAX_DISTANCE = 500.0
 export const DEFAULT_TP_DISTANCE = 5.0
 export const ORBIT_START_DISTANCE = 10.0
 
-// Camera smoothing
-export const FOLLOW_SMOOTH = 0.1
+// Camera smoothing — follow catch-up kept slightly loose so third-person
+// stops/starts read weighty instead of glued to the player
+export const FOLLOW_SMOOTH = 0.08
 export const YAW_SMOOTH = 0.08
 
 // Movement speed constants — true-to-life so walking the plot conveys real

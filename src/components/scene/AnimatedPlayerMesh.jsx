@@ -6,32 +6,27 @@ import {
   WALK_SPEED,
   PLAYER_HEIGHT
 } from '../../constants/landSceneConstants'
+import { ASSET_BASE, useAvatar } from '../../constants/avatars'
 
-const TARGET_HEIGHT = 1.8 // desired character height in meters
+const TARGET_HEIGHT = 1.9 // desired character height in meters
 const FADE_DURATION = 0.25
 
-// Stylized casual human (Quaternius "Casual Character", CC0) — self-hosted,
-// with its own embedded animation set so no cross-rig retargeting is needed.
-// Matches Sitea's low-poly art style and reads as a relatable person.
-const CHARACTER_URL = '/models/character-casual.glb'
-
-// Clip names look like "CharacterArmature|Walk" — find by suffix
+// Clip names in embedded packs look like "Armature|Walk" — find by suffix
 function findClip(animations, name) {
   return animations.find((c) => c.name === name || c.name.endsWith(`|${name}`))
 }
 
-export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, moveType = 'idle' }) {
-  const groupRef = useRef()
+// Shared mixer/crossfade driver for both avatar kinds. `clips` maps every
+// moveType the CameraController emits to an AnimationClip (or undefined).
+function useAvatarAnimation({ characterScene, clips, visible, velocity, moveType, oneShotNames }) {
   const mixerRef = useRef(null)
   const actionsRef = useRef({})
   const currentActionRef = useRef('idle')
   const hipsRef = useRef(null)
   const hipsBindPos = useRef(new THREE.Vector3())
 
-  // Load character model (embedded animations included)
-  const { scene: characterScene, animations } = useGLTF(CHARACTER_URL)
-
-  // Auto-detect model height, restyle materials, and find the hips bone
+  // Auto-detect model height, enable shadows, and find the hips bone.
+  // Rendered as authored — no mesh hiding or material edits.
   const modelScale = useMemo(() => {
     characterScene.traverse((child) => {
       if (child.isMesh) {
@@ -51,47 +46,25 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
     return height > 0 ? TARGET_HEIGHT / height : 1
   }, [characterScene])
 
-  // Set up AnimationMixer using the model's own clips. Movement states the
-  // pack doesn't cover map onto the nearest clip (walkback plays walk in
-  // reverse via negative timeScale).
   useEffect(() => {
     const mixer = new THREE.AnimationMixer(characterScene)
     mixerRef.current = mixer
-
-    const idle = findClip(animations, 'Idle_Neutral') || findClip(animations, 'Idle')
-    const walk = findClip(animations, 'Walk')
-    const run = findClip(animations, 'Run')
-    const runBack = findClip(animations, 'Run_Back') || walk
-    const runLeft = findClip(animations, 'Run_Left') || walk
-    const runRight = findClip(animations, 'Run_Right') || walk
-
-    const clips = {
-      idle,
-      walk,
-      run,
-      jump: idle,
-      walkback: runBack,
-      strafe: runLeft,
-      straferight: runRight,
-      straferunleft: runLeft,
-      straferunright: runRight,
-      turnleft: idle,
-      turnright: idle,
-      turnleft90: idle,
-      turnright90: idle
-    }
 
     const actions = {}
     const seen = new Set()
     for (const [name, clip] of Object.entries(clips)) {
       if (!clip) continue
       // clipAction returns the same action for the same clip — reuse it so
-      // shared clips (e.g. strafe → walk) don't fight over weights
+      // shared clips (e.g. strafe fallback → walk) don't fight over weights
       const action = mixer.clipAction(clip)
       if (!seen.has(action)) {
         seen.add(action)
+        if (oneShotNames?.includes(name)) {
+          action.setLoop(THREE.LoopOnce)
+          action.clampWhenFinished = true
+        }
         action.play()
-        action.setEffectiveWeight(clip === idle ? 1 : 0)
+        action.setEffectiveWeight(name === 'idle' ? 1 : 0)
       }
       actions[name] = action
     }
@@ -103,7 +76,7 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       mixer.stopAllAction()
       mixerRef.current = null
     }
-  }, [characterScene, animations])
+  }, [characterScene, clips, oneShotNames])
 
   useFrame((_, delta) => {
     if (!visible) return
@@ -146,11 +119,13 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
     }
   })
 
-  if (!visible) return null
+  return modelScale
+}
 
+function AvatarGroup({ visible, position, rotation, modelScale, characterScene }) {
+  if (!visible) return null
   return (
     <group
-      ref={groupRef}
       position={[position.x, position.y - PLAYER_HEIGHT, position.z]}
       rotation={[0, rotation + Math.PI, 0]}
       scale={modelScale}
@@ -158,4 +133,92 @@ export function AnimatedPlayerMesh({ visible, position, rotation, velocity = 0, 
       <primitive object={characterScene} />
     </group>
   )
+}
+
+// Mixamo-style avatar: model GLB plus the 13-clip locomotion pack hosted
+// alongside it on Supabase (idle/walk/run/jump/walkback/strafes/turns,
+// all exported on the same rig so no retargeting is needed).
+const PACK_ONE_SHOTS = ['jump', 'turnleft90', 'turnright90']
+
+function PackAvatar({ avatar, visible, position, rotation, velocity, moveType }) {
+  const { scene: characterScene } = useGLTF(avatar.modelUrl)
+
+  const { animations: idleAnims } = useGLTF(`${ASSET_BASE}/idle.glb`)
+  const { animations: walkAnims } = useGLTF(`${ASSET_BASE}/walk.glb`)
+  const { animations: runAnims } = useGLTF(`${ASSET_BASE}/run.glb`)
+  const { animations: jumpAnims } = useGLTF(`${ASSET_BASE}/jump.glb`)
+  const { animations: walkbackAnims } = useGLTF(`${ASSET_BASE}/walkback.glb`)
+  const { animations: strafeAnims } = useGLTF(`${ASSET_BASE}/strafe.glb`)
+  const { animations: straferightAnims } = useGLTF(`${ASSET_BASE}/straferight.glb`)
+  const { animations: straferunleftAnims } = useGLTF(`${ASSET_BASE}/straferunleft.glb`)
+  const { animations: straferunrightAnims } = useGLTF(`${ASSET_BASE}/straferunright.glb`)
+  const { animations: turnleftAnims } = useGLTF(`${ASSET_BASE}/turnleft.glb`)
+  const { animations: turnrightAnims } = useGLTF(`${ASSET_BASE}/turnright.glb`)
+  const { animations: turnleft90Anims } = useGLTF(`${ASSET_BASE}/turnleft90.glb`)
+  const { animations: turnright90Anims } = useGLTF(`${ASSET_BASE}/turnright90.glb`)
+
+  const clips = useMemo(() => ({
+    idle: idleAnims[0],
+    walk: walkAnims[0],
+    run: runAnims[0],
+    jump: jumpAnims[0],
+    walkback: walkbackAnims[0],
+    strafe: strafeAnims[0],
+    straferight: straferightAnims[0],
+    straferunleft: straferunleftAnims[0],
+    straferunright: straferunrightAnims[0],
+    turnleft: turnleftAnims[0],
+    turnright: turnrightAnims[0],
+    turnleft90: turnleft90Anims[0],
+    turnright90: turnright90Anims[0]
+  }), [idleAnims, walkAnims, runAnims, jumpAnims, walkbackAnims, strafeAnims, straferightAnims, straferunleftAnims, straferunrightAnims, turnleftAnims, turnrightAnims, turnleft90Anims, turnright90Anims])
+
+  const modelScale = useAvatarAnimation({ characterScene, clips, visible, velocity, moveType, oneShotNames: PACK_ONE_SHOTS })
+
+  return <AvatarGroup visible={visible} position={position} rotation={rotation} modelScale={modelScale} characterScene={characterScene} />
+}
+
+// Avatar whose clips ship inside the model GLB. Movement states the pack
+// doesn't cover map onto the nearest clip.
+function EmbeddedAvatar({ avatar, visible, position, rotation, velocity, moveType }) {
+  const { scene: characterScene, animations } = useGLTF(avatar.modelUrl)
+
+  const clips = useMemo(() => {
+    const idle = findClip(animations, 'Idle_Neutral') || findClip(animations, 'Idle')
+    const walk = findClip(animations, 'Walk')
+    const run = findClip(animations, 'Run')
+    const jump = findClip(animations, 'Jump') || idle
+    const walkback = findClip(animations, 'Walk_Back') || findClip(animations, 'Run_Back') || walk
+    const left = findClip(animations, 'Run_Left') || walk
+    const right = findClip(animations, 'Run_Right') || walk
+
+    return {
+      idle,
+      walk,
+      run,
+      jump,
+      walkback,
+      strafe: left,
+      straferight: right,
+      straferunleft: left,
+      straferunright: right,
+      turnleft: idle,
+      turnright: idle,
+      turnleft90: idle,
+      turnright90: idle
+    }
+  }, [animations])
+
+  const modelScale = useAvatarAnimation({ characterScene, clips, visible, velocity, moveType })
+
+  return <AvatarGroup visible={visible} position={position} rotation={rotation} modelScale={modelScale} characterScene={characterScene} />
+}
+
+export function AnimatedPlayerMesh(props) {
+  const avatar = useAvatar()
+
+  if (avatar.clipSource === 'pack') {
+    return <PackAvatar key={avatar.id} avatar={avatar} {...props} />
+  }
+  return <EmbeddedAvatar key={avatar.id} avatar={avatar} {...props} />
 }

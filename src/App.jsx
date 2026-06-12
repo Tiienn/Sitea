@@ -50,6 +50,7 @@ import { useAIChat } from './hooks/useAIChat'
 
 // Import constants from LandScene (these are re-exported)
 import { CAMERA_MODE, DEFAULT_TP_DISTANCE, ORBIT_START_DISTANCE, QUALITY } from './constants/landSceneConstants'
+import { AVATARS, useAvatar, setSelectedAvatar } from './constants/avatars'
 
 // Dev-only visual QA: ?qaTime unlocks the time-of-day slider without a subscription (stripped from prod builds)
 const DEV_TIME_QA = import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('qaTime')
@@ -957,6 +958,9 @@ function App() {
   const orbitEnabled = viewMode === 'orbit' // Derived for backward compatibility
   const setOrbitEnabled = (val) => setViewMode(val ? 'orbit' : 'firstPerson') // Compat setter
   const [fitToLandTrigger, setFitToLandTrigger] = useState(0) // Increment to trigger fit-to-land
+
+  // Player avatar (registry-backed; View panel row appears at ≥2 entries)
+  const selectedAvatar = useAvatar()
 
   // Graphics quality state (default based on device)
   const [graphicsQuality, setGraphicsQuality] = useState(() => {
@@ -5569,6 +5573,22 @@ function App() {
                     <option value={QUALITY.BEST}>Best</option>
                   </select>
                 </div>
+                {AVATARS.length >= 2 && (
+                  <div className="sitea-control-row">
+                    <span>Avatar</span>
+                    <div className="sitea-segment">
+                      {AVATARS.map((a) => (
+                        <button
+                          key={a.id}
+                          onClick={() => setSelectedAvatar(a.id)}
+                          className={`sitea-segment-btn ${selectedAvatar.id === a.id ? 'active' : ''}`}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -5649,6 +5669,23 @@ function App() {
                   <option value={QUALITY.BEST}>Best</option>
                 </select>
               </div>
+
+              {AVATARS.length >= 2 && (
+                <div className="space-y-2">
+                  <span className="text-[var(--color-text-secondary)] text-sm">Avatar</span>
+                  <div className="sitea-segment">
+                    {AVATARS.map((a) => (
+                      <button
+                        key={a.id}
+                        onClick={() => setSelectedAvatar(a.id)}
+                        className={`sitea-segment-btn ${selectedAvatar.id === a.id ? 'active' : ''}`}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

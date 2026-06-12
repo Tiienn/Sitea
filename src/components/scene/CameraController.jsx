@@ -85,6 +85,13 @@ export function CameraController({
   // Camera bob time accumulator
   const bobTimeRef = useRef(0)
 
+  // Third-person feel: right-shoulder offset eases in over ~0.5 s when
+  // entering TP so it doesn't pop; sprint widens the FOV slightly
+  const shoulderFactorRef = useRef(0)
+  const SHOULDER_OFFSET = 0.35
+  const BASE_FOV = 60
+  const SPRINT_FOV = 66
+
   // Footstep stride accumulator (meters since last step sound)
   const strideRef = useRef(0)
   // Last breadcrumb point dropped
@@ -93,6 +100,15 @@ export function CameraController({
   // "Walk your land" entry ritual: glide from wherever the camera was
   // (orbit height, 2D) down to eye level instead of teleporting
   const entryAnim = useRef({ active: false, t: 0, fromPos: new THREE.Vector3(), fromQuat: new THREE.Quaternion() })
+
+  // Restore the base FOV if walk mode is left mid-sprint (the frame loop
+  // below stops running, so the ease-back can't finish on its own)
+  useEffect(() => {
+    if ((!enabled || orbitEnabled) && Math.abs(camera.fov - BASE_FOV) > 0.01) {
+      camera.fov = BASE_FOV
+      camera.updateProjectionMatrix()
+    }
+  }, [enabled, orbitEnabled, camera])
 
   // Sync player position from camera or initialCameraPosition
   const hasInitialized = useRef(false)
@@ -673,10 +689,17 @@ export function CameraController({
       const offsetY = Math.sin(pitch) * followDistance + PLAYER_HEIGHT
       const offsetZ = Math.cos(yaw) * Math.cos(pitch) * followDistance
 
+      // Over-the-right-shoulder framing: shift camera and look target along
+      // camera-right so the character sits just left of center
+      shoulderFactorRef.current = Math.min(1, shoulderFactorRef.current + delta / 0.5)
+      const shoulder = SHOULDER_OFFSET * shoulderFactorRef.current
+      const rightX = Math.cos(yaw) * shoulder
+      const rightZ = -Math.sin(yaw) * shoulder
+
       const targetCamPos = new THREE.Vector3(
-        playerPosition.current.x + offsetX,
+        playerPosition.current.x + offsetX + rightX,
         playerPosition.current.y + offsetY,
-        playerPosition.current.z + offsetZ
+        playerPosition.current.z + offsetZ + rightZ
       )
 
       // Smooth camera follow
@@ -684,11 +707,23 @@ export function CameraController({
 
       // Camera looks at player
       const lookTarget = new THREE.Vector3(
-        playerPosition.current.x,
+        playerPosition.current.x + rightX,
         playerPosition.current.y,
-        playerPosition.current.z
+        playerPosition.current.z + rightZ
       )
       camera.lookAt(lookTarget)
+    }
+
+    // Shoulder offset eases back in fresh on each TP entry
+    if (cameraMode !== CAMERA_MODE.THIRD_PERSON) shoulderFactorRef.current = 0
+
+    // Sprint FOV: ease wider while running, back when slowing (ground speed
+    // only — jumping doesn't affect it). Applies in both FP and TP.
+    const targetFov = currentSpeed.current > WALK_SPEED * 1.2 ? SPRINT_FOV : BASE_FOV
+    const newFov = THREE.MathUtils.damp(camera.fov, targetFov, 4, delta)
+    if (Math.abs(newFov - camera.fov) > 0.01) {
+      camera.fov = newFov
+      camera.updateProjectionMatrix()
     }
 
     // Report player position and velocity for minimap and animation
