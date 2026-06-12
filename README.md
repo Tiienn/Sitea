@@ -1,8 +1,12 @@
 # Sitea
 
-Sitea is an agent-delivered 3D land and home visualization app for land buyers and homeowners. Users describe what they want to understand, upload a scanned site plan or floor plan when helpful, and Sitea Agent prepares the visual workspace: land context, scale comparisons, floor-plan geometry, 3D review, saving, and expiring share links.
+**Sitea — see exactly how big that land really is, before you visit it.**
+
+Sitea turns a quoted land size ("80 perches, Flacq", "2000 m²") into a physical feeling in seconds: see the plot in 3D, drop a house and two cars on it, walk it in first person, and decide whether the site visit is worth the drive. Built first for Mauritian land buyers browsing listings (toise/perche/arpent units, Facebook-first distribution); works anywhere. Floor-plan upload and 3D walkthrough of a future house is the paid Pro feature.
 
 Production: https://sitea.live
+
+Product direction since June 2026: `specs/v1-reset-mauritius.md` (positioning, pricing reset, freeze list, distribution loop). `PRD.md` v4.0 reflects it.
 
 ## Demo Path
 
@@ -23,7 +27,7 @@ Product rule: manual measuring, tracing, and drawing tools remain available for 
 - Auth/database: Supabase Auth and Postgres
 - Payments: PayPal, verified on the server before subscriptions are saved
 - AI: OpenAI-first agent, floor-plan, site-plan, and visualization APIs; Gemini and Roboflow remain optional floor-plan analyzer fallbacks
-- Mobile shell: Capacitor
+- Mobile shell: Capacitor (**frozen** since the June 2026 reset — web/PWA only; setup notes archived in `docs/frozen/IOS-SETUP.md`)
 
 ## Local Setup
 
@@ -135,10 +139,14 @@ Apply them through the Supabase SQL editor or Supabase tooling before relying on
 
 Upload quota is enforced on the server and tied to the signed-in Supabase user.
 
+Currently deployed tiers (until the pricing-simplification task from `specs/v1-reset-mauritius.md` lands):
+
 - Free signed-in user: `1` upload forever
 - Monthly: `$9.99/month`, `3` uploads per calendar month
 - Homeowner: `$20`, `20` uploads forever
 - Lifetime: `$149`, unlimited uploads
+
+Reset target: a single **Sitea Pro** `$20` one-time tier (20 uploads, unlimited saved projects, time-of-day). Monthly and Lifetime will be removed.
 
 Floor-plan analyzer usage is consumed inside `/api/analyze-floor-plan`. Site-plan boundary analysis is consumed inside `/api/analyze-site-plan`. Local upload flows that do not call a paid analyzer consume through `/api/upload-quota`.
 

@@ -1,14 +1,16 @@
 # Sitea App Status
 
-Last updated: June 4, 2026
+Last updated: June 12, 2026
 
 Production: https://sitea.live
 
 ## Current Read
 
-Sitea is demo-ready as an agent-delivered land and home visualization workspace. The first screen opens the 3D world with Sitea Agent available, so users can describe what they want, upload a scanned plan, and let Sitea prepare the next visual result instead of starting from manual drawing tools.
+**v1 reset in effect (June 12, 2026 — see `specs/v1-reset-mauritius.md`).** Sitea has zero users and has never been marketed; the current phase is launch, not hardening. Positioning: *see exactly how big that land really is, before you visit it* — built first for Mauritian land buyers browsing listings (toise/perche/arpent). The roadmap is the weekly listing-visualization post loop (Facebook land groups, r/mauritius) plus a short build queue: analytics on, deep links, Mauritian units, branded share image, single $20 Pro tier.
 
-The current target audience is land buyers and homeowners. The product should feel simple, trustworthy, visual, and guided: the user talks to the agent, Sitea prepares the land/comparison/floor-plan workspace, and the user reviews or confirms decisions only when needed.
+Technically, Sitea is demo-ready as an agent-delivered land and home visualization workspace. The first screen opens the 3D world with Sitea Agent available, so users can describe what they want, upload a scanned plan, and let Sitea prepare the next visual result instead of starting from manual drawing tools.
+
+Frozen since the reset (code stays, zero new work): open-world/Genshin direction, building-editor depth (stairs/roof/pool/fence panels), Capacitor iOS/Android shells, DXF/GLB in the primary UI, subscription billing, and analyzer investment beyond keep-it-running.
 
 ## Production State
 
@@ -22,7 +24,7 @@ The current target audience is land buyers and homeowners. The product should fe
 | Sharing | Active | Public shared scenes are read-only and new links expire after 30 days. |
 | Payments | Active | PayPal is verified on the server before subscription rows are written. |
 | Upload quota | Active | Quota is enforced by server API/RPC, not localStorage. |
-| Mobile | Demo-ready, keep testing | Main demo path is polished; continue mobile QA when touching dense panels or WebGL camera logic. |
+| Mobile | Demo-ready, keep testing | Main demo path is polished; continue mobile QA when touching dense panels or WebGL camera logic. Capacitor native shells are frozen — web/PWA only. |
 | Lint baseline | Needs cleanup | Full `npm run lint` still includes legacy/generated-file findings. Focused lint is used for touched files until SIT-16. |
 
 ## Current Stack
@@ -51,7 +53,7 @@ The floor-plan QA suite currently reports `3/3` synthetic demo-ready fixtures. T
 
 ## Payments And Plans
 
-PayPal payment flows are server-verified:
+PayPal payment flows are server-verified. Currently deployed (the reset's pricing-simplification task will reduce this to one $20 Pro tier):
 
 - Monthly subscription: `$9.99/month`, `3` uploads per calendar month
 - Homeowner: `$20`, `20` uploads forever

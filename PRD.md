@@ -1,165 +1,117 @@
 # Sitea Product Requirements
 
-Document version: 3.0
-Last updated: June 4, 2026
-Status: Demo-ready, active hardening
+Document version: 4.0 (v1 reset)
+Last updated: June 12, 2026
+Status: Pre-launch — zero users; everything below serves getting the first 100
+Source of truth for the reset: `specs/v1-reset-mauritius.md` (founder interview, 2026-06-12)
 
 ## 1. Product Summary
 
-Sitea helps land buyers and homeowners understand land, floor plans, and building ideas in an interactive 3D scene. The product should feel like an AI planning agent, not a blank CAD tool: users describe the outcome they want, upload a scanned plan when useful, and Sitea prepares the visual workspace for them.
+**Sitea — see exactly how big that land really is, before you visit it.**
 
-Core promise: tell Sitea what you want to understand, then Sitea does the setup, shows the result in 3D, and asks for decisions only when human judgment is needed.
+Sitea turns a quoted land size ("80 perches, Flacq") into a physical feeling in under 15 seconds: see the plot in 3D, drop a house and two cars on it, walk it in first person, and decide whether the site visit is worth the drive.
 
-## 2. Target Users
+The origin insight: people browsing land listings cannot picture what 2000 m² or 5 toises feels like, so they burn half a day on a site visit to find out. Sitea makes the feeling available from the listing, so buyers choose *which* visits to make. It does not replace the visit for the plot they buy — it filters the rest.
 
-- Land buyers deciding whether a parcel fits their life and budget
-- Homeowners planning a new build, renovation, extension, or outdoor layout
-- Families comparing plan options before talking to builders
-- Agents/developers who need a simple visual demo for a buyer
+## 2. Target User and Market
 
-Sitea can support professional users later, but the primary product language should stay simple enough for non-CAD users.
+**Primary (the only persona v1 ships for):** the Mauritian pre-purchase land buyer, scrolling listings on Facebook (also LexpressProperty and WhatsApp forwards from agents), who reads a size in toises/perches/arpents and has no feeling for the number.
+
+**Why Mauritius first:** local units no global tool speaks, a buy-land-then-build housing culture that makes "will a house fit?" a mainstream question, and channels (Facebook land groups, Reddit r/mauritius, agents) the founder can physically reach. Mauritius-first is a wedge, not a ceiling — the product works anywhere.
+
+**Secondary (paid, not optimized for):** the build planner with a floor plan who wants to walk the future house. They fund the project through the Pro tier; v1 does not invest further in them.
+
+**Explicitly not now:** global SEO audiences, interior designers, CAD professionals, agents-as-users (until agents pull for it).
 
 ## 3. Product Principles
 
-- Agent-delivered first: the user describes the outcome; Sitea prepares the land, comparisons, floor-plan preview, and next step.
-- Visual proof over explanation: show the land, object, floor plan, and placement in 3D.
-- Simple controls: manual measuring, drawing, and tool panels remain advanced fallback paths, not the primary journey.
-- Decision checkpoints: Sitea should ask the user to confirm intent, placement, or quality only when automation should not guess.
-- Trustworthy state: paid access, upload quota, saves, and shares must be backed by server/Supabase state.
-- Mobile-polished demo path: the core flow must work on phone-sized screens, even if advanced editing remains better on desktop.
+- **Distribution is the product.** Every feature is judged by whether it helps a stranger go from a Facebook/Reddit post to feeling a plot's size in under 60 seconds. The weekly listing-visualization post loop (spec §5) is the roadmap; features serve it.
+- **Instant, anonymous, mobile.** The core flow needs no sign-in, no onboarding wall, and must work on a phone — that's where listings are read.
+- **Visual proof over explanation.** Show the land, the comparisons, the walk.
+- **Local credibility.** Toise/perche/arpent conversions must be exactly right. One wrong factor and Sitea is a toy.
+- **Side-project economics.** Goal is a few hundred USD/month with ~2 h/week of marketing and near-zero maintenance. No feature that needs babysitting. Costs scale only with paying users.
+- **Trustworthy state.** Paid access, upload quota, saves, and shares stay backed by server/Supabase state.
 
-## 4. Current Demo Scope
+## 4. The Core Flow (v1)
 
-The demo-ready path is:
-
-1. User opens Sitea and sees the 3D world with Sitea Agent available.
-2. User asks what they want to see or uploads a scanned site plan/floor plan.
-3. Sitea Agent routes the upload:
-   - Site plan: recognize it as land context, prepare the land workspace, and offer scale comparisons.
-   - Floor plan: analyze walls, doors, windows, rooms, stairs, and scale, then prepare a 3D building preview.
-4. Sitea adds or prepares the requested visual result and moves the user into the scene to review it.
-5. User switches between 3D, 2D, and first-person walkthrough views.
-6. User signs in to save and can create an expiring read-only share link.
+1. Buyer hits a Sitea deep link (from a post or share) or the homepage.
+2. The plot is already there (deep link) or they type a size — m², **toise, perche, arpent**, ft², acre, hectare.
+3. One tap adds comparisons (car, bus, tennis court, football pitch, typical 3-bedroom house, parking).
+4. One tap drops a house template — "does a 3-bedroom with parking fit?"
+5. First-person walk: the existing avatar/footsteps/footprints experience is how a body understands 2000 m².
+6. One-tap export of a branded, Facebook-ready share image with the size callout and `sitea.live`.
+7. Sign-in only for saving; Pro ($20 one-time) only for floor-plan upload and unlimited saves.
 
 ## 5. Functional Requirements
 
-### Land Visualization
+### Instant land visualization (free, anonymous)
+- Size input front and center; units include toise/perche/arpent with sourced exact factors.
+- Deep links (`sitea.live/?s=80perche` style) load straight into the scene — no modal, no onboarding.
+- Rectangle/templates/custom polygon and site-plan upload remain, but the typed-size path is primary.
+- 3D orbit, 2D top-down, and first-person walk.
 
-- Define land through the agent, rectangle/templates, custom polygon, or uploaded site plan.
-- Calculate area and dimensions in useful units.
-- Show site boundaries clearly against the 3D environment and comparison objects.
-- Support 3D orbit, 2D top-down, and first-person views.
-- Keep manual tracing/editing available, but treat it as review and correction after Sitea prepares the workspace.
+### Comparisons
+- Curated default set, locally meaningful, surfaced first; the long tail stays available but not as a wall of 40 thumbnails.
+- Draggable, rotatable, legible from minimap and 3D.
+- Agent can add a comparison from chat.
+
+### Share loop
+- Branded share-image export composed for Facebook posts (plot + comparisons + size callout + URL).
+- Read-only share links, expiring after 30 days, friendly expired state.
+- Analytics ON in production: scene loads, deep-link loads, unit used, share exports, walk entries, Pro purchases.
 
 ### Sitea Agent
+- Open by default, accepts text/image/PDF, routes site plans vs floor plans, explains what it did, offers one-tap visual actions. (Maintained, not expanded, in v1.)
 
-- Open by default without hiding the world.
-- Welcome the user with a practical "How can we help you?" prompt.
-- Accept text, image, and scanned PDF uploads.
-- Route site plans and floor plans differently.
-- Explain what Sitea did, what is ready, and what decision remains.
-- Offer one-tap actions that deliver visual results, such as adding a comparison or opening the prepared 3D preview.
-- Avoid making the user hunt for panels, measure manually, or guess the next tool when Sitea can prepare the step.
+### Floor-plan import (Pro)
+- Accept images and scanned PDFs; detect walls/doors/windows/rooms/scale; place as a walkable 3D preview.
+- OpenAI-first; no further analyzer investment (fallback chains, QA-harness expansion) until ≥10 Pro sales/month demand it.
 
-### Floor-Plan Import
+### Payments and quota
+- PayPal verified server-side before access; Supabase stores plans and upload usage; quota enforced server-side.
 
-- Accept images and scanned PDFs.
-- Detect walls, doors, windows, rooms, stairs, scale, and dimension labels where possible.
-- Produce geometry that can be placed in the 3D scene.
-- Move users into a clear 3D review/placement state after detection.
-- Keep real-plan QA fixtures available for regression checks.
-
-### Comparison Objects
-
-- Help users understand land scale by placing recognizable objects.
-- Sports objects such as tennis, basketball, and soccer should preserve realistic markings and remain visibly distinct from the site surface.
-- Objects should be draggable, rotatable, and understandable from the minimap and 3D view.
-- The agent should be able to add a relevant comparison directly from chat.
-
-### Saving And Sharing
-
-- Saving requires Supabase sign-in.
-- Signed-in users can save projects to Supabase.
-- Shared links are read-only.
-- New shared links expire after 30 days.
-- Expired or missing shared links should show a friendly unavailable state.
-
-### Payments And Quota
-
-- PayPal payment state must be verified on the server before access is granted.
-- Supabase stores active subscriptions and upload usage.
-- Upload usage is enforced server-side, not by localStorage.
-
-Current plans:
-
-| Plan | Price | Upload limit |
+| Plan | Price | Includes |
 |---|---:|---|
-| Free signed-in | `$0` | `1` upload forever |
-| Monthly | `$9.99/month` | `3` uploads per calendar month |
-| Homeowner | `$20` | `20` uploads forever |
-| Lifetime | `$149` | unlimited uploads |
+| Free | `$0` | full visualizer, walk, share image; sign-in adds 1 saved project + 1 upload |
+| Sitea Pro | `$20` one-time | 20 floor-plan uploads, unlimited saved projects, time-of-day control |
 
-## 6. Technical Requirements
+The `$9.99/month` subscription and `$149` lifetime tiers are **removed** (subscription plumbing is maintenance a side project can't afford; two prices is one too many at zero volume).
 
-- Keep the app deployable as a Vite app on Vercel.
-- Keep browser-exposed variables under `VITE_` and server secrets server-only.
-- Use OpenAI as the default AI provider for chat, site-plan analysis, floor-plan analysis, and AI visualization.
-- Keep Gemini and Roboflow as optional floor-plan fallbacks only while they improve reliability.
-- Keep Supabase SQL migrations in `sql/`.
-- Keep QA scripts for floor-plan detection and placement repeatable from `package.json`.
-- Prefer focused, low-risk changes because `src/App.jsx` and `src/components/LandScene.jsx` remain large legacy hotspots.
+## 6. Frozen (code stays, zero new work)
 
-## 7. Current Implementation Reality
+- Open-world/Genshin direction (NPCs, quests, terrain expansion). Shipped polish (avatar, footprints, doors, audio) stays because it serves the walk.
+- Building-editor depth: walls/doors/windows/stairs/roof/pool/fence panels. Templates cover the v1 question.
+- Capacitor iOS/Android shells. Web/PWA only; the Apple developer account is not renewed.
+- DXF and GLB export in the primary UI (code kept; PNG and PDF stay).
+- Subscription billing.
+- Floor-plan analyzer investment beyond keep-it-running.
 
-Completed and active:
+## 7. Success Criteria and Kill Criteria
 
-- Agent-first landing/workspace
-- Upload routing for site plans vs floor plans
-- OpenAI-first chat/site-plan/floor-plan APIs
-- Scanned PDF support for plan uploads
-- Floor-plan QA fixtures and real-plan review samples
-- 3D placement checks for real analyzer output
-- Server-verified PayPal one-time and subscription flows
-- Supabase subscriptions, projects, shared scenes, and upload quota
-- Save requires sign-in
-- Public shared links expire after 30 days
-- Mobile demo path polish for the main agent/upload/pricing flows
+The 90-day clock starts at the first public post (Facebook group or r/mauritius).
 
-Not complete or still risky:
+- Week 4: ≥10 posts published (2 real listings visualized per week).
+- Day 90: ~1,000 scene loads from Mauritius · ≥50 share images exported by users · ≥10 Pro purchases (~$200/month run-rate = goal met).
+- Kill/pivot: if 10 honest posts produce <100 scene loads, the channel/moment hypothesis is wrong. The response is the agent channel (conversations, not code) — never "more features."
 
-- Full lint baseline cleanup
-- Continued visual QA for real scanned plans
-- Further simplification of large App/LandScene surfaces
-- More agent-delivered actions after upload/placement
-- Better long-term editing UX after AI-generated geometry is placed
-- More product-grade confirmation flows when automation needs human approval
+## 8. Technical Requirements
 
-## 8. Success Criteria
+- Vite app on Vercel; `VITE_` for browser-exposed vars, secrets server-only.
+- OpenAI default provider; Supabase migrations in `sql/`; QA scripts repeatable from `package.json`.
+- Prefer focused, low-risk changes — `src/App.jsx` and `src/components/LandScene.jsx` remain large legacy hotspots.
 
-Demo success means a non-technical land buyer or homeowner can:
+## 9. Non-Goals
 
-- Understand the purpose of Sitea within seconds.
-- Ask Sitea Agent for help without searching through menus.
-- Upload a plan and understand what Sitea detected.
-- Let Sitea add at least one realistic comparison object to their land.
-- Let Sitea prepare a generated building preview and guide them into 3D review/placement.
-- Save only after signing in.
-- Share a link that opens reliably at `/s/:id`.
-- Use the core flow on a mobile viewport without layout breakage.
-
-## 9. Non-Goals For Current Demo
-
-- Full CAD replacement
-- Building-code compliance guarantees
-- Construction-ready drawings
-- Perfect automatic detection on every scanned plan
-- Stripe support
-- Complex multi-user collaboration
+- Competing globally with Planner 5D / Floorplanner / HomeByMe on features or SEO
+- Interior design and furniture libraries
+- CAD replacement, building-code compliance, construction drawings
+- Agent portal/dashboard (until agents ask with their wallets)
+- Stripe, multi-user collaboration
 
 ## 10. References
 
+- Reset spec and distribution loop: `specs/v1-reset-mauritius.md`
 - Current status: `APP_STATUS.md`
 - Operator setup: `README.md`
 - Running work log: `tasks/todo.md`
-- Floor-plan QA: `tasks/floor-plan-qa-results.md`
-- Supabase migrations: `sql/`
+- Competitive context: `docs/competitive-analysis.md`
