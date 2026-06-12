@@ -94,8 +94,8 @@ export function CameraController({
 
   // Footstep stride accumulator (meters since last step sound)
   const strideRef = useRef(0)
-  // Last breadcrumb point dropped
-  const lastCrumbRef = useRef(null)
+  // Which foot lands next: -1 left, +1 right
+  const footSideRef = useRef(1)
 
   // "Walk your land" entry ritual: glide from wherever the camera was
   // (orbit height, 2D) down to eye level instead of teleporting
@@ -363,7 +363,7 @@ export function CameraController({
     }
   }, [enabled, camera, gl, orbitEnabled, cameraMode, followDistance, setCameraMode, setFollowDistance])
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!enabled || orbitEnabled) return
 
     // Calculate movement direction
@@ -624,8 +624,9 @@ export function CameraController({
       playerPosition.current.y = groundY
     }
 
-    // Footsteps + walk tracking: stride-synced step sounds, breadcrumbs and
-    // distance for the walk HUD
+    // Footsteps + walk tracking: stride-synced step sounds, footprints and
+    // distance for the walk HUD. A footprint is stamped at the same moment
+    // the step sound fires, alternating feet either side of the path.
     if (isMoving && isGrounded.current && currentSpeed.current > 0.1) {
       const moved = currentSpeed.current * delta
       const isRunningNow = currentSpeed.current > WALK_SPEED * 1.2
@@ -634,21 +635,24 @@ export function CameraController({
       if (strideRef.current >= strideLen) {
         strideRef.current -= strideLen
         playFootstep(isRunningNow)
-      }
-      if (walkTrackerRef?.current) {
-        const tracker = walkTrackerRef.current
-        tracker.distance += moved
-        const last = lastCrumbRef.current
-        const px = playerPosition.current.x
-        const pz = playerPosition.current.z
-        if (!last || (px - last.x) * (px - last.x) + (pz - last.z) * (pz - last.z) > 0.36) {
-          const crumb = { x: px, y: playerPosition.current.y - PLAYER_HEIGHT, z: pz }
-          lastCrumbRef.current = crumb
-          tracker.points.push(crumb)
+        if (walkTrackerRef?.current) {
+          const tracker = walkTrackerRef.current
+          footSideRef.current = -footSideRef.current
+          const side = footSideRef.current
+          const yaw = playerYaw.current
+          tracker.points.push({
+            x: playerPosition.current.x + Math.cos(yaw) * 0.1 * side,
+            y: playerPosition.current.y - PLAYER_HEIGHT,
+            z: playerPosition.current.z - Math.sin(yaw) * 0.1 * side,
+            yaw,
+            side,
+            t: state.clock.elapsedTime
+          })
           if (tracker.points.length > 600) tracker.points.splice(0, tracker.points.length - 600)
           tracker.version++
         }
       }
+      if (walkTrackerRef?.current) walkTrackerRef.current.distance += moved
     }
 
     // Update camera based on mode

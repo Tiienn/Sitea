@@ -1,5 +1,11 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
+## Active Plan: Realistic footprints (user request, approved 2026-06-12: 25 s lifetime)
+- [ ] CameraController: drop footprint crumbs at the exact stride moments where `playFootstep` fires (0.72 m walk / 1.05 m run — audio + step counter + prints share one cadence); crumb = `{x, y, z, yaw, side ±1 alternating, t: clock.elapsedTime}`, offset ±0.10 m along camera-right; remove the old every-0.6 m dot logic (`lastCrumbRef`); keep `tracker.distance` accumulation as-is
+- [ ] BreadcrumbTrail: shoe-sole ShapeGeometry (front pad + heel ellipses, ~0.26 m long), dark pressed-earth color, oriented to `yaw` with ~7° toe-out per side; per-frame matrix pass ages each print — full size to 20 s, shrink to 0 by 25 s — and prunes expired points; reuse one Object3D dummy (no per-frame allocations); single InstancedMesh as before
+- [ ] Verify in browser: prints alternate L/R along a curved walk, oriented with heading, run cadence wider; wait past 25 s → prints gone; jump leaves a gap; 0 console errors; eslint + build
+- [ ] Review section + commit + push
+
 ## Active Plan: Realistic avatar (specs/realistic-avatar.md)
 - [x] Avatar registry: new src/constants/avatars.js — `AVATARS` array (first entry: `visitor` / "Site visitor" / `<SUPABASE>/character.glb` / `clipSource: 'pack'`), `getSelectedAvatar()` with localStorage `siteaAvatar` + stale-id fallback to first entry, `setSelectedAvatar(id)`, and a tiny `useAvatar()` hook (useSyncExternalStore on a custom event) so App and the mesh stay in sync without threading props through Scene's giant signature
 - [x] AnimatedPlayerMesh: read the registry entry and split into two inner components (hooks can't be conditional) — `PackAvatar` restores the pre-Xbot 13-clip Supabase loader from `15a03cc^` (jump/turn90s LoopOnce + clampWhenFinished, hips X/Z lock, walk/run timeScale matching, castShadow only — NO mesh hiding or material edits); `EmbeddedAvatar` keeps the current findClip-by-suffix path for future embedded-clip avatars
