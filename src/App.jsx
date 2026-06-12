@@ -5597,7 +5597,7 @@ function App() {
 
         {/* Desktop: always-visible view controls */}
         {!isMobile && !isGuidedMode && (
-          <div className={`absolute right-4 sitea-control-panel rounded-2xl text-white overflow-hidden animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}>
+          <div className={`absolute right-4 z-20 sitea-control-panel rounded-2xl text-white overflow-hidden animate-fade-in ${isReadOnly ? 'top-14' : 'top-4'}`}>
             <div className="px-4 py-3 space-y-3">
               <div className="space-y-2">
                 <span className="text-[var(--color-text-secondary)] text-sm text-center block">View</span>

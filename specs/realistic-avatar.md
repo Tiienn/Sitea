@@ -1,6 +1,6 @@
 # Realistic avatar — mocap motion, intact worker, camera feel
 
-Status: ready-to-build
+Status: built
 Created: 2026-06-12
 
 ## Summary
@@ -62,16 +62,31 @@ As a Sitea visitor walking my land, I want my character to move like a real pers
 - Sprint FOV + jump simultaneously → FOV logic keys off ground speed only; no conflict.
 
 ## Acceptance criteria
-- [ ] Third-person shows the intact realistic worker (helmet + vest, no see-through gaps) — screenshot
-- [ ] Walk and run are visibly mocap-natural (feet planted, arm swing) — screenshot mid-stride
-- [ ] Jump plays a real jump animation: screenshot mid-air shows a jumping pose, not a frozen idle
-- [ ] S shows backward-walk animation; A/D show strafe animations (screenshots)
-- [ ] Sprint eases FOV wider and back (verify via `camera.fov` logging or visual screenshot comparison)
-- [ ] Third-person camera sits slightly over the right shoulder and follows with smooth lag (screenshot framing)
-- [ ] Avatar row absent from View panel with a single registry entry; adding a second (dev test) shows the row and switching + reload persists via localStorage
-- [ ] Quaternius GLB removed; bundle/public has no orphan model files; ATTRIBUTION updated
-- [ ] No console errors; eslint clean; `npm run build` passes
-- [ ] Footsteps, step counter, breadcrumbs, door-walkthrough features all still work in a quick regression walk
+- [x] Third-person shows the intact realistic worker (helmet + vest, no see-through gaps) — screenshot (`tp-idle-intact-worker.jpg`)
+- [x] Walk and run are visibly mocap-natural (feet planted, arm swing) — screenshot mid-stride (`tp-walk-midstride.jpg`, `tp-run-midstride.jpg`)
+- [x] Jump plays a real jump animation: screenshot mid-air shows a jumping pose, not a frozen idle (`jump-arc-1/2/3` — takeoff, tucked-knees apex, landing; player y telemetry 1.65→2.43→1.88)
+- [x] S shows backward-walk animation; A/D show strafe animations (`tp-walkback.jpg`, `tp-strafe-left/right.jpg`)
+- [x] Sprint eases FOV wider and back (camera.fov telemetry: 60 → 65.87 while sprinting → 60.13 after stop)
+- [x] Third-person camera sits slightly over the right shoulder and follows with smooth lag (camera x = player x + 0.35 in telemetry; walking camera trails target by ~0.14 m; framing visible in all TP screenshots)
+- [x] Avatar row absent from View panel with a single registry entry; adding a second (dev test) shows the row and switching + reload persists via localStorage (`view-panel-avatar-row.png`; localStorage `siteaAvatar` = `visitor-b` survived reload; stale-id fallback to first entry also verified)
+- [x] Quaternius GLB removed; bundle/public has no orphan model files; ATTRIBUTION updated
+- [x] No console errors; eslint clean; `npm run build` passes (0 console errors across the full QA session incl. the broken-model test)
+- [x] Footsteps, step counter, breadcrumbs, door-walkthrough features all still work in a quick regression walk (HUD "18 steps · 13 m"; breadcrumb dots visible behind the walking avatar; footstep audio fires off the same stride accumulator — code-verified only, headless browser can't unlock Web Audio; door/room systems untouched by this diff and read the same playerPos plumbing verified live)
 
 ## Open questions
 None — direction locked in interview: intact worker restored (realistic-only lineup), registry for future user-provided Mixamo exports, camera feel polish included.
+
+## Build notes
+Shipped in 3 commits (`fa41318` feature core, `58215fd` asset cleanup, plus the QA-fix commit). What shipped matches the spec; structure highlights:
+
+- `src/constants/avatars.js` — registry + `getSelectedAvatar()`/`setSelectedAvatar()` + a `useAvatar()` hook (useSyncExternalStore on a custom window event). The hook lets App's View panel and the deep-in-Canvas player mesh share selection without threading a prop through Scene's ~150-prop signature.
+- `AnimatedPlayerMesh` is split into `PackAvatar` (restored 13-clip Supabase loader from `15a03cc^`: jump/turn90s LoopOnce + clampWhenFinished, hips X/Z lock, walk/run timeScale matching) and `EmbeddedAvatar` (findClip-by-suffix, nearest-clip fallbacks) because hook counts can't vary per registry entry. Shared mixer/crossfade driver in `useAvatarAnimation`. Model rendered as authored — castShadow only.
+- Camera: shoulder offset is applied to both the follow target and look target along camera-right, eased 0→1 over 0.5 s on TP entry; sprint FOV (60→66, λ=4 damp) keys off ground speed only and skips `updateProjectionMatrix()` below 0.01 deltas; a `useEffect` restores fov 60 if walk mode is exited mid-sprint (frame loop stops, so the ease-back can't finish on its own).
+
+Deviations / findings:
+- **z-order fix in App.jsx**: with ≥2 avatars the taller View panel slid under the Pro time slider (`zIndex: 10`), which intercepted clicks on the Avatar row. Added `z-20` to the desktop View panel (mobile counterparts already use `z-30`). This pre-existing collision could already occur on short viewports without the avatar row.
+- Avatar row uses a `sitea-segment` (one-tap per spec) — comfortable at 2 entries; if the registry ever grows past ~3 or labels get long, switch to the `select-premium` row pattern.
+- `scripts/qa-shot-server.mjs` (new, dev-only): tiny localhost receiver that saves in-page canvas captures to `tasks/screenshots/` — needed because the embedded preview suspends rAF when backgrounded, so QA ran through Playwright + trusted key events instead.
+- Footstep audio is code-verified only (headless browser can't unlock Web Audio); worth a 10-second listen on a real machine.
+
+Screenshots: `tasks/screenshots/realistic-avatar/` (idle/walk/run/jump-arc ×3/walkback/strafes, view-panel-avatar-row.png, broken-avatar-no-crash.jpg, final-regression-walk.jpg).
