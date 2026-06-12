@@ -11,7 +11,8 @@ http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   if (req.method === 'OPTIONS') { res.end(); return }
-  const name = new URL(req.url, 'http://x').searchParams.get('name') || 'shot'
+  // Sanitize: file lands inside OUT no matter what the query says
+  const name = (new URL(req.url, 'http://x').searchParams.get('name') || 'shot').replace(/[^\w-]/g, '_')
   let body = ''
   req.on('data', (c) => { body += c })
   req.on('end', () => {

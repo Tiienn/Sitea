@@ -6,7 +6,7 @@ import {
   WALK_SPEED,
   PLAYER_HEIGHT
 } from '../../constants/landSceneConstants'
-import { ASSET_BASE, useAvatar } from '../../constants/avatars'
+import { ASSET_BASE, AVATARS, useAvatar } from '../../constants/avatars'
 
 const TARGET_HEIGHT = 1.9 // desired character height in meters
 const FADE_DURATION = 0.25
@@ -139,6 +139,12 @@ function AvatarGroup({ visible, position, rotation, modelScale, characterScene }
 // alongside it on Supabase (idle/walk/run/jump/walkback/strafes/turns,
 // all exported on the same rig so no retargeting is needed).
 const PACK_ONE_SHOTS = ['jump', 'turnleft90', 'turnright90']
+const PACK_CLIP_NAMES = ['idle', 'walk', 'run', 'jump', 'walkback', 'strafe', 'straferight', 'straferunleft', 'straferunright', 'turnleft', 'turnright', 'turnleft90', 'turnright90']
+
+// Warm the cache in parallel — the 13 sequential hook suspensions below
+// would otherwise waterfall on first load
+PACK_CLIP_NAMES.forEach((n) => useGLTF.preload(`${ASSET_BASE}/${n}.glb`))
+AVATARS.filter((a) => a.clipSource === 'pack').forEach((a) => useGLTF.preload(a.modelUrl))
 
 function PackAvatar({ avatar, visible, position, rotation, velocity, moveType }) {
   const { scene: characterScene } = useGLTF(avatar.modelUrl)
@@ -183,33 +189,37 @@ function PackAvatar({ avatar, visible, position, rotation, velocity, moveType })
 function EmbeddedAvatar({ avatar, visible, position, rotation, velocity, moveType }) {
   const { scene: characterScene, animations } = useGLTF(avatar.modelUrl)
 
-  const clips = useMemo(() => {
+  const { clips, oneShotNames } = useMemo(() => {
     const idle = findClip(animations, 'Idle_Neutral') || findClip(animations, 'Idle')
     const walk = findClip(animations, 'Walk')
     const run = findClip(animations, 'Run')
-    const jump = findClip(animations, 'Jump') || idle
+    const jump = findClip(animations, 'Jump')
     const walkback = findClip(animations, 'Walk_Back') || findClip(animations, 'Run_Back') || walk
     const left = findClip(animations, 'Run_Left') || walk
     const right = findClip(animations, 'Run_Right') || walk
 
     return {
-      idle,
-      walk,
-      run,
-      jump,
-      walkback,
-      strafe: left,
-      straferight: right,
-      straferunleft: left,
-      straferunright: right,
-      turnleft: idle,
-      turnright: idle,
-      turnleft90: idle,
-      turnright90: idle
+      clips: {
+        idle,
+        walk,
+        run,
+        jump: jump || idle,
+        walkback,
+        strafe: left,
+        straferight: right,
+        straferunleft: left,
+        straferunright: right,
+        turnleft: idle,
+        turnright: idle,
+        turnleft90: idle,
+        turnright90: idle
+      },
+      // A real jump clip plays once and clamps; the idle fallback must keep looping
+      oneShotNames: jump ? ['jump'] : undefined
     }
   }, [animations])
 
-  const modelScale = useAvatarAnimation({ characterScene, clips, visible, velocity, moveType })
+  const modelScale = useAvatarAnimation({ characterScene, clips, visible, velocity, moveType, oneShotNames })
 
   return <AvatarGroup visible={visible} position={position} rotation={rotation} modelScale={modelScale} characterScene={characterScene} />
 }

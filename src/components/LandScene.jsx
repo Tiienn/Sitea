@@ -63,6 +63,7 @@ import {
 // Import extracted components
 import { RealisticSky, NightStars, EnhancedGround, MountainSilhouettes, ScatteredTrees, GroundFoliage, DistantTreeline } from './scene/SceneEnvironment'
 import { AnimatedPlayerMesh } from './scene/AnimatedPlayerMesh'
+import { useAvatar } from '../constants/avatars'
 import { NPCCharacter } from './scene/NPCCharacter'
 import { GridOverlay, CADDotGrid, PreviewDimensionLabel } from './scene/GridComponents'
 import { CameraController } from './scene/CameraController'
@@ -101,6 +102,19 @@ class SilentErrorBoundary extends Component {
   static getDerivedStateFromError() { return { hasError: true } }
   componentDidCatch(error) { console.error('[PlayerMesh] Failed to load:', error.message) }
   render() { return this.state.hasError ? null : this.props.children }
+}
+
+// Keyed by avatar id so a failed model load doesn't permanently hide the
+// player after switching to a healthy registry entry
+function PlayerMeshWithBoundary(props) {
+  const avatar = useAvatar()
+  return (
+    <SilentErrorBoundary key={avatar.id}>
+      <Suspense fallback={null}>
+        <AnimatedPlayerMesh {...props} />
+      </Suspense>
+    </SilentErrorBoundary>
+  )
 }
 
 // Error boundary for 3D canvas - prevents crashes from taking down the whole app
@@ -4006,17 +4020,13 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
       )}
 
       {/* Animated player mesh (visible in TP mode only, hidden in orbit and 2D) */}
-      <SilentErrorBoundary>
-        <Suspense fallback={null}>
-          <AnimatedPlayerMesh
-            visible={cameraMode === CAMERA_MODE.THIRD_PERSON && viewMode === 'firstPerson'}
-            position={playerState.position}
-            rotation={playerState.rotation}
-            velocity={playerState.velocity}
-            moveType={playerState.moveType}
-          />
-        </Suspense>
-      </SilentErrorBoundary>
+      <PlayerMeshWithBoundary
+        visible={cameraMode === CAMERA_MODE.THIRD_PERSON && viewMode === 'firstPerson'}
+        position={playerState.position}
+        rotation={playerState.rotation}
+        velocity={playerState.velocity}
+        moveType={playerState.moveType}
+      />
 
       {/* 2D mode: Player position marker (shows where player will spawn on mode switch) */}
       {viewMode === '2d' && (

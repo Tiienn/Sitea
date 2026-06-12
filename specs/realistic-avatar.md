@@ -110,3 +110,10 @@ Verdict: approved
 - [minor] src/components/scene/AnimatedPlayerMesh.jsx:186 — EmbeddedAvatar maps a found `Jump` clip without LoopOnce/clampWhenFinished, so a future embedded avatar with a real jump clip would loop it mid-air. Pass one-shot names for the embedded path when a true jump clip exists.
 - [minor] scripts/qa-shot-server.mjs:14 — `name` from the query string is unsanitized; `..%2F` escapes the output dir. Dev-only and manually started, but `name.replace(/[^\w-]/g, '_')` closes it.
 - [minor] src/App.jsx Avatar segment — three+ entries or long labels make the segment cramped (visible in the QA screenshot with 3 test entries); at >2 entries switch the row to the `select-premium` pattern used by Quality.
+
+### Fixes applied — 2026-06-12 (post-review, user-approved)
+Findings 1–4 fixed and verified in-browser (finding 5 deferred — switching to a select at >2 entries would contradict the spec's one-tap switching and is unreachable in v1):
+1. `PlayerMeshWithBoundary` in LandScene keys the SilentErrorBoundary by avatar id — verified live: broken avatar → boundary trips → switch back to Site visitor → player returns with no reload (`review-fix-recovered-after-switch.jpg`).
+2. `useGLTF.preload` for the pack clips + pack model URLs — verified: all 14 GLB fetches now start within 1 ms and complete in ~0.7 s (previously a sequential suspension waterfall).
+3. EmbeddedAvatar applies LoopOnce/clampWhenFinished to a real `Jump` clip (idle fallback still loops).
+4. qa-shot-server sanitizes the `name` query param to `[\w-]`.
