@@ -639,12 +639,21 @@ export function CameraController({
           const tracker = walkTrackerRef.current
           footSideRef.current = -footSideRef.current
           const side = footSideRef.current
-          const yaw = playerYaw.current
+          // Prints point along the actual direction of travel (sideways
+          // prints when strafing) — except pure backpedal, where real feet
+          // keep facing forward while the path goes backward
+          const jx = joystickInput?.current?.x || 0
+          const jy = joystickInput?.current?.y || 0
+          const backOnly = (moveState.current.backward || jy < -0.1) &&
+            !(moveState.current.forward || jy > 0.1) &&
+            !(moveState.current.left || jx < -0.1) &&
+            !(moveState.current.right || jx > 0.1)
+          const heading = backOnly ? playerYaw.current : Math.atan2(-direction.x, -direction.z)
           tracker.points.push({
-            x: playerPosition.current.x + Math.cos(yaw) * 0.1 * side,
+            x: playerPosition.current.x + Math.cos(heading) * 0.1 * side,
             y: playerPosition.current.y - PLAYER_HEIGHT,
-            z: playerPosition.current.z - Math.sin(yaw) * 0.1 * side,
-            yaw,
+            z: playerPosition.current.z - Math.sin(heading) * 0.1 * side,
+            heading,
             side,
             t: state.clock.elapsedTime
           })

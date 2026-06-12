@@ -52,7 +52,7 @@ function makeFootprintMaterial() {
 }
 
 // Trail of footprints where the player has walked. CameraController stamps
-// a point per footstep (position, yaw, foot side, time); each print holds
+// a point per footstep (position, heading, foot side, time); each print holds
 // at full opacity for FADE_START seconds, fades out by LIFETIME (oldest
 // first, since fade follows each print's own age), then is pruned.
 export function BreadcrumbTrail({ walkTrackerRef }) {
@@ -92,7 +92,7 @@ export function BreadcrumbTrail({ walkTrackerRef }) {
         : 1
       alphaAttr.setX(i, alpha)
       dummy.position.set(p.x, p.y + 0.03, p.z)
-      dummy.rotation.set(0, (p.yaw ?? 0) - (p.side ?? 1) * TOE_OUT, 0)
+      dummy.rotation.set(0, (p.heading ?? 0) - (p.side ?? 1) * TOE_OUT, 0)
       dummy.updateMatrix()
       mesh.setMatrixAt(i, dummy.matrix)
     }
