@@ -3581,6 +3581,7 @@ function Scene({ length, width, isExploring, comparisonObjects = [], polygonPoin
               width: openingWidth,
               height: openingHeight,
               sillHeight,
+              ...(isDoor && { doorType }), // single/double/sliding/garage
             }
             addOpeningToWall?.(wallId, opening)
           }}
