@@ -1,10 +1,17 @@
 # Full Sitea Discovery, Product Questions, and Linear Issue Plan
 
 ## Active Plan: Realistic footprints (user request, approved 2026-06-12: 25 s lifetime)
-- [ ] CameraController: drop footprint crumbs at the exact stride moments where `playFootstep` fires (0.72 m walk / 1.05 m run — audio + step counter + prints share one cadence); crumb = `{x, y, z, yaw, side ±1 alternating, t: clock.elapsedTime}`, offset ±0.10 m along camera-right; remove the old every-0.6 m dot logic (`lastCrumbRef`); keep `tracker.distance` accumulation as-is
-- [ ] BreadcrumbTrail: shoe-sole ShapeGeometry (front pad + heel ellipses, ~0.26 m long), dark pressed-earth color, oriented to `yaw` with ~7° toe-out per side; per-frame matrix pass ages each print — full size to 20 s, shrink to 0 by 25 s — and prunes expired points; reuse one Object3D dummy (no per-frame allocations); single InstancedMesh as before
-- [ ] Verify in browser: prints alternate L/R along a curved walk, oriented with heading, run cadence wider; wait past 25 s → prints gone; jump leaves a gap; 0 console errors; eslint + build
-- [ ] Review section + commit + push
+- [x] CameraController: drop footprint crumbs at the exact stride moments where `playFootstep` fires (0.72 m walk / 1.05 m run — audio + step counter + prints share one cadence); crumb = `{x, y, z, yaw, side ±1 alternating, t: clock.elapsedTime}`, offset ±0.10 m along camera-right; remove the old every-0.6 m dot logic (`lastCrumbRef`); keep `tracker.distance` accumulation as-is
+- [x] BreadcrumbTrail: shoe-sole ShapeGeometry (front pad + heel ellipses, ~0.26 m long), dark pressed-earth color, oriented to `yaw` with ~7° toe-out per side; per-frame matrix pass ages each print — full size to 20 s, shrink to 0 by 25 s — and prunes expired points; reuse one Object3D dummy (no per-frame allocations); single InstancedMesh as before
+- [x] Verify in browser: prints alternate L/R along a curved walk, oriented with heading, run cadence wider; wait past 25 s → prints gone; jump leaves a gap; 0 console errors; eslint + build
+- [x] Review section + commit + push
+
+### Realistic footprints Review
+- Shipped in `90937d0`: the teal breadcrumb dots are now shoe-sole footprints (front pad + heel ellipses, ~0.26 m, pressed-earth brown at 0.4 opacity) stamped at the exact stride moments the footstep sound fires, so audio, the step counter, and prints share one cadence — walking lays prints every 0.72 m, running every 1.05 m. Feet alternate ±0.10 m either side of the path with ~7° toe-out, oriented to the walking heading (correct for backpedal/strafe too, since the body keeps facing the camera direction).
+- Timed disappearance: each print holds full size for 20 s, shrinks to nothing by 25 s, and is pruned from the array. Per-instance opacity isn't possible with the instanced basic material, so the dissolve is a scale-down — verified gradual in browser (footprints-age-0s / -22s-shrinking / -26s-gone screenshots).
+- Perf unchanged: still one InstancedMesh (500 cap), one reused Object3D for matrix writes; the per-frame pass replaces the old version-gated one because ages change continuously.
+- `tracker.points` had no other consumers (HUD steps derive from `tracker.distance`), so the crumb format change is contained to CameraController + BreadcrumbTrail.
+- eslint 0 errors, build passes, 0 console errors in browser QA; screenshots in tasks/screenshots/realistic-avatar/footprints-*.jpg.
 
 ## Active Plan: Realistic avatar (specs/realistic-avatar.md)
 - [x] Avatar registry: new src/constants/avatars.js — `AVATARS` array (first entry: `visitor` / "Site visitor" / `<SUPABASE>/character.glb` / `clipSource: 'pack'`), `getSelectedAvatar()` with localStorage `siteaAvatar` + stale-id fallback to first entry, `setSelectedAvatar(id)`, and a tiny `useAvatar()` hook (useSyncExternalStore on a custom event) so App and the mesh stay in sync without threading props through Scene's giant signature
